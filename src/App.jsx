@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './lib/auth'
 import { ToastProvider } from './lib/toast'
 import Sidebar from './components/Sidebar'
 import LoginPage from './pages/LoginPage'
+import RegisterPage from './pages/RegisterPage'
 import NoCompanyPage from './pages/NoCompanyPage'
 import DashboardPage from './pages/DashboardPage'
 import ProfilePage from './pages/ProfilePage'
@@ -15,6 +16,9 @@ import SettingsPage from './pages/SettingsPage'
 function Portal() {
   const { user, company, loading } = useAuth()
   const [activePage, setActivePage] = useState('dashboard')
+  const [showRegister, setShowRegister] = useState(false)
+
+  if (showRegister) return <RegisterPage onBack={() => setShowRegister(false)} />
 
   if (loading) {
     return (
@@ -35,7 +39,7 @@ function Portal() {
     )
   }
 
-  if (!user) return <LoginPage />
+  if (!user) return <LoginPage onRegister={() => setShowRegister(true)} />
   if (!company) return <NoCompanyPage />
 
   const pages = {
