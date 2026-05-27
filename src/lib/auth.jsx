@@ -29,7 +29,7 @@ export function AuthProvider({ children }) {
       const { data } = await supabase
         .from('companies')
         .select('*')
-        .eq('owner_id', userId)
+        .eq('owner_email', user?.email)
         .single()
       setCompany(data || null)
     } catch (e) {
