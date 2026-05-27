@@ -11,25 +11,25 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
-      if (session?.user) fetchCompany(session.user.id)
+      if (session?.user) fetchCompany(session.user.email)
       else setLoading(false)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
-      if (session?.user) fetchCompany(session.user.id)
+      if (session?.user) fetchCompany(session.user.email)
       else { setCompany(null); setLoading(false) }
     })
 
     return () => subscription.unsubscribe()
   }, [])
 
-  async function fetchCompany(userId) {
+  async function fetchCompany(email) {
     try {
       const { data } = await supabase
         .from('companies')
         .select('*')
-        .eq('owner_email', user?.email)
+        .eq('owner_email', email)
         .single()
       setCompany(data || null)
     } catch (e) {
@@ -54,7 +54,7 @@ export function AuthProvider({ children }) {
   }
 
   async function refreshCompany() {
-    if (user) await fetchCompany(user.id)
+    if (user) await fetchCompany(user.email)
   }
 
   return (
