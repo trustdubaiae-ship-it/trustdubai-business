@@ -95,8 +95,8 @@ export default function LoginPage({ onRegister }) {
       {/* Right — login card */}
       <div style={{
         width: 440, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: 40, position: 'relative'
-      }}>
+        padding: 40, position: 'relative', overflowY: 'auto'
+              }}>
         <div style={{
           width: '100%', maxWidth: 380,
           background: 'rgba(255,255,255,0.04)',
