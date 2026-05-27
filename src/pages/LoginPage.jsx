@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from '../lib/auth'
 
-export default function LoginPage() {
+export default function LoginPage({ onRegister }) {
   const { signInWithGoogle } = useAuth()
   const [loading, setLoading] = useState(false)
 
@@ -152,7 +152,22 @@ export default function LoginPage() {
 
           <p style={{ fontSize: 11.5, color: '#4a4f55', textAlign: 'center', marginTop: 24, lineHeight: 1.7 }}>
             By signing in, you agree to TrustDubai's Terms of Service and Privacy Policy.
-          </p>
+          </p><div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: 24, paddingTop: 20, textAlign: 'center' }}>
+            <p style={{ fontSize: 13, color: '#6e7681', marginBottom: 12 }}>New to TrustDubai?</p>
+            <button
+              onClick={onRegister}
+              style={{
+                width: '100%', padding: '12px 20px',
+                background: 'transparent',
+                border: '1px solid rgba(232,184,75,0.3)',
+                borderRadius: 10, cursor: 'pointer',
+                fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600,
+                color: '#e8b84b'
+              }}
+            >
+              🏢 Register Your Business
+            </button>
+          </div>
         </div>
       </div>
     </div>
