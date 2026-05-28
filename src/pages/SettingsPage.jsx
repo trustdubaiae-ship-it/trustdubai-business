@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useAuth } from '../lib/auth'
 import { useToast } from '../lib/toast'
 import { supabase } from '../lib/supabase'
-import { Upload, AlertTriangle } from 'lucide-react'
+import { Upload } from 'lucide-react'
 
 export default function SettingsPage() {
   const { company, refreshCompany, signOut } = useAuth()
@@ -15,6 +15,18 @@ export default function SettingsPage() {
   })
   const [saving, setSaving] = useState(false)
   const [uploadingLicense, setUploadingLicense] = useState(false)
+  const [slug, setSlug] = useState(company?.slug || '')
+  const [slugStatus, setSlugStatus] = useState(null)
+  const [savingSlug, setSavingSlug] = useState(false)
+
+  // Check if within 30 days of registration
+  const registeredAt = company?.created_at ? new Date(company.created_at) : null
+  const daysSinceRegistration = registeredAt
+    ? Math.floor((new Date() - registeredAt) / (1000 * 60 * 60 * 24))
+    : 999
+  const canChangeSlug = daysSinceRegistration <= 30
+  const daysLeft = Math.max(0, 30 - daysSinceRegistration)
+  const slugLocked = company?.slug && !canChangeSlug
 
   async function saveNotifications() {
     setSaving(true)
@@ -56,9 +68,60 @@ export default function SettingsPage() {
     }
   }
 
+  function formatSlug(val) {
+    return val.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/--+/g, '-').replace(/^-|-$/g, '')
+  }
+
+  async function checkSlug(val) {
+    if (slugLocked) return
+    const formatted = formatSlug(val)
+    setSlug(formatted)
+    if (!formatted || formatted === company?.slug) { setSlugStatus(null); return }
+    if (formatted.length < 3) { setSlugStatus('short'); return }
+    setSlugStatus('checking')
+    const { data } = await supabase
+      .from('companies')
+      .select('id')
+      .eq('slug', formatted)
+      .neq('id', company.id)
+      .single()
+    setSlugStatus(data ? 'taken' : 'available')
+  }
+
+  async function saveSlug() {
+    if (slugStatus !== 'available' || slugLocked) return
+    setSavingSlug(true)
+    try {
+      await supabase.from('companies').update({ slug }).eq('id', company.id)
+      await refreshCompany()
+      setSlugStatus('saved')
+      toast.success('Username saved!')
+    } catch (e) {
+      toast.error('Could not save username')
+    } finally {
+      setSavingSlug(false)
+    }
+  }
+
   const Toggle = ({ on, onChange }) => (
     <button className={`toggle ${on ? 'on' : ''}`} onClick={() => onChange(!on)} />
   )
+
+  const slugStatusColor = {
+    checking: '#f59e0b',
+    available: '#10b981',
+    taken: '#ef4444',
+    saved: '#10b981',
+    short: '#f59e0b',
+  }
+
+  const slugStatusText = {
+    checking: 'Checking availability...',
+    available: '✓ Available — click Save to confirm',
+    taken: '✗ Already taken — try another',
+    saved: '✓ Saved successfully',
+    short: 'Minimum 3 characters required',
+  }
 
   return (
     <div className="page-content animate-in">
@@ -95,20 +158,100 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* Verification */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+          {/* Username / Profile URL */}
+          <div className="card">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <div className="card-title">Profile Username</div>
+              {slugLocked ? (
+                <span style={{ fontSize: 11, background: 'rgba(239,68,68,0.1)', color: '#ef4444', padding: '2px 8px', borderRadius: 99, fontWeight: 500 }}>🔒 Locked</span>
+              ) : (
+                <span style={{ fontSize: 11, background: 'rgba(16,185,129,0.1)', color: '#10b981', padding: '2px 8px', borderRadius: 99, fontWeight: 500 }}>
+                  {daysLeft} days left to change
+                </span>
+              )}
+            </div>
+
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 14, lineHeight: 1.6 }}>
+              Your public profile URL:<br />
+              <strong style={{ color: '#03C1F5' }}>trustdubai.ae/company/{slug || 'your-username'}</strong>
+            </div>
+
+            {slugLocked ? (
+              <div>
+                <div style={{
+                  display: 'flex', alignItems: 'center', border: '1px solid var(--card-border)',
+                  borderRadius: 8, overflow: 'hidden', opacity: 0.7
+                }}>
+                  <span style={{ padding: '9px 10px', background: 'var(--bg-secondary)', fontSize: 12, color: 'var(--text-muted)', borderRight: '1px solid var(--card-border)', whiteSpace: 'nowrap' }}>
+                    trustdubai.ae/company/
+                  </span>
+                  <span style={{ flex: 1, padding: '9px 10px', fontSize: 13, color: 'var(--text-primary)' }}>
+                    {company?.slug}
+                  </span>
+                  <span style={{ padding: '9px 10px', fontSize: 16 }}>🔒</span>
+                </div>
+                <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)' }}>
+                  Username is permanently locked. To request a change, contact{' '}
+                  <a href="mailto:hello@trustdubai.ae?subject=Username change request" style={{ color: '#03C1F5' }}>
+                    hello@trustdubai.ae
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--card-border)', borderRadius: 8, overflow: 'hidden' }}>
+                      <span style={{ padding: '9px 10px', background: 'var(--bg-secondary)', fontSize: 12, color: 'var(--text-muted)', borderRight: '1px solid var(--card-border)', whiteSpace: 'nowrap' }}>
+                        trustdubai.ae/company/
+                      </span>
+                      <input
+                        value={slug}
+                        onChange={e => checkSlug(e.target.value)}
+                        placeholder="your-company"
+                        style={{ flex: 1, border: 'none', outline: 'none', padding: '9px 10px', fontSize: 13, background: 'transparent' }}
+                      />
+                    </div>
+                    {slugStatus && (
+                      <div style={{ fontSize: 12, color: slugStatusColor[slugStatus], marginTop: 5 }}>
+                        {slugStatusText[slugStatus]}
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={saveSlug}
+                    disabled={slugStatus !== 'available' || savingSlug}
+                    style={{ whiteSpace: 'nowrap', marginTop: 1 }}
+                  >
+                    {savingSlug ? 'Saving...' : 'Save'}
+                  </button>
+                </div>
+                <div style={{ marginTop: 10, padding: '8px 12px', background: 'rgba(245,158,11,0.06)', borderRadius: 8, border: '1px solid rgba(245,158,11,0.2)' }}>
+                  <div style={{ fontSize: 12, color: '#92400e' }}>
+                    ⚠️ You have <strong>{daysLeft} days</strong> to set or change your username. After that it will be permanently locked.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div style={{ marginTop: 12, padding: '8px 12px', background: 'rgba(3,193,245,0.06)', borderRadius: 8, border: '1px solid rgba(3,193,245,0.15)' }}>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                🔒 <strong>Public profile page</strong> activation coming soon with paid plans. Reserve your username now for free.
+              </div>
+            </div>
+          </div>
+
+          {/* Verification */}
           <div className="card">
             <div className="card-title" style={{ marginBottom: 6 }}>Trade License Verification</div>
             <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.6 }}>
-              Submit your UAE trade license to get the <strong>Verified Business</strong> badge on your profile — builds trust and improves ranking.
+              Submit your UAE trade license to get the <strong>Verified Business</strong> badge on your profile.
             </div>
-
             {company?.trade_license_verified ? (
-              <div style={{
-                background: 'var(--green-light)', border: '1px solid rgba(16,185,129,0.2)',
-                borderRadius: 8, padding: '12px 14px',
-                display: 'flex', gap: 10, alignItems: 'center'
-              }}>
+              <div style={{ background: 'var(--green-light)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 8, padding: '12px 14px', display: 'flex', gap: 10, alignItems: 'center' }}>
                 <span style={{ fontSize: 18 }}>✅</span>
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 13.5, color: '#065f46' }}>Trade License Verified</div>
@@ -116,11 +259,7 @@ export default function SettingsPage() {
                 </div>
               </div>
             ) : company?.trade_license_pending ? (
-              <div style={{
-                background: 'var(--amber-light)', border: '1px solid rgba(245,158,11,0.2)',
-                borderRadius: 8, padding: '12px 14px',
-                display: 'flex', gap: 10, alignItems: 'center'
-              }}>
+              <div style={{ background: 'var(--amber-light)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 8, padding: '12px 14px', display: 'flex', gap: 10, alignItems: 'center' }}>
                 <span style={{ fontSize: 18 }}>⏳</span>
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 13.5, color: '#92400e' }}>Under Review</div>
@@ -148,7 +287,7 @@ export default function SettingsPage() {
             )}
           </div>
 
-          {/* Account info */}
+          {/* Account Info */}
           <div className="card">
             <div className="card-title" style={{ marginBottom: 14 }}>Account Info</div>
             {[
@@ -156,37 +295,25 @@ export default function SettingsPage() {
               { label: 'Registered On', value: company?.created_at ? new Date(company.created_at).toLocaleDateString('en-AE') : '—' },
               { label: 'Current Plan', value: (company?.plan || 'free').charAt(0).toUpperCase() + (company?.plan || 'free').slice(1) },
             ].map(({ label, value }) => (
-              <div key={label} style={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                padding: '10px 0', borderBottom: '1px solid var(--card-border)',
-                fontSize: 13.5
-              }}>
+              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--card-border)', fontSize: 13.5 }}>
                 <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
                 <span style={{ fontWeight: 500 }}>{value}</span>
               </div>
             ))}
+            <div style={{ marginTop: 16 }}>
+              <button className="btn btn-ghost btn-sm" onClick={signOut}>Sign Out</button>
+            </div>
           </div>
 
-          {/* Danger zone */}
-          <div className="card" style={{ border: '1px solid rgba(239,68,68,0.2)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-              <AlertTriangle size={16} color="var(--red)" />
-              <div className="card-title" style={{ color: 'var(--red)' }}>Danger Zone</div>
-            </div>
-            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 14 }}>
-              Signing out will end your session. Contact TrustDubai support to deactivate or delete your account.
-            </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button className="btn btn-danger btn-sm" onClick={signOut}>Sign Out</button>
-              <a
-                href="mailto:hello@trustdubai.ae?subject=Account deletion request"
-                className="btn btn-ghost btn-sm"
-                style={{ textDecoration: 'none', color: 'var(--red)' }}
-              >
-                Request Deletion
-              </a>
+          {/* Policy Note */}
+          <div className="card" style={{ border: '1px solid rgba(3,193,245,0.2)', background: 'rgba(3,193,245,0.04)' }}>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+              <strong style={{ color: 'var(--text-primary)' }}>Our Platform Policy</strong><br />
+              TrustDubai is built on trust and transparency. Once registered, your company profile remains permanent — your reputation is built through customer reviews.<br /><br />
+              Contact us at <a href="mailto:hello@trustdubai.ae" style={{ color: '#03C1F5' }}>hello@trustdubai.ae</a>
             </div>
           </div>
+
         </div>
       </div>
     </div>
