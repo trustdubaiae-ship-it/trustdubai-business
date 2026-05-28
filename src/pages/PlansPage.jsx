@@ -26,12 +26,12 @@ const PLANS = [
     ]
   },
   {
-    id: 'basic',
-    name: 'Basic',
+    id: 'silver',
+    name: 'Silver',
     icon: Zap,
     price: 299,
     period: '/month',
-    color: '#3b82f6',
+    color: '#94a3b8',
     description: 'Grow your presence',
     features: [
       { text: 'Everything in Free', included: true },
@@ -47,8 +47,8 @@ const PLANS = [
     ]
   },
   {
-    id: 'premium',
-    name: 'Premium',
+    id: 'gold',
+    name: 'Gold',
     icon: Crown,
     price: 699,
     period: '/month',
@@ -56,28 +56,28 @@ const PLANS = [
     description: 'Dominate your category',
     featured: true,
     features: [
-      { text: 'Everything in Basic', included: true },
+      { text: 'Everything in Silver', included: true },
       { text: 'Unlimited portfolio photos', included: true },
       { text: 'Priority search ranking', included: true },
       { text: 'Featured on TrustDubai homepage', included: true },
       { text: 'WhatsApp lead alerts', included: true },
       { text: 'Competitor insights', included: true },
-      { text: 'Premium badge (gold)', included: true },
+      { text: 'Gold badge', included: true },
       { text: 'Dedicated account manager', included: true },
       { text: 'Monthly performance report', included: true },
       { text: 'Custom profile URL', included: true },
     ]
   },
   {
-    id: 'enterprise',
-    name: 'Enterprise',
+    id: 'platinum',
+    name: 'Platinum',
     icon: Building2,
     price: null,
     period: '',
     color: '#8b5cf6',
     description: 'For large businesses',
     features: [
-      { text: 'Everything in Premium', included: true },
+      { text: 'Everything in Gold', included: true },
       { text: 'Multiple branches/locations', included: true },
       { text: 'Custom integration', included: true },
       { text: 'API access', included: true },
@@ -91,6 +91,8 @@ const PLANS = [
   }
 ]
 
+const PLAN_ORDER = ['free', 'silver', 'gold', 'platinum']
+
 export default function PlansPage() {
   const { company } = useAuth()
   const toast = useToast()
@@ -99,7 +101,7 @@ export default function PlansPage() {
 
   function handleUpgrade(planId) {
     if (planId === currentPlan) return
-    if (planId === 'enterprise') {
+    if (planId === 'platinum') {
       toast.info('Our team will contact you shortly!')
       return
     }
@@ -171,7 +173,6 @@ export default function PlansPage() {
         {PLANS.map(plan => {
           const Icon = plan.icon
           const isCurrent = plan.id === currentPlan
-          const isHigher = ['free','basic','premium','enterprise'].indexOf(plan.id) > ['free','basic','premium','enterprise'].indexOf(currentPlan)
           const displayPrice = plan.price !== null
             ? Math.round(plan.price * discount)
             : null
@@ -239,7 +240,7 @@ export default function PlansPage() {
                 onClick={() => handleUpgrade(plan.id)}
                 disabled={isCurrent}
               >
-                {isCurrent ? '✓ Current Plan' : plan.id === 'enterprise' ? 'Contact Sales' : `Upgrade to ${plan.name}`}
+                {isCurrent ? '✓ Current Plan' : plan.id === 'platinum' ? 'Contact Sales' : `Upgrade to ${plan.name}`}
               </button>
             </div>
           )
@@ -260,7 +261,7 @@ export default function PlansPage() {
             Contact our team on WhatsApp for guidance and payment support
           </div>
         </div>
-        <a
+        
           href="https://wa.me/971503856786?text=Hi, I'd like to upgrade my TrustDubai plan"
           target="_blank" rel="noopener noreferrer"
           className="btn btn-primary btn-sm"
