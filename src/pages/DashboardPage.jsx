@@ -16,6 +16,27 @@ export default function DashboardPage({ onNavigate }) {
   const [recentReviews, setRecentReviews] = useState([])
   const [memberCount, setMemberCount] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [clock, setClock] = useState('')
+
+  useEffect(() => {
+    function updateClock() {
+      const now = new Date()
+      const dubai = now.toLocaleString('en-AE', {
+        timeZone: 'Asia/Dubai',
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
+      })
+      setClock(dubai)
+    }
+    updateClock()
+    const interval = setInterval(updateClock, 1000)
+    return () => clearInterval(interval)
+  }, [])
 
   useEffect(() => {
     if (company) fetchStats()
@@ -78,18 +99,31 @@ export default function DashboardPage({ onNavigate }) {
     <div className="page-content animate-in">
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
-        <h1 className="font-syne fw-700" style={{ fontSize: 24, marginBottom: 4 }}>
-          Welcome back{company?.name ? `, ${company.name.split(' ')[0]}` : ''}! 👋
-        </h1>
-        <p className="text-secondary" style={{ fontSize: 14 }}>
-          Here's how your business is performing on TrustDubai.
-        </p>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+          <div>
+            <h1 className="font-syne fw-700" style={{ fontSize: 24, marginBottom: 4 }}>
+              Welcome back{company?.name ? `, ${company.name.split(' ')[0]}` : ''}! 👋
+            </h1>
+            <p className="text-secondary" style={{ fontSize: 14 }}>
+              Here's how your business is performing on TrustDubai.
+            </p>
+          </div>
+          {clock && (
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              background: 'var(--bg)', border: '1px solid var(--card-border)',
+              borderRadius: 8, padding: '6px 14px',
+              fontSize: 13, color: 'var(--text-secondary)',
+              fontVariantNumeric: 'tabular-nums'
+            }}>
+              🕐 {clock} <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>Dubai</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Plan + Members Card */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
-
-        {/* Current Plan Card */}
         <div style={{
           background: planConfig.bg,
           border: `1px solid ${planConfig.color}30`,
@@ -111,28 +145,14 @@ export default function DashboardPage({ onNavigate }) {
               {currentPlan === 'free' ? 'Upgrade for more features' : 'Plan is active'}
             </div>
           </div>
-          <button
-            className="btn btn-sm btn-secondary"
-            onClick={() => onNavigate('plans')}
-            style={{ whiteSpace: 'nowrap' }}
-          >
+          <button className="btn btn-sm btn-secondary" onClick={() => onNavigate('plans')} style={{ whiteSpace: 'nowrap' }}>
             {currentPlan === 'free' ? 'Upgrade' : 'Manage'}
           </button>
         </div>
 
-        {/* Members Card */}
-        <div style={{
-          background: 'var(--card-bg)',
-          border: '1px solid var(--card-border)',
-          borderRadius: 'var(--radius)',
-          padding: '16px 20px',
-        }}>
+        <div style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 'var(--radius)', padding: '16px 20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-            <div style={{
-              width: 36, height: 36, borderRadius: 8,
-              background: '#eff6ff',
-              display: 'flex', alignItems: 'center', justifyContent: 'center'
-            }}>
+            <div style={{ width: 36, height: 36, borderRadius: 8, background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Users size={18} color="#3b82f6" />
             </div>
             <div>
@@ -145,8 +165,6 @@ export default function DashboardPage({ onNavigate }) {
               </div>
             </div>
           </div>
-
-          {/* Progress bar */}
           <div style={{ height: 6, background: 'var(--bg)', borderRadius: 99, overflow: 'hidden', marginBottom: 6 }}>
             <div style={{
               width: `${memberPct}%`, height: '100%',
@@ -157,10 +175,9 @@ export default function DashboardPage({ onNavigate }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)' }}>
             <span>{planConfig.name} plan limit</span>
             {memberPct >= 90 && currentPlan !== 'platinum' && (
-              <span
-                style={{ color: '#ef4444', cursor: 'pointer', fontWeight: 500 }}
-                onClick={() => onNavigate('plans')}
-              >Upgrade for more →</span>
+              <span style={{ color: '#ef4444', cursor: 'pointer', fontWeight: 500 }} onClick={() => onNavigate('plans')}>
+                Upgrade for more →
+              </span>
             )}
           </div>
         </div>
@@ -178,26 +195,13 @@ export default function DashboardPage({ onNavigate }) {
         }}>
           <AlertCircle size={20} color="var(--amber)" />
           <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 600, fontSize: 14, color: '#92400e' }}>
-              Profile {profileComplete}% complete
-            </div>
-            <div style={{ fontSize: 13, color: '#b45309', marginTop: 2 }}>
-              Complete your profile to get more visibility on TrustDubai
-            </div>
+            <div style={{ fontWeight: 600, fontSize: 14, color: '#92400e' }}>Profile {profileComplete}% complete</div>
+            <div style={{ fontSize: 13, color: '#b45309', marginTop: 2 }}>Complete your profile to get more visibility on TrustDubai</div>
           </div>
-          <div style={{
-            width: 120, height: 6, background: 'rgba(0,0,0,0.1)',
-            borderRadius: 99, overflow: 'hidden'
-          }}>
-            <div style={{
-              width: `${profileComplete}%`, height: '100%',
-              background: 'linear-gradient(90deg, #e8b84b, #c9952a)',
-              borderRadius: 99, transition: 'width 0.5s ease'
-            }} />
+          <div style={{ width: 120, height: 6, background: 'rgba(0,0,0,0.1)', borderRadius: 99, overflow: 'hidden' }}>
+            <div style={{ width: `${profileComplete}%`, height: '100%', background: 'linear-gradient(90deg, #e8b84b, #c9952a)', borderRadius: 99 }} />
           </div>
-          <button className="btn btn-sm btn-primary" onClick={() => onNavigate('profile')}>
-            Complete
-          </button>
+          <button className="btn btn-sm btn-primary" onClick={() => onNavigate('profile')}>Complete</button>
         </div>
       )}
 
@@ -237,16 +241,10 @@ export default function DashboardPage({ onNavigate }) {
                 display: 'flex', alignItems: 'center', gap: 10,
                 padding: '10px 12px',
                 background: done ? 'var(--green-light)' : 'var(--bg)',
-                borderRadius: 8,
-                cursor: done ? 'default' : 'pointer',
-                transition: 'all 0.15s'
+                borderRadius: 8, cursor: done ? 'default' : 'pointer',
               }} onClick={() => !done && onNavigate(page)}>
                 <CheckCircle size={16} color={done ? 'var(--green)' : '#d1d5db'} fill={done ? 'var(--green)' : 'none'} />
-                <span style={{
-                  fontSize: 13.5,
-                  color: done ? '#065f46' : 'var(--text-secondary)',
-                  flex: 1
-                }}>{label}</span>
+                <span style={{ fontSize: 13.5, color: done ? '#065f46' : 'var(--text-secondary)', flex: 1 }}>{label}</span>
                 {!done && <ArrowRight size={14} color="var(--text-muted)" />}
               </div>
             ))}
@@ -260,11 +258,8 @@ export default function DashboardPage({ onNavigate }) {
               <div className="card-title">Recent Reviews</div>
               <div className="card-subtitle">Latest customer feedback</div>
             </div>
-            <button className="btn btn-sm btn-secondary" onClick={() => onNavigate('reviews')}>
-              View All
-            </button>
+            <button className="btn btn-sm btn-secondary" onClick={() => onNavigate('reviews')}>View All</button>
           </div>
-
           {recentReviews.length === 0 ? (
             <div className="empty-state" style={{ padding: '30px 0' }}>
               <div className="empty-state-icon">⭐</div>
@@ -274,18 +269,13 @@ export default function DashboardPage({ onNavigate }) {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {recentReviews.map(review => (
-                <div key={review.id} style={{
-                  padding: 12, background: 'var(--bg)', borderRadius: 8,
-                  display: 'flex', flexDirection: 'column', gap: 6
-                }}>
+                <div key={review.id} style={{ padding: 12, background: 'var(--bg)', borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div className="review-avatar" style={{ width: 30, height: 30, fontSize: 12 }}>
                         {(review.reviewer_name || 'A')[0]}
                       </div>
-                      <span style={{ fontSize: 13, fontWeight: 600 }}>
-                        {review.reviewer_name || 'Anonymous'}
-                      </span>
+                      <span style={{ fontSize: 13, fontWeight: 600 }}>{review.reviewer_name || 'Anonymous'}</span>
                     </div>
                     <div className="stars">
                       {[1,2,3,4,5].map(s => (
