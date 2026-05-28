@@ -12,6 +12,7 @@ import PortfolioPage from './pages/PortfolioPage'
 import PlansPage from './pages/PlansPage'
 import AnalyticsPage from './pages/AnalyticsPage'
 import SettingsPage from './pages/SettingsPage'
+import LeadsPage from './pages/LeadsPage'
 
 function Portal() {
   const { user, company, loading } = useAuth()
@@ -43,23 +44,25 @@ function Portal() {
   if (!company) return <NoCompanyPage />
 
   const pages = {
-    dashboard: <DashboardPage onNavigate={setActivePage} />,
-    profile: <ProfilePage />,
-    reviews: <ReviewsPage />,
-    portfolio: <PortfolioPage />,
-    plans: <PlansPage />,
-    analytics: <AnalyticsPage onNavigate={setActivePage} />,
-    settings: <SettingsPage />,
+    dashboard:  <DashboardPage onNavigate={setActivePage} />,
+    profile:    <ProfilePage />,
+    reviews:    <ReviewsPage />,
+    portfolio:  <PortfolioPage />,
+    plans:      <PlansPage />,
+    analytics:  <AnalyticsPage onNavigate={setActivePage} />,
+    settings:   <SettingsPage />,
+    leads:      <LeadsPage />,
   }
 
   const pageTitles = {
-    dashboard: 'Dashboard',
-    profile: 'Company Profile',
-    reviews: 'Reviews',
-    portfolio: 'Portfolio',
-    plans: 'Plans & Billing',
-    analytics: 'Analytics',
-    settings: 'Settings',
+    dashboard:  'Dashboard',
+    profile:    'Company Profile',
+    reviews:    'Reviews',
+    portfolio:  'Portfolio',
+    plans:      'Plans & Billing',
+    analytics:  'Analytics',
+    settings:   'Settings',
+    leads:      'Lead Form',
   }
 
   return (
