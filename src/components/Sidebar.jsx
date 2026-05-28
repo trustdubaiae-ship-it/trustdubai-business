@@ -5,14 +5,14 @@ import {
 } from 'lucide-react'
 
 const navItems = [
-  { id: 'dashboard', label: 'Dashboard',       icon: LayoutDashboard },
-  { id: 'profile',   label: 'Company Profile',  icon: User },
-  { id: 'reviews',   label: 'Reviews',          icon: Star },
-  { id: 'portfolio', label: 'Portfolio',         icon: Image },
-  { id: 'leads',     label: 'Lead Form',         icon: MessageSquare },
-  { id: 'plans',     label: 'Plans & Billing',   icon: CreditCard },
-  { id: 'analytics', label: 'Analytics',         icon: BarChart2 },
-  { id: 'settings',  label: 'Settings',          icon: Settings },
+  { id: 'dashboard', label: 'Dashboard',      icon: LayoutDashboard },
+  { id: 'profile',   label: 'Company Profile', icon: User },
+  { id: 'reviews',   label: 'Reviews',         icon: Star },
+  { id: 'portfolio', label: 'Portfolio',        icon: Image },
+  { id: 'leads',     label: 'Lead Form',        icon: MessageSquare },
+  { id: 'plans',     label: 'Plans & Billing',  icon: CreditCard },
+  { id: 'analytics', label: 'Analytics',        icon: BarChart2 },
+  { id: 'settings',  label: 'Settings',         icon: Settings },
 ]
 
 const planColors = {
@@ -29,6 +29,10 @@ export default function Sidebar({ activePage, onNavigate }) {
   const initials = company?.name
     ? company.name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
     : '?'
+
+  const profileUrl = company?.slug
+    ? 'https://trustdubai.ae/' + company.slug
+    : 'https://trustdubai.ae'
 
   return (
     <aside className="sidebar">
@@ -73,15 +77,13 @@ export default function Sidebar({ activePage, onNavigate }) {
           </button>
         ))}
         <div className="nav-section-label" style={{ marginTop: 8 }}>Quick Links</div>
-        
-          href={company?.slug ? 'https://trustdubai.ae/' + company.slug : 'https://trustdubai.ae'}
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
           className="nav-item"
+          onClick={() => window.open(profileUrl, '_blank')}
         >
           <ExternalLink size={16} />
           View Public Profile
-        </a>
+        </button>
       </nav>
 
       <div className="sidebar-bottom">
