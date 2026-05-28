@@ -244,14 +244,12 @@ export default function PlansPage() {
             Contact our team on WhatsApp for guidance and payment support
           </div>
         </div>
-        
-          href="https://wa.me/971503856786?text=Hi, I'd like to upgrade my TrustDubai plan"
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
           className="btn btn-primary btn-sm"
+          onClick={() => window.open('https://wa.me/971503856786?text=Hi, I would like to upgrade my TrustDubai plan', '_blank')}
         >
           WhatsApp Us
-        </a>
+        </button>
       </div>
     </div>
   )
