@@ -1,12 +1,20 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
-import { Eye, Star, Image, TrendingUp, AlertCircle, CheckCircle, ArrowRight, Clock } from 'lucide-react'
+import { Eye, Star, Image, TrendingUp, AlertCircle, CheckCircle, ArrowRight, Clock, Users } from 'lucide-react'
+
+const PLAN_CONFIG = {
+  free:     { name: 'Free',     color: '#6b7280', bg: '#f9fafb', maxMembers: 2,   badge: '🆓' },
+  silver:   { name: 'Silver',   color: '#94a3b8', bg: '#f1f5f9', maxMembers: 5,   badge: '🥈' },
+  gold:     { name: 'Gold',     color: '#e8b84b', bg: '#fffdf7', maxMembers: 15,  badge: '🥇' },
+  platinum: { name: 'Platinum', color: '#8b5cf6', bg: '#faf5ff', maxMembers: 999, badge: '💎' },
+}
 
 export default function DashboardPage({ onNavigate }) {
   const { company } = useAuth()
   const [stats, setStats] = useState({ views: 0, reviews: 0, avgRating: 0, portfolio: 0 })
   const [recentReviews, setRecentReviews] = useState([])
+  const [memberCount, setMemberCount] = useState(0)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -15,9 +23,10 @@ export default function DashboardPage({ onNavigate }) {
 
   async function fetchStats() {
     try {
-      const [reviewsRes, portfolioRes] = await Promise.all([
+      const [reviewsRes, portfolioRes, membersRes] = await Promise.all([
         supabase.from('reviews').select('rating').eq('company_id', company.id),
-        supabase.from('portfolio_items').select('id').eq('company_id', company.id)
+        supabase.from('portfolio_items').select('id').eq('company_id', company.id),
+        supabase.from('employees').select('id').eq('current_company_id', company.id)
       ])
 
       const reviews = reviewsRes.data || []
@@ -31,8 +40,8 @@ export default function DashboardPage({ onNavigate }) {
         avgRating,
         portfolio: portfolioRes.data?.length || 0
       })
+      setMemberCount(membersRes.data?.length || 0)
 
-      // Fetch recent reviews
       const { data: recent } = await supabase
         .from('reviews')
         .select('*')
@@ -49,8 +58,9 @@ export default function DashboardPage({ onNavigate }) {
   }
 
   const profileComplete = calcProfileComplete(company)
+  const currentPlan = company?.plan || 'free'
+  const planConfig = PLAN_CONFIG[currentPlan] || PLAN_CONFIG.free
 
-  // Checklist
   const checklist = [
     { done: !!company?.name, label: 'Company name added', page: 'profile' },
     { done: !!company?.logo_url, label: 'Logo uploaded', page: 'profile' },
@@ -59,6 +69,10 @@ export default function DashboardPage({ onNavigate }) {
     { done: stats.portfolio > 0, label: 'Portfolio photo added', page: 'portfolio' },
     { done: stats.reviews > 0, label: 'First review received', page: 'reviews' },
   ]
+
+  const memberPct = planConfig.maxMembers === 999
+    ? 100
+    : Math.min(100, Math.round((memberCount / planConfig.maxMembers) * 100))
 
   return (
     <div className="page-content animate-in">
@@ -70,6 +84,86 @@ export default function DashboardPage({ onNavigate }) {
         <p className="text-secondary" style={{ fontSize: 14 }}>
           Here's how your business is performing on TrustDubai.
         </p>
+      </div>
+
+      {/* Plan + Members Card */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+
+        {/* Current Plan Card */}
+        <div style={{
+          background: planConfig.bg,
+          border: `1px solid ${planConfig.color}30`,
+          borderRadius: 'var(--radius)',
+          padding: '16px 20px',
+          display: 'flex', alignItems: 'center', gap: 14,
+        }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: 12,
+            background: `${planConfig.color}15`,
+            border: `1px solid ${planConfig.color}30`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 22
+          }}>{planConfig.badge}</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 2 }}>Current Plan</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: planConfig.color }}>{planConfig.name}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+              {currentPlan === 'free' ? 'Upgrade for more features' : 'Plan is active'}
+            </div>
+          </div>
+          <button
+            className="btn btn-sm btn-secondary"
+            onClick={() => onNavigate('plans')}
+            style={{ whiteSpace: 'nowrap' }}
+          >
+            {currentPlan === 'free' ? 'Upgrade' : 'Manage'}
+          </button>
+        </div>
+
+        {/* Members Card */}
+        <div style={{
+          background: 'var(--card-bg)',
+          border: '1px solid var(--card-border)',
+          borderRadius: 'var(--radius)',
+          padding: '16px 20px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: 8,
+              background: '#eff6ff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <Users size={18} color="#3b82f6" />
+            </div>
+            <div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Team Members</div>
+              <div style={{ fontSize: 18, fontWeight: 700 }}>
+                {loading ? '—' : memberCount}
+                <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 4 }}>
+                  / {planConfig.maxMembers === 999 ? '∞' : planConfig.maxMembers}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Progress bar */}
+          <div style={{ height: 6, background: 'var(--bg)', borderRadius: 99, overflow: 'hidden', marginBottom: 6 }}>
+            <div style={{
+              width: `${memberPct}%`, height: '100%',
+              background: memberPct >= 90 ? '#ef4444' : memberPct >= 70 ? '#f59e0b' : '#3b82f6',
+              borderRadius: 99, transition: 'width 0.5s ease'
+            }} />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)' }}>
+            <span>{planConfig.name} plan limit</span>
+            {memberPct >= 90 && currentPlan !== 'platinum' && (
+              <span
+                style={{ color: '#ef4444', cursor: 'pointer', fontWeight: 500 }}
+                onClick={() => onNavigate('plans')}
+              >Upgrade for more →</span>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Profile Completion Banner */}
@@ -151,7 +245,6 @@ export default function DashboardPage({ onNavigate }) {
                 <span style={{
                   fontSize: 13.5,
                   color: done ? '#065f46' : 'var(--text-secondary)',
-                  textDecoration: done ? 'none' : 'none',
                   flex: 1
                 }}>{label}</span>
                 {!done && <ArrowRight size={14} color="var(--text-muted)" />}
