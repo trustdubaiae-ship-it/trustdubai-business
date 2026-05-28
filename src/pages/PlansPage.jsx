@@ -91,8 +91,6 @@ const PLANS = [
   }
 ]
 
-const PLAN_ORDER = ['free', 'silver', 'gold', 'platinum']
-
 export default function PlansPage() {
   const { company } = useAuth()
   const toast = useToast()
@@ -117,7 +115,6 @@ export default function PlansPage() {
         <p className="text-secondary" style={{ fontSize: 14 }}>Choose the right plan to grow your business on TrustDubai</p>
       </div>
 
-      {/* Current plan banner */}
       <div style={{
         background: 'linear-gradient(135deg, #0d1117, #161b22)',
         border: '1px solid rgba(232,184,75,0.2)',
@@ -142,12 +139,9 @@ export default function PlansPage() {
             {currentPlan === 'free' ? 'Upgrade to unlock more visibility and features' : 'Your plan is active'}
           </div>
         </div>
-        <div style={{ fontSize: 12, color: '#6e7681' }}>
-          Next renewal: —
-        </div>
+        <div style={{ fontSize: 12, color: '#6e7681' }}>Next renewal: —</div>
       </div>
 
-      {/* Billing toggle */}
       <div style={{ display: 'flex', justifyContent: 'center', gap: 0, marginBottom: 28 }}>
         <button
           className={`btn ${billing === 'monthly' ? 'btn-primary' : 'btn-secondary'}`}
@@ -168,14 +162,11 @@ export default function PlansPage() {
         </button>
       </div>
 
-      {/* Plans grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
         {PLANS.map(plan => {
           const Icon = plan.icon
           const isCurrent = plan.id === currentPlan
-          const displayPrice = plan.price !== null
-            ? Math.round(plan.price * discount)
-            : null
+          const displayPrice = plan.price !== null ? Math.round(plan.price * discount) : null
 
           return (
             <div key={plan.id} className="plan-card" style={{
@@ -197,24 +188,21 @@ export default function PlansPage() {
                   <span className="badge badge-green">Current</span>
                 </div>
               )}
-
               <div style={{
                 width: 40, height: 40, borderRadius: 10,
-                background: `${plan.color}15`,
-                border: `1px solid ${plan.color}30`,
+                background: plan.color + '15',
+                border: '1px solid ' + plan.color + '30',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 marginBottom: 12
               }}>
                 <Icon size={18} color={plan.color} />
               </div>
-
               <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 16, marginBottom: 4 }}>
                 {plan.name}
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>
                 {plan.description}
               </div>
-
               <div className="plan-price" style={{ marginBottom: 16 }}>
                 {displayPrice !== null ? (
                   <>AED {displayPrice}<span>{plan.period}{billing === 'annual' ? ' (billed annually)' : ''}</span></>
@@ -222,32 +210,27 @@ export default function PlansPage() {
                   <>Custom<span> pricing</span></>
                 )}
               </div>
-
               <ul className="plan-features">
                 {plan.features.slice(0, 6).map(({ text, included }) => (
                   <li key={text} className={included ? 'included' : ''}>
-                    {included
-                      ? <Check size={14} color="var(--green)" />
-                      : <X size={14} color="#d1d5db" />}
+                    {included ? <Check size={14} color="var(--green)" /> : <X size={14} color="#d1d5db" />}
                     {text}
                   </li>
                 ))}
               </ul>
-
               <button
-                className={`btn ${isCurrent ? 'btn-secondary' : plan.featured ? 'btn-primary' : 'btn-secondary'}`}
+                className={'btn ' + (isCurrent ? 'btn-secondary' : plan.featured ? 'btn-primary' : 'btn-secondary')}
                 style={{ width: '100%', justifyContent: 'center', marginTop: 8 }}
                 onClick={() => handleUpgrade(plan.id)}
                 disabled={isCurrent}
               >
-                {isCurrent ? '✓ Current Plan' : plan.id === 'platinum' ? 'Contact Sales' : `Upgrade to ${plan.name}`}
+                {isCurrent ? '✓ Current Plan' : plan.id === 'platinum' ? 'Contact Sales' : 'Upgrade to ' + plan.name}
               </button>
             </div>
           )
         })}
       </div>
 
-      {/* Contact for billing */}
       <div style={{
         marginTop: 28, padding: '16px 20px',
         background: 'var(--bg)', border: '1px solid var(--card-border)',
@@ -263,7 +246,8 @@ export default function PlansPage() {
         </div>
         
           href="https://wa.me/971503856786?text=Hi, I'd like to upgrade my TrustDubai plan"
-          target="_blank" rel="noopener noreferrer"
+          target="_blank"
+          rel="noopener noreferrer"
           className="btn btn-primary btn-sm"
         >
           WhatsApp Us
