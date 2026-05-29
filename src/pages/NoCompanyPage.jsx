@@ -16,41 +16,51 @@ export default function NoCompanyPage() {
       }}>
         <div style={{
           width: 72, height: 72, borderRadius: 18,
-          background: 'var(--gold-light)',
-          border: '1px solid var(--gold-border)',
+          background: '#fef9ed',
+          border: '1px solid #fcd34d',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           margin: '0 auto 20px', fontSize: 32
-        }}>🏢</div>
+        }}>🔐</div>
 
-        <h2 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 22, marginBottom: 10 }}>
-          No Company Found
+        <h2 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 22, marginBottom: 10, color: '#111827' }}>
+          Access Not Authorized
         </h2>
+
         <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: 8 }}>
-          Your Google account <strong>{user?.email}</strong> is not linked to any company on TrustDubai.
+          The account <strong>{user?.email}</strong> is not authorized to access TrustDubai Business Portal.
         </p>
-        <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: 28 }}>
-          If your company is already listed, contact us and we'll link your account. New to TrustDubai? Submit your company for approval.
+
+        <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: 8 }}>
+          This portal is exclusively for registered businesses on TrustDubai. If you are a business owner, please contact us to get your account linked.
         </p>
+
+        <div style={{ background: '#f0fdf4', border: '1px solid #a7f3d0', borderRadius: 8, padding: '10px 14px', marginBottom: 24, fontSize: 13, color: '#065f46' }}>
+          💡 Looking to review a business or submit an inquiry? Visit <a href="https://trustdubai.ae" style={{ color: '#03C1F5', fontWeight: 600 }}>trustdubai.ae</a> instead.
+        </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <a
+          
             href="https://wa.me/971503856786?text=Hi, I'd like to get access to TrustDubai Business Portal for my company"
             target="_blank" rel="noopener noreferrer"
             className="btn btn-primary"
             style={{ justifyContent: 'center', textDecoration: 'none' }}
           >
-            📱 Request Access via WhatsApp
+            📱 Request Business Access
           </a>
-          <a
-            href="mailto:hello@trustdubai.ae?subject=Business Portal Access Request"
+          
+            href="https://trustdubai.ae"
             className="btn btn-secondary"
             style={{ justifyContent: 'center', textDecoration: 'none' }}
           >
-            ✉️ Email Us
+            🌐 Go to TrustDubai
           </a>
           <button className="btn btn-ghost" onClick={signOut} style={{ justifyContent: 'center' }}>
-            Sign Out
+            Sign Out & Try Different Account
           </button>
+        </div>
+
+        <div style={{ marginTop: 20, fontSize: 11, color: '#9ca3af' }}>
+          TrustDubai Business Portal · Authorized Access Only
         </div>
       </div>
     </div>
