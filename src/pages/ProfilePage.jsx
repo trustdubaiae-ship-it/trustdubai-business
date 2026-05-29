@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../lib/auth'
 import { useToast } from '../lib/toast'
 import { supabase } from '../lib/supabase'
-import { Camera, Save, Globe, Phone, Mail, MapPin, Tag } from 'lucide-react'
+import { Camera, Save, Globe, Phone, Mail, MapPin, Tag, AlertTriangle } from 'lucide-react'
 
 const CATEGORIES = [
   'Construction & Renovation', 'Interior Design', 'Electrical', 'Plumbing',
@@ -47,6 +47,10 @@ export default function ProfilePage() {
   }
 
   async function handleSave() {
+    if (!form.name.trim()) {
+      toast.error('Company name is required')
+      return
+    }
     setSaving(true)
     try {
       const { error } = await supabase
@@ -157,7 +161,26 @@ export default function ProfilePage() {
               <div style={{ flex: 1 }}>
                 <div className="form-group" style={{ marginBottom: 12 }}>
                   <label className="form-label">Company Name *</label>
-                  <input className="form-input" value={form.name} onChange={e => handleChange('name', e.target.value)} placeholder="Your Company Name LLC" />
+                  <input
+                    className="form-input"
+                    value={form.name}
+                    onChange={e => handleChange('name', e.target.value)}
+                    placeholder="Your Company Name LLC"
+                    style={{ borderColor: !form.name.trim() ? '#fcd34d' : undefined }}
+                  />
+                  {/* TL Mandatory Note */}
+                  <div style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 6,
+                    marginTop: 6, padding: '7px 10px',
+                    background: '#fffbeb', border: '1px solid #fcd34d',
+                    borderRadius: 6, fontSize: 11.5, color: '#92400e', lineHeight: 1.5
+                  }}>
+                    <AlertTriangle size={12} color="#d97706" style={{ marginTop: 1, flexShrink: 0 }} />
+                    <span>
+                      Enter your company name <strong>exactly as it appears on your Trade License</strong>.
+                      This is required for verification and cannot be changed without approval.
+                    </span>
+                  </div>
                 </div>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label">Tagline</label>
