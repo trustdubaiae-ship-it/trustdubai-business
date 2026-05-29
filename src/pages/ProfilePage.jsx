@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../lib/auth'
 import { useToast } from '../lib/toast'
 import { supabase } from '../lib/supabase'
-import { Camera, Save, Globe, Phone, Mail, MapPin, Tag, AlertTriangle } from 'lucide-react'
+import { Camera, Save, Globe, Phone, Mail, MapPin, Tag, AlertTriangle, X } from 'lucide-react'
 
 const CATEGORIES = [
   'Construction & Renovation', 'Interior Design', 'Electrical', 'Plumbing',
@@ -12,6 +12,13 @@ const CATEGORIES = [
   'Food & Restaurant', 'Retail', 'Finance & Accounting', 'Other'
 ]
 
+const PLAN_CAT_LIMITS = {
+  free:     2,
+  silver:   10,
+  gold:     Infinity,
+  platinum: Infinity,
+}
+
 export default function ProfilePage() {
   const { company, refreshCompany } = useAuth()
   const toast = useToast()
@@ -19,12 +26,22 @@ export default function ProfilePage() {
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [form, setForm] = useState({
     name: '', description: '', phone: '', email: '', website: '',
-    location: '', category: '', tagline: '',
+    location: '', categories: [], tagline: '',
     whatsapp: '', instagram: '', facebook: '', linkedin: ''
   })
 
+  const plan = company?.plan || 'free'
+  const catLimit = PLAN_CAT_LIMITS[plan] || 2
+
   useEffect(() => {
     if (company) {
+      // Support both old single 'category' and new 'categories' array
+      let cats = []
+      if (Array.isArray(company.categories) && company.categories.length > 0) {
+        cats = company.categories
+      } else if (company.category) {
+        cats = [company.category]
+      }
       setForm({
         name: company.name || '',
         description: company.description || '',
@@ -32,7 +49,7 @@ export default function ProfilePage() {
         email: company.email || '',
         website: company.website || '',
         location: company.location || '',
-        category: company.category || '',
+        categories: cats,
         tagline: company.tagline || '',
         whatsapp: company.whatsapp || '',
         instagram: company.instagram || '',
@@ -46,11 +63,23 @@ export default function ProfilePage() {
     setForm(prev => ({ ...prev, [field]: value }))
   }
 
-  async function handleSave() {
-    if (!form.name.trim()) {
-      toast.error('Company name is required')
+  function addCategory(cat) {
+    if (!cat) return
+    if (form.categories.includes(cat)) return
+    if (form.categories.length >= catLimit) {
+      toast.error(`Your ${plan} plan allows max ${catLimit === Infinity ? 'unlimited' : catLimit} categories`)
       return
     }
+    setForm(prev => ({ ...prev, categories: [...prev.categories, cat] }))
+  }
+
+  function removeCategory(cat) {
+    setForm(prev => ({ ...prev, categories: prev.categories.filter(c => c !== cat) }))
+  }
+
+  async function handleSave() {
+    if (!form.name.trim()) { toast.error('Company name is required'); return }
+    if (form.categories.length === 0) { toast.error('Select at least one category'); return }
     setSaving(true)
     try {
       const { error } = await supabase
@@ -62,7 +91,8 @@ export default function ProfilePage() {
           email: form.email,
           website: form.website,
           location: form.location,
-          category: form.category,
+          category: form.categories[0] || '',       // Keep for backward compat
+          categories: form.categories,              // New array field
           tagline: form.tagline,
           whatsapp: form.whatsapp,
           instagram: form.instagram,
@@ -86,22 +116,13 @@ export default function ProfilePage() {
     const file = e.target.files?.[0]
     if (!file) return
     if (file.size > 2 * 1024 * 1024) { toast.error('Image must be under 2MB'); return }
-
     setUploadingLogo(true)
     try {
       const ext = file.name.split('.').pop()
       const path = `logos/${company.id}.${ext}`
-
-      const { error: uploadError } = await supabase.storage
-        .from('company-assets')
-        .upload(path, file, { upsert: true })
-
+      const { error: uploadError } = await supabase.storage.from('company-assets').upload(path, file, { upsert: true })
       if (uploadError) throw uploadError
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('company-assets')
-        .getPublicUrl(path)
-
+      const { data: { publicUrl } } = supabase.storage.from('company-assets').getPublicUrl(path)
       await supabase.from('companies').update({ logo_url: publicUrl }).eq('id', company.id)
       await refreshCompany()
       toast.success('Logo uploaded!')
@@ -111,6 +132,8 @@ export default function ProfilePage() {
       setUploadingLogo(false)
     }
   }
+
+  const planLimitLabel = catLimit === Infinity ? 'Unlimited' : catLimit
 
   return (
     <div className="page-content animate-in">
@@ -125,61 +148,35 @@ export default function ProfilePage() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+
         {/* Left column */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
           {/* Logo & Basic Info */}
           <div className="card">
             <div className="card-title" style={{ marginBottom: 18 }}>Brand Identity</div>
-
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, marginBottom: 20 }}>
-              {/* Logo upload */}
               <label style={{ cursor: 'pointer', position: 'relative' }}>
                 <input type="file" accept="image/*" onChange={handleLogoUpload} style={{ display: 'none' }} />
                 <div className="avatar-upload">
-                  {uploadingLogo ? (
-                    <div className="spinner" />
-                  ) : company?.logo_url ? (
-                    <img src={company.logo_url} alt="Logo" />
-                  ) : (
+                  {uploadingLogo ? <div className="spinner" /> : company?.logo_url ? <img src={company.logo_url} alt="Logo" /> : (
                     <div style={{ textAlign: 'center' }}>
                       <Camera size={22} color="var(--text-muted)" />
                       <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>Logo</div>
                     </div>
                   )}
                 </div>
-                <div style={{
-                  position: 'absolute', bottom: -6, right: -6,
-                  width: 22, height: 22, background: 'var(--gold)',
-                  borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  border: '2px solid white'
-                }}>
+                <div style={{ position: 'absolute', bottom: -6, right: -6, width: 22, height: 22, background: 'var(--gold)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid white' }}>
                   <Camera size={11} color="#0d1117" />
                 </div>
               </label>
-
               <div style={{ flex: 1 }}>
                 <div className="form-group" style={{ marginBottom: 12 }}>
                   <label className="form-label">Company Name *</label>
-                  <input
-                    className="form-input"
-                    value={form.name}
-                    onChange={e => handleChange('name', e.target.value)}
-                    placeholder="Your Company Name LLC"
-                    style={{ borderColor: !form.name.trim() ? '#fcd34d' : undefined }}
-                  />
-                  {/* TL Mandatory Note */}
-                  <div style={{
-                    display: 'flex', alignItems: 'flex-start', gap: 6,
-                    marginTop: 6, padding: '7px 10px',
-                    background: '#fffbeb', border: '1px solid #fcd34d',
-                    borderRadius: 6, fontSize: 11.5, color: '#92400e', lineHeight: 1.5
-                  }}>
+                  <input className="form-input" value={form.name} onChange={e => handleChange('name', e.target.value)} placeholder="Your Company Name LLC" style={{ borderColor: !form.name.trim() ? '#fcd34d' : undefined }} />
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginTop: 6, padding: '7px 10px', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 6, fontSize: 11.5, color: '#92400e', lineHeight: 1.5 }}>
                     <AlertTriangle size={12} color="#d97706" style={{ marginTop: 1, flexShrink: 0 }} />
-                    <span>
-                      Enter your company name <strong>exactly as it appears on your Trade License</strong>.
-                      This is required for verification and cannot be changed without approval.
-                    </span>
+                    <span>Enter your company name <strong>exactly as it appears on your Trade License</strong>. This is required for verification.</span>
                   </div>
                 </div>
                 <div className="form-group" style={{ marginBottom: 0 }}>
@@ -188,18 +185,63 @@ export default function ProfilePage() {
                 </div>
               </div>
             </div>
-
             <div className="form-group">
               <label className="form-label">Business Description</label>
               <textarea className="form-input" value={form.description} onChange={e => handleChange('description', e.target.value)} placeholder="Describe your business, services, experience..." style={{ minHeight: 110 }} />
             </div>
 
+            {/* CATEGORIES — Multi-select with plan limit */}
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label"><Tag size={11} style={{ marginRight: 4 }} />Business Category</label>
-              <select className="form-input" value={form.category} onChange={e => handleChange('category', e.target.value)}>
-                <option value="">Select category...</option>
-                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <label className="form-label" style={{ marginBottom: 0 }}>
+                  <Tag size={11} style={{ marginRight: 4 }} />Business Categories
+                </label>
+                <span style={{
+                  fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 99,
+                  background: form.categories.length >= catLimit && catLimit !== Infinity ? 'rgba(239,68,68,0.1)' : 'rgba(3,193,245,0.1)',
+                  color: form.categories.length >= catLimit && catLimit !== Infinity ? '#ef4444' : '#03C1F5'
+                }}>
+                  {form.categories.length}/{planLimitLabel}
+                </span>
+              </div>
+
+              {/* Selected categories */}
+              {form.categories.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                  {form.categories.map(cat => (
+                    <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(3,193,245,0.1)', border: '1px solid rgba(3,193,245,0.3)', borderRadius: 99, padding: '3px 10px 3px 10px', fontSize: 12, color: '#03C1F5', fontWeight: 500 }}>
+                      {cat}
+                      <button onClick={() => removeCategory(cat)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', color: '#03C1F5', opacity: 0.7 }}>
+                        <X size={11} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Add category dropdown */}
+              {(form.categories.length < catLimit || catLimit === Infinity) && (
+                <select
+                  className="form-input"
+                  value=""
+                  onChange={e => { addCategory(e.target.value); e.target.value = '' }}
+                >
+                  <option value="">+ Add a category...</option>
+                  {CATEGORIES.filter(c => !form.categories.includes(c)).map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              )}
+
+              {/* Plan limit message */}
+              {form.categories.length >= catLimit && catLimit !== Infinity && (
+                <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(232,184,75,0.1)', border: '1px solid rgba(232,184,75,0.3)', borderRadius: 8, fontSize: 12, color: '#92400e' }}>
+                  ⚡ Upgrade your plan to add more categories.
+                  <span style={{ color: '#e8b84b', fontWeight: 600, marginLeft: 4 }}>
+                    Silver: 10 · Gold: Unlimited · Platinum: Unlimited
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -252,47 +294,24 @@ export default function ProfilePage() {
             <div className="card-title" style={{ color: 'white', marginBottom: 16, fontSize: 13 }}>
               📱 Public Profile Preview
             </div>
-            <div style={{
-              background: 'rgba(255,255,255,0.05)',
-              borderRadius: 10, padding: 16,
-              border: '1px solid rgba(255,255,255,0.08)'
-            }}>
+            <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 10, padding: 16, border: '1px solid rgba(255,255,255,0.08)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-                <div style={{
-                  width: 48, height: 48, borderRadius: 10,
-                  background: company?.logo_url ? 'none' : 'rgba(232,184,75,0.15)',
-                  border: '1px solid rgba(232,184,75,0.2)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  overflow: 'hidden',
-                  fontFamily: "'Syne', sans-serif", fontWeight: 700, color: '#e8b84b', fontSize: 16
-                }}>
-                  {company?.logo_url
-                    ? <img src={company.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    : (form.name?.[0] || '?')
-                  }
+                <div style={{ width: 48, height: 48, borderRadius: 10, background: company?.logo_url ? 'none' : 'rgba(232,184,75,0.15)', border: '1px solid rgba(232,184,75,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', fontFamily: "'Syne', sans-serif", fontWeight: 700, color: '#e8b84b', fontSize: 16 }}>
+                  {company?.logo_url ? <img src={company.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (form.name?.[0] || '?')}
                 </div>
                 <div>
-                  <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: 'white', fontSize: 15 }}>
-                    {form.name || 'Company Name'}
-                  </div>
-                  <div style={{ fontSize: 12, color: '#6e7681' }}>
-                    {form.tagline || 'Your tagline here'}
-                  </div>
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: 'white', fontSize: 15 }}>{form.name || 'Company Name'}</div>
+                  <div style={{ fontSize: 12, color: '#6e7681' }}>{form.tagline || 'Your tagline here'}</div>
                 </div>
               </div>
               <div style={{ fontSize: 12, color: '#8b949e', lineHeight: 1.6, marginBottom: 10 }}>
                 {(form.description || 'Your description will appear here...').slice(0, 100)}...
               </div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {form.category && <span style={{
-                  background: 'rgba(232,184,75,0.1)', color: '#e8b84b',
-                  fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 99,
-                  border: '1px solid rgba(232,184,75,0.2)'
-                }}>{form.category}</span>}
-                {form.location && <span style={{
-                  background: 'rgba(255,255,255,0.05)', color: '#8b949e',
-                  fontSize: 10, padding: '2px 8px', borderRadius: 99
-                }}>📍 {form.location}</span>}
+                {form.categories.map(cat => (
+                  <span key={cat} style={{ background: 'rgba(232,184,75,0.1)', color: '#e8b84b', fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 99, border: '1px solid rgba(232,184,75,0.2)' }}>{cat}</span>
+                ))}
+                {form.location && <span style={{ background: 'rgba(255,255,255,0.05)', color: '#8b949e', fontSize: 10, padding: '2px 8px', borderRadius: 99 }}>📍 {form.location}</span>}
               </div>
             </div>
           </div>
@@ -305,20 +324,12 @@ export default function ProfilePage() {
               { label: 'Email Verified', done: true, tip: 'Verified via Google' },
               { label: 'Phone Verified', done: company?.phone_verified, tip: 'Contact support' },
             ].map(({ label, done, tip }) => (
-              <div key={label} style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '10px 0', borderBottom: '1px solid var(--card-border)'
-              }}>
+              <div key={label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--card-border)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{
-                    width: 8, height: 8, borderRadius: '50%',
-                    background: done ? 'var(--green)' : '#d1d5db'
-                  }} />
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: done ? 'var(--green)' : '#d1d5db' }} />
                   <span style={{ fontSize: 13.5 }}>{label}</span>
                 </div>
-                <span className={`badge ${done ? 'badge-green' : 'badge-gray'}`}>
-                  {done ? 'Verified' : tip}
-                </span>
+                <span className={`badge ${done ? 'badge-green' : 'badge-gray'}`}>{done ? 'Verified' : tip}</span>
               </div>
             ))}
           </div>
