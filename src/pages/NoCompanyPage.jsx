@@ -22,7 +22,7 @@ export default function NoCompanyPage() {
           margin: '0 auto 20px', fontSize: 32
         }}>🔐</div>
 
-        <h2 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 22, marginBottom: 10, color: '#111827' }}>
+        <h2 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 22, marginBottom: 10 }}>
           Access Not Authorized
         </h2>
 
@@ -30,13 +30,12 @@ export default function NoCompanyPage() {
           The account <strong>{user?.email}</strong> is not authorized to access TrustDubai Business Portal.
         </p>
 
-        <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: 8 }}>
-          This portal is exclusively for registered businesses on TrustDubai. If you are a business owner, please contact us to get your account linked.
+        <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: 16 }}>
+          This portal is exclusively for registered businesses. If you are a business owner, contact us to get your account linked.
         </p>
 
         <div style={{ background: '#f0fdf4', border: '1px solid #a7f3d0', borderRadius: 8, padding: '10px 14px', marginBottom: 24, fontSize: 13, color: '#065f46' }}>
-          💡 Looking to review a business or submit an inquiry? Visit{' '}
-          <a href="https://trustdubai.ae" style={{ color: '#03C1F5', fontWeight: 600 }}>trustdubai.ae</a> instead.
+          Looking to review a business? Visit trustdubai.ae instead.
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -53,10 +52,10 @@ export default function NoCompanyPage() {
             className="btn btn-secondary"
             style={{ justifyContent: 'center', textDecoration: 'none' }}
           >
-            🌐 Go to TrustDubai
+            Go to TrustDubai
           </a>
           <button className="btn btn-ghost" onClick={signOut} style={{ justifyContent: 'center' }}>
-            Sign Out — Try Different Account
+            Sign Out
           </button>
         </div>
 
