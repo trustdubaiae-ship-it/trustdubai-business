@@ -1,13 +1,25 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
-import { Eye, Star, Image, TrendingUp, AlertCircle, CheckCircle, ArrowRight, Clock, Users } from 'lucide-react'
+import { Eye, Star, Image, TrendingUp, AlertCircle, CheckCircle, ArrowRight, Clock, Users, AlertTriangle } from 'lucide-react'
 
 const PLAN_CONFIG = {
   free:     { name: 'Free',     color: '#6b7280', bg: '#f9fafb', maxMembers: 2,   badge: '🆓' },
   silver:   { name: 'Silver',   color: '#94a3b8', bg: '#f1f5f9', maxMembers: 5,   badge: '🥈' },
   gold:     { name: 'Gold',     color: '#e8b84b', bg: '#fffdf7', maxMembers: 15,  badge: '🥇' },
   platinum: { name: 'Platinum', color: '#8b5cf6', bg: '#faf5ff', maxMembers: 999, badge: '💎' },
+}
+
+function getExpiryInfo(expiresAt) {
+  if (!expiresAt) return null
+  const now = new Date()
+  const exp = new Date(expiresAt)
+  const diffMs = exp - now
+  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
+  if (diffDays < 0)   return { label: 'Plan Expired!', color: '#ef4444', bg: '#fef2f2', border: '#fecaca', days: diffDays, expired: true, urgent: true }
+  if (diffDays <= 7)  return { label: diffDays + ' days left', color: '#ef4444', bg: '#fef2f2', border: '#fecaca', days: diffDays, expired: false, urgent: true }
+  if (diffDays <= 30) return { label: diffDays + ' days left', color: '#f59e0b', bg: '#fffbeb', border: '#fcd34d', days: diffDays, expired: false, urgent: false }
+  return { label: diffDays + ' days left', color: '#10b981', bg: '#f0fdf4', border: '#a7f3d0', days: diffDays, expired: false, urgent: false }
 }
 
 export default function DashboardPage({ onNavigate }) {
@@ -23,13 +35,8 @@ export default function DashboardPage({ onNavigate }) {
       const now = new Date()
       const dubai = now.toLocaleString('en-AE', {
         timeZone: 'Asia/Dubai',
-        weekday: 'short',
-        day: 'numeric',
-        month: 'short',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: true
+        weekday: 'short', day: 'numeric', month: 'short',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
       })
       setClock(dubai)
     }
@@ -81,14 +88,15 @@ export default function DashboardPage({ onNavigate }) {
   const profileComplete = calcProfileComplete(company)
   const currentPlan = company?.plan || 'free'
   const planConfig = PLAN_CONFIG[currentPlan] || PLAN_CONFIG.free
+  const expiryInfo = getExpiryInfo(company?.plan_expires_at)
 
   const checklist = [
-    { done: !!company?.name, label: 'Company name added', page: 'profile' },
-    { done: !!company?.logo_url, label: 'Logo uploaded', page: 'profile' },
-    { done: !!company?.description, label: 'Description written', page: 'profile' },
-    { done: !!company?.phone, label: 'Phone number added', page: 'profile' },
-    { done: stats.portfolio > 0, label: 'Portfolio photo added', page: 'portfolio' },
-    { done: stats.reviews > 0, label: 'First review received', page: 'reviews' },
+    { done: !!company?.name,        label: 'Company name added',    page: 'profile' },
+    { done: !!company?.logo_url,    label: 'Logo uploaded',         page: 'profile' },
+    { done: !!company?.description, label: 'Description written',   page: 'profile' },
+    { done: !!company?.phone,       label: 'Phone number added',    page: 'profile' },
+    { done: stats.portfolio > 0,    label: 'Portfolio photo added', page: 'portfolio' },
+    { done: stats.reviews > 0,      label: 'First review received', page: 'reviews' },
   ]
 
   const memberPct = planConfig.maxMembers === 999
@@ -97,6 +105,7 @@ export default function DashboardPage({ onNavigate }) {
 
   return (
     <div className="page-content animate-in">
+
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
@@ -122,6 +131,38 @@ export default function DashboardPage({ onNavigate }) {
         </div>
       </div>
 
+      {/* Plan Expiry Warning Banner */}
+      {expiryInfo && expiryInfo.urgent && currentPlan !== 'free' && (
+        <div style={{
+          background: expiryInfo.bg,
+          border: '1px solid ' + expiryInfo.border,
+          borderRadius: 'var(--radius)',
+          padding: '14px 20px',
+          display: 'flex', alignItems: 'center', gap: 14,
+          marginBottom: 20
+        }}>
+          <AlertTriangle size={20} color={expiryInfo.color} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: expiryInfo.color }}>
+              {expiryInfo.expired
+                ? '⚠️ Your plan has expired!'
+                : '⚠️ Your ' + currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1) + ' plan expires in ' + expiryInfo.days + ' days!'}
+            </div>
+            <div style={{ fontSize: 12, color: expiryInfo.color, opacity: 0.8, marginTop: 2 }}>
+              {expiryInfo.expired
+                ? 'Your account has been downgraded to Free plan. Renew now to restore your features.'
+                : 'Renew now to avoid losing your premium features and visibility.'}
+            </div>
+          </div>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={() => window.open('https://wa.me/971503856786?text=Hi, I need to renew my TrustDubai ' + currentPlan + ' plan', '_blank')}
+          >
+            Renew Now
+          </button>
+        </div>
+      )}
+
       {/* Plan + Members Card */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
         <div style={{
@@ -141,12 +182,19 @@ export default function DashboardPage({ onNavigate }) {
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 2 }}>Current Plan</div>
             <div style={{ fontSize: 20, fontWeight: 700, color: planConfig.color }}>{planConfig.name}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
-              {currentPlan === 'free' ? 'Upgrade for more features' : 'Plan is active'}
-            </div>
+            {/* Expiry info */}
+            {expiryInfo && currentPlan !== 'free' ? (
+              <div style={{ fontSize: 12, color: expiryInfo.color, marginTop: 2, fontWeight: 500 }}>
+                🕐 {expiryInfo.label}
+              </div>
+            ) : (
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+                {currentPlan === 'free' ? 'Upgrade for more features' : 'Plan is active'}
+              </div>
+            )}
           </div>
           <button className="btn btn-sm btn-secondary" onClick={() => onNavigate('plans')} style={{ whiteSpace: 'nowrap' }}>
-            {currentPlan === 'free' ? 'Upgrade' : 'Manage'}
+            {currentPlan === 'free' ? 'Upgrade' : expiryInfo?.urgent ? 'Renew' : 'Manage'}
           </button>
         </div>
 
@@ -208,10 +256,10 @@ export default function DashboardPage({ onNavigate }) {
       {/* Stats */}
       <div className="stat-grid">
         {[
-          { icon: Eye, label: 'Profile Views', value: stats.views, color: '#eff6ff', iconColor: '#3b82f6', change: 'This month' },
-          { icon: Star, label: 'Total Reviews', value: stats.reviews, color: '#fef9ed', iconColor: '#e8b84b', change: `${stats.avgRating} avg rating` },
-          { icon: Image, label: 'Portfolio Items', value: stats.portfolio, color: '#ecfdf5', iconColor: '#10b981', change: 'Photos uploaded' },
-          { icon: TrendingUp, label: 'Leads Generated', value: company?.leads_count || 0, color: '#f5f3ff', iconColor: '#8b5cf6', change: 'Via TrustDubai' },
+          { icon: Eye,         label: 'Profile Views',   value: stats.views,                color: '#eff6ff', iconColor: '#3b82f6', change: 'This month' },
+          { icon: Star,        label: 'Total Reviews',   value: stats.reviews,              color: '#fef9ed', iconColor: '#e8b84b', change: `${stats.avgRating} avg rating` },
+          { icon: Image,       label: 'Portfolio Items', value: stats.portfolio,            color: '#ecfdf5', iconColor: '#10b981', change: 'Photos uploaded' },
+          { icon: TrendingUp,  label: 'Leads Generated', value: company?.leads_count || 0, color: '#f5f3ff', iconColor: '#8b5cf6', change: 'Via TrustDubai' },
         ].map(({ icon: Icon, label, value, color, iconColor, change }) => (
           <div className="stat-card" key={label}>
             <div className="stat-icon" style={{ background: color }}>
@@ -227,6 +275,7 @@ export default function DashboardPage({ onNavigate }) {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+
         {/* Profile Checklist */}
         <div className="card">
           <div className="card-header">
@@ -283,9 +332,10 @@ export default function DashboardPage({ onNavigate }) {
                       ))}
                     </div>
                   </div>
-                  {review.comment && (
+                  {(review.comment || review.review_text) && (
                     <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                      {review.comment.slice(0, 100)}{review.comment.length > 100 ? '...' : ''}
+                      {(review.comment || review.review_text).slice(0, 100)}
+                      {(review.comment || review.review_text).length > 100 ? '...' : ''}
                     </p>
                   )}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--text-muted)', fontSize: 11 }}>
