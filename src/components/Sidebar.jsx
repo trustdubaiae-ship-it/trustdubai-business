@@ -1,5 +1,4 @@
 import { useAuth } from '../lib/auth'
-import { Lock } from 'lucide-react'
 
 const planColors = {
   free:     '#6b7280',
@@ -15,35 +14,37 @@ function hasAccess(userPlan, requiredPlan) {
 
 const MENU = [
   { section: 'OVERVIEW' },
-  { id:'dashboard',  icon:'ti-layout-dashboard', label:'Dashboard' },
-  { id:'reviews',    icon:'ti-star',             label:'Reviews' },
-  { id:'analytics',  icon:'ti-chart-bar',        label:'Analytics',      requiredPlan:'gold' },
+  { id:'dashboard',  icon:'ti-layout-dashboard',  label:'Dashboard',            show: true },
+  { id:'reviews',    icon:'ti-star',               label:'Reviews',              show: true },
+  { id:'analytics',  icon:'ti-chart-bar',          label:'Analytics',            show: true, requiredPlan:'gold' },
 
   { section: 'CUSTOMERS' },
-  { id:'leads',      icon:'ti-message-circle',   label:'Customer Feedback' },
-  { id:'leads',      icon:'ti-mood-smile',       label:'Customer Sentiment' },
+  { id:'leads',      icon:'ti-message-circle',     label:'Customer Feedback',    show: true },
+  { id:'leads',      icon:'ti-mood-smile',         label:'Customer Sentiment',   show: true },
 
   { section: 'REPUTATION' },
-  { id:'trust_score',icon:'ti-shield-check',     label:'Trust Score' },
-  { id:'reviews',    icon:'ti-chart-line',       label:'Reputation Monitor' },
-  { id:'reviews',    icon:'ti-list-check',       label:'Review Management' },
-  { id:'profile',    icon:'ti-rosette-discount-check', label:'Verification Status' },
+  { id:'trust_score',icon:'ti-shield-check',       label:'Trust Score',          show: true },
+  { id:'reviews',    icon:'ti-chart-line',         label:'Reputation Monitor',   show: true },
+  { id:'reviews',    icon:'ti-list-check',         label:'Review Management',    show: true },
+  { id:'profile',    icon:'ti-rosette-discount-check', label:'Verification Status', show: true },
 
   { section: 'MARKETING' },
-  { id:'portfolio',  icon:'ti-speakerphone',     label:'Promotions',     requiredPlan:'silver' },
-  { id:'portfolio',  icon:'ti-star',             label:'Featured Listings', requiredPlan:'gold' },
-  { id:'analytics',  icon:'ti-trending-up',      label:'Campaign Analytics', requiredPlan:'gold' },
+  { id:'sponsored',  icon:'ti-ad-2',               label:'Sponsored Placement',  show: true },
+  { id:'portfolio',  icon:'ti-speakerphone',        label:'Promotions',           show: true, requiredPlan:'silver' },
+  { id:'portfolio',  icon:'ti-star',               label:'Featured Listings',    show: true, requiredPlan:'gold' },
+  { id:'analytics',  icon:'ti-trending-up',        label:'Campaign Analytics',   show: true, requiredPlan:'gold' },
 
   { section: 'BUSINESS' },
-  { id:'profile',    icon:'ti-building-store',   label:'Business Profile' },
-  { id:'portfolio',  icon:'ti-users',            label:'Team Members' },
-  { id:'leads',      icon:'ti-mail',             label:'Messages' },
-  { id:'settings',   icon:'ti-bell',             label:'Notifications' },
+  { id:'profile',    icon:'ti-building-store',     label:'Business Profile',     show: true },
+  { id:'portfolio',  icon:'ti-photo',              label:'Portfolio',            show: true },
+  { id:'leads',      icon:'ti-mail',               label:'Lead Form',            show: true },
+  { id:'leads',      icon:'ti-users',              label:'Team Members',         show: true },
+  { id:'settings',   icon:'ti-bell',               label:'Notifications',        show: true },
 
   { section: 'SETTINGS' },
-  { id:'plans',      icon:'ti-credit-card',      label:'Billing' },
-  { id:'settings',   icon:'ti-plug',             label:'Integrations' },
-  { id:'settings',   icon:'ti-settings',         label:'Preferences' },
+  { id:'plans',      icon:'ti-credit-card',        label:'Plans & Billing',      show: true },
+  { id:'settings',   icon:'ti-plug',               label:'Integrations',         show: true },
+  { id:'settings',   icon:'ti-settings',           label:'Preferences',          show: true },
 ]
 
 export default function Sidebar({ activePage, onNavigate }) {
@@ -57,6 +58,13 @@ export default function Sidebar({ activePage, onNavigate }) {
     ? new Date(company.plan_expires_at) < new Date()
     : false
 
+  const planIcons = {
+    free:     'ti-building',
+    silver:   'ti-medal',
+    gold:     'ti-star',
+    platinum: 'ti-diamond',
+  }
+
   function handleNav(item) {
     if (item.requiredPlan && !hasAccess(planName, item.requiredPlan)) {
       onNavigate('plans'); return
@@ -64,7 +72,8 @@ export default function Sidebar({ activePage, onNavigate }) {
     onNavigate(item.id)
   }
 
-  const planIcons = { free:'ti-building', silver:'ti-medal', gold:'ti-star', platinum:'ti-diamond' }
+  // Track which label is active to avoid multi-select
+  const activeItem = MENU.find(m => !m.section && m.id === activePage)
 
   return (
     <aside className="sidebar">
@@ -102,12 +111,15 @@ export default function Sidebar({ activePage, onNavigate }) {
       <nav className="sidebar-nav">
         {MENU.map((item, i) => {
           if (item.section) return (
-            <div key={i} className="nav-section-label">{item.section}</div>
+            <div key={`sec-${i}`} className="nav-section-label">{item.section}</div>
           )
-          const locked   = item.requiredPlan && !hasAccess(planName, item.requiredPlan)
-          const isActive = activePage === item.id
+
+          const locked    = item.requiredPlan && !hasAccess(planName, item.requiredPlan)
+          const isActive  = activePage === item.id && MENU.filter(m=>!m.section&&m.id===activePage)[0]?.label === item.label
+
           return (
-            <button key={i} className={`nav-item${isActive?' active':''}`}
+            <button key={`${item.id}-${i}`}
+              className={`nav-item${isActive?' active':''}`}
               onClick={() => handleNav(item)}
               style={{ opacity: locked ? 0.55 : 1 }}
               title={locked ? `Requires ${item.requiredPlan} plan` : ''}
@@ -123,7 +135,6 @@ export default function Sidebar({ activePage, onNavigate }) {
           )
         })}
 
-        {/* View Profile */}
         <div className="nav-section-label" style={{ marginTop:4 }}>QUICK LINKS</div>
         <button className="nav-item" onClick={() => window.open(`https://trustdubai.ae/${company?.slug||''}`, '_blank')}>
           <i className="ti ti-external-link"/>
@@ -131,7 +142,7 @@ export default function Sidebar({ activePage, onNavigate }) {
         </button>
       </nav>
 
-      {/* Upgrade nudge */}
+      {/* Upgrade nudge — free plan */}
       {planName === 'free' && (
         <div style={{ margin:'8px 10px', background:'rgba(232,184,75,0.08)', border:'0.5px solid rgba(232,184,75,0.2)', borderRadius:10, padding:'10px 12px', cursor:'pointer' }}
           onClick={() => onNavigate('plans')}>
