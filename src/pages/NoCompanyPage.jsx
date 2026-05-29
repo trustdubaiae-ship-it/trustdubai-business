@@ -35,7 +35,8 @@ export default function NoCompanyPage() {
         </p>
 
         <div style={{ background: '#f0fdf4', border: '1px solid #a7f3d0', borderRadius: 8, padding: '10px 14px', marginBottom: 24, fontSize: 13, color: '#065f46' }}>
-          💡 Looking to review a business or submit an inquiry? Visit <a href="https://trustdubai.ae" style={{ color: '#03C1F5', fontWeight: 600 }}>trustdubai.ae</a> instead.
+          💡 Looking to review a business or submit an inquiry? Visit{' '}
+          <a href="https://trustdubai.ae" style={{ color: '#03C1F5', fontWeight: 600 }}>trustdubai.ae</a> instead.
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -55,7 +56,7 @@ export default function NoCompanyPage() {
             🌐 Go to TrustDubai
           </a>
           <button className="btn btn-ghost" onClick={signOut} style={{ justifyContent: 'center' }}>
-            Sign Out & Try Different Account
+            Sign Out — Try Different Account
           </button>
         </div>
 
