@@ -8,7 +8,6 @@ function hasAccess(userPlan, requiredPlan) {
   return (PLAN_RANK[userPlan]||0) >= (PLAN_RANK[requiredPlan]||0)
 }
 
-// har item apne specific permission se bandha
 const MENU = [
   { section: 'OVERVIEW' },
   { id:'dashboard',  icon:'ti-layout-dashboard',  label:'Dashboard',            perm:'view_dashboard' },
@@ -36,7 +35,7 @@ const MENU = [
   { id:'portfolio',  icon:'ti-photo',              label:'Portfolio',            perm:'view_portfolio' },
   { id:'leads',      icon:'ti-mail',               label:'Lead Form',            perm:'view_leads' },
   { id:'staff',      icon:'ti-users',              label:'Team Members',         perm:'manage_staff' },
-  { id:'settings',   icon:'ti-bell',               label:'Notifications',        perm:'view_dashboard' },
+  { id:'notifications', icon:'ti-bell',            label:'Notifications',        perm:'view_dashboard' },
 
   { section: 'SETTINGS' },
   { id:'plans',      icon:'ti-credit-card',        label:'Plans & Billing',      perm:'view_plans' },
@@ -61,7 +60,6 @@ export default function Sidebar({ activePage, onNavigate }) {
     onNavigate(item.id)
   }
 
-  // section tabhi dikhe jab uske neeche koi allowed item ho
   const visibleMenu = []
   for (let i = 0; i < MENU.length; i++) {
     const item = MENU[i]
