@@ -1,5 +1,6 @@
 // trustdubai-business/src/components/Sidebar.jsx
 import { useAuth } from '../lib/auth'
+import { can } from '../lib/permissions'
 
 const planColors = {
   free:     '#6b7280',
@@ -13,45 +14,47 @@ function hasAccess(userPlan, requiredPlan) {
   return (PLAN_RANK[userPlan]||0) >= (PLAN_RANK[requiredPlan]||0)
 }
 
+// har item pe perm: jis permission ke bina item hide ho jaaye
 const MENU = [
   { section: 'OVERVIEW' },
-  { id:'dashboard',  icon:'ti-layout-dashboard',  label:'Dashboard',            show: true },
-  { id:'reviews',    icon:'ti-star',               label:'Reviews',              show: true },
-  { id:'analytics',  icon:'ti-chart-bar',          label:'Analytics',            show: true, requiredPlan:'gold' },
+  { id:'dashboard',  icon:'ti-layout-dashboard',  label:'Dashboard',            perm:'view_dashboard' },
+  { id:'reviews',    icon:'ti-star',               label:'Reviews',              perm:'view_reviews' },
+  { id:'analytics',  icon:'ti-chart-bar',          label:'Analytics',            perm:'view_analytics', requiredPlan:'gold' },
 
   { section: 'CUSTOMERS' },
-  { id:'leads',      icon:'ti-message-circle',     label:'Customer Feedback',    show: true },
-  { id:'leads',      icon:'ti-mood-smile',         label:'Customer Sentiment',   show: true },
+  { id:'leads',      icon:'ti-message-circle',     label:'Customer Feedback',    perm:'view_leads' },
+  { id:'leads',      icon:'ti-mood-smile',         label:'Customer Sentiment',   perm:'view_leads' },
 
   { section: 'REPUTATION' },
-  { id:'trust_score',icon:'ti-shield-check',       label:'Trust Score',          show: true },
-  { id:'reviews',    icon:'ti-chart-line',         label:'Reputation Monitor',   show: true },
-  { id:'reviews',    icon:'ti-list-check',         label:'Review Management',    show: true },
-  { id:'profile',    icon:'ti-rosette-discount-check', label:'Verification Status', show: true },
+  { id:'trust_score',icon:'ti-shield-check',       label:'Trust Score',          perm:'view_dashboard' },
+  { id:'reviews',    icon:'ti-chart-line',         label:'Reputation Monitor',   perm:'view_reviews' },
+  { id:'reviews',    icon:'ti-list-check',         label:'Review Management',    perm:'view_reviews' },
+  { id:'profile',    icon:'ti-rosette-discount-check', label:'Verification Status', perm:'view_dashboard' },
 
   { section: 'MARKETING' },
-  { id:'sponsored',  icon:'ti-ad-2',               label:'Sponsored Placement',  show: true },
-  { id:'portfolio',  icon:'ti-speakerphone',        label:'Promotions',           show: true, requiredPlan:'silver' },
-  { id:'portfolio',  icon:'ti-star',               label:'Featured Listings',    show: true, requiredPlan:'gold' },
-  { id:'analytics',  icon:'ti-trending-up',        label:'Campaign Analytics',   show: true, requiredPlan:'gold' },
+  { id:'sponsored',  icon:'ti-ad-2',               label:'Sponsored Placement',  perm:'view_sponsored' },
+  { id:'portfolio',  icon:'ti-speakerphone',        label:'Promotions',           perm:'view_sponsored', requiredPlan:'silver' },
+  { id:'portfolio',  icon:'ti-star',               label:'Featured Listings',    perm:'view_sponsored', requiredPlan:'gold' },
+  { id:'analytics',  icon:'ti-trending-up',        label:'Campaign Analytics',   perm:'view_analytics', requiredPlan:'gold' },
 
   { section: 'BUSINESS' },
-  { id:'profile',    icon:'ti-building-store',     label:'Business Profile',     show: true },
-  { id:'portfolio',  icon:'ti-photo',              label:'Portfolio',            show: true },
-  { id:'leads',      icon:'ti-mail',               label:'Lead Form',            show: true },
-  { id:'staff',      icon:'ti-users',              label:'Team Members',         show: true },
-  { id:'settings',   icon:'ti-bell',               label:'Notifications',        show: true },
+  { id:'profile',    icon:'ti-building-store',     label:'Business Profile',     perm:'view_dashboard' },
+  { id:'portfolio',  icon:'ti-photo',              label:'Portfolio',            perm:'view_dashboard' },
+  { id:'leads',      icon:'ti-mail',               label:'Lead Form',            perm:'view_leads' },
+  { id:'staff',      icon:'ti-users',              label:'Team Members',         perm:'manage_staff' },
+  { id:'settings',   icon:'ti-bell',               label:'Notifications',        perm:'view_dashboard' },
 
   { section: 'SETTINGS' },
-  { id:'plans',      icon:'ti-credit-card',        label:'Plans & Billing',      show: true },
-  { id:'settings',   icon:'ti-plug',               label:'Integrations',         show: true },
-  { id:'settings',   icon:'ti-settings',           label:'Preferences',          show: true },
+  { id:'plans',      icon:'ti-credit-card',        label:'Plans & Billing',      perm:'view_plans' },
+  { id:'settings',   icon:'ti-plug',               label:'Integrations',         perm:'manage_settings' },
+  { id:'settings',   icon:'ti-settings',           label:'Preferences',          perm:'manage_settings' },
 ]
 
 export default function Sidebar({ activePage, onNavigate }) {
-  const { company, signOut } = useAuth()
+  const { company, staff, role, signOut } = useAuth()
   const planName  = company?.plan || 'free'
   const planColor = planColors[planName] || planColors.free
+  const perms     = staff?.permissions || null
   const initials  = company?.name
     ? company.name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase()
     : '?'
@@ -73,8 +76,21 @@ export default function Sidebar({ activePage, onNavigate }) {
     onNavigate(item.id)
   }
 
-  // Track which label is active to avoid multi-select
-  const activeItem = MENU.find(m => !m.section && m.id === activePage)
+  // section tabhi dikhe jab uske neeche kam se kam 1 allowed item ho
+  const visibleMenu = []
+  for (let i = 0; i < MENU.length; i++) {
+    const item = MENU[i]
+    if (item.section) {
+      // peek: aage koi allowed item hai is section mein?
+      let hasChild = false
+      for (let j = i + 1; j < MENU.length && !MENU[j].section; j++) {
+        if (can(role, perms, MENU[j].perm)) { hasChild = true; break }
+      }
+      if (hasChild) visibleMenu.push(item)
+    } else if (can(role, perms, item.perm)) {
+      visibleMenu.push(item)
+    }
+  }
 
   return (
     <aside className="sidebar">
@@ -110,13 +126,13 @@ export default function Sidebar({ activePage, onNavigate }) {
 
       {/* Nav */}
       <nav className="sidebar-nav">
-        {MENU.map((item, i) => {
+        {visibleMenu.map((item, i) => {
           if (item.section) return (
             <div key={`sec-${i}`} className="nav-section-label">{item.section}</div>
           )
 
           const locked    = item.requiredPlan && !hasAccess(planName, item.requiredPlan)
-          const isActive  = activePage === item.id && MENU.filter(m=>!m.section&&m.id===activePage)[0]?.label === item.label
+          const isActive  = activePage === item.id
 
           return (
             <button key={`${item.id}-${i}`}
@@ -143,8 +159,8 @@ export default function Sidebar({ activePage, onNavigate }) {
         </button>
       </nav>
 
-      {/* Upgrade nudge — free plan */}
-      {planName === 'free' && (
+      {/* Upgrade nudge — free plan, sirf owner ko */}
+      {planName === 'free' && role === 'owner' && (
         <div style={{ margin:'8px 10px', background:'rgba(232,184,75,0.08)', border:'0.5px solid rgba(232,184,75,0.2)', borderRadius:10, padding:'10px 12px', cursor:'pointer' }}
           onClick={() => onNavigate('plans')}>
           <div style={{ fontSize:11, fontWeight:700, color:'#d97706', marginBottom:3 }}>Upgrade Plan</div>
@@ -152,8 +168,8 @@ export default function Sidebar({ activePage, onNavigate }) {
         </div>
       )}
 
-      {/* Expiry warning */}
-      {isExpired && planName !== 'free' && (
+      {/* Expiry warning — sirf owner ko */}
+      {isExpired && planName !== 'free' && role === 'owner' && (
         <div style={{ margin:'8px 10px', background:'rgba(239,68,68,0.08)', border:'0.5px solid rgba(239,68,68,0.2)', borderRadius:10, padding:'10px 12px', cursor:'pointer' }}
           onClick={() => onNavigate('plans')}>
           <div style={{ fontSize:11, fontWeight:700, color:'#ef4444', marginBottom:3 }}>Plan Expired</div>
