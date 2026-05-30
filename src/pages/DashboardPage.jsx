@@ -11,6 +11,30 @@ const PLAN_CONFIG = {
   platinum: { name:'Platinum', color:'#8b5cf6', bg:'#1e1b4b', border:'#4c1d95', badge:'💎', welcomeEmoji:'👑', maxMembers:999, isDark:true },
 }
 
+const TIMEZONES = [
+  { tz:'Asia/Dubai',     label:'Dubai (GMT+4)' },
+  { tz:'Asia/Karachi',   label:'Karachi (GMT+5)' },
+  { tz:'Asia/Kolkata',   label:'India (GMT+5:30)' },
+  { tz:'Asia/Riyadh',    label:'Riyadh (GMT+3)' },
+  { tz:'Europe/London',  label:'London (GMT+0/1)' },
+  { tz:'America/New_York',label:'New York (GMT-5/4)' },
+]
+
+const CLOCK_COLORS = ['#e8b84b','#0099cc','#10b981','#8b5cf6','#ef4444','#f59e0b','#0f172a','#ffffff']
+const CLOCK_BGS    = ['#f8fafc','#fffbeb','#eff6ff','#f0fdf4','#faf5ff','#fef2f2','#0f172a','#1e1b4b']
+
+const CLOCK_DEFAULTS = {
+  fontColor:'#e8b84b', bgColor:'#f8fafc', tz:'Asia/Dubai',
+  showUserName:true, customName:'',
+}
+
+function loadClockPrefs() {
+  try {
+    const raw = localStorage.getItem('td_clock_prefs')
+    return raw ? { ...CLOCK_DEFAULTS, ...JSON.parse(raw) } : { ...CLOCK_DEFAULTS }
+  } catch { return { ...CLOCK_DEFAULTS } }
+}
+
 function getExpiryInfo(expiresAt) {
   if (!expiresAt) return null
   const diff = Math.ceil((new Date(expiresAt) - new Date()) / 86400000)
@@ -67,31 +91,147 @@ function AIScoreRow({ label, score, color }) {
   )
 }
 
+/* ---------- CLOCK CARD (big clock + gear settings) ---------- */
+function ClockCard({ topCard, C, isDark, defaultName }) {
+  const [prefs, setPrefs] = useState(loadClockPrefs)
+  const [open, setOpen]   = useState(false)
+  const hhRef = useRef(null), mmRef = useRef(null), ssRef = useRef(null), dateRef = useRef(null)
+
+  useEffect(() => {
+    function fmt(part, now) {
+      return new Intl.DateTimeFormat('en-GB', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false, timeZone:prefs.tz }).formatToParts(now).find(p=>p.type===part)?.value || '00'
+    }
+    function tick() {
+      const now = new Date()
+      if (hhRef.current) hhRef.current.textContent = fmt('hour', now)
+      if (mmRef.current) mmRef.current.textContent = fmt('minute', now)
+      if (ssRef.current) ssRef.current.textContent = fmt('second', now)
+      if (dateRef.current) dateRef.current.textContent =
+        new Intl.DateTimeFormat('en-GB', { weekday:'short', day:'2-digit', month:'short', year:'2-digit', timeZone:prefs.tz }).format(now).toUpperCase()
+    }
+    tick()
+    const t = setInterval(tick, 1000)
+    return () => clearInterval(t)
+  }, [prefs.tz])
+
+  function update(patch) {
+    const next = { ...prefs, ...patch }
+    setPrefs(next)
+    try { localStorage.setItem('td_clock_prefs', JSON.stringify(next)) } catch {}
+  }
+
+  const tzLabel = TIMEZONES.find(t=>t.tz===prefs.tz)?.label?.split(' (')[0] || 'Dubai'
+  const userName = (prefs.customName?.trim() || defaultName || '').toUpperCase()
+  const digitBg = prefs.bgColor
+  const digitFg = prefs.fontColor
+
+  const digitStyle = {
+    background: digitBg,
+    border: `1.5px solid ${digitFg}55`,
+    borderRadius: 10,
+    padding: '6px 10px',
+    fontSize: 30,
+    fontWeight: 800,
+    color: digitFg,
+    fontVariantNumeric: 'tabular-nums',
+    minWidth: 50,
+    textAlign: 'center',
+    display: 'inline-block',
+    lineHeight: 1,
+  }
+
+  return (
+    <div style={{ ...topCard, position:'relative', alignItems:'center', textAlign:'center', overflow:'visible' }}>
+      {/* gear */}
+      <button onClick={()=>setOpen(v=>!v)} title="Clock settings"
+        style={{ position:'absolute', top:8, right:8, width:24, height:24, borderRadius:6, border:'none', background:'transparent', cursor:'pointer', color:C.text3, display:'flex', alignItems:'center', justifyContent:'center' }}>
+        <i className="ti ti-settings" style={{ fontSize:15 }}/>
+      </button>
+
+      {/* big clock */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:5, marginTop:4 }}>
+        <span ref={hhRef} style={digitStyle}/>
+        <span style={{ fontSize:24, color:digitFg, opacity:0.6, fontWeight:700 }}>:</span>
+        <span ref={mmRef} style={digitStyle}/>
+        <span style={{ fontSize:24, color:digitFg, opacity:0.6, fontWeight:700 }}>:</span>
+        <span ref={ssRef} style={digitStyle}/>
+      </div>
+
+      {/* bottom line: DATE | TZ + USER */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:10, marginTop:9, flexWrap:'wrap' }}>
+        <span ref={dateRef} style={{ fontSize:11, fontWeight:800, color:C.text, letterSpacing:'0.02em' }}/>
+        <div style={{ textAlign:'left', lineHeight:1.3 }}>
+          <div style={{ fontSize:9.5, fontWeight:700, color:digitFg }}>{tzLabel} Time</div>
+          {prefs.showUserName && userName && (
+            <div style={{ fontSize:9.5, fontWeight:700, color:C.text2 }}>{userName}</div>
+          )}
+        </div>
+      </div>
+
+      {/* settings popup */}
+      {open && (
+        <>
+          <div onClick={()=>setOpen(false)} style={{ position:'fixed', inset:0, zIndex:40 }}/>
+          <div style={{ position:'absolute', top:34, right:6, zIndex:50, width:230, background:'#fff', border:'1px solid #e2e8f0', borderRadius:12, boxShadow:'0 10px 30px rgba(0,0,0,0.15)', padding:14, textAlign:'left' }}>
+            <div style={{ fontSize:12, fontWeight:700, color:'#0f172a', marginBottom:10 }}>Clock Settings</div>
+
+            <div style={{ fontSize:10, color:'#64748b', marginBottom:5 }}>Font Color</div>
+            <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:12 }}>
+              {CLOCK_COLORS.map(c=>(
+                <button key={c} onClick={()=>update({fontColor:c})}
+                  style={{ width:20, height:20, borderRadius:'50%', background:c, cursor:'pointer', border: prefs.fontColor===c ? '2px solid #0099cc' : '1px solid #e2e8f0' }}/>
+              ))}
+            </div>
+
+            <div style={{ fontSize:10, color:'#64748b', marginBottom:5 }}>Background Color</div>
+            <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:12 }}>
+              {CLOCK_BGS.map(c=>(
+                <button key={c} onClick={()=>update({bgColor:c})}
+                  style={{ width:20, height:20, borderRadius:'50%', background:c, cursor:'pointer', border: prefs.bgColor===c ? '2px solid #0099cc' : '1px solid #e2e8f0' }}/>
+              ))}
+            </div>
+
+            <div style={{ fontSize:10, color:'#64748b', marginBottom:5 }}>Time Zone</div>
+            <select value={prefs.tz} onChange={e=>update({tz:e.target.value})}
+              style={{ width:'100%', border:'1px solid #e2e8f0', borderRadius:8, padding:'6px 8px', fontSize:11, marginBottom:12, boxSizing:'border-box' }}>
+              {TIMEZONES.map(t=><option key={t.tz} value={t.tz}>{t.label}</option>)}
+            </select>
+
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+              <span style={{ fontSize:10, color:'#64748b' }}>Show Name</span>
+              <button onClick={()=>update({showUserName:!prefs.showUserName})}
+                style={{ width:36, height:20, borderRadius:99, border:'none', cursor:'pointer', background: prefs.showUserName?'#0099cc':'#cbd5e1', position:'relative', transition:'all .15s' }}>
+                <span style={{ position:'absolute', top:2, left: prefs.showUserName?18:2, width:16, height:16, borderRadius:'50%', background:'#fff', transition:'all .15s' }}/>
+              </button>
+            </div>
+
+            {prefs.showUserName && (
+              <>
+                <div style={{ fontSize:10, color:'#64748b', marginBottom:5 }}>Display Name</div>
+                <input value={prefs.customName} onChange={e=>update({customName:e.target.value})}
+                  placeholder={defaultName || 'Your name'}
+                  style={{ width:'100%', border:'1px solid #e2e8f0', borderRadius:8, padding:'6px 8px', fontSize:11, marginBottom:10, boxSizing:'border-box' }}/>
+              </>
+            )}
+
+            <button onClick={()=>{ update({...CLOCK_DEFAULTS}); }}
+              style={{ width:'100%', padding:'7px', borderRadius:8, border:'1px solid #e2e8f0', background:'#f8fafc', fontSize:11, color:'#64748b', cursor:'pointer' }}>
+              Reset to Default
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function DashboardPage({ onNavigate }) {
-  const { company } = useAuth()
+  const { company, staff, user } = useAuth()
   const [stats,         setStats]         = useState({ views:0, reviews:0, avgRating:0, portfolio:0, newReviews:0, satisfaction:0, reputationGrowth:'Low', trustScore:'0.0' })
   const [recentReviews, setRecentReviews] = useState([])
   const [memberCount,   setMemberCount]   = useState(0)
   const [reviewDist,    setReviewDist]    = useState({ 5:0, 4:0, 3:0, 2:0, 1:0 })
   const [loading,       setLoading]       = useState(true)
-
-  const hhRef   = useRef(null)
-  const mmRef   = useRef(null)
-  const ssRef   = useRef(null)
-  const dateRef = useRef(null)
-
-  useEffect(() => {
-    function tick() {
-      const now = new Date()
-      if (hhRef.current)   hhRef.current.textContent   = String(now.getHours()).padStart(2,'0')
-      if (mmRef.current)   mmRef.current.textContent   = String(now.getMinutes()).padStart(2,'0')
-      if (ssRef.current)   ssRef.current.textContent   = String(now.getSeconds()).padStart(2,'0')
-      if (dateRef.current) dateRef.current.textContent = now.toLocaleDateString('en-AE',{weekday:'short',day:'numeric',month:'short',year:'numeric'})
-    }
-    tick()
-    const t = setInterval(tick, 1000)
-    return () => clearInterval(t)
-  }, [])
 
   useEffect(() => { if (company) fetchStats() }, [company])
 
@@ -145,6 +285,7 @@ export default function DashboardPage({ onNavigate }) {
   const expiryInfo = getExpiryInfo(company?.plan_expires_at)
   const profilePct = calcProfileComplete(company)
   const profileDone = profilePct >= 100
+  const defaultName = staff?.name || company?.name || (user?.email||'').split('@')[0] || ''
 
   const C = {
     text:   isDark?'#f1f5f9':'#0f172a',
@@ -167,14 +308,12 @@ export default function DashboardPage({ onNavigate }) {
     { done:!!company?.description,  label:'Complete your description',     icon:'ti-file-text',     points:'Profile boost' },
   ]
 
-  // 3 blank placeholder cards — alag colors (baad mein assign karne ke liye easy: 1,2,3)
   const blankCards = [
     { num:'1', color:'#3b82f6', bg:'#eff6ff', border:'#bfdbfe' },
     { num:'2', color:'#8b5cf6', bg:'#f5f3ff', border:'#ddd6fe' },
     { num:'3', color:'#ec4899', bg:'#fdf2f8', border:'#fbcfe8' },
   ]
 
-  // top row card — Trust-Score-row jaisi height
   const topCard = { ...cardS, minHeight:130, boxSizing:'border-box', display:'flex', flexDirection:'column', justifyContent:'center' }
 
   return (
@@ -207,10 +346,10 @@ export default function DashboardPage({ onNavigate }) {
         <p style={{ fontSize:12, color:C.text2, marginTop:3 }}>Here's how your business is performing on TrustDubai.</p>
       </div>
 
-      {/* TOP 6-CARD ROW: 3 blank placeholders | Gold Verified | Profile | Watch */}
+      {/* TOP 6-CARD ROW */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:10, marginBottom:16 }}>
 
-        {/* Card 1,2,3 — Blank placeholders (alag colors) */}
+        {/* Card 1,2,3 — Blank placeholders */}
         {blankCards.map((b) => (
           <div key={b.num} style={{ ...topCard, background:b.bg, border:`0.5px solid ${b.border}`, alignItems:'center', textAlign:'center' }}>
             <div style={{ width:34, height:34, borderRadius:9, background:`${b.color}22`, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:8 }}>
@@ -221,7 +360,7 @@ export default function DashboardPage({ onNavigate }) {
           </div>
         ))}
 
-        {/* Card 4 — Gold Verified (plan-colored) */}
+        {/* Card 4 — Plan Verified */}
         <div style={{ ...topCard, background: isPlatinum?'rgba(139,92,246,0.12)':`${pc.color}14`, border:`0.5px solid ${pc.color}55`, alignItems:'flex-start' }}>
           <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:5 }}>
             <span style={{ fontSize:20 }}>{pc.badge}</span>
@@ -254,22 +393,8 @@ export default function DashboardPage({ onNavigate }) {
           )}
         </div>
 
-        {/* Card 6 — Watch */}
-        <div style={{ ...topCard, alignItems:'center', textAlign:'center' }}>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:5, marginBottom:7 }}>
-            <i className="ti ti-clock" style={{ fontSize:10, color:'#e8b84b' }}/>
-            <span style={{ fontSize:8, color:C.text3, fontWeight:600, letterSpacing:'0.05em', textTransform:'uppercase' }}>Dubai Time</span>
-          </div>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:3 }}>
-            {[hhRef,mmRef,ssRef].map((ref,i) => (
-              <span key={i} style={{ display:'flex', alignItems:'center', gap:3 }}>
-                <span ref={ref} style={{ background:isDark?'rgba(255,255,255,0.06)':'#f8fafc', border:`0.5px solid ${isDark?'rgba(232,184,75,0.2)':'#fcd34d'}`, borderRadius:7, padding:'3px 6px', fontSize:19, fontWeight:700, color:'#e8b84b', fontVariantNumeric:'tabular-nums', minWidth:38, textAlign:'center', display:'inline-block' }}/>
-                {i<2 && <span style={{ fontSize:15, color:'#e8b84b', opacity:0.5 }}>:</span>}
-              </span>
-            ))}
-          </div>
-          <div ref={dateRef} style={{ fontSize:8.5, color:C.text3, marginTop:6 }}/>
-        </div>
+        {/* Card 6 — Clock (big + settings) */}
+        <ClockCard topCard={topCard} C={C} isDark={isDark} defaultName={defaultName} />
       </div>
 
       {/* 6 TOP STAT CARDS */}
@@ -427,7 +552,7 @@ export default function DashboardPage({ onNavigate }) {
         </div>
       </div>
 
-      {/* BOTTOM ROW — Notifications | AI Insights | Latest Reviews | Verification+Premium */}
+      {/* BOTTOM ROW */}
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:12, marginBottom:14 }}>
 
         {/* Notifications Card */}
