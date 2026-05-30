@@ -1,3 +1,4 @@
+// trustdubai-business/src/App.jsx
 import { useState } from 'react'
 import { AuthProvider, useAuth } from './lib/auth'
 import { ToastProvider } from './lib/toast'
@@ -14,6 +15,7 @@ import AnalyticsPage from './pages/AnalyticsPage'
 import SettingsPage from './pages/SettingsPage'
 import LeadsPage from './pages/LeadsPage'
 import SponsoredPage from './pages/SponsoredPage'
+import StaffManagement from './pages/StaffManagement'
 
 function Portal() {
   const { user, company, loading } = useAuth()
@@ -44,6 +46,7 @@ function Portal() {
     settings:   <SettingsPage />,
     leads:      <LeadsPage />,
     sponsored:  <SponsoredPage onNavigate={setActivePage} />,
+    staff:      <StaffManagement />,
   }
 
   const pageTitles = {
@@ -56,6 +59,7 @@ function Portal() {
     settings:   'Settings',
     leads:      'Lead Form',
     sponsored:  'Sponsored Placement',
+    staff:      'Team / Staff',
   }
 
   const planColors = { free:'#6b7280', silver:'#64748b', gold:'#d97706', platinum:'#8b5cf6' }
