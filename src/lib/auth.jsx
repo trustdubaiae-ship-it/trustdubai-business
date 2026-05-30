@@ -1,4 +1,4 @@
-// trustdubai-business/src/lib/auth.js
+// trustdubai-business/src/lib/auth.jsx
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
@@ -7,8 +7,8 @@ const AuthContext = createContext(null)
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [company, setCompany] = useState(null)
-  const [staff, setStaff] = useState(null)   // staff record (null = owner ya no access)
-  const [role, setRole] = useState(null)     // 'owner' | 'manager' | 'sales' | 'engineer' | 'staff'
+  const [staff, setStaff] = useState(null)
+  const [role, setRole] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -44,27 +44,11 @@ export function AuthProvider({ children }) {
         return
       }
 
-      // 2) STAFF check
-      const { data: staffRow } = await supabase
-        .from('business_staff')
-        .select('*')
-        .ilike('email', email)
-        .eq('active', true)
-        .maybeSingle()
+      // 2) STAFF check — secure function se (RLS-safe, apna invite khud claim)
+      const { data: staffRow, error: staffErr } = await supabase.rpc('claim_staff_invite')
+      if (staffErr) console.error('claim_staff_invite error:', staffErr)
 
-      if (staffRow) {
-        // pehli baar login -> invite ko active karo + user_id link (3c core)
-        if (staffRow.status === 'invited' || !staffRow.user_id) {
-          const { data: updated } = await supabase
-            .from('business_staff')
-            .update({ status: 'active', user_id: authUser.id })
-            .eq('id', staffRow.id)
-            .select('*')
-            .maybeSingle()
-          if (updated) Object.assign(staffRow, updated)
-        }
-
-        // staff ki company laao
+      if (staffRow && staffRow.id) {
         const { data: staffCompany } = await supabase
           .from('companies')
           .select('*')
@@ -77,11 +61,12 @@ export function AuthProvider({ children }) {
         return
       }
 
-      // 3) kuch nahi
+      // 3) kuch nahi mila
       setCompany(null)
       setStaff(null)
       setRole(null)
     } catch (e) {
+      console.error('resolveAccess error:', e)
       setCompany(null)
       setStaff(null)
       setRole(null)
