@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './lib/auth'
 import { ToastProvider } from './lib/toast'
 import { can } from './lib/permissions'
 import Sidebar from './components/Sidebar'
+import LoginNotificationPopup from './components/LoginNotificationPopup'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import NoCompanyPage from './pages/NoCompanyPage'
@@ -21,7 +22,6 @@ import NotificationsPage from './pages/NotificationsPage'
 
 const ROLE_LABEL = { owner:'Owner', manager:'Manager', sales:'Sales', engineer:'Engineer', staff:'Staff' }
 
-// har page ke liye required permission (page guard)
 const PAGE_PERM = {
   dashboard: 'view_dashboard',
   profile:   'view_profile',
@@ -33,7 +33,6 @@ const PAGE_PERM = {
   leads:     'view_leads',
   sponsored: 'view_sponsored',
   staff:     'manage_staff',
-  // notifications: sabke liye open (apne notifications sabko dikhte hain) — koi perm nahi
 }
 
 function Portal() {
@@ -178,6 +177,9 @@ function Portal() {
 
         {allowed ? (allPages[activePage] || allPages.dashboard) : AccessDenied}
       </main>
+
+      {/* Login notification popup (ek baar per session) */}
+      <LoginNotificationPopup onOpenPage={() => setActivePage('notifications')} />
     </div>
   )
 }
