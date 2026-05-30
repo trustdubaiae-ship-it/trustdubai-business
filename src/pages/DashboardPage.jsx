@@ -142,9 +142,9 @@ export default function DashboardPage({ onNavigate }) {
   const pc         = PLAN_CONFIG[plan]||PLAN_CONFIG.free
   const isDark     = plan==='platinum'
   const isPlatinum = isDark
-  const isGold     = plan==='gold'
   const expiryInfo = getExpiryInfo(company?.plan_expires_at)
   const profilePct = calcProfileComplete(company)
+  const profileDone = profilePct >= 100
 
   const C = {
     text:   isDark?'#f1f5f9':'#0f172a',
@@ -167,28 +167,23 @@ export default function DashboardPage({ onNavigate }) {
     { done:!!company?.description,  label:'Complete your description',     icon:'ti-file-text',     points:'Profile boost' },
   ]
 
+  // plan-colored verified card ke liye
+  const verifiedCardStyle = {
+    flex: 1,
+    background: isPlatinum ? 'rgba(139,92,246,0.12)' : `${pc.color}14`,
+    border: `0.5px solid ${pc.color}55`,
+    borderRadius: 12,
+    padding: '12px 16px',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    minHeight: 92,
+  }
+
   return (
     <div className="page-content animate-in" style={{ color:C.text, background:isDark?'#0f0e1a':'var(--bg)' }}>
 
-      {/* PLATINUM BANNER */}
-      {isPlatinum && (
-        <div style={{ background:'rgba(139,92,246,0.15)', border:'0.5px solid rgba(139,92,246,0.3)', borderRadius:10, padding:'10px 18px', display:'flex', alignItems:'center', gap:10, marginBottom:16, color:'#a78bfa', fontSize:12, fontWeight:600, letterSpacing:'0.04em' }}>
-          <i className="ti ti-diamond" style={{ fontSize:16 }}/>
-          PLATINUM VERIFIED BUSINESS · TRUSTDUBAI PREMIUM
-          <span style={{ marginLeft:'auto', fontSize:10, opacity:0.7 }}>Highest Priority Listing</span>
-        </div>
-      )}
-
-      {/* GOLD BANNER */}
-      {isGold && (
-        <div style={{ background:'#fffbeb', border:'0.5px solid #fcd34d', borderRadius:10, padding:'10px 18px', display:'flex', alignItems:'center', gap:10, marginBottom:16, color:'#92400e', fontSize:12, fontWeight:600 }}>
-          <i className="ti ti-trophy" style={{ fontSize:16, color:'#d97706' }}/>
-          Gold Verified Business on TrustDubai
-          <span style={{ marginLeft:'auto', fontSize:10, color:'#b45309' }}>Priority Listing Active</span>
-        </div>
-      )}
-
-      {/* EXPIRY WARNING */}
+      {/* EXPIRY WARNING (urgent only) */}
       {expiryInfo?.urgent && plan!=='free' && (
         <div style={{ background:expiryInfo.bg, border:`0.5px solid ${expiryInfo.border}`, borderRadius:10, padding:'12px 18px', display:'flex', alignItems:'center', gap:12, marginBottom:16 }}>
           <i className="ti ti-alert-triangle" style={{ fontSize:18, color:expiryInfo.color }}/>
@@ -208,14 +203,62 @@ export default function DashboardPage({ onNavigate }) {
       )}
 
       {/* HEADER */}
-      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:18, flexWrap:'wrap', gap:10 }}>
-        <div>
-          <h1 style={{ fontSize:22, fontWeight:700, color:C.text, letterSpacing:'-0.3px', fontFamily:"'Syne',sans-serif" }}>
-            {company?.name||'My Business'} {pc.welcomeEmoji}
-          </h1>
-          <p style={{ fontSize:12, color:C.text2, marginTop:3 }}>Here's how your business is performing on TrustDubai.</p>
+      <div style={{ marginBottom:14 }}>
+        <h1 style={{ fontSize:22, fontWeight:700, color:C.text, letterSpacing:'-0.3px', fontFamily:"'Syne',sans-serif" }}>
+          {company?.name||'My Business'} {pc.welcomeEmoji}
+        </h1>
+        <p style={{ fontSize:12, color:C.text2, marginTop:3 }}>Here's how your business is performing on TrustDubai.</p>
+      </div>
+
+      {/* TOP 3-CARD ROW: Verified | Profile | Watch (same height) */}
+      <div style={{ display:'flex', gap:12, marginBottom:16, alignItems:'stretch', flexWrap:'wrap' }}>
+
+        {/* Card 1 — Plan Verified (plan-colored) */}
+        <div style={verifiedCardStyle}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
+            <span style={{ fontSize:18 }}>{pc.badge}</span>
+            <span style={{ fontSize:13, fontWeight:700, color:pc.color }}>
+              {pc.name} Verified Business
+            </span>
+          </div>
+          <div style={{ fontSize:10.5, color:isPlatinum?'rgba(167,139,250,0.8)':pc.color, opacity:0.85 }}>
+            {plan==='free' ? 'Upgrade for priority listing' : 'on TrustDubai · Priority Listing Active'}
+          </div>
         </div>
-        <div style={{ background:C.card, border:`0.5px solid ${C.border}`, borderRadius:12, padding:'10px 16px', textAlign:'center', minWidth:200 }}>
+
+        {/* Card 2 — Profile completion */}
+        <div style={{
+          flex:1, background:profileDone ? (isDark?'rgba(16,185,129,0.1)':'#f0fdf4') : (isPlatinum?'rgba(139,92,246,0.08)':'linear-gradient(135deg,#fef9ed,#fef3c7)'),
+          border:`0.5px solid ${profileDone ? '#a7f3d0' : (isPlatinum?'rgba(139,92,246,0.2)':'rgba(232,184,75,0.3)')}`,
+          borderRadius:12, padding:'12px 16px', display:'flex', alignItems:'center', gap:12, minHeight:92,
+        }}>
+          {profileDone ? (
+            <>
+              <div style={{ width:38, height:38, borderRadius:'50%', background:'rgba(16,185,129,0.15)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                <i className="ti ti-circle-check" style={{ fontSize:22, color:'#10b981' }}/>
+              </div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:13, fontWeight:700, color:'#10b981' }}>Profile Completed ✓</div>
+                <div style={{ fontSize:10.5, color:isDark?'rgba(255,255,255,0.6)':'#15803d', marginTop:2 }}>Your profile is 100% complete</div>
+              </div>
+            </>
+          ) : (
+            <>
+              <i className="ti ti-alert-circle" style={{ fontSize:20, color:isPlatinum?'#a78bfa':'#d97706', flexShrink:0 }}/>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontWeight:700, fontSize:13, color:isPlatinum?'#a78bfa':'#92400e' }}>Profile {profilePct}% complete</div>
+                <div style={{ fontSize:10.5, color:isPlatinum?'rgba(167,139,250,0.7)':'#b45309', marginTop:2 }}>Complete your profile to get more visibility</div>
+                <div style={{ width:'100%', height:5, background:isPlatinum?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.08)', borderRadius:99, overflow:'hidden', marginTop:6 }}>
+                  <div style={{ width:`${profilePct}%`, height:'100%', background:isPlatinum?'linear-gradient(90deg,#7c3aed,#a78bfa)':'linear-gradient(90deg,#e8b84b,#c9952a)', borderRadius:99 }}/>
+                </div>
+              </div>
+              <button className="btn btn-sm btn-primary" style={{ flexShrink:0 }} onClick={()=>onNavigate('profile')}>Complete</button>
+            </>
+          )}
+        </div>
+
+        {/* Card 3 — Watch */}
+        <div style={{ background:C.card, border:`0.5px solid ${C.border}`, borderRadius:12, padding:'10px 16px', textAlign:'center', minWidth:200, minHeight:92, display:'flex', flexDirection:'column', justifyContent:'center' }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:5, marginBottom:6 }}>
             <i className="ti ti-clock" style={{ fontSize:10, color:'#e8b84b' }}/>
             <span style={{ fontSize:8.5, color:C.text3, fontWeight:600, letterSpacing:'0.06em', textTransform:'uppercase' }}>Dubai Time (GMT+4)</span>
@@ -232,35 +275,20 @@ export default function DashboardPage({ onNavigate }) {
         </div>
       </div>
 
-      {/* PROFILE COMPLETION BANNER */}
-      {profilePct<100 && (
-        <div style={{ background:isPlatinum?'rgba(139,92,246,0.08)':'linear-gradient(135deg,#fef9ed,#fef3c7)', border:`0.5px solid ${isPlatinum?'rgba(139,92,246,0.2)':'rgba(232,184,75,0.3)'}`, borderRadius:12, padding:'16px 20px', display:'flex', alignItems:'center', gap:14, marginBottom:16 }}>
-          <i className="ti ti-alert-circle" style={{ fontSize:20, color:isPlatinum?'#a78bfa':'var(--amber)' }}/>
-          <div style={{ flex:1 }}>
-            <div style={{ fontWeight:600, fontSize:14, color:isPlatinum?'#a78bfa':'#92400e' }}>Profile {profilePct}% complete</div>
-            <div style={{ fontSize:13, color:isPlatinum?'rgba(167,139,250,0.7)':'#b45309', marginTop:2 }}>Complete your profile to get more visibility</div>
-          </div>
-          <div style={{ width:120, height:6, background:isPlatinum?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.1)', borderRadius:99, overflow:'hidden' }}>
-            <div style={{ width:`${profilePct}%`, height:'100%', background:isPlatinum?'linear-gradient(90deg,#7c3aed,#a78bfa)':'linear-gradient(90deg,#e8b84b,#c9952a)', borderRadius:99 }}/>
-          </div>
-          <button className="btn btn-sm btn-primary" onClick={()=>onNavigate('profile')}>Complete</button>
-        </div>
-      )}
-
       {/* 6 TOP STAT CARDS */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:10, marginBottom:16 }}>
         {[
-          { label:'Trust Score', value:stats.trustScore, icon:'ti-shield-check', color:'#10b981', trend:[5,5.5,6,6.2,7,7.5,8,8.2,9,9.1,9.2,parseFloat(stats.trustScore)||0], change:'+6.5% Change', isReal:true, page:'reviews' },
-          { label:'Total Reviews', value:stats.reviews, icon:'ti-message-circle', color:'#e8b84b', trend:[2,5,8,12,18,25,30,42,55,70,85,stats.reviews], change:'+3.1% Change', isReal:true, page:'reviews' },
-          { label:'New Reviews (30D)', value:stats.newReviews, icon:'ti-star', color:'#3b82f6', trend:[0,1,2,3,5,4,6,8,7,9,10,stats.newReviews], change:'+12% Change', isReal:true, page:'reviews' },
-          { label:'Average Rating', value:stats.avgRating||'0.0', icon:'ti-star', color:'#f59e0b', trend:[3,3.2,3.5,3.8,4,4.1,4.3,4.5,4.6,4.7,4.8,parseFloat(stats.avgRating)||0], change:'+0.1 Change', isReal:true, page:'reviews', suffix:'★' },
-          { label:'Customer Satisfaction', value:`${stats.satisfaction}%`, icon:'ti-mood-smile', color:'#8b5cf6', trend:[60,65,70,72,75,78,80,82,84,86,88,stats.satisfaction], change:'+2.1% Change', isReal:true, isStr:true },
-          { label:'Reputation Growth', value:stats.reputationGrowth, icon:'ti-trending-up', color:'#10b981', trend:[20,30,35,45,40,55,60,65,70,75,80,stats.reputationGrowth==='High'?90:stats.reputationGrowth==='Stable'?60:30], change:'vs last month', isReal:true, isStr:true },
+          { label:'Trust Score', value:stats.trustScore, icon:'ti-shield-check', color:'#10b981', trend:[5,5.5,6,6.2,7,7.5,8,8.2,9,9.1,9.2,parseFloat(stats.trustScore)||0], change:'+6.5% Change', page:'reviews' },
+          { label:'Total Reviews', value:stats.reviews, icon:'ti-message-circle', color:'#e8b84b', trend:[2,5,8,12,18,25,30,42,55,70,85,stats.reviews], change:'+3.1% Change', page:'reviews' },
+          { label:'New Reviews (30D)', value:stats.newReviews, icon:'ti-star', color:'#3b82f6', trend:[0,1,2,3,5,4,6,8,7,9,10,stats.newReviews], change:'+12% Change', page:'reviews' },
+          { label:'Average Rating', value:stats.avgRating||'0.0', icon:'ti-star', color:'#f59e0b', trend:[3,3.2,3.5,3.8,4,4.1,4.3,4.5,4.6,4.7,4.8,parseFloat(stats.avgRating)||0], change:'+0.1 Change', page:'reviews', suffix:'★' },
+          { label:'Customer Satisfaction', value:`${stats.satisfaction}%`, icon:'ti-mood-smile', color:'#8b5cf6', trend:[60,65,70,72,75,78,80,82,84,86,88,stats.satisfaction], change:'+2.1% Change', isStr:true },
+          { label:'Reputation Growth', value:stats.reputationGrowth, icon:'ti-trending-up', color:'#10b981', trend:[20,30,35,45,40,55,60,65,70,75,80,stats.reputationGrowth==='High'?90:stats.reputationGrowth==='Stable'?60:30], change:'vs last month', isStr:true },
         ].map((card,i) => (
           <div key={i}
-            style={{ ...cardS, cursor:card.isReal?'pointer':'not-allowed', transition:'all 0.15s', position:'relative', overflow:'hidden', opacity:card.isReal?1:0.6 }}
-            onClick={()=>{ if(card.isReal && card.page) onNavigate(card.page) }}
-            onMouseEnter={e=>{ if(card.isReal){ e.currentTarget.style.borderColor=card.color+'55'; e.currentTarget.style.transform='translateY(-1px)' }}}
+            style={{ ...cardS, cursor:card.page?'pointer':'default', transition:'all 0.15s', position:'relative', overflow:'hidden' }}
+            onClick={()=>{ if(card.page) onNavigate(card.page) }}
+            onMouseEnter={e=>{ if(card.page){ e.currentTarget.style.borderColor=card.color+'55'; e.currentTarget.style.transform='translateY(-1px)' }}}
             onMouseLeave={e=>{ e.currentTarget.style.borderColor=C.border; e.currentTarget.style.transform='none' }}>
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
               <div style={{ width:28, height:28, borderRadius:7, background:card.color+'18', display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -408,7 +436,7 @@ export default function DashboardPage({ onNavigate }) {
         {/* Notifications Card */}
         <NotificationsCard cardStyle={cardS} C={C} onOpenPage={() => onNavigate('notifications')} />
 
-        {/* AI Insights (shifted here) */}
+        {/* AI Insights */}
         <div style={cardS}>
           <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:12 }}>
             <i className="ti ti-bulb" style={{ fontSize:14, color:'#e8b84b' }}/>
