@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
+import { PERMISSIONS, defaultPermsForRole } from "../lib/permissions";
 
 const BRAND = "#0099cc";
 
@@ -29,12 +30,10 @@ export default function StaffManagement() {
   const loadAll = useCallback(async () => {
     if (!company?.id) return;
     setLoading(true);
-
     const planKey = (company.plan || "free").toLowerCase();
     const { data: pl } = await supabase
       .from("plan_limits").select("staff_limit").eq("plan", planKey).maybeSingle();
     setLimit(pl?.staff_limit ?? 1);
-
     const { data: st } = await supabase
       .from("business_staff").select("*")
       .eq("company_id", company.id)
@@ -55,13 +54,10 @@ export default function StaffManagement() {
     <div style={{ padding: 24, maxWidth: 880, margin: "0 auto" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
         <h1 style={{ fontSize: 22, fontWeight: 800, color: "#0f172a", margin: 0 }}>Team / Staff</h1>
-        <button
-          onClick={() => setShowAdd(true)}
-          disabled={!canAdd}
+        <button onClick={() => setShowAdd(true)} disabled={!canAdd}
           style={{ padding: "9px 16px", borderRadius: 9, border: "none", color: "#fff",
             fontWeight: 600, fontSize: 13, cursor: canAdd ? "pointer" : "not-allowed",
-            opacity: canAdd ? 1 : 0.4, background: BRAND }}
-        >
+            opacity: canAdd ? 1 : 0.4, background: BRAND }}>
           + Add Staff
         </button>
       </div>
@@ -123,13 +119,41 @@ export default function StaffManagement() {
   );
 }
 
+/* ---------- Permission tick boxes ---------- */
+function PermissionBoxes({ perms, setPerms }) {
+  function toggle(key) {
+    setPerms((p) => ({ ...p, [key]: !p[key] }));
+  }
+  return (
+    <div style={{ background: "#f8fafc", borderRadius: 10, padding: 12, marginBottom: 14 }}>
+      <div style={{ fontSize: 12, color: "#64748b", marginBottom: 8 }}>Permissions (what this member can access)</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+        {PERMISSIONS.map((p) => (
+          <label key={p.key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#0f172a", cursor: "pointer" }}>
+            <input type="checkbox" checked={!!perms[p.key]} onChange={() => toggle(p.key)}
+              style={{ accentColor: BRAND, width: 15, height: 15 }} />
+            {p.label}
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ---------- Add Staff ---------- */
 function AddStaffModal({ company, canAdd, onClose, onAdded }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("sales");
+  const [perms, setPerms] = useState(defaultPermsForRole("sales"));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  // role badle toh default perms reset
+  function onRoleChange(r) {
+    setRole(r);
+    setPerms(defaultPermsForRole(r));
+  }
 
   async function submit() {
     setError("");
@@ -145,7 +169,7 @@ function AddStaffModal({ company, canAdd, onClose, onAdded }) {
 
     const { error: insErr } = await supabase.from("business_staff").insert({
       company_id: company.id, name: name.trim(), email: cleanEmail,
-      role, status: "invited", active: true,
+      role, permissions: perms, status: "invited", active: true,
     });
     setSaving(false);
     if (insErr) { setError(insErr.message); return; }
@@ -166,9 +190,11 @@ function AddStaffModal({ company, canAdd, onClose, onAdded }) {
       </p>
 
       <label style={lbl}>Role</label>
-      <select value={role} onChange={(e) => setRole(e.target.value)} style={inp}>
+      <select value={role} onChange={(e) => onRoleChange(e.target.value)} style={inp}>
         {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
       </select>
+
+      <PermissionBoxes perms={perms} setPerms={setPerms} />
 
       {error && <p style={errStyle}>{error}</p>}
 
@@ -182,21 +208,21 @@ function AddStaffModal({ company, canAdd, onClose, onAdded }) {
 /* ---------- Manage Staff ---------- */
 function ManageStaffModal({ staff, company, slotsLeft, onClose, onChanged }) {
   const [role, setRole] = useState(staff.role);
+  const [perms, setPerms] = useState(staff.permissions || defaultPermsForRole(staff.role));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   const [showChange, setShowChange] = useState(false);
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
-
   const [confirmDeact, setConfirmDeact] = useState(false);
 
   const badge = STATUS_BADGE[staff.status] || STATUS_BADGE.invited;
 
-  async function saveRole() {
-    if (role === staff.role) return;
+  async function saveRolePerms() {
     setBusy(true); setError("");
-    const { error: e } = await supabase.from("business_staff").update({ role }).eq("id", staff.id);
+    const { error: e } = await supabase.from("business_staff")
+      .update({ role, permissions: perms }).eq("id", staff.id);
     setBusy(false);
     if (e) { setError(e.message); return; }
     onChanged();
@@ -207,17 +233,12 @@ function ManageStaffModal({ staff, company, slotsLeft, onClose, onChanged }) {
     if (!newName.trim() || !newEmail.trim()) { setError("New name and email are required."); return; }
     const cleanEmail = newEmail.trim().toLowerCase();
     setBusy(true);
-
     const { data: dup } = await supabase
       .from("business_staff").select("id")
       .eq("company_id", company.id).ilike("email", cleanEmail).eq("active", true).neq("id", staff.id).maybeSingle();
     if (dup) { setBusy(false); setError("This email is already in the team."); return; }
-
     const { error: e } = await supabase.from("business_staff").update({
-      name: newName.trim(),
-      email: cleanEmail,
-      status: "invited",
-      user_id: null,
+      name: newName.trim(), email: cleanEmail, status: "invited", user_id: null,
     }).eq("id", staff.id);
     setBusy(false);
     if (e) { setError(e.message); return; }
@@ -226,8 +247,7 @@ function ManageStaffModal({ staff, company, slotsLeft, onClose, onChanged }) {
 
   async function deactivate() {
     setBusy(true); setError("");
-    // 🔖 REASSIGN HOOK (after Build Order #4): transfer this staff's pending tasks/notifications
-    //    to another active staff member here.
+    // 🔖 REASSIGN HOOK (after Build Order #4): transfer pending tasks/notifications here.
     const { error: e } = await supabase.from("business_staff").update({
       active: false, status: "inactive", user_id: null,
     }).eq("id", staff.id);
@@ -240,8 +260,7 @@ function ManageStaffModal({ staff, company, slotsLeft, onClose, onChanged }) {
     if (slotsLeft <= 0) { setError("No free slot. Deactivate a slot or upgrade your plan first."); return; }
     setBusy(true); setError("");
     const { error: e } = await supabase.from("business_staff").update({
-      active: true,
-      status: "invited",
+      active: true, status: "invited",
     }).eq("id", staff.id);
     setBusy(false);
     if (e) { setError(e.message); return; }
@@ -267,15 +286,16 @@ function ManageStaffModal({ staff, company, slotsLeft, onClose, onChanged }) {
       {error && <p style={errStyle}>{error}</p>}
 
       <label style={lbl}>Role</label>
-      <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
-        <select value={role} onChange={(e) => setRole(e.target.value)} style={{ ...inp, marginBottom: 0, flex: 1 }}>
-          {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
-        </select>
-        <button onClick={saveRole} disabled={busy || role === staff.role}
-          style={{ ...primaryBtn, width: "auto", padding: "9px 16px", marginBottom: 0, opacity: (busy || role === staff.role) ? 0.4 : 1 }}>
-          Save
-        </button>
-      </div>
+      <select value={role} onChange={(e) => setRole(e.target.value)} style={inp}>
+        {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+      </select>
+
+      <PermissionBoxes perms={perms} setPerms={setPerms} />
+
+      <button onClick={saveRolePerms} disabled={busy}
+        style={{ ...primaryBtn, opacity: busy ? 0.5 : 1 }}>
+        {busy ? "Saving…" : "Save Role & Permissions"}
+      </button>
 
       {!showChange ? (
         <button onClick={() => setShowChange(true)} style={outlineBtn}>
@@ -331,7 +351,7 @@ function Modal({ children, onClose }) {
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.4)",
       display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 440, padding: 20, maxHeight: "90vh", overflowY: "auto" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 460, padding: 20, maxHeight: "90vh", overflowY: "auto" }}>
         {children}
       </div>
     </div>
