@@ -2,11 +2,13 @@
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
-import { PERMISSIONS, defaultPermsForRole } from "../lib/permissions";
+import { PERMISSIONS, presetForRole, allPermsTrue, allPermsFalse } from "../lib/permissions";
 
 const BRAND = "#0099cc";
+const PLAN_RANK = { free:0, silver:1, gold:2, platinum:3 };
 
-const ROLES = [
+// built-in roles
+const BUILTIN_ROLES = [
   { value: "manager",  label: "Manager" },
   { value: "sales",    label: "Sales" },
   { value: "engineer", label: "Engineer" },
@@ -22,25 +24,36 @@ const STATUS_BADGE = {
 export default function StaffManagement() {
   const { company } = useAuth();
   const [staff, setStaff] = useState([]);
+  const [customRoles, setCustomRoles] = useState([]);
   const [limit, setLimit] = useState(1);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [manageStaff, setManageStaff] = useState(null);
 
+  const planName = (company?.plan || "free").toLowerCase();
+  const canCustomRoles = (PLAN_RANK[planName] || 0) >= PLAN_RANK.gold; // Gold+
+
   const loadAll = useCallback(async () => {
     if (!company?.id) return;
     setLoading(true);
-    const planKey = (company.plan || "free").toLowerCase();
     const { data: pl } = await supabase
-      .from("plan_limits").select("staff_limit").eq("plan", planKey).maybeSingle();
+      .from("plan_limits").select("staff_limit").eq("plan", planName).maybeSingle();
     setLimit(pl?.staff_limit ?? 1);
+
     const { data: st } = await supabase
       .from("business_staff").select("*")
       .eq("company_id", company.id)
       .order("created_at", { ascending: true });
     setStaff(st || []);
+
+    const { data: cr } = await supabase
+      .from("company_roles").select("*")
+      .eq("company_id", company.id)
+      .order("created_at", { ascending: true });
+    setCustomRoles(cr || []);
+
     setLoading(false);
-  }, [company]);
+  }, [company, planName]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
@@ -63,7 +76,7 @@ export default function StaffManagement() {
       </div>
 
       <p style={{ fontSize: 13, color: "#64748b", marginBottom: 20 }}>
-        {company?.name} · Plan: <b style={{ textTransform: "capitalize" }}>{company?.plan || "free"}</b> ·{" "}
+        {company?.name} · Plan: <b style={{ textTransform: "capitalize" }}>{planName}</b> ·{" "}
         <b style={{ color: BRAND }}>{activeCount}/{limit}</b> slots used
         {!canAdd && <span style={{ color: "#d97706" }}> · Limit reached — upgrade plan for more staff</span>}
       </p>
@@ -105,13 +118,15 @@ export default function StaffManagement() {
       )}
 
       {showAdd && (
-        <AddStaffModal company={company} canAdd={canAdd}
+        <AddStaffModal company={company} canAdd={canAdd} customRoles={customRoles}
+          canCustomRoles={canCustomRoles} onRolesChanged={loadAll}
           onClose={() => setShowAdd(false)}
           onAdded={() => { setShowAdd(false); loadAll(); }} />
       )}
 
       {manageStaff && (
         <ManageStaffModal staff={manageStaff} company={company} slotsLeft={slotsLeft}
+          customRoles={customRoles} canCustomRoles={canCustomRoles} onRolesChanged={loadAll}
           onClose={() => setManageStaff(null)}
           onChanged={() => { setManageStaff(null); loadAll(); }} />
       )}
@@ -119,14 +134,89 @@ export default function StaffManagement() {
   );
 }
 
-/* ---------- Permission tick boxes ---------- */
-function PermissionBoxes({ perms, setPerms }) {
-  function toggle(key) {
-    setPerms((p) => ({ ...p, [key]: !p[key] }));
+/* ---------- Role selector (built-in + custom + add new) ---------- */
+function RoleSelect({ role, setRole, customRoles, canCustomRoles, company, onRolesChanged, onPickPreset }) {
+  const [showAddRole, setShowAddRole] = useState(false);
+  const [newRoleName, setNewRoleName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function addRole() {
+    setErr("");
+    if (!newRoleName.trim()) { setErr("Role name required."); return; }
+    setSaving(true);
+    const { data, error } = await supabase.from("company_roles").insert({
+      company_id: company.id,
+      name: newRoleName.trim(),
+      permissions: allPermsFalse(),
+    }).select("*").maybeSingle();
+    setSaving(false);
+    if (error) { setErr(error.message); return; }
+    setNewRoleName(""); setShowAddRole(false);
+    if (data) { setRole(data.name); onPickPreset(data.permissions || allPermsFalse()); }
+    onRolesChanged();
   }
+
+  function onChange(val) {
+    if (val === "__add__") { setShowAddRole(true); return; }
+    setRole(val);
+    // built-in -> preset, custom -> us role ke saved perms
+    const custom = customRoles.find(r => r.name === val);
+    if (custom) onPickPreset(custom.permissions || allPermsFalse());
+    else onPickPreset(presetForRole(val));
+  }
+
+  return (
+    <div>
+      <label style={lbl}>Role</label>
+      <select value={role} onChange={(e) => onChange(e.target.value)} style={inp}>
+        <optgroup label="Built-in">
+          {BUILTIN_ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+        </optgroup>
+        {customRoles.length > 0 && (
+          <optgroup label="Custom">
+            {customRoles.map((r) => <option key={r.id} value={r.name}>{r.name}</option>)}
+          </optgroup>
+        )}
+        {canCustomRoles && <option value="__add__">＋ Add custom role…</option>}
+      </select>
+
+      {!canCustomRoles && (
+        <p style={{ fontSize: 11, color: "#94a3b8", marginTop: -8, marginBottom: 12 }}>
+          Custom roles available on Gold &amp; Platinum plans.
+        </p>
+      )}
+
+      {showAddRole && (
+        <div style={{ background: "#f8fafc", borderRadius: 10, padding: 12, marginBottom: 14 }}>
+          <label style={lbl}>New Role Name</label>
+          <input value={newRoleName} onChange={(e) => setNewRoleName(e.target.value)}
+            placeholder="e.g. Site Supervisor" style={inp} />
+          {err && <p style={errStyle}>{err}</p>}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => { setShowAddRole(false); setErr(""); }} style={{ ...outlineBtn, marginBottom: 0, flex: 1 }}>Cancel</button>
+            <button onClick={addRole} disabled={saving} style={{ ...primaryBtn, marginBottom: 0, flex: 1, opacity: saving ? 0.5 : 1 }}>
+              {saving ? "Adding…" : "Add Role"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------- Permission tick boxes + Select/Clear ---------- */
+function PermissionBoxes({ perms, setPerms }) {
+  function toggle(key) { setPerms((p) => ({ ...p, [key]: !p[key] })); }
   return (
     <div style={{ background: "#f8fafc", borderRadius: 10, padding: 12, marginBottom: 14 }}>
-      <div style={{ fontSize: 12, color: "#64748b", marginBottom: 8 }}>Permissions (what this member can access)</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+        <div style={{ fontSize: 12, color: "#64748b" }}>Permissions (what this member can access)</div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={() => setPerms(allPermsTrue())} style={miniBtn}>Select All</button>
+          <button onClick={() => setPerms(allPermsFalse())} style={miniBtn}>Clear All</button>
+        </div>
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
         {PERMISSIONS.map((p) => (
           <label key={p.key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#0f172a", cursor: "pointer" }}>
@@ -141,19 +231,13 @@ function PermissionBoxes({ perms, setPerms }) {
 }
 
 /* ---------- Add Staff ---------- */
-function AddStaffModal({ company, canAdd, onClose, onAdded }) {
+function AddStaffModal({ company, canAdd, customRoles, canCustomRoles, onRolesChanged, onClose, onAdded }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("sales");
-  const [perms, setPerms] = useState(defaultPermsForRole("sales"));
+  const [perms, setPerms] = useState(presetForRole("sales"));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-
-  // role badle toh default perms reset
-  function onRoleChange(r) {
-    setRole(r);
-    setPerms(defaultPermsForRole(r));
-  }
 
   async function submit() {
     setError("");
@@ -161,7 +245,6 @@ function AddStaffModal({ company, canAdd, onClose, onAdded }) {
     if (!name.trim() || !email.trim()) { setError("Name and email are required."); return; }
     const cleanEmail = email.trim().toLowerCase();
     setSaving(true);
-
     const { data: dup } = await supabase
       .from("business_staff").select("id")
       .eq("company_id", company.id).ilike("email", cleanEmail).eq("active", true).maybeSingle();
@@ -189,10 +272,9 @@ function AddStaffModal({ company, canAdd, onClose, onAdded }) {
         An invite will be sent to this email. The staff member will sign in with this Google account.
       </p>
 
-      <label style={lbl}>Role</label>
-      <select value={role} onChange={(e) => onRoleChange(e.target.value)} style={inp}>
-        {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
-      </select>
+      <RoleSelect role={role} setRole={setRole} customRoles={customRoles}
+        canCustomRoles={canCustomRoles} company={company} onRolesChanged={onRolesChanged}
+        onPickPreset={setPerms} />
 
       <PermissionBoxes perms={perms} setPerms={setPerms} />
 
@@ -206,12 +288,11 @@ function AddStaffModal({ company, canAdd, onClose, onAdded }) {
 }
 
 /* ---------- Manage Staff ---------- */
-function ManageStaffModal({ staff, company, slotsLeft, onClose, onChanged }) {
+function ManageStaffModal({ staff, company, slotsLeft, customRoles, canCustomRoles, onRolesChanged, onClose, onChanged }) {
   const [role, setRole] = useState(staff.role);
-  const [perms, setPerms] = useState(staff.permissions || defaultPermsForRole(staff.role));
+  const [perms, setPerms] = useState(staff.permissions || presetForRole(staff.role));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-
   const [showChange, setShowChange] = useState(false);
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
@@ -285,15 +366,13 @@ function ManageStaffModal({ staff, company, slotsLeft, onClose, onChanged }) {
 
       {error && <p style={errStyle}>{error}</p>}
 
-      <label style={lbl}>Role</label>
-      <select value={role} onChange={(e) => setRole(e.target.value)} style={inp}>
-        {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
-      </select>
+      <RoleSelect role={role} setRole={setRole} customRoles={customRoles}
+        canCustomRoles={canCustomRoles} company={company} onRolesChanged={onRolesChanged}
+        onPickPreset={setPerms} />
 
       <PermissionBoxes perms={perms} setPerms={setPerms} />
 
-      <button onClick={saveRolePerms} disabled={busy}
-        style={{ ...primaryBtn, opacity: busy ? 0.5 : 1 }}>
+      <button onClick={saveRolePerms} disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.5 : 1 }}>
         {busy ? "Saving…" : "Save Role & Permissions"}
       </button>
 
@@ -321,9 +400,7 @@ function ManageStaffModal({ staff, company, slotsLeft, onClose, onChanged }) {
 
       {staff.active ? (
         !confirmDeact ? (
-          <button onClick={() => setConfirmDeact(true)} style={dangerBtn}>
-            ⛔ Deactivate Slot
-          </button>
+          <button onClick={() => setConfirmDeact(true)} style={dangerBtn}>⛔ Deactivate Slot</button>
         ) : (
           <div style={{ background: "#fef2f2", borderRadius: 12, padding: 14 }}>
             <p style={{ fontSize: 12, color: "#b91c1c", marginTop: 0, marginBottom: 10 }}>
@@ -351,7 +428,7 @@ function Modal({ children, onClose }) {
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.4)",
       display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 460, padding: 20, maxHeight: "90vh", overflowY: "auto" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 480, padding: 20, maxHeight: "92vh", overflowY: "auto" }}>
         {children}
       </div>
     </div>
@@ -375,5 +452,9 @@ const outlineBtn = {
 const dangerBtn = {
   width: "100%", padding: "11px", borderRadius: 9, border: "none", color: "#fff",
   fontWeight: 600, fontSize: 13, background: "#dc2626", cursor: "pointer", marginBottom: 10,
+};
+const miniBtn = {
+  fontSize: 11, padding: "3px 8px", borderRadius: 6, border: "1px solid #e2e8f0",
+  background: "#fff", color: BRAND, cursor: "pointer", fontWeight: 600,
 };
 const errStyle = { fontSize: 12, color: "#dc2626", marginBottom: 12 };
