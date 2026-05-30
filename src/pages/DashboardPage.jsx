@@ -167,7 +167,15 @@ export default function DashboardPage({ onNavigate }) {
     { done:!!company?.description,  label:'Complete your description',     icon:'ti-file-text',     points:'Profile boost' },
   ]
 
-  const TOP_CARD_H = 110  // teeno top cards ki height
+  // 3 blank placeholder cards — alag colors (baad mein assign karne ke liye easy: 1,2,3)
+  const blankCards = [
+    { num:'1', color:'#3b82f6', bg:'#eff6ff', border:'#bfdbfe' },
+    { num:'2', color:'#8b5cf6', bg:'#f5f3ff', border:'#ddd6fe' },
+    { num:'3', color:'#ec4899', bg:'#fdf2f8', border:'#fbcfe8' },
+  ]
+
+  // top row card — Trust-Score-row jaisi height
+  const topCard = { ...cardS, minHeight:130, boxSizing:'border-box', display:'flex', flexDirection:'column', justifyContent:'center' }
 
   return (
     <div className="page-content animate-in" style={{ color:C.text, background:isDark?'#0f0e1a':'var(--bg)' }}>
@@ -199,76 +207,68 @@ export default function DashboardPage({ onNavigate }) {
         <p style={{ fontSize:12, color:C.text2, marginTop:3 }}>Here's how your business is performing on TrustDubai.</p>
       </div>
 
-      {/* TOP 3-CARD ROW: Verified | Profile | Watch (bigger watch, smaller balanced cards) */}
-      <div style={{ display:'flex', gap:12, marginBottom:16, alignItems:'stretch', flexWrap:'wrap' }}>
+      {/* TOP 6-CARD ROW: 3 blank placeholders | Gold Verified | Profile | Watch */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:10, marginBottom:16 }}>
 
-        {/* Card 1 — Plan Verified (plan-colored) */}
-        <div style={{
-          flex:'1 1 280px', minWidth:240, height:TOP_CARD_H, boxSizing:'border-box',
-          background: isPlatinum ? 'rgba(139,92,246,0.12)' : `${pc.color}14`,
-          border:`0.5px solid ${pc.color}55`, borderRadius:12, padding:'14px 18px',
-          display:'flex', flexDirection:'column', justifyContent:'center', gap:6,
-        }}>
-          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-            <span style={{ fontSize:22 }}>{pc.badge}</span>
-            <span style={{ fontSize:15, fontWeight:700, color:pc.color }}>{pc.name} Verified Business</span>
+        {/* Card 1,2,3 — Blank placeholders (alag colors) */}
+        {blankCards.map((b) => (
+          <div key={b.num} style={{ ...topCard, background:b.bg, border:`0.5px solid ${b.border}`, alignItems:'center', textAlign:'center' }}>
+            <div style={{ width:34, height:34, borderRadius:9, background:`${b.color}22`, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:8 }}>
+              <span style={{ fontSize:15, fontWeight:800, color:b.color }}>{b.num}</span>
+            </div>
+            <div style={{ fontSize:11, fontWeight:700, color:b.color }}>Coming Soon</div>
+            <div style={{ fontSize:9, color:C.text3, marginTop:3 }}>Feature will update soon</div>
           </div>
-          <div style={{ fontSize:11, color:isPlatinum?'rgba(167,139,250,0.85)':pc.color, opacity:0.9 }}>
+        ))}
+
+        {/* Card 4 — Gold Verified (plan-colored) */}
+        <div style={{ ...topCard, background: isPlatinum?'rgba(139,92,246,0.12)':`${pc.color}14`, border:`0.5px solid ${pc.color}55`, alignItems:'flex-start' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:5 }}>
+            <span style={{ fontSize:20 }}>{pc.badge}</span>
+            <span style={{ fontSize:12.5, fontWeight:700, color:pc.color, lineHeight:1.2 }}>{pc.name} Verified</span>
+          </div>
+          <div style={{ fontSize:9.5, color:isPlatinum?'rgba(167,139,250,0.85)':pc.color, opacity:0.9, lineHeight:1.4 }}>
             {plan==='free' ? 'Upgrade for priority listing' : 'on TrustDubai · Priority Listing Active'}
           </div>
         </div>
 
-        {/* Card 2 — Profile completion */}
-        <div style={{
-          flex:'1 1 280px', minWidth:240, height:TOP_CARD_H, boxSizing:'border-box',
+        {/* Card 5 — Profile completion */}
+        <div style={{ ...topCard,
           background:profileDone ? (isDark?'rgba(16,185,129,0.1)':'#f0fdf4') : (isPlatinum?'rgba(139,92,246,0.08)':'linear-gradient(135deg,#fef9ed,#fef3c7)'),
           border:`0.5px solid ${profileDone ? '#a7f3d0' : (isPlatinum?'rgba(139,92,246,0.2)':'rgba(232,184,75,0.3)')}`,
-          borderRadius:12, padding:'14px 18px', display:'flex', alignItems:'center', gap:14,
-        }}>
+          alignItems:'flex-start' }}>
           {profileDone ? (
             <>
-              <div style={{ width:42, height:42, borderRadius:'50%', background:'rgba(16,185,129,0.15)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                <i className="ti ti-circle-check" style={{ fontSize:24, color:'#10b981' }}/>
-              </div>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:15, fontWeight:700, color:'#10b981' }}>Profile Completed ✓</div>
-                <div style={{ fontSize:11, color:isDark?'rgba(255,255,255,0.6)':'#15803d', marginTop:3 }}>Your profile is 100% complete</div>
-              </div>
+              <i className="ti ti-circle-check" style={{ fontSize:24, color:'#10b981', marginBottom:6 }}/>
+              <div style={{ fontSize:12.5, fontWeight:700, color:'#10b981' }}>Profile Completed ✓</div>
+              <div style={{ fontSize:9.5, color:isDark?'rgba(255,255,255,0.6)':'#15803d', marginTop:3 }}>100% complete</div>
             </>
           ) : (
             <>
-              <i className="ti ti-alert-circle" style={{ fontSize:22, color:isPlatinum?'#a78bfa':'#d97706', flexShrink:0 }}/>
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ fontWeight:700, fontSize:14, color:isPlatinum?'#a78bfa':'#92400e' }}>Profile {profilePct}% complete</div>
-                <div style={{ fontSize:11, color:isPlatinum?'rgba(167,139,250,0.7)':'#b45309', marginTop:2 }}>Complete your profile to get more visibility</div>
-                <div style={{ width:'100%', height:5, background:isPlatinum?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.08)', borderRadius:99, overflow:'hidden', marginTop:7 }}>
-                  <div style={{ width:`${profilePct}%`, height:'100%', background:isPlatinum?'linear-gradient(90deg,#7c3aed,#a78bfa)':'linear-gradient(90deg,#e8b84b,#c9952a)', borderRadius:99 }}/>
-                </div>
+              <div style={{ fontWeight:700, fontSize:12.5, color:isPlatinum?'#a78bfa':'#92400e', marginBottom:4 }}>Profile {profilePct}% complete</div>
+              <div style={{ width:'100%', height:5, background:isPlatinum?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.08)', borderRadius:99, overflow:'hidden', marginBottom:7 }}>
+                <div style={{ width:`${profilePct}%`, height:'100%', background:isPlatinum?'linear-gradient(90deg,#7c3aed,#a78bfa)':'linear-gradient(90deg,#e8b84b,#c9952a)', borderRadius:99 }}/>
               </div>
-              <button className="btn btn-sm btn-primary" style={{ flexShrink:0 }} onClick={()=>onNavigate('profile')}>Complete</button>
+              <button className="btn btn-sm btn-primary" style={{ alignSelf:'flex-start' }} onClick={()=>onNavigate('profile')}>Complete</button>
             </>
           )}
         </div>
 
-        {/* Card 3 — Watch (bigger) */}
-        <div style={{
-          flex:'1 1 300px', minWidth:260, height:TOP_CARD_H, boxSizing:'border-box',
-          background:C.card, border:`0.5px solid ${C.border}`, borderRadius:12, padding:'12px 18px',
-          textAlign:'center', display:'flex', flexDirection:'column', justifyContent:'center',
-        }}>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:6, marginBottom:8 }}>
-            <i className="ti ti-clock" style={{ fontSize:12, color:'#e8b84b' }}/>
-            <span style={{ fontSize:9.5, color:C.text3, fontWeight:600, letterSpacing:'0.06em', textTransform:'uppercase' }}>Dubai Time (GMT+4)</span>
+        {/* Card 6 — Watch */}
+        <div style={{ ...topCard, alignItems:'center', textAlign:'center' }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:5, marginBottom:7 }}>
+            <i className="ti ti-clock" style={{ fontSize:10, color:'#e8b84b' }}/>
+            <span style={{ fontSize:8, color:C.text3, fontWeight:600, letterSpacing:'0.05em', textTransform:'uppercase' }}>Dubai Time</span>
           </div>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:5 }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:3 }}>
             {[hhRef,mmRef,ssRef].map((ref,i) => (
-              <span key={i} style={{ display:'flex', alignItems:'center', gap:5 }}>
-                <span ref={ref} style={{ background:isDark?'rgba(255,255,255,0.06)':'#f8fafc', border:`0.5px solid ${isDark?'rgba(232,184,75,0.2)':'#fcd34d'}`, borderRadius:9, padding:'6px 12px', fontSize:28, fontWeight:700, color:'#e8b84b', fontVariantNumeric:'tabular-nums', minWidth:56, textAlign:'center', display:'inline-block' }}/>
-                {i<2 && <span style={{ fontSize:22, color:'#e8b84b', opacity:0.5 }}>:</span>}
+              <span key={i} style={{ display:'flex', alignItems:'center', gap:3 }}>
+                <span ref={ref} style={{ background:isDark?'rgba(255,255,255,0.06)':'#f8fafc', border:`0.5px solid ${isDark?'rgba(232,184,75,0.2)':'#fcd34d'}`, borderRadius:7, padding:'3px 6px', fontSize:19, fontWeight:700, color:'#e8b84b', fontVariantNumeric:'tabular-nums', minWidth:38, textAlign:'center', display:'inline-block' }}/>
+                {i<2 && <span style={{ fontSize:15, color:'#e8b84b', opacity:0.5 }}>:</span>}
               </span>
             ))}
           </div>
-          <div ref={dateRef} style={{ fontSize:10, color:C.text3, marginTop:7 }}/>
+          <div ref={dateRef} style={{ fontSize:8.5, color:C.text3, marginTop:6 }}/>
         </div>
       </div>
 
