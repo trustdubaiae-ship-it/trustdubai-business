@@ -52,7 +52,6 @@ export default function NotificationsPage() {
 
   useEffect(() => { load() }, [load])
 
-  // staff list (send ke liye)
   useEffect(() => {
     if (!company?.id || !canSend) return
     supabase.from('business_staff')
@@ -73,8 +72,8 @@ export default function NotificationsPage() {
         notification_id:n.id, staff_id:staff?.id||null, old_status:n.status, new_status:newStatus,
       })
       setItems(p => p.map(x => x.id===n.id ? { ...x, ...patch } : x))
-      setActive(a => a && a.id===n.id ? { ...a, ...patch } : a)
     }
+    setActive(null)  // <-- popup band karo action ke baad
   }
 
   if (loading) return <div style={{ padding:32, color:'#94a3b8' }}>Loading notifications…</div>
@@ -96,7 +95,6 @@ export default function NotificationsPage() {
         {seeAll ? 'All team notifications' : 'Your notifications'} · {company?.name}
       </p>
 
-      {/* filters */}
       <div style={{ display:'flex', gap:8, marginBottom:16, flexWrap:'wrap' }}>
         {FILTERS.map(f => (
           <button key={f.key} onClick={() => setFilter(f.key)}
@@ -109,7 +107,6 @@ export default function NotificationsPage() {
         ))}
       </div>
 
-      {/* list */}
       {filtered.length === 0 ? (
         <div style={{ background:'#f8fafc', borderRadius:16, padding:48, textAlign:'center', color:'#94a3b8' }}>
           <i className="ti ti-bell-off" style={{ fontSize:32, display:'block', marginBottom:8 }}/>
@@ -145,12 +142,10 @@ export default function NotificationsPage() {
         </div>
       )}
 
-      {/* detail popup */}
       {active && (
-        <DetailModal n={active} onClose={() => setActive(null)} onStatus={setStatus} staff={staff} />
+        <DetailModal n={active} onClose={() => setActive(null)} onStatus={setStatus} />
       )}
 
-      {/* send popup */}
       {showSend && (
         <SendModal company={company} staff={staff} staffList={staffList}
           onClose={() => setShowSend(false)} onSent={() => { setShowSend(false); load() }} />
@@ -160,7 +155,7 @@ export default function NotificationsPage() {
 }
 
 /* ---------- Detail + Activity history ---------- */
-function DetailModal({ n, onClose, onStatus, staff }) {
+function DetailModal({ n, onClose, onStatus }) {
   const [activity, setActivity] = useState([])
 
   useEffect(() => {
@@ -189,7 +184,6 @@ function DetailModal({ n, onClose, onStatus, staff }) {
           <button onClick={() => onStatus(n,'done')} style={{ flex:1, padding:'10px', borderRadius:8, border:'none', fontSize:12, fontWeight:600, background:'#dcfce7', color:'#15803d', cursor:'pointer' }}>✅ Done</button>
         </div>
 
-        {/* activity history */}
         <div style={{ borderTop:'1px solid #f1f5f9', paddingTop:12 }}>
           <div style={{ fontSize:11, fontWeight:700, color:'#64748b', marginBottom:8, textTransform:'uppercase', letterSpacing:'0.04em' }}>Activity History</div>
           {activity.length === 0 ? (
@@ -215,7 +209,7 @@ function DetailModal({ n, onClose, onStatus, staff }) {
 
 /* ---------- Send Notification ---------- */
 function SendModal({ company, staff, staffList, onClose, onSent }) {
-  const [to, setTo] = useState('')        // '' = all staff
+  const [to, setTo] = useState('')
   const [title, setTitle] = useState('')
   const [msg, setMsg] = useState('')
   const [priority, setPriority] = useState('normal')
