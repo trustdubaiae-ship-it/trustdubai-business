@@ -2,19 +2,13 @@
 import { useAuth } from '../lib/auth'
 import { can } from '../lib/permissions'
 
-const planColors = {
-  free:     '#6b7280',
-  silver:   '#64748b',
-  gold:     '#d97706',
-  platinum: '#8b5cf6',
-}
-
+const planColors = { free:'#6b7280', silver:'#64748b', gold:'#d97706', platinum:'#8b5cf6' }
 const PLAN_RANK = { free:0, silver:1, gold:2, platinum:3 }
 function hasAccess(userPlan, requiredPlan) {
   return (PLAN_RANK[userPlan]||0) >= (PLAN_RANK[requiredPlan]||0)
 }
 
-// har item pe perm: jis permission ke bina item hide ho jaaye
+// har item apne specific permission se bandha
 const MENU = [
   { section: 'OVERVIEW' },
   { id:'dashboard',  icon:'ti-layout-dashboard',  label:'Dashboard',            perm:'view_dashboard' },
@@ -23,23 +17,23 @@ const MENU = [
 
   { section: 'CUSTOMERS' },
   { id:'leads',      icon:'ti-message-circle',     label:'Customer Feedback',    perm:'view_leads' },
-  { id:'leads',      icon:'ti-mood-smile',         label:'Customer Sentiment',   perm:'view_leads' },
+  { id:'leads',      icon:'ti-mood-smile',         label:'Customer Sentiment',   perm:'view_sentiment' },
 
   { section: 'REPUTATION' },
-  { id:'trust_score',icon:'ti-shield-check',       label:'Trust Score',          perm:'view_dashboard' },
-  { id:'reviews',    icon:'ti-chart-line',         label:'Reputation Monitor',   perm:'view_reviews' },
+  { id:'trust_score',icon:'ti-shield-check',       label:'Trust Score',          perm:'view_trust_score' },
+  { id:'reviews',    icon:'ti-chart-line',         label:'Reputation Monitor',   perm:'view_reputation' },
   { id:'reviews',    icon:'ti-list-check',         label:'Review Management',    perm:'view_reviews' },
-  { id:'profile',    icon:'ti-rosette-discount-check', label:'Verification Status', perm:'view_dashboard' },
+  { id:'profile',    icon:'ti-rosette-discount-check', label:'Verification Status', perm:'view_verification' },
 
   { section: 'MARKETING' },
   { id:'sponsored',  icon:'ti-ad-2',               label:'Sponsored Placement',  perm:'view_sponsored' },
-  { id:'portfolio',  icon:'ti-speakerphone',        label:'Promotions',           perm:'view_sponsored', requiredPlan:'silver' },
-  { id:'portfolio',  icon:'ti-star',               label:'Featured Listings',    perm:'view_sponsored', requiredPlan:'gold' },
+  { id:'portfolio',  icon:'ti-speakerphone',        label:'Promotions',           perm:'view_promotions', requiredPlan:'silver' },
+  { id:'portfolio',  icon:'ti-star',               label:'Featured Listings',    perm:'view_promotions', requiredPlan:'gold' },
   { id:'analytics',  icon:'ti-trending-up',        label:'Campaign Analytics',   perm:'view_analytics', requiredPlan:'gold' },
 
   { section: 'BUSINESS' },
-  { id:'profile',    icon:'ti-building-store',     label:'Business Profile',     perm:'view_dashboard' },
-  { id:'portfolio',  icon:'ti-photo',              label:'Portfolio',            perm:'view_dashboard' },
+  { id:'profile',    icon:'ti-building-store',     label:'Business Profile',     perm:'view_profile' },
+  { id:'portfolio',  icon:'ti-photo',              label:'Portfolio',            perm:'view_portfolio' },
   { id:'leads',      icon:'ti-mail',               label:'Lead Form',            perm:'view_leads' },
   { id:'staff',      icon:'ti-users',              label:'Team Members',         perm:'manage_staff' },
   { id:'settings',   icon:'ti-bell',               label:'Notifications',        perm:'view_dashboard' },
@@ -56,32 +50,22 @@ export default function Sidebar({ activePage, onNavigate }) {
   const planColor = planColors[planName] || planColors.free
   const perms     = staff?.permissions || null
   const initials  = company?.name
-    ? company.name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase()
-    : '?'
+    ? company.name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase() : '?'
   const isExpired = company?.plan_expires_at
-    ? new Date(company.plan_expires_at) < new Date()
-    : false
+    ? new Date(company.plan_expires_at) < new Date() : false
 
-  const planIcons = {
-    free:     'ti-building',
-    silver:   'ti-medal',
-    gold:     'ti-star',
-    platinum: 'ti-diamond',
-  }
+  const planIcons = { free:'ti-building', silver:'ti-medal', gold:'ti-star', platinum:'ti-diamond' }
 
   function handleNav(item) {
-    if (item.requiredPlan && !hasAccess(planName, item.requiredPlan)) {
-      onNavigate('plans'); return
-    }
+    if (item.requiredPlan && !hasAccess(planName, item.requiredPlan)) { onNavigate('plans'); return }
     onNavigate(item.id)
   }
 
-  // section tabhi dikhe jab uske neeche kam se kam 1 allowed item ho
+  // section tabhi dikhe jab uske neeche koi allowed item ho
   const visibleMenu = []
   for (let i = 0; i < MENU.length; i++) {
     const item = MENU[i]
     if (item.section) {
-      // peek: aage koi allowed item hai is section mein?
       let hasChild = false
       for (let j = i + 1; j < MENU.length && !MENU[j].section; j++) {
         if (can(role, perms, MENU[j].perm)) { hasChild = true; break }
@@ -94,8 +78,6 @@ export default function Sidebar({ activePage, onNavigate }) {
 
   return (
     <aside className="sidebar">
-
-      {/* Logo */}
       <div className="sidebar-logo">
         <div className="sidebar-logo-mark">TD</div>
         <div>
@@ -104,13 +86,10 @@ export default function Sidebar({ activePage, onNavigate }) {
         </div>
       </div>
 
-      {/* Company card */}
       {company && (
         <div className="sidebar-company">
           <div className="sidebar-company-avatar">
-            {company.logo_url
-              ? <img src={company.logo_url} alt={company.name}/>
-              : initials}
+            {company.logo_url ? <img src={company.logo_url} alt={company.name}/> : initials}
           </div>
           <div style={{ flex:1, minWidth:0 }}>
             <div className="sidebar-company-name" style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
@@ -124,23 +103,19 @@ export default function Sidebar({ activePage, onNavigate }) {
         </div>
       )}
 
-      {/* Nav */}
       <nav className="sidebar-nav">
         {visibleMenu.map((item, i) => {
           if (item.section) return (
             <div key={`sec-${i}`} className="nav-section-label">{item.section}</div>
           )
-
-          const locked    = item.requiredPlan && !hasAccess(planName, item.requiredPlan)
-          const isActive  = activePage === item.id
-
+          const locked   = item.requiredPlan && !hasAccess(planName, item.requiredPlan)
+          const isActive = activePage === item.id
           return (
             <button key={`${item.id}-${i}`}
               className={`nav-item${isActive?' active':''}`}
               onClick={() => handleNav(item)}
               style={{ opacity: locked ? 0.55 : 1 }}
-              title={locked ? `Requires ${item.requiredPlan} plan` : ''}
-            >
+              title={locked ? `Requires ${item.requiredPlan} plan` : ''}>
               <i className={`ti ${item.icon}`}/>
               {item.label}
               {locked && (
@@ -159,7 +134,6 @@ export default function Sidebar({ activePage, onNavigate }) {
         </button>
       </nav>
 
-      {/* Upgrade nudge — free plan, sirf owner ko */}
       {planName === 'free' && role === 'owner' && (
         <div style={{ margin:'8px 10px', background:'rgba(232,184,75,0.08)', border:'0.5px solid rgba(232,184,75,0.2)', borderRadius:10, padding:'10px 12px', cursor:'pointer' }}
           onClick={() => onNavigate('plans')}>
@@ -168,7 +142,6 @@ export default function Sidebar({ activePage, onNavigate }) {
         </div>
       )}
 
-      {/* Expiry warning — sirf owner ko */}
       {isExpired && planName !== 'free' && role === 'owner' && (
         <div style={{ margin:'8px 10px', background:'rgba(239,68,68,0.08)', border:'0.5px solid rgba(239,68,68,0.2)', borderRadius:10, padding:'10px 12px', cursor:'pointer' }}
           onClick={() => onNavigate('plans')}>
@@ -177,14 +150,12 @@ export default function Sidebar({ activePage, onNavigate }) {
         </div>
       )}
 
-      {/* Sign out */}
       <div className="sidebar-bottom">
         <button className="nav-item" onClick={signOut}>
           <i className="ti ti-logout"/>
           Sign Out
         </button>
       </div>
-
     </aside>
   )
 }
