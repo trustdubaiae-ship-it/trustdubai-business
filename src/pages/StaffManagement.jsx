@@ -74,7 +74,7 @@ export default function StaffManagement() {
 
       {staff.length === 0 ? (
         <div style={{ background: "#f8fafc", borderRadius: 16, padding: 40, textAlign: "center", color: "#94a3b8" }}>
-          Abhi koi staff nahi. "+ Add Staff" se team member add karo.
+          No staff yet. Click "+ Add Staff" to add a team member.
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -134,14 +134,14 @@ function AddStaffModal({ company, canAdd, onClose, onAdded }) {
   async function submit() {
     setError("");
     if (!canAdd) { setError("Plan limit reached."); return; }
-    if (!name.trim() || !email.trim()) { setError("Name aur email zaroori hai."); return; }
+    if (!name.trim() || !email.trim()) { setError("Name and email are required."); return; }
     const cleanEmail = email.trim().toLowerCase();
     setSaving(true);
 
     const { data: dup } = await supabase
       .from("business_staff").select("id")
       .eq("company_id", company.id).ilike("email", cleanEmail).eq("active", true).maybeSingle();
-    if (dup) { setSaving(false); setError("Ye email already team mein hai."); return; }
+    if (dup) { setSaving(false); setError("This email is already in the team."); return; }
 
     const { error: insErr } = await supabase.from("business_staff").insert({
       company_id: company.id, name: name.trim(), email: cleanEmail,
@@ -162,7 +162,7 @@ function AddStaffModal({ company, canAdd, onClose, onAdded }) {
       <label style={lbl}>Email (Google account)</label>
       <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="staff@example.com" style={{ ...inp, marginBottom: 4 }} />
       <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 0, marginBottom: 12 }}>
-        Is email pe invite jaayega. Staff isi Google account se login karega.
+        An invite will be sent to this email. The staff member will sign in with this Google account.
       </p>
 
       <label style={lbl}>Role</label>
@@ -185,12 +185,10 @@ function ManageStaffModal({ staff, company, slotsLeft, onClose, onChanged }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  // change-staff sub-form
   const [showChange, setShowChange] = useState(false);
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
 
-  // deactivate confirm
   const [confirmDeact, setConfirmDeact] = useState(false);
 
   const badge = STATUS_BADGE[staff.status] || STATUS_BADGE.invited;
@@ -204,34 +202,32 @@ function ManageStaffModal({ staff, company, slotsLeft, onClose, onChanged }) {
     onChanged();
   }
 
-  // CHANGE STAFF — slot wahi, naya banda. email + name update, status->invited, user_id null (purana login deny)
   async function changeStaff() {
     setError("");
-    if (!newName.trim() || !newEmail.trim()) { setError("Naya name aur email zaroori hai."); return; }
+    if (!newName.trim() || !newEmail.trim()) { setError("New name and email are required."); return; }
     const cleanEmail = newEmail.trim().toLowerCase();
     setBusy(true);
 
     const { data: dup } = await supabase
       .from("business_staff").select("id")
       .eq("company_id", company.id).ilike("email", cleanEmail).eq("active", true).neq("id", staff.id).maybeSingle();
-    if (dup) { setBusy(false); setError("Ye email already team mein hai."); return; }
+    if (dup) { setBusy(false); setError("This email is already in the team."); return; }
 
     const { error: e } = await supabase.from("business_staff").update({
       name: newName.trim(),
       email: cleanEmail,
-      status: "invited",   // naya banda Google login karega tab active hoga
-      user_id: null,       // purana Google link hata — purana email login deny
+      status: "invited",
+      user_id: null,
     }).eq("id", staff.id);
     setBusy(false);
     if (e) { setError(e.message); return; }
     onChanged();
   }
 
-  // DEACTIVATE — slot band, data safe, plan slot free
   async function deactivate() {
     setBusy(true); setError("");
-    // 🔖 REASSIGN HOOK (Build Order #4 ke baad): yahan is staff ke pending tasks/notifications
-    //    kisi active staff ko transfer karne ka step aayega.
+    // 🔖 REASSIGN HOOK (after Build Order #4): transfer this staff's pending tasks/notifications
+    //    to another active staff member here.
     const { error: e } = await supabase.from("business_staff").update({
       active: false, status: "inactive", user_id: null,
     }).eq("id", staff.id);
@@ -240,13 +236,12 @@ function ManageStaffModal({ staff, company, slotsLeft, onClose, onChanged }) {
     onChanged();
   }
 
-  // REACTIVATE — wapas active (slot available ho tabhi)
   async function reactivate() {
-    if (slotsLeft <= 0) { setError("Koi slot free nahi. Pehle koi slot deactivate karo ya plan upgrade."); return; }
+    if (slotsLeft <= 0) { setError("No free slot. Deactivate a slot or upgrade your plan first."); return; }
     setBusy(true); setError("");
     const { error: e } = await supabase.from("business_staff").update({
       active: true,
-      status: "invited", // dobara Google login pe active hoga
+      status: "invited",
     }).eq("id", staff.id);
     setBusy(false);
     if (e) { setError(e.message); return; }
@@ -255,7 +250,6 @@ function ManageStaffModal({ staff, company, slotsLeft, onClose, onChanged }) {
 
   return (
     <Modal onClose={onClose}>
-      {/* header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
         <div style={{ width: 44, height: 44, borderRadius: "50%", background: BRAND, color: "#fff",
           display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 18 }}>
@@ -272,19 +266,17 @@ function ManageStaffModal({ staff, company, slotsLeft, onClose, onChanged }) {
 
       {error && <p style={errStyle}>{error}</p>}
 
-      {/* ROLE */}
       <label style={lbl}>Role</label>
       <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
         <select value={role} onChange={(e) => setRole(e.target.value)} style={{ ...inp, marginBottom: 0, flex: 1 }}>
           {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
         </select>
         <button onClick={saveRole} disabled={busy || role === staff.role}
-          style={{ ...primaryBtn, width: "auto", padding: "9px 16px", opacity: (busy || role === staff.role) ? 0.4 : 1 }}>
+          style={{ ...primaryBtn, width: "auto", padding: "9px 16px", marginBottom: 0, opacity: (busy || role === staff.role) ? 0.4 : 1 }}>
           Save
         </button>
       </div>
 
-      {/* CHANGE STAFF */}
       {!showChange ? (
         <button onClick={() => setShowChange(true)} style={outlineBtn}>
           🔄 Change Staff (replace person, keep slot &amp; data)
@@ -292,7 +284,7 @@ function ManageStaffModal({ staff, company, slotsLeft, onClose, onChanged }) {
       ) : (
         <div style={{ background: "#f8fafc", borderRadius: 12, padding: 14, marginBottom: 10 }}>
           <p style={{ fontSize: 12, color: "#64748b", marginTop: 0, marginBottom: 10 }}>
-            Naya banda is slot pe aayega. Purana email login band ho jaayega, saara data (history/role) same rahega.
+            A new person will take over this slot. The old email login will be disabled, and all data (history/role) stays the same.
           </p>
           <label style={lbl}>New Staff Name</label>
           <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="New person name" style={inp} />
@@ -307,7 +299,6 @@ function ManageStaffModal({ staff, company, slotsLeft, onClose, onChanged }) {
         </div>
       )}
 
-      {/* DEACTIVATE / REACTIVATE */}
       {staff.active ? (
         !confirmDeact ? (
           <button onClick={() => setConfirmDeact(true)} style={dangerBtn}>
@@ -316,7 +307,7 @@ function ManageStaffModal({ staff, company, slotsLeft, onClose, onChanged }) {
         ) : (
           <div style={{ background: "#fef2f2", borderRadius: 12, padding: 14 }}>
             <p style={{ fontSize: 12, color: "#b91c1c", marginTop: 0, marginBottom: 10 }}>
-              Pakka deactivate karein? Login band ho jaayega, data safe rahega, plan slot free ho jaayega.
+              Are you sure you want to deactivate? Login will be disabled, data stays safe, and the plan slot will be freed.
             </p>
             <div style={{ display: "flex", gap: 8 }}>
               <button onClick={() => setConfirmDeact(false)} style={{ ...outlineBtn, marginBottom: 0, flex: 1 }}>Cancel</button>
