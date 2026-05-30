@@ -13,9 +13,9 @@ const ROLES = [
 ];
 
 const STATUS_BADGE = {
-  invited:  { label: "Invited",  cls: "bg-amber-100 text-amber-700" },
-  active:   { label: "Active",   cls: "bg-green-100 text-green-700" },
-  inactive: { label: "Inactive", cls: "bg-gray-200 text-gray-500" },
+  invited:  { label: "Invited",  bg: "#fef3c7", fg: "#b45309" },
+  active:   { label: "Active",   bg: "#dcfce7", fg: "#15803d" },
+  inactive: { label: "Inactive", bg: "#e5e7eb", fg: "#6b7280" },
 };
 
 export default function StaffManagement() {
@@ -24,6 +24,7 @@ export default function StaffManagement() {
   const [limit, setLimit] = useState(1);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
+  const [manageStaff, setManageStaff] = useState(null);
 
   const loadAll = useCallback(async () => {
     if (!company?.id) return;
@@ -95,8 +96,11 @@ export default function StaffManagement() {
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
                   <span style={{ fontSize: 11, padding: "3px 9px", borderRadius: 99, background: "#eff6ff", color: "#1d4ed8", textTransform: "capitalize" }}>{s.role}</span>
-                  <span className={badge.cls} style={{ fontSize: 11, padding: "3px 9px", borderRadius: 99 }}>{badge.label}</span>
-                  <button disabled style={{ fontSize: 12, color: "#94a3b8", background: "none", border: "none", cursor: "default" }}>Manage</button>
+                  <span style={{ fontSize: 11, padding: "3px 9px", borderRadius: 99, background: badge.bg, color: badge.fg }}>{badge.label}</span>
+                  <button onClick={() => setManageStaff(s)}
+                    style={{ fontSize: 12, color: BRAND, fontWeight: 600, background: "none", border: "none", cursor: "pointer" }}>
+                    Manage
+                  </button>
                 </div>
               </div>
             );
@@ -109,10 +113,17 @@ export default function StaffManagement() {
           onClose={() => setShowAdd(false)}
           onAdded={() => { setShowAdd(false); loadAll(); }} />
       )}
+
+      {manageStaff && (
+        <ManageStaffModal staff={manageStaff} company={company} slotsLeft={slotsLeft}
+          onClose={() => setManageStaff(null)}
+          onChanged={() => { setManageStaff(null); loadAll(); }} />
+      )}
     </div>
   );
 }
 
+/* ---------- Add Staff ---------- */
 function AddStaffModal({ company, canAdd, onClose, onAdded }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -142,40 +153,216 @@ function AddStaffModal({ company, canAdd, onClose, onAdded }) {
   }
 
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.4)",
-      display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 420, padding: 20 }}>
-        <h4 style={{ fontWeight: 700, color: "#0f172a", marginTop: 0, marginBottom: 16 }}>Add Team Member</h4>
+    <Modal onClose={onClose}>
+      <h4 style={{ fontWeight: 700, color: "#0f172a", marginTop: 0, marginBottom: 16 }}>Add Team Member</h4>
 
-        <label style={{ fontSize: 12, color: "#64748b" }}>Full Name</label>
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Ahmed Khan"
-          style={inp} />
+      <label style={lbl}>Full Name</label>
+      <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Ahmed Khan" style={inp} />
 
-        <label style={{ fontSize: 12, color: "#64748b" }}>Email (Google account)</label>
-        <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="staff@example.com"
-          style={{ ...inp, marginBottom: 4 }} />
-        <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 0, marginBottom: 12 }}>
-          Is email pe invite jaayega. Staff isi Google account se login karega.
-        </p>
+      <label style={lbl}>Email (Google account)</label>
+      <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="staff@example.com" style={{ ...inp, marginBottom: 4 }} />
+      <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 0, marginBottom: 12 }}>
+        Is email pe invite jaayega. Staff isi Google account se login karega.
+      </p>
 
-        <label style={{ fontSize: 12, color: "#64748b" }}>Role</label>
-        <select value={role} onChange={(e) => setRole(e.target.value)} style={inp}>
+      <label style={lbl}>Role</label>
+      <select value={role} onChange={(e) => setRole(e.target.value)} style={inp}>
+        {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+      </select>
+
+      {error && <p style={errStyle}>{error}</p>}
+
+      <button onClick={submit} disabled={saving} style={{ ...primaryBtn, opacity: saving ? 0.5 : 1 }}>
+        {saving ? "Adding…" : "Add & Send Invite"}
+      </button>
+    </Modal>
+  );
+}
+
+/* ---------- Manage Staff ---------- */
+function ManageStaffModal({ staff, company, slotsLeft, onClose, onChanged }) {
+  const [role, setRole] = useState(staff.role);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  // change-staff sub-form
+  const [showChange, setShowChange] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+
+  // deactivate confirm
+  const [confirmDeact, setConfirmDeact] = useState(false);
+
+  const badge = STATUS_BADGE[staff.status] || STATUS_BADGE.invited;
+
+  async function saveRole() {
+    if (role === staff.role) return;
+    setBusy(true); setError("");
+    const { error: e } = await supabase.from("business_staff").update({ role }).eq("id", staff.id);
+    setBusy(false);
+    if (e) { setError(e.message); return; }
+    onChanged();
+  }
+
+  // CHANGE STAFF — slot wahi, naya banda. email + name update, status->invited, user_id null (purana login deny)
+  async function changeStaff() {
+    setError("");
+    if (!newName.trim() || !newEmail.trim()) { setError("Naya name aur email zaroori hai."); return; }
+    const cleanEmail = newEmail.trim().toLowerCase();
+    setBusy(true);
+
+    const { data: dup } = await supabase
+      .from("business_staff").select("id")
+      .eq("company_id", company.id).ilike("email", cleanEmail).eq("active", true).neq("id", staff.id).maybeSingle();
+    if (dup) { setBusy(false); setError("Ye email already team mein hai."); return; }
+
+    const { error: e } = await supabase.from("business_staff").update({
+      name: newName.trim(),
+      email: cleanEmail,
+      status: "invited",   // naya banda Google login karega tab active hoga
+      user_id: null,       // purana Google link hata — purana email login deny
+    }).eq("id", staff.id);
+    setBusy(false);
+    if (e) { setError(e.message); return; }
+    onChanged();
+  }
+
+  // DEACTIVATE — slot band, data safe, plan slot free
+  async function deactivate() {
+    setBusy(true); setError("");
+    // 🔖 REASSIGN HOOK (Build Order #4 ke baad): yahan is staff ke pending tasks/notifications
+    //    kisi active staff ko transfer karne ka step aayega.
+    const { error: e } = await supabase.from("business_staff").update({
+      active: false, status: "inactive", user_id: null,
+    }).eq("id", staff.id);
+    setBusy(false);
+    if (e) { setError(e.message); return; }
+    onChanged();
+  }
+
+  // REACTIVATE — wapas active (slot available ho tabhi)
+  async function reactivate() {
+    if (slotsLeft <= 0) { setError("Koi slot free nahi. Pehle koi slot deactivate karo ya plan upgrade."); return; }
+    setBusy(true); setError("");
+    const { error: e } = await supabase.from("business_staff").update({
+      active: true,
+      status: "invited", // dobara Google login pe active hoga
+    }).eq("id", staff.id);
+    setBusy(false);
+    if (e) { setError(e.message); return; }
+    onChanged();
+  }
+
+  return (
+    <Modal onClose={onClose}>
+      {/* header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+        <div style={{ width: 44, height: 44, borderRadius: "50%", background: BRAND, color: "#fff",
+          display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 18 }}>
+          {staff.name?.charAt(0)?.toUpperCase() || "?"}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 700, color: "#0f172a" }}>{staff.name}</div>
+          <div style={{ fontSize: 12, color: "#64748b" }}>{staff.email}</div>
+        </div>
+        <span style={{ marginLeft: "auto", fontSize: 11, padding: "3px 9px", borderRadius: 99, background: badge.bg, color: badge.fg }}>
+          {badge.label}
+        </span>
+      </div>
+
+      {error && <p style={errStyle}>{error}</p>}
+
+      {/* ROLE */}
+      <label style={lbl}>Role</label>
+      <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
+        <select value={role} onChange={(e) => setRole(e.target.value)} style={{ ...inp, marginBottom: 0, flex: 1 }}>
           {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
         </select>
-
-        {error && <p style={{ fontSize: 12, color: "#dc2626", marginBottom: 12 }}>{error}</p>}
-
-        <button onClick={submit} disabled={saving}
-          style={{ width: "100%", padding: "11px", borderRadius: 9, border: "none", color: "#fff",
-            fontWeight: 600, background: BRAND, cursor: "pointer", opacity: saving ? 0.5 : 1 }}>
-          {saving ? "Adding…" : "Add & Send Invite"}
+        <button onClick={saveRole} disabled={busy || role === staff.role}
+          style={{ ...primaryBtn, width: "auto", padding: "9px 16px", opacity: (busy || role === staff.role) ? 0.4 : 1 }}>
+          Save
         </button>
+      </div>
+
+      {/* CHANGE STAFF */}
+      {!showChange ? (
+        <button onClick={() => setShowChange(true)} style={outlineBtn}>
+          🔄 Change Staff (replace person, keep slot &amp; data)
+        </button>
+      ) : (
+        <div style={{ background: "#f8fafc", borderRadius: 12, padding: 14, marginBottom: 10 }}>
+          <p style={{ fontSize: 12, color: "#64748b", marginTop: 0, marginBottom: 10 }}>
+            Naya banda is slot pe aayega. Purana email login band ho jaayega, saara data (history/role) same rahega.
+          </p>
+          <label style={lbl}>New Staff Name</label>
+          <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="New person name" style={inp} />
+          <label style={lbl}>New Email (Google account)</label>
+          <input value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="new@example.com" style={inp} />
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => setShowChange(false)} style={{ ...outlineBtn, marginBottom: 0, flex: 1 }}>Cancel</button>
+            <button onClick={changeStaff} disabled={busy} style={{ ...primaryBtn, marginBottom: 0, flex: 1, opacity: busy ? 0.5 : 1 }}>
+              {busy ? "Saving…" : "Confirm Change"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* DEACTIVATE / REACTIVATE */}
+      {staff.active ? (
+        !confirmDeact ? (
+          <button onClick={() => setConfirmDeact(true)} style={dangerBtn}>
+            ⛔ Deactivate Slot
+          </button>
+        ) : (
+          <div style={{ background: "#fef2f2", borderRadius: 12, padding: 14 }}>
+            <p style={{ fontSize: 12, color: "#b91c1c", marginTop: 0, marginBottom: 10 }}>
+              Pakka deactivate karein? Login band ho jaayega, data safe rahega, plan slot free ho jaayega.
+            </p>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => setConfirmDeact(false)} style={{ ...outlineBtn, marginBottom: 0, flex: 1 }}>Cancel</button>
+              <button onClick={deactivate} disabled={busy} style={{ ...dangerBtn, marginBottom: 0, flex: 1, opacity: busy ? 0.5 : 1 }}>
+                {busy ? "…" : "Yes, Deactivate"}
+              </button>
+            </div>
+          </div>
+        )
+      ) : (
+        <button onClick={reactivate} disabled={busy} style={{ ...primaryBtn, background: "#15803d", opacity: busy ? 0.5 : 1 }}>
+          ♻️ Reactivate Slot
+        </button>
+      )}
+    </Modal>
+  );
+}
+
+/* ---------- Shared Modal ---------- */
+function Modal({ children, onClose }) {
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.4)",
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 440, padding: 20, maxHeight: "90vh", overflowY: "auto" }}>
+        {children}
       </div>
     </div>
   );
 }
 
+/* ---------- styles ---------- */
+const lbl = { fontSize: 12, color: "#64748b", display: "block" };
 const inp = {
   width: "100%", marginTop: 4, marginBottom: 14, border: "1px solid #e2e8f0",
   borderRadius: 9, padding: "9px 12px", fontSize: 13, boxSizing: "border-box",
 };
+const primaryBtn = {
+  width: "100%", padding: "11px", borderRadius: 9, border: "none", color: "#fff",
+  fontWeight: 600, fontSize: 13, background: BRAND, cursor: "pointer", marginBottom: 10,
+};
+const outlineBtn = {
+  width: "100%", padding: "11px", borderRadius: 9, border: "1px solid #e2e8f0", color: "#0f172a",
+  fontWeight: 600, fontSize: 13, background: "#fff", cursor: "pointer", marginBottom: 10,
+};
+const dangerBtn = {
+  width: "100%", padding: "11px", borderRadius: 9, border: "none", color: "#fff",
+  fontWeight: 600, fontSize: 13, background: "#dc2626", cursor: "pointer", marginBottom: 10,
+};
+const errStyle = { fontSize: 12, color: "#dc2626", marginBottom: 12 };
