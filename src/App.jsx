@@ -17,6 +17,7 @@ import SettingsPage from './pages/SettingsPage'
 import LeadsPage from './pages/LeadsPage'
 import SponsoredPage from './pages/SponsoredPage'
 import StaffManagement from './pages/StaffManagement'
+import NotificationsPage from './pages/NotificationsPage'
 
 const ROLE_LABEL = { owner:'Owner', manager:'Manager', sales:'Sales', engineer:'Engineer', staff:'Staff' }
 
@@ -32,6 +33,7 @@ const PAGE_PERM = {
   leads:     'view_leads',
   sponsored: 'view_sponsored',
   staff:     'manage_staff',
+  // notifications: sabke liye open (apne notifications sabko dikhte hain) — koi perm nahi
 }
 
 function Portal() {
@@ -55,25 +57,25 @@ function Portal() {
   if (!company) return <NoCompanyPage />
 
   const allPages = {
-    dashboard:  <DashboardPage onNavigate={setActivePage} />,
-    profile:    <ProfilePage />,
-    reviews:    <ReviewsPage />,
-    portfolio:  <PortfolioPage />,
-    plans:      <PlansPage />,
-    analytics:  <AnalyticsPage onNavigate={setActivePage} />,
-    settings:   <SettingsPage />,
-    leads:      <LeadsPage />,
-    sponsored:  <SponsoredPage onNavigate={setActivePage} />,
-    staff:      <StaffManagement />,
+    dashboard:     <DashboardPage onNavigate={setActivePage} />,
+    profile:       <ProfilePage />,
+    reviews:       <ReviewsPage />,
+    portfolio:     <PortfolioPage />,
+    plans:         <PlansPage />,
+    analytics:     <AnalyticsPage onNavigate={setActivePage} />,
+    settings:      <SettingsPage />,
+    leads:         <LeadsPage />,
+    sponsored:     <SponsoredPage onNavigate={setActivePage} />,
+    staff:         <StaffManagement />,
+    notifications: <NotificationsPage />,
   }
 
   const pageTitles = {
     dashboard:'Dashboard', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
     plans:'Plans & Billing', analytics:'Analytics', settings:'Settings', leads:'Lead Form',
-    sponsored:'Sponsored Placement', staff:'Team / Staff',
+    sponsored:'Sponsored Placement', staff:'Team / Staff', notifications:'Notifications',
   }
 
-  // PAGE GUARD — current page ka permission check
   const neededPerm = PAGE_PERM[activePage]
   const allowed = !neededPerm || can(role, staff?.permissions, neededPerm)
 
@@ -87,7 +89,6 @@ function Portal() {
   const roleLabel    = ROLE_LABEL[role] || 'Member'
   const avatarLetter = (displayName?.[0] || '?').toUpperCase()
 
-  // guard fail -> access denied card (jo allowed page pe wapas bhej de)
   const AccessDenied = (
     <div style={{ padding:40, display:'flex', justifyContent:'center' }}>
       <div style={{ background:'#fff', borderRadius:16, padding:32, maxWidth:420, textAlign:'center', boxShadow:'0 4px 20px rgba(0,0,0,0.06)' }}>
@@ -132,8 +133,8 @@ function Portal() {
             <div style={{ background: isPlatinum?'rgba(255,255,255,0.05)':'var(--bg2)', border:`0.5px solid ${isPlatinum?'rgba(255,255,255,0.08)':'var(--border)'}`, borderRadius:8, padding:'5px 10px', fontSize:9, color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)', display:'flex', alignItems:'center', gap:5 }}>
               <i className="ti ti-calendar" style={{ fontSize:10 }}/> Last 30 Days <i className="ti ti-chevron-down" style={{ fontSize:9 }}/>
             </div>
-            <div style={{ position:'relative' }}>
-              <i className="ti ti-bell" style={{ fontSize:18, color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)', cursor:'pointer' }}/>
+            <div onClick={() => setActivePage('notifications')} style={{ position:'relative', cursor:'pointer' }}>
+              <i className="ti ti-bell" style={{ fontSize:18, color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)' }}/>
               <div style={{ position:'absolute', top:-2, right:-2, width:7, height:7, background:'#ef4444', borderRadius:'50%', border:`1.5px solid ${isPlatinum?'#161b2e':'var(--card)'}` }}/>
             </div>
             <i className="ti ti-message-circle" style={{ fontSize:18, color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)', cursor:'pointer' }}/>
