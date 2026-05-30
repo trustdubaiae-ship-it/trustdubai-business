@@ -17,10 +17,15 @@ import LeadsPage from './pages/LeadsPage'
 import SponsoredPage from './pages/SponsoredPage'
 import StaffManagement from './pages/StaffManagement'
 
+const ROLE_LABEL = {
+  owner: 'Owner', manager: 'Manager', sales: 'Sales', engineer: 'Engineer', staff: 'Staff',
+}
+
 function Portal() {
-  const { user, company, loading } = useAuth()
+  const { user, company, staff, role, loading, signOut } = useAuth()
   const [activePage,   setActivePage]   = useState('dashboard')
   const [showRegister, setShowRegister] = useState(false)
+  const [showProfile,  setShowProfile]  = useState(false)
 
   if (showRegister) return <RegisterPage onBack={() => setShowRegister(false)} />
 
@@ -67,6 +72,12 @@ function Portal() {
   const isPlatinum = planName === 'platinum'
   const pageBg     = isPlatinum ? '#0f0e1a' : '#f8fafc'
 
+  // logged-in person ka display naam
+  const displayName  = staff?.name || company?.name || 'User'
+  const displayEmail = user?.email || ''
+  const roleLabel    = ROLE_LABEL[role] || 'Member'
+  const avatarLetter = (displayName?.[0] || '?').toUpperCase()
+
   return (
     <div className="layout" style={{ background: pageBg }}>
       <Sidebar activePage={activePage} onNavigate={setActivePage} />
@@ -107,8 +118,58 @@ function Portal() {
               <i className={`ti ${planName==='platinum'?'ti-diamond': planName==='gold'?'ti-star':'ti-building'}`} style={{ fontSize:10 }}/>
               {planName.charAt(0).toUpperCase()+planName.slice(1)} Plan
             </div>
-            <div style={{ width:32, height:32, borderRadius:8, background:'linear-gradient(135deg,#e8b84b,#c9952a)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:12, color:'#0d1117', cursor:'pointer' }}>
-              {company?.name?.[0]?.toUpperCase()||'?'}
+
+            {/* PROFILE avatar + dropdown */}
+            <div style={{ position:'relative' }}>
+              <div
+                onClick={() => setShowProfile(v => !v)}
+                title={`${displayName} · ${displayEmail}`}
+                style={{ width:32, height:32, borderRadius:8, background:'#0099cc', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:13, color:'#fff', cursor:'pointer' }}>
+                {avatarLetter}
+              </div>
+
+              {showProfile && (
+                <>
+                  {/* click-away */}
+                  <div onClick={() => setShowProfile(false)}
+                    style={{ position:'fixed', inset:0, zIndex:40 }}/>
+                  <div style={{ position:'absolute', right:0, top:42, zIndex:50, width:240,
+                    background:'#fff', borderRadius:12, boxShadow:'0 10px 30px rgba(0,0,0,0.15)', border:'1px solid #eef2f6', overflow:'hidden' }}>
+                    {/* header */}
+                    <div style={{ padding:14, display:'flex', alignItems:'center', gap:10, borderBottom:'1px solid #f1f5f9' }}>
+                      <div style={{ width:40, height:40, borderRadius:'50%', background:'#0099cc', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700 }}>
+                        {avatarLetter}
+                      </div>
+                      <div style={{ minWidth:0 }}>
+                        <div style={{ fontSize:13, fontWeight:700, color:'#0f172a', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{displayName}</div>
+                        <div style={{ fontSize:11, color:'#64748b', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{displayEmail}</div>
+                      </div>
+                    </div>
+                    {/* details */}
+                    <div style={{ padding:'10px 14px', fontSize:12, color:'#475569', display:'flex', flexDirection:'column', gap:8 }}>
+                      <div style={{ display:'flex', justifyContent:'space-between' }}>
+                        <span style={{ color:'#94a3b8' }}>Company</span>
+                        <span style={{ fontWeight:600, color:'#0f172a' }}>{company?.name}</span>
+                      </div>
+                      <div style={{ display:'flex', justifyContent:'space-between' }}>
+                        <span style={{ color:'#94a3b8' }}>Role</span>
+                        <span style={{ fontWeight:600, color:'#0099cc' }}>{roleLabel}</span>
+                      </div>
+                      <div style={{ display:'flex', justifyContent:'space-between' }}>
+                        <span style={{ color:'#94a3b8' }}>Plan</span>
+                        <span style={{ fontWeight:600, color: planColors[planName], textTransform:'capitalize' }}>{planName}</span>
+                      </div>
+                    </div>
+                    {/* actions */}
+                    <div style={{ borderTop:'1px solid #f1f5f9', padding:8 }}>
+                      <button onClick={() => { setShowProfile(false); signOut() }}
+                        style={{ width:'100%', textAlign:'left', padding:'9px 10px', fontSize:13, color:'#dc2626', background:'none', border:'none', borderRadius:8, cursor:'pointer', display:'flex', alignItems:'center', gap:8 }}>
+                        <i className="ti ti-logout"/> Sign Out
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
