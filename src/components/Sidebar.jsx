@@ -1,3 +1,4 @@
+// trustdubai-business/src/components/Sidebar.jsx
 import { useAuth } from '../lib/auth'
 
 const planColors = {
@@ -38,7 +39,7 @@ const MENU = [
   { id:'profile',    icon:'ti-building-store',     label:'Business Profile',     show: true },
   { id:'portfolio',  icon:'ti-photo',              label:'Portfolio',            show: true },
   { id:'leads',      icon:'ti-mail',               label:'Lead Form',            show: true },
-  { id:'leads',      icon:'ti-users',              label:'Team Members',         show: true },
+  { id:'staff',      icon:'ti-users',              label:'Team Members',         show: true },
   { id:'settings',   icon:'ti-bell',               label:'Notifications',        show: true },
 
   { section: 'SETTINGS' },
