@@ -1,6 +1,8 @@
+// trustdubai-business/src/pages/DashboardPage.jsx
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
+import NotificationsCard from '../components/NotificationsCard'
 
 const PLAN_CONFIG = {
   free:     { name:'Free',     color:'#6b7280', bg:'#f9fafb', border:'#e5e7eb', badge:'🆓', welcomeEmoji:'👋', maxMembers:2   },
@@ -65,24 +67,6 @@ function AIScoreRow({ label, score, color }) {
   )
 }
 
-// Coming Soon tooltip wrapper
-function ComingSoon({ children, active }) {
-  const [show, setShow] = useState(false)
-  if (!active) return children
-  return (
-    <div style={{ position:'relative', cursor:'not-allowed' }}
-      onMouseEnter={()=>setShow(true)}
-      onMouseLeave={()=>setShow(false)}>
-      <div style={{ pointerEvents:'none', opacity:0.6 }}>{children}</div>
-      {show && (
-        <div style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)', background:'rgba(0,0,0,0.75)', color:'#fff', fontSize:10, fontWeight:600, padding:'5px 10px', borderRadius:6, whiteSpace:'nowrap', zIndex:50, pointerEvents:'none' }}>
-          Coming Soon
-        </div>
-      )}
-    </div>
-  )
-}
-
 export default function DashboardPage({ onNavigate }) {
   const { company } = useAuth()
   const [stats,         setStats]         = useState({ views:0, reviews:0, avgRating:0, portfolio:0, newReviews:0, satisfaction:0, reputationGrowth:'Low', trustScore:'0.0' })
@@ -123,11 +107,9 @@ export default function DashboardPage({ onNavigate }) {
       const avg     = reviews.length>0
         ? (reviews.reduce((s,r)=>s+r.rating,0)/reviews.length).toFixed(1) : 0
 
-      // This month
       const monthStart     = new Date(new Date().getFullYear(),new Date().getMonth(),1).toISOString()
       const newRev         = reviews.filter(r=>r.created_at>=monthStart).length
 
-      // Last month
       const lastMonthStart = new Date(new Date().getFullYear(),new Date().getMonth()-1,1).toISOString()
       const lastMonthEnd   = monthStart
       const lastMonthCount = reviews.filter(r=>r.created_at>=lastMonthStart&&r.created_at<lastMonthEnd).length
@@ -136,16 +118,13 @@ export default function DashboardPage({ onNavigate }) {
         : newRev>lastMonthCount?'High'
         : newRev===lastMonthCount?'Stable':'Low'
 
-      // Customer satisfaction
       const satisfaction = avg>0 ? Math.round((parseFloat(avg)/5)*100) : 0
 
-      // Trust score
       const verified   = company.is_verified ? 1 : 0
       const trustScore = Math.min(10, parseFloat(
         ((verified*0.4)+(parseFloat(avg)/5*0.4)+Math.min(reviews.length/50,1)*0.2)*10
       ).toFixed(1))
 
-      // Review distribution
       const dist = {5:0,4:0,3:0,2:0,1:0}
       reviews.forEach(r=>{ if(dist[r.rating]!==undefined) dist[r.rating]++ })
       setReviewDist(dist)
@@ -178,21 +157,8 @@ export default function DashboardPage({ onNavigate }) {
   }
   const cardS = { background:C.card, border:`0.5px solid ${C.border}`, borderRadius:12, padding:'14px 16px' }
 
-  const reviewTrend = [2,5,3,8,6,12,9,15,11,18,14,stats.reviews]
-  const viewTrend   = [10,25,18,40,32,55,45,70,58,82,75,stats.views]
-
-  const checklist = [
-    { done:!!company?.name,        label:'Company name added',    page:'profile'   },
-    { done:!!company?.logo_url,    label:'Logo uploaded',         page:'profile'   },
-    { done:!!company?.description, label:'Description written',   page:'profile'   },
-    { done:!!company?.phone,       label:'Phone number added',    page:'profile'   },
-    { done:stats.portfolio>0,      label:'Portfolio photo added', page:'portfolio' },
-    { done:stats.reviews>0,        label:'First review received', page:'reviews'   },
-  ]
-
   const maxDist = Math.max(...Object.values(reviewDist),1)
 
-  // Trust score suggestions
   const trustSuggestions = [
     { done:company?.is_verified,    label:'Get Trade License Verified',    icon:'ti-license',       points:'+4.0 pts' },
     { done:parseFloat(stats.avgRating)>=4, label:'Maintain 4+ star rating', icon:'ti-star',         points:'+4.0 pts' },
@@ -249,7 +215,6 @@ export default function DashboardPage({ onNavigate }) {
           </h1>
           <p style={{ fontSize:12, color:C.text2, marginTop:3 }}>Here's how your business is performing on TrustDubai.</p>
         </div>
-        {/* Clock */}
         <div style={{ background:C.card, border:`0.5px solid ${C.border}`, borderRadius:12, padding:'10px 16px', textAlign:'center', minWidth:200 }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:5, marginBottom:6 }}>
             <i className="ti ti-clock" style={{ fontSize:10, color:'#e8b84b' }}/>
@@ -267,7 +232,7 @@ export default function DashboardPage({ onNavigate }) {
         </div>
       </div>
 
-      {/* PROFILE COMPLETION */}
+      {/* PROFILE COMPLETION BANNER */}
       {profilePct<100 && (
         <div style={{ background:isPlatinum?'rgba(139,92,246,0.08)':'linear-gradient(135deg,#fef9ed,#fef3c7)', border:`0.5px solid ${isPlatinum?'rgba(139,92,246,0.2)':'rgba(232,184,75,0.3)'}`, borderRadius:12, padding:'16px 20px', display:'flex', alignItems:'center', gap:14, marginBottom:16 }}>
           <i className="ti ti-alert-circle" style={{ fontSize:20, color:isPlatinum?'#a78bfa':'var(--amber)' }}/>
@@ -285,44 +250,18 @@ export default function DashboardPage({ onNavigate }) {
       {/* 6 TOP STAT CARDS */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:10, marginBottom:16 }}>
         {[
-          {
-            label:'Trust Score', value:stats.trustScore, icon:'ti-shield-check', color:'#10b981',
-            trend:[5,5.5,6,6.2,7,7.5,8,8.2,9,9.1,9.2,parseFloat(stats.trustScore)||0],
-            change:'+6.5% Change', isReal:true, page:'reviews'
-          },
-          {
-            label:'Total Reviews', value:stats.reviews, icon:'ti-message-circle', color:'#e8b84b',
-            trend:[2,5,8,12,18,25,30,42,55,70,85,stats.reviews],
-            change:'+3.1% Change', isReal:true, page:'reviews'
-          },
-          {
-            label:'New Reviews (30D)', value:stats.newReviews, icon:'ti-star', color:'#3b82f6',
-            trend:[0,1,2,3,5,4,6,8,7,9,10,stats.newReviews],
-            change:'+12% Change', isReal:true, page:'reviews'
-          },
-          {
-            label:'Average Rating', value:stats.avgRating||'0.0', icon:'ti-star', color:'#f59e0b',
-            trend:[3,3.2,3.5,3.8,4,4.1,4.3,4.5,4.6,4.7,4.8,parseFloat(stats.avgRating)||0],
-            change:'+0.1 Change', isReal:true, page:'reviews', suffix:'★'
-          },
-          {
-            label:'Customer Satisfaction', value:`${stats.satisfaction}%`, icon:'ti-mood-smile', color:'#8b5cf6',
-            trend:[60,65,70,72,75,78,80,82,84,86,88,stats.satisfaction],
-            change:'+2.1% Change', isReal:true, isStr:true
-          },
-          {
-            label:'Reputation Growth', value:stats.reputationGrowth, icon:'ti-trending-up', color:'#10b981',
-            trend:[20,30,35,45,40,55,60,65,70,75,80,stats.reputationGrowth==='High'?90:stats.reputationGrowth==='Stable'?60:30],
-            change:'vs last month', isReal:true, isStr:true
-          },
+          { label:'Trust Score', value:stats.trustScore, icon:'ti-shield-check', color:'#10b981', trend:[5,5.5,6,6.2,7,7.5,8,8.2,9,9.1,9.2,parseFloat(stats.trustScore)||0], change:'+6.5% Change', isReal:true, page:'reviews' },
+          { label:'Total Reviews', value:stats.reviews, icon:'ti-message-circle', color:'#e8b84b', trend:[2,5,8,12,18,25,30,42,55,70,85,stats.reviews], change:'+3.1% Change', isReal:true, page:'reviews' },
+          { label:'New Reviews (30D)', value:stats.newReviews, icon:'ti-star', color:'#3b82f6', trend:[0,1,2,3,5,4,6,8,7,9,10,stats.newReviews], change:'+12% Change', isReal:true, page:'reviews' },
+          { label:'Average Rating', value:stats.avgRating||'0.0', icon:'ti-star', color:'#f59e0b', trend:[3,3.2,3.5,3.8,4,4.1,4.3,4.5,4.6,4.7,4.8,parseFloat(stats.avgRating)||0], change:'+0.1 Change', isReal:true, page:'reviews', suffix:'★' },
+          { label:'Customer Satisfaction', value:`${stats.satisfaction}%`, icon:'ti-mood-smile', color:'#8b5cf6', trend:[60,65,70,72,75,78,80,82,84,86,88,stats.satisfaction], change:'+2.1% Change', isReal:true, isStr:true },
+          { label:'Reputation Growth', value:stats.reputationGrowth, icon:'ti-trending-up', color:'#10b981', trend:[20,30,35,45,40,55,60,65,70,75,80,stats.reputationGrowth==='High'?90:stats.reputationGrowth==='Stable'?60:30], change:'vs last month', isReal:true, isStr:true },
         ].map((card,i) => (
           <div key={i}
             style={{ ...cardS, cursor:card.isReal?'pointer':'not-allowed', transition:'all 0.15s', position:'relative', overflow:'hidden', opacity:card.isReal?1:0.6 }}
             onClick={()=>{ if(card.isReal && card.page) onNavigate(card.page) }}
             onMouseEnter={e=>{ if(card.isReal){ e.currentTarget.style.borderColor=card.color+'55'; e.currentTarget.style.transform='translateY(-1px)' }}}
-            onMouseLeave={e=>{ e.currentTarget.style.borderColor=C.border; e.currentTarget.style.transform='none' }}
-            title={!card.isReal?'Coming Soon':''}
-          >
+            onMouseLeave={e=>{ e.currentTarget.style.borderColor=C.border; e.currentTarget.style.transform='none' }}>
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
               <div style={{ width:28, height:28, borderRadius:7, background:card.color+'18', display:'flex', alignItems:'center', justifyContent:'center' }}>
                 <i className={`ti ${card.icon}`} style={{ fontSize:14, color:card.color }}/>
@@ -334,11 +273,6 @@ export default function DashboardPage({ onNavigate }) {
               {loading?'—':card.suffix?`${card.value}${card.suffix}`:card.value}
             </div>
             <Sparkline data={card.trend} color={card.color} height={26}/>
-            {!card.isReal && (
-              <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.03)', borderRadius:12 }}>
-                <span style={{ background:'rgba(0,0,0,0.6)', color:'#fff', fontSize:9, fontWeight:600, padding:'3px 8px', borderRadius:99 }}>Coming Soon</span>
-              </div>
-            )}
           </div>
         ))}
       </div>
@@ -421,7 +355,7 @@ export default function DashboardPage({ onNavigate }) {
           </div>
         </div>
 
-        {/* Trust Score Gauge + Suggestions */}
+        {/* Trust Score Gauge */}
         <div style={cardS}>
           <div style={{ fontSize:11, fontWeight:700, color:C.text, textTransform:'uppercase', letterSpacing:'0.04em', marginBottom:10 }}>Trust Score</div>
           <div style={{ display:'flex', justifyContent:'center', marginBottom:8 }}>
@@ -468,10 +402,13 @@ export default function DashboardPage({ onNavigate }) {
         </div>
       </div>
 
-      {/* BOTTOM ROW */}
+      {/* BOTTOM ROW — Notifications | AI Insights | Latest Reviews | Verification+Premium */}
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:12, marginBottom:14 }}>
 
-        {/* AI Insights */}
+        {/* Notifications Card */}
+        <NotificationsCard cardStyle={cardS} C={C} onOpenPage={() => onNavigate('notifications')} />
+
+        {/* AI Insights (shifted here) */}
         <div style={cardS}>
           <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:12 }}>
             <i className="ti ti-bulb" style={{ fontSize:14, color:'#e8b84b' }}/>
@@ -482,25 +419,6 @@ export default function DashboardPage({ onNavigate }) {
           <AIScoreRow label="Customer Loyalty Score" score={50} color="#e8b84b"/>
           <AIScoreRow label="Reputation Health"      score={45} color="#f59e0b"/>
           <AIScoreRow label="Risk Indicators"        score={10} color="#ef4444"/>
-        </div>
-
-        {/* Profile Checklist */}
-        <div style={cardS}>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:C.text, textTransform:'uppercase', letterSpacing:'0.04em' }}>Profile Checklist</div>
-            <span style={{ fontSize:9, fontWeight:700, color:profilePct===100?'#10b981':'#e8b84b' }}>{profilePct}%</span>
-          </div>
-          <div style={{ height:4, background:C.bar, borderRadius:99, overflow:'hidden', marginBottom:10 }}>
-            <div style={{ width:`${profilePct}%`, height:'100%', background:'linear-gradient(90deg,#e8b84b,#c9952a)', borderRadius:99 }}/>
-          </div>
-          {checklist.map(({done,label,page})=>(
-            <div key={label} style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 8px', background:done?isDark?'rgba(16,185,129,0.08)':'#f0fdf4':'transparent', borderRadius:7, marginBottom:4, cursor:done?'default':'pointer' }}
-              onClick={()=>!done&&onNavigate(page)}>
-              <i className={`ti ${done?'ti-circle-check':'ti-circle'}`} style={{ fontSize:13, color:done?'#10b981':'#d1d5db' }}/>
-              <span style={{ fontSize:10, color:done?'#10b981':C.text2, flex:1 }}>{label}</span>
-              {!done && <i className="ti ti-arrow-right" style={{ fontSize:11, color:C.text3 }}/>}
-            </div>
-          ))}
         </div>
 
         {/* Latest Reviews */}
@@ -566,89 +484,6 @@ export default function DashboardPage({ onNavigate }) {
             ))}
           </div>
         </div>
-      </div>
-
-      {/* BUSINESS PERFORMANCE + PLAN */}
-      <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr', gap:12, marginBottom:14 }}>
-
-        {/* Business Performance Chart */}
-        <div style={cardS}>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:C.text, textTransform:'uppercase', letterSpacing:'0.04em' }}>Business Performance Metrics</div>
-            <div style={{ display:'flex', gap:10 }}>
-              {[['#3b82f6','Inquiries'],['#8b5cf6','Bookings'],['#10b981','Website']].map(([c,l])=>(
-                <div key={l} style={{ display:'flex', alignItems:'center', gap:4, fontSize:8.5, color:C.text2 }}>
-                  <div style={{ width:7, height:7, borderRadius:'50%', background:c }}/>{l}
-                </div>
-              ))}
-            </div>
-          </div>
-          <div style={{ position:'relative', height:100 }}>
-            <div style={{ position:'absolute', left:24, right:0, top:0, bottom:16 }}>
-              <svg width="100%" height="100%" viewBox="0 0 500 84" preserveAspectRatio="none">
-                {[0,42,84].map(y=><line key={y} x1="0" y1={y} x2="500" y2={y} stroke={isDark?'rgba(255,255,255,0.04)':'rgba(0,0,0,0.05)'} strokeWidth="0.5"/>)}
-                <polyline points="0,78 60,70 120,55 180,45 240,38 300,30 360,22 420,15 500,10" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <polyline points="0,80 60,74 120,68 180,62 240,56 300,50 360,44 420,38 500,32" fill="none" stroke="#8b5cf6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="4,3"/>
-                <polyline points="0,76 60,72 120,65 180,60 240,55 300,52 360,48 420,44 500,40" fill="none" stroke="#10b981" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="2,4"/>
-              </svg>
-            </div>
-            <div style={{ position:'absolute', left:24, right:0, bottom:0, display:'flex', justifyContent:'space-between' }}>
-              {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep'].map(m=><span key={m} style={{ fontSize:7, color:C.text3 }}>{m}</span>)}
-            </div>
-          </div>
-        </div>
-
-        {/* Plan Card */}
-        <div style={cardS}>
-          <div style={{ fontSize:11, fontWeight:700, color:C.text, textTransform:'uppercase', letterSpacing:'0.04em', marginBottom:12 }}>Current Plan</div>
-          <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:12 }}>
-            <div style={{ width:44, height:44, borderRadius:12, background:`${pc.color}18`, border:`0.5px solid ${pc.color}44`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>{pc.badge}</div>
-            <div>
-              <div style={{ fontSize:18, fontWeight:700, color:pc.color }}>{pc.name}</div>
-              {expiryInfo && plan!=='free' ? (
-                <div style={{ fontSize:10, color:expiryInfo.color, marginTop:2 }}>{expiryInfo.label}</div>
-              ) : (
-                <div style={{ fontSize:10, color:C.text3, marginTop:2 }}>{plan==='free'?'Upgrade for more features':'✓ Plan active'}</div>
-              )}
-            </div>
-          </div>
-          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
-            <i className="ti ti-users" style={{ fontSize:13, color:'#3b82f6' }}/>
-            <div style={{ flex:1 }}>
-              <div style={{ display:'flex', justifyContent:'space-between', fontSize:9, color:C.text3, marginBottom:3 }}>
-                <span>Team Members</span>
-                <span>{memberCount}/{pc.maxMembers===999?'∞':pc.maxMembers}</span>
-              </div>
-              <div style={{ height:4, background:C.bar, borderRadius:99, overflow:'hidden' }}>
-                <div style={{ width:`${pc.maxMembers===999?50:Math.min(100,memberCount/pc.maxMembers*100)}%`, height:'100%', background:'#3b82f6', borderRadius:99 }}/>
-              </div>
-            </div>
-          </div>
-          <button className="btn btn-primary btn-sm" style={{ width:'100%', justifyContent:'center' }} onClick={()=>onNavigate('plans')}>
-            {plan==='free'?'Upgrade Plan':expiryInfo?.urgent?'Renew Now':'Manage Plan'}
-          </button>
-        </div>
-
-        {/* Platinum CTA or Profile */}
-        {plan!=='platinum' ? (
-          <div style={{ background:'#1e1b4b', border:'0.5px solid rgba(139,92,246,0.3)', borderRadius:12, padding:'14px 16px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center', gap:10 }}>
-            <span style={{ fontSize:28 }}>💎</span>
-            <div style={{ fontSize:13, fontWeight:700, color:'#a78bfa' }}>Upgrade to Platinum</div>
-            <div style={{ fontSize:10, color:'rgba(167,139,250,0.7)', lineHeight:1.6 }}>Unlimited portfolio, priority listing, AI insights & dedicated support</div>
-            <button onClick={()=>onNavigate('plans')} style={{ padding:'8px 18px', background:'linear-gradient(135deg,#7c3aed,#4c1d95)', color:'#fff', border:'none', borderRadius:8, fontSize:11, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:5 }}>
-              <i className="ti ti-bolt" style={{ fontSize:12 }}/> Upgrade Now
-            </button>
-          </div>
-        ) : (
-          <div style={{ ...cardS, display:'flex', flexDirection:'column', gap:10 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:'#a78bfa', textTransform:'uppercase', letterSpacing:'0.04em' }}>Profile Completion</div>
-            <div style={{ fontSize:24, fontWeight:700, color:C.text }}>{profilePct}%</div>
-            <div style={{ height:6, background:C.bar, borderRadius:99, overflow:'hidden' }}>
-              <div style={{ width:`${profilePct}%`, height:'100%', background:'linear-gradient(90deg,#e8b84b,#c9952a)', borderRadius:99 }}/>
-            </div>
-            {profilePct<100 && <button className="btn btn-primary btn-sm" onClick={()=>onNavigate('profile')}>Complete Profile</button>}
-          </div>
-        )}
       </div>
 
     </div>
