@@ -7,7 +7,6 @@ import { PERMISSIONS, presetForRole, allPermsTrue, allPermsFalse } from "../lib/
 const BRAND = "#0099cc";
 const PLAN_RANK = { free:0, silver:1, gold:2, platinum:3 };
 
-// built-in roles
 const BUILTIN_ROLES = [
   { value: "manager",  label: "Manager" },
   { value: "sales",    label: "Sales" },
@@ -31,7 +30,7 @@ export default function StaffManagement() {
   const [manageStaff, setManageStaff] = useState(null);
 
   const planName = (company?.plan || "free").toLowerCase();
-  const canCustomRoles = (PLAN_RANK[planName] || 0) >= PLAN_RANK.gold; // Gold+
+  const canCustomRoles = (PLAN_RANK[planName] || 0) >= PLAN_RANK.gold;
 
   const loadAll = useCallback(async () => {
     if (!company?.id) return;
@@ -60,6 +59,9 @@ export default function StaffManagement() {
   const activeCount = staff.filter((s) => s.active).length;
   const slotsLeft = Math.max(0, limit - activeCount);
   const canAdd = slotsLeft > 0;
+
+  // active staff list (reassign target ke liye, current ko chhod ke)
+  const activeStaff = staff.filter((s) => s.active && s.status !== "inactive");
 
   if (loading) return <div style={{ padding: 32, color: "#94a3b8" }}>Loading staff…</div>;
 
@@ -127,6 +129,7 @@ export default function StaffManagement() {
       {manageStaff && (
         <ManageStaffModal staff={manageStaff} company={company} slotsLeft={slotsLeft}
           customRoles={customRoles} canCustomRoles={canCustomRoles} onRolesChanged={loadAll}
+          activeStaff={activeStaff}
           onClose={() => setManageStaff(null)}
           onChanged={() => { setManageStaff(null); loadAll(); }} />
       )}
@@ -160,7 +163,6 @@ function RoleSelect({ role, setRole, customRoles, canCustomRoles, company, onRol
   function onChange(val) {
     if (val === "__add__") { setShowAddRole(true); return; }
     setRole(val);
-    // built-in -> preset, custom -> us role ke saved perms
     const custom = customRoles.find(r => r.name === val);
     if (custom) onPickPreset(custom.permissions || allPermsFalse());
     else onPickPreset(presetForRole(val));
@@ -288,7 +290,7 @@ function AddStaffModal({ company, canAdd, customRoles, canCustomRoles, onRolesCh
 }
 
 /* ---------- Manage Staff ---------- */
-function ManageStaffModal({ staff, company, slotsLeft, customRoles, canCustomRoles, onRolesChanged, onClose, onChanged }) {
+function ManageStaffModal({ staff, company, slotsLeft, customRoles, canCustomRoles, onRolesChanged, activeStaff, onClose, onChanged }) {
   const [role, setRole] = useState(staff.role);
   const [perms, setPerms] = useState(staff.permissions || presetForRole(staff.role));
   const [busy, setBusy] = useState(false);
@@ -298,7 +300,24 @@ function ManageStaffModal({ staff, company, slotsLeft, customRoles, canCustomRol
   const [newEmail, setNewEmail] = useState("");
   const [confirmDeact, setConfirmDeact] = useState(false);
 
+  // reassign state
+  const [pendingCount, setPendingCount] = useState(null);  // null = abhi load nahi
+  const [reassignTo, setReassignTo] = useState("");          // "" = owner
+
   const badge = STATUS_BADGE[staff.status] || STATUS_BADGE.invited;
+
+  // deactivate confirm khulte hi staff ke pending notifications count nikaalo
+  useEffect(() => {
+    if (!confirmDeact || !staff.id) return;
+    supabase.from("notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("recipient_staff_id", staff.id)
+      .in("status", ["unread", "noted", "in_progress"])
+      .then(({ count }) => setPendingCount(count ?? 0));
+  }, [confirmDeact, staff.id]);
+
+  // reassign target options (current staff ko chhod ke, active hi)
+  const reassignOptions = (activeStaff || []).filter((s) => s.id !== staff.id);
 
   async function saveRolePerms() {
     setBusy(true); setError("");
@@ -326,9 +345,20 @@ function ManageStaffModal({ staff, company, slotsLeft, customRoles, canCustomRol
     onChanged();
   }
 
+  // DEACTIVATE — pending notifications reassign + slot band
   async function deactivate() {
     setBusy(true); setError("");
-    // 🔖 REASSIGN HOOK (after Build Order #4): transfer pending tasks/notifications here.
+
+    // 1) REASSIGN: is staff ke pending notifications doosre ko transfer
+    //    reassignTo = "" matlab owner ko (recipient_staff_id null = owner/manager sab dekhte hain)
+    const newRecipient = reassignTo || null;
+    const { error: rErr } = await supabase.from("notifications")
+      .update({ recipient_staff_id: newRecipient })
+      .eq("recipient_staff_id", staff.id)
+      .in("status", ["unread", "noted", "in_progress"]);
+    if (rErr) { setBusy(false); setError(rErr.message); return; }
+
+    // 2) slot band
     const { error: e } = await supabase.from("business_staff").update({
       active: false, status: "inactive", user_id: null,
     }).eq("id", staff.id);
@@ -406,8 +436,30 @@ function ManageStaffModal({ staff, company, slotsLeft, customRoles, canCustomRol
             <p style={{ fontSize: 12, color: "#b91c1c", marginTop: 0, marginBottom: 10 }}>
               Are you sure you want to deactivate? Login will be disabled, data stays safe, and the plan slot will be freed.
             </p>
+
+            {/* Reassign pending notifications */}
+            {pendingCount === null ? (
+              <p style={{ fontSize: 12, color: "#94a3b8", marginTop: 0, marginBottom: 10 }}>Checking pending tasks…</p>
+            ) : pendingCount > 0 ? (
+              <div style={{ background: "#fff", border: "1px solid #fecaca", borderRadius: 9, padding: 10, marginBottom: 10 }}>
+                <p style={{ fontSize: 12, color: "#0f172a", marginTop: 0, marginBottom: 8 }}>
+                  This member has <b>{pendingCount}</b> pending notification{pendingCount > 1 ? "s" : ""}. Transfer them to:
+                </p>
+                <select value={reassignTo} onChange={(e) => setReassignTo(e.target.value)} style={{ ...inp, marginBottom: 0 }}>
+                  <option value="">Owner / Management</option>
+                  {reassignOptions.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name} ({s.role})</option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <p style={{ fontSize: 12, color: "#15803d", marginTop: 0, marginBottom: 10 }}>
+                ✓ No pending tasks to transfer.
+              </p>
+            )}
+
             <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={() => setConfirmDeact(false)} style={{ ...outlineBtn, marginBottom: 0, flex: 1 }}>Cancel</button>
+              <button onClick={() => { setConfirmDeact(false); setPendingCount(null); }} style={{ ...outlineBtn, marginBottom: 0, flex: 1 }}>Cancel</button>
               <button onClick={deactivate} disabled={busy} style={{ ...dangerBtn, marginBottom: 0, flex: 1, opacity: busy ? 0.5 : 1 }}>
                 {busy ? "…" : "Yes, Deactivate"}
               </button>
