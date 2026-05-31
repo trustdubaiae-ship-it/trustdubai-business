@@ -4,30 +4,38 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --primary:      #e8b84b;
-  --primary-dark: #c9952a;
-  --primary-bg:   #fffbeb;
-  --primary-border:#fcd34d;
-  --bg:           #f8fafc;
-  --bg2:          #f1f5f9;
-  --card:         #ffffff;
-  --border:       #e2e8f0;
-  --border2:      #cbd5e1;
-  --text:         #0f172a;
-  --text2:        #475569;
-  --text3:        #94a3b8;
-  --green:        #10b981;
-  --green-bg:     #ecfdf5;
-  --red:          #ef4444;
-  --red-bg:       #fef2f2;
-  --blue:         #3b82f6;
-  --blue-bg:      #eff6ff;
-  --purple:       #8b5cf6;
-  --purple-bg:    #f5f3ff;
-  --shadow:       0 1px 8px rgba(0,0,0,0.06);
-  --shadow-md:    0 4px 20px rgba(0,0,0,0.08);
-  --radius:       8px;
-  --radius-lg:    12px;
+  --primary:        #e8b84b;
+  --primary-dark:   #c9952a;
+  --primary-bg:     #fffbeb;
+  --primary-border: #fcd34d;
+  --bg:             #f8fafc;
+  --bg2:            #f1f5f9;
+  --card:           #ffffff;
+  --border:         #e2e8f0;
+  --border2:        #cbd5e1;
+  --text:           #0f172a;
+  --text2:          #475569;
+  --text3:          #94a3b8;
+  --green:          #10b981;
+  --green-bg:       #ecfdf5;
+  --red:            #ef4444;
+  --red-bg:         #fef2f2;
+  --blue:           #3b82f6;
+  --blue-bg:        #eff6ff;
+  --purple:         #8b5cf6;
+  --purple-bg:      #f5f3ff;
+  --amber:          #e8b84b;
+  --amber-light:    #fffbeb;
+  --shadow:         0 1px 8px rgba(0,0,0,0.06);
+  --shadow-md:      0 4px 20px rgba(0,0,0,0.08);
+  --radius:         8px;
+  --radius-lg:      12px;
+
+  /* Aliases — kuch pages in naamon se class/var expect karte hain */
+  --card-bg:        #ffffff;
+  --card-border:    #e2e8f0;
+  --text-secondary: #475569;
+  --text-muted:     #94a3b8;
 }
 
 html, body {
@@ -40,6 +48,11 @@ html, body {
 
 * { font-family: 'DM Sans', sans-serif; }
 .font-syne { font-family: 'Syne', sans-serif !important; }
+
+/* Text helpers */
+.text-secondary { color: var(--text2); }
+.text-muted     { color: var(--text3); }
+.fw-700         { font-weight: 700; }
 
 /* Layout */
 .layout { display: flex; min-height: 100vh; }
@@ -100,11 +113,12 @@ html, body {
 .stat-change{ font-size: 9.5px; color: var(--text3); margin-top: 4px; }
 
 /* Buttons */
-.btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 14px; border-radius: var(--radius); font-size: 11px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 7px 14px; border-radius: var(--radius); font-size: 11px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; }
 .btn-primary   { background: linear-gradient(135deg,#e8b84b,#c9952a); color: #0d1117; }
 .btn-secondary { background: var(--bg2); color: var(--text2); border: 0.5px solid var(--border); }
 .btn-sm        { padding: 5px 10px; font-size: 10px; }
 .btn:hover     { filter: brightness(1.05); }
+.btn:disabled  { opacity: 0.65; cursor: default; filter: none; }
 
 /* Progress bars */
 .pbar  { height: 4px; background: var(--bg2); border-radius: 99px; overflow: hidden; }
@@ -122,18 +136,63 @@ html, body {
 .empty-state h3   { font-size: 14px; font-weight: 600; margin-bottom: 5px; }
 .empty-state p    { font-size: 12px; color: var(--text3); }
 
-/* Var(--amber) */
---amber: #e8b84b;
---amber-light: #fffbeb;
+/* Badges */
+.badge { display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:700; padding:3px 9px; border-radius:99px; line-height:1; }
+.badge-green { background: var(--green-bg); color: #047857; border: 0.5px solid #a7f3d0; }
+
+/* ---------- PLAN CARDS ---------- */
+.plan-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 22px 20px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow);
+  transition: transform .15s, box-shadow .15s, border-color .15s;
+  min-height: 100%;
+}
+.plan-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+.plan-card-badge { position: absolute; top: 14px; right: 14px; }
+.plan-price {
+  font-family: 'Syne', sans-serif;
+  font-size: 26px; font-weight: 800; color: var(--text); line-height: 1;
+}
+.plan-price span {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px; font-weight: 500; color: var(--text3); margin-left: 2px;
+}
+.plan-features { list-style: none; display: flex; flex-direction: column; gap: 9px; margin: 0 0 8px; flex: 1; }
+.plan-features li { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; line-height: 1.35; color: var(--text3); }
+.plan-features li.included { color: var(--text2); }
+.plan-features li svg { flex-shrink: 0; margin-top: 1px; }
+
+/* ---------- FORM CONTROLS ---------- */
+.form-group { margin-bottom: 16px; }
+.form-label { display: block; font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 6px; }
+.form-input, .form-textarea, .form-select {
+  width: 100%; padding: 10px 12px; font-size: 13px; font-family: 'DM Sans', sans-serif;
+  color: var(--text); background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); outline: none; transition: border-color .15s, box-shadow .15s;
+}
+.form-input:focus, .form-textarea:focus, .form-select:focus {
+  border-color: var(--primary); box-shadow: 0 0 0 3px rgba(232,184,75,0.15);
+}
+.form-textarea { resize: vertical; min-height: 90px; }
+.form-hint { font-size: 11px; color: var(--text3); margin-top: 4px; }
+
+/* Grid helper */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
 
 /* Scrollbar */
 ::-webkit-scrollbar       { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
-/* Green light */
+/* Misc */
 .green-light { background: var(--green-bg); }
 
 /* Animations */
-@keyframes spin { to { transform: rotate(360deg); } }
-@keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+@keyframes spin    { to { transform: rotate(360deg); } }
+@keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
