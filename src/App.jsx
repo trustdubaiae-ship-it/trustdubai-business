@@ -18,6 +18,7 @@ import SponsoredPage from './pages/SponsoredPage'
 import StaffManagement from './pages/StaffManagement'
 import FaqPage from './pages/FaqPage'
 import NotificationsPage from './pages/NotificationsPage'
+import TrustScorePage from './pages/TrustScorePage'
 import ControlPanel from './pages/ControlPanel'
 
 const ROLE_LABEL = { owner:'Owner', manager:'Manager', sales:'Sales', engineer:'Engineer', staff:'Staff' }
@@ -32,6 +33,7 @@ const PAGE_PERM = {
   sponsored: 'view_sponsored',
   staff:     'manage_staff',
   faq:       'view_profile',
+  trust:     'view_dashboard',
 }
 
 function Portal() {
@@ -65,6 +67,7 @@ function Portal() {
     staff:              <StaffManagement />,
     faq:                <FaqPage />,
     notifications:      <NotificationsPage />,
+    trust:              <TrustScorePage />,
     // Consolidated → Control Panel (tabbed)
     controlpanel:       <ControlPanel initialTab="general" />,
     verification:       <ControlPanel initialTab="verification" />,
@@ -76,7 +79,7 @@ function Portal() {
   const pageTitles = {
     dashboard:'Dashboard', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
     analytics:'Analytics', leads:'Lead Form', sponsored:'Sponsored Placement', staff:'Team / Staff',
-    faq:'FAQ Management', notifications:'Notifications', controlpanel:'Control Panel',
+    faq:'FAQ Management', notifications:'Notifications', trust:'Trust Score', controlpanel:'Control Panel',
     verification:'Control Panel', verificationStatus:'Control Panel', plans:'Control Panel', settings:'Control Panel',
   }
 
