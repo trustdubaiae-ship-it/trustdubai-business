@@ -17,6 +17,7 @@ import LeadsPage from './pages/LeadsPage'
 import SponsoredPage from './pages/SponsoredPage'
 import StaffManagement from './pages/StaffManagement'
 import FaqPage from './pages/FaqPage'
+import NotificationsPage from './pages/NotificationsPage'
 import ControlPanel from './pages/ControlPanel'
 
 const ROLE_LABEL = { owner:'Owner', manager:'Manager', sales:'Sales', engineer:'Engineer', staff:'Staff' }
@@ -63,20 +64,20 @@ function Portal() {
     sponsored:          <SponsoredPage onNavigate={setActivePage} />,
     staff:              <StaffManagement />,
     faq:                <FaqPage />,
+    notifications:      <NotificationsPage />,
     // Consolidated → Control Panel (tabbed)
     controlpanel:       <ControlPanel initialTab="general" />,
     verification:       <ControlPanel initialTab="verification" />,
     verificationStatus: <ControlPanel initialTab="verification" />,
     plans:              <ControlPanel initialTab="plans" />,
-    notifications:      <ControlPanel initialTab="notifications" />,
     settings:           <ControlPanel initialTab="settings" />,
   }
 
   const pageTitles = {
     dashboard:'Dashboard', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
     analytics:'Analytics', leads:'Lead Form', sponsored:'Sponsored Placement', staff:'Team / Staff',
-    faq:'FAQ Management', controlpanel:'Control Panel', verification:'Control Panel',
-    verificationStatus:'Control Panel', plans:'Control Panel', notifications:'Control Panel', settings:'Control Panel',
+    faq:'FAQ Management', notifications:'Notifications', controlpanel:'Control Panel',
+    verification:'Control Panel', verificationStatus:'Control Panel', plans:'Control Panel', settings:'Control Panel',
   }
 
   const neededPerm = PAGE_PERM[activePage]
