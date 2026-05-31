@@ -12,14 +12,12 @@ import DashboardPage from './pages/DashboardPage'
 import ProfilePage from './pages/ProfilePage'
 import ReviewsPage from './pages/ReviewsPage'
 import PortfolioPage from './pages/PortfolioPage'
-import PlansPage from './pages/PlansPage'
 import AnalyticsPage from './pages/AnalyticsPage'
-import SettingsPage from './pages/SettingsPage'
 import LeadsPage from './pages/LeadsPage'
 import SponsoredPage from './pages/SponsoredPage'
 import StaffManagement from './pages/StaffManagement'
-import NotificationsPage from './pages/NotificationsPage'
 import FaqPage from './pages/FaqPage'
+import ControlPanel from './pages/ControlPanel'
 
 const ROLE_LABEL = { owner:'Owner', manager:'Manager', sales:'Sales', engineer:'Engineer', staff:'Staff' }
 
@@ -28,9 +26,7 @@ const PAGE_PERM = {
   profile:   'view_profile',
   reviews:   'view_reviews',
   portfolio: 'view_portfolio',
-  plans:     'view_plans',
   analytics: 'view_analytics',
-  settings:  'manage_settings',
   leads:     'view_leads',
   sponsored: 'view_sponsored',
   staff:     'manage_staff',
@@ -58,25 +54,29 @@ function Portal() {
   if (!company) return <NoCompanyPage />
 
   const allPages = {
-    dashboard:     <DashboardPage onNavigate={setActivePage} />,
-    profile:       <ProfilePage />,
-    reviews:       <ReviewsPage />,
-    portfolio:     <PortfolioPage />,
-    plans:         <PlansPage />,
-    analytics:     <AnalyticsPage onNavigate={setActivePage} />,
-    settings:      <SettingsPage />,
-    leads:         <LeadsPage />,
-    sponsored:     <SponsoredPage onNavigate={setActivePage} />,
-    staff:         <StaffManagement />,
-    notifications: <NotificationsPage />,
-    faq:           <FaqPage />,
+    dashboard:          <DashboardPage onNavigate={setActivePage} />,
+    profile:            <ProfilePage />,
+    reviews:            <ReviewsPage />,
+    portfolio:          <PortfolioPage />,
+    analytics:          <AnalyticsPage onNavigate={setActivePage} />,
+    leads:              <LeadsPage />,
+    sponsored:          <SponsoredPage onNavigate={setActivePage} />,
+    staff:              <StaffManagement />,
+    faq:                <FaqPage />,
+    // Consolidated → Control Panel (tabbed)
+    controlpanel:       <ControlPanel initialTab="general" />,
+    verification:       <ControlPanel initialTab="verification" />,
+    verificationStatus: <ControlPanel initialTab="verification" />,
+    plans:              <ControlPanel initialTab="plans" />,
+    notifications:      <ControlPanel initialTab="notifications" />,
+    settings:           <ControlPanel initialTab="settings" />,
   }
 
   const pageTitles = {
     dashboard:'Dashboard', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
-    plans:'Plans & Billing', analytics:'Analytics', settings:'Settings', leads:'Lead Form',
-    sponsored:'Sponsored Placement', staff:'Team / Staff', notifications:'Notifications',
-    faq:'FAQ Management',
+    analytics:'Analytics', leads:'Lead Form', sponsored:'Sponsored Placement', staff:'Team / Staff',
+    faq:'FAQ Management', controlpanel:'Control Panel', verification:'Control Panel',
+    verificationStatus:'Control Panel', plans:'Control Panel', notifications:'Control Panel', settings:'Control Panel',
   }
 
   const neededPerm = PAGE_PERM[activePage]
@@ -182,7 +182,6 @@ function Portal() {
         {allowed ? (allPages[activePage] || allPages.dashboard) : AccessDenied}
       </main>
 
-      {/* Login notification popup (ek baar per session) */}
       <LoginNotificationPopup onOpenPage={() => setActivePage('notifications')} />
     </div>
   )
