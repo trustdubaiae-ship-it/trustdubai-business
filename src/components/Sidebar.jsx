@@ -8,40 +8,29 @@ function hasAccess(userPlan, requiredPlan) {
   return (PLAN_RANK[userPlan]||0) >= (PLAN_RANK[requiredPlan]||0)
 }
 
+// Control Panel subpages — sab pe Control Panel highlight rahe
+const CONTROL_PANEL_PAGES = ['controlpanel','verification','verificationStatus','plans','notifications','settings']
+
 const MENU = [
   { section: 'OVERVIEW' },
-  { id:'dashboard',  icon:'ti-layout-dashboard',  label:'Dashboard',            perm:'view_dashboard' },
-  { id:'reviews',    icon:'ti-star',               label:'Reviews',              perm:'view_reviews' },
-  { id:'analytics',  icon:'ti-chart-bar',          label:'Analytics',            perm:'view_analytics', requiredPlan:'gold' },
-
-  { section: 'CUSTOMERS' },
-  { id:'leads',      icon:'ti-message-circle',     label:'Customer Feedback',    perm:'view_leads' },
-  { id:'leads',      icon:'ti-mood-smile',         label:'Customer Sentiment',   perm:'view_sentiment' },
+  { id:'dashboard',  icon:'ti-layout-dashboard', label:'Dashboard',          perm:'view_dashboard' },
 
   { section: 'REPUTATION' },
-  { id:'trust_score',icon:'ti-shield-check',       label:'Trust Score',          perm:'view_trust_score' },
-  { id:'reviews',    icon:'ti-chart-line',         label:'Reputation Monitor',   perm:'view_reputation' },
-  { id:'reviews',    icon:'ti-list-check',         label:'Review Management',    perm:'view_reviews' },
-  { id:'profile',    icon:'ti-rosette-discount-check', label:'Verification Status', perm:'view_verification' },
+  { id:'reviews',    icon:'ti-star',             label:'Reviews',            perm:'view_reviews' },
+  { id:'leads',      icon:'ti-message-circle',   label:'Leads',              perm:'view_leads' },
 
-  { section: 'MARKETING' },
-  { id:'sponsored',  icon:'ti-ad-2',               label:'Sponsored Placement',  perm:'view_sponsored' },
-  { id:'portfolio',  icon:'ti-speakerphone',        label:'Promotions',           perm:'view_promotions', requiredPlan:'silver' },
-  { id:'portfolio',  icon:'ti-star',               label:'Featured Listings',    perm:'view_promotions', requiredPlan:'gold' },
-  { id:'analytics',  icon:'ti-trending-up',        label:'Campaign Analytics',   perm:'view_analytics', requiredPlan:'gold' },
+  { section: 'GROWTH' },
+  { id:'analytics',  icon:'ti-chart-bar',        label:'Analytics',          perm:'view_analytics', requiredPlan:'gold' },
+  { id:'sponsored',  icon:'ti-ad-2',             label:'Sponsored Placement',perm:'view_sponsored' },
 
-  { section: 'BUSINESS' },
-  { id:'profile',    icon:'ti-building-store',     label:'Business Profile',     perm:'view_profile' },
-  { id:'portfolio',  icon:'ti-photo',              label:'Portfolio',            perm:'view_portfolio' },
-  { id:'faq',        icon:'ti-help-circle',        label:'FAQ',                  perm:'view_profile' },
-  { id:'leads',      icon:'ti-mail',               label:'Lead Form',            perm:'view_leads' },
-  { id:'staff',      icon:'ti-users',              label:'Team Members',         perm:'manage_staff' },
-  { id:'notifications', icon:'ti-bell',            label:'Notifications',        perm:'view_dashboard' },
+  { section: 'MY PROFILE' },
+  { id:'profile',    icon:'ti-building-store',   label:'Business Profile',   perm:'view_profile' },
+  { id:'portfolio',  icon:'ti-photo',            label:'Portfolio',          perm:'view_portfolio' },
+  { id:'staff',      icon:'ti-users',            label:'Team Members',       perm:'manage_staff' },
+  { id:'faq',        icon:'ti-help-circle',      label:'FAQ',                perm:'view_profile' },
 
   { section: 'SETTINGS' },
-  { id:'plans',      icon:'ti-credit-card',        label:'Plans & Billing',      perm:'view_plans' },
-  { id:'settings',   icon:'ti-plug',               label:'Integrations',         perm:'manage_settings' },
-  { id:'settings',   icon:'ti-settings',           label:'Preferences',          perm:'manage_settings' },
+  { id:'controlpanel', icon:'ti-adjustments',    label:'Control Panel',      perm:'view_profile' },
 ]
 
 export default function Sidebar({ activePage, onNavigate }) {
@@ -108,7 +97,9 @@ export default function Sidebar({ activePage, onNavigate }) {
             <div key={`sec-${i}`} className="nav-section-label">{item.section}</div>
           )
           const locked   = item.requiredPlan && !hasAccess(planName, item.requiredPlan)
-          const isActive = activePage === item.id
+          const isActive = item.id === 'controlpanel'
+            ? CONTROL_PANEL_PAGES.includes(activePage)
+            : activePage === item.id
           return (
             <button key={`${item.id}-${i}`}
               className={`nav-item${isActive?' active':''}`}
