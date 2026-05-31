@@ -232,8 +232,17 @@ export default function DashboardPage({ onNavigate }) {
   const [memberCount,   setMemberCount]   = useState(0)
   const [reviewDist,    setReviewDist]    = useState({ 5:0, 4:0, 3:0, 2:0, 1:0 })
   const [loading,       setLoading]       = useState(true)
+  const [aiInsightsOn,  setAiInsightsOn]  = useState(true)  // global toggle (app_settings)
 
   useEffect(() => { if (company) fetchStats() }, [company])
+
+  useEffect(() => { fetchAiInsightsSetting() }, [])
+
+  async function fetchAiInsightsSetting() {
+    const { data } = await supabase
+      .from('app_settings').select('value').eq('key', 'feature.ai_insights').maybeSingle()
+    setAiInsightsOn(data?.value?.enabled !== false)  // default ON agar setting na mile
+  }
 
   async function fetchStats() {
     try {
@@ -315,6 +324,9 @@ export default function DashboardPage({ onNavigate }) {
   ]
 
   const topCard = { ...cardS, minHeight:130, boxSizing:'border-box', display:'flex', flexDirection:'column', justifyContent:'center' }
+
+  // bottom row: AI Insights off hone par 4->3 columns
+  const bottomCols = aiInsightsOn ? '1fr 1fr 1fr 1fr' : '1fr 1fr 1fr'
 
   return (
     <div className="page-content animate-in" style={{ color:C.text, background:isDark?'#0f0e1a':'var(--bg)' }}>
@@ -553,23 +565,25 @@ export default function DashboardPage({ onNavigate }) {
       </div>
 
       {/* BOTTOM ROW */}
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:12, marginBottom:14 }}>
+      <div style={{ display:'grid', gridTemplateColumns:bottomCols, gap:12, marginBottom:14 }}>
 
         {/* Notifications Card */}
         <NotificationsCard cardStyle={cardS} C={C} onOpenPage={() => onNavigate('notifications')} />
 
-        {/* AI Insights */}
-        <div style={cardS}>
-          <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:12 }}>
-            <i className="ti ti-bulb" style={{ fontSize:14, color:'#e8b84b' }}/>
-            <div style={{ fontSize:11, fontWeight:700, color:C.text, textTransform:'uppercase', letterSpacing:'0.04em' }}>AI Insights</div>
+        {/* AI Insights — global toggle se control */}
+        {aiInsightsOn && (
+          <div style={cardS}>
+            <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:12 }}>
+              <i className="ti ti-bulb" style={{ fontSize:14, color:'#e8b84b' }}/>
+              <div style={{ fontSize:11, fontWeight:700, color:C.text, textTransform:'uppercase', letterSpacing:'0.04em' }}>AI Insights</div>
+            </div>
+            <AIScoreRow label="Trust Trend Analysis"   score={92} color="#10b981"/>
+            <AIScoreRow label="Review Quality Score"   score={80} color="#3b82f6"/>
+            <AIScoreRow label="Customer Loyalty Score" score={50} color="#e8b84b"/>
+            <AIScoreRow label="Reputation Health"      score={45} color="#f59e0b"/>
+            <AIScoreRow label="Risk Indicators"        score={10} color="#ef4444"/>
           </div>
-          <AIScoreRow label="Trust Trend Analysis"   score={92} color="#10b981"/>
-          <AIScoreRow label="Review Quality Score"   score={80} color="#3b82f6"/>
-          <AIScoreRow label="Customer Loyalty Score" score={50} color="#e8b84b"/>
-          <AIScoreRow label="Reputation Health"      score={45} color="#f59e0b"/>
-          <AIScoreRow label="Risk Indicators"        score={10} color="#ef4444"/>
-        </div>
+        )}
 
         {/* Latest Reviews */}
         <div style={cardS}>
