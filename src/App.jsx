@@ -19,6 +19,7 @@ import LeadsPage from './pages/LeadsPage'
 import SponsoredPage from './pages/SponsoredPage'
 import StaffManagement from './pages/StaffManagement'
 import NotificationsPage from './pages/NotificationsPage'
+import FaqPage from './pages/FaqPage'
 
 const ROLE_LABEL = { owner:'Owner', manager:'Manager', sales:'Sales', engineer:'Engineer', staff:'Staff' }
 
@@ -33,6 +34,7 @@ const PAGE_PERM = {
   leads:     'view_leads',
   sponsored: 'view_sponsored',
   staff:     'manage_staff',
+  faq:       'view_profile',
 }
 
 function Portal() {
@@ -67,12 +69,14 @@ function Portal() {
     sponsored:     <SponsoredPage onNavigate={setActivePage} />,
     staff:         <StaffManagement />,
     notifications: <NotificationsPage />,
+    faq:           <FaqPage />,
   }
 
   const pageTitles = {
     dashboard:'Dashboard', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
     plans:'Plans & Billing', analytics:'Analytics', settings:'Settings', leads:'Lead Form',
     sponsored:'Sponsored Placement', staff:'Team / Staff', notifications:'Notifications',
+    faq:'FAQ Management',
   }
 
   const neededPerm = PAGE_PERM[activePage]
