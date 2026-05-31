@@ -18,7 +18,8 @@ export default function VerificationPage() {
   const [loading, setLoading] = useState(true)
   const [tlNumber, setTlNumber] = useState('')
   const [busy, setBusy] = useState('')
-  const [msg, setMsg] = useState('')
+  const [savingNum, setSavingNum] = useState(false)
+  const [msg, setMsg] = useState({ text: '', type: 'info' })
 
   const companyId = company?.id
 
@@ -38,10 +39,24 @@ export default function VerificationPage() {
 
   useEffect(() => { loadCompany() }, [companyId])
 
+  function flash(text, type = 'info') {
+    setMsg({ text, type })
+    setTimeout(() => setMsg({ text: '', type: 'info' }), 3000)
+  }
+
+  async function saveTlNumber() {
+    if (!companyId) return
+    setSavingNum(true)
+    const { error } = await supabase
+      .from('companies').update({ trade_license_number: tlNumber }).eq('id', companyId)
+    if (error) flash('Could not save. Please try again.', 'error')
+    else { flash('Trade License number saved.', 'success'); await loadCompany() }
+    setSavingNum(false)
+  }
+
   async function uploadDoc(file, kind) {
-    // kind: 'trade_license' | 'owner_eid'
     if (!file || !companyId) return
-    setBusy(kind); setMsg('')
+    setBusy(kind)
     try {
       const ext = file.name.split('.').pop()
       const path = `${companyId}/${kind}_${Date.now()}.${ext}`
@@ -62,13 +77,26 @@ export default function VerificationPage() {
         company_id: companyId, target: kind, action: 'submit',
       })
 
-      setMsg('Document uploaded — admin review ke liye bhej diya.')
+      flash('Document uploaded and sent for review.', 'success')
       await loadCompany()
     } catch (e) {
-      setMsg('Error: ' + (e.message || 'upload failed'))
+      flash('Upload failed: ' + (e.message || 'please try again'), 'error')
     } finally {
       setBusy('')
     }
+  }
+
+  async function viewMyDoc(path) {
+    if (!path) return
+    const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, 120)
+    if (!error && data?.signedUrl) window.open(data.signedUrl, '_blank')
+    else flash('Could not open document.', 'error')
+  }
+
+  function fileName(path) {
+    if (!path) return ''
+    const base = path.split('/').pop() || path
+    return base.length > 28 ? base.slice(0, 25) + '…' : base
   }
 
   if (loading) return <div style={{ padding: 24 }}>Loading…</div>
@@ -82,6 +110,12 @@ export default function VerificationPage() {
     { kind: 'owner_eid', title: 'Owner Emirates ID', weight: 7, mandatory: false,
       status: row?.owner_eid_status, url: row?.owner_eid_url },
   ]
+
+  const msgStyle = {
+    info:    { bg: '#eef7ff', color: '#0b5d8a' },
+    success: { bg: '#e6f7ed', color: '#1a7f4b' },
+    error:   { bg: '#fdecec', color: '#c0392b' },
+  }[msg.type]
 
   return (
     <div style={{ maxWidth: 760, margin: '0 auto', padding: '24px 16px' }}>
@@ -117,23 +151,35 @@ export default function VerificationPage() {
         )}
       </div>
 
-      {msg && (
-        <div style={{ marginBottom: 16, padding: '10px 14px', borderRadius: 8, background: '#eef7ff', color: '#0b5d8a', fontSize: 14 }}>
-          {msg}
+      {msg.text && (
+        <div style={{ marginBottom: 16, padding: '10px 14px', borderRadius: 8, background: msgStyle.bg, color: msgStyle.color, fontSize: 14 }}>
+          {msg.text}
         </div>
       )}
 
-      {/* TRADE LICENSE NUMBER */}
+      {/* TRADE LICENSE NUMBER + SAVE */}
       <div style={{ marginBottom: 16 }}>
         <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
           Trade License Number
         </label>
-        <input
-          value={tlNumber}
-          onChange={(e) => setTlNumber(e.target.value)}
-          placeholder="e.g. 1234567"
-          style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #d8dde4', fontSize: 14 }}
-        />
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            value={tlNumber}
+            onChange={(e) => setTlNumber(e.target.value)}
+            placeholder="e.g. 1234567"
+            style={{ flex: 1, padding: '10px 12px', borderRadius: 8, border: '1px solid #d8dde4', fontSize: 14 }}
+          />
+          <button
+            onClick={saveTlNumber}
+            disabled={savingNum || tlNumber === (row?.trade_license_number || '')}
+            style={{
+              background: (savingNum || tlNumber === (row?.trade_license_number || '')) ? '#cbd5e1' : BRAND,
+              color: '#fff', border: 'none', borderRadius: 8, padding: '0 18px', fontWeight: 600,
+              fontSize: 14, cursor: 'pointer', whiteSpace: 'nowrap',
+            }}>
+            {savingNum ? 'Saving…' : 'Save'}
+          </button>
+        </div>
       </div>
 
       {/* DOC UPLOAD CARDS */}
@@ -156,6 +202,22 @@ export default function VerificationPage() {
                 </span>
               )}
             </div>
+
+            {/* Uploaded file indicator */}
+            {uploaded && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#f5f9ff', border: '1px solid #dbeafe', borderRadius: 8, padding: '9px 12px', marginBottom: 10 }}>
+                <i className="ti ti-file-check" style={{ fontSize: 18, color: BRAND }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#0b5d8a' }}>File uploaded</div>
+                  <div style={{ fontSize: 11, color: '#667', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fileName(it.url)}</div>
+                </div>
+                <button onClick={() => viewMyDoc(it.url)}
+                  style={{ background: 'transparent', border: `1px solid ${BRAND}`, color: BRAND, padding: '6px 12px', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                  View
+                </button>
+              </div>
+            )}
+
             <label style={{
               display: 'inline-block', cursor: 'pointer', fontSize: 14,
               background: busy === it.kind ? '#9bd' : BRAND, color: '#fff',
@@ -190,7 +252,7 @@ export default function VerificationPage() {
           </span>
         </div>
         <p style={{ marginTop: 8, fontSize: 13, color: '#778' }}>
-          Phone OTP verification will be enabled next.
+          Phone verification will be enabled soon by our team.
         </p>
       </div>
 
