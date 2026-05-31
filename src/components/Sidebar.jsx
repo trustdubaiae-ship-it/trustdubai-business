@@ -33,6 +33,7 @@ const MENU = [
   { section: 'BUSINESS' },
   { id:'profile',    icon:'ti-building-store',     label:'Business Profile',     perm:'view_profile' },
   { id:'portfolio',  icon:'ti-photo',              label:'Portfolio',            perm:'view_portfolio' },
+  { id:'faq',        icon:'ti-help-circle',        label:'FAQ',                  perm:'view_profile' },
   { id:'leads',      icon:'ti-mail',               label:'Lead Form',            perm:'view_leads' },
   { id:'staff',      icon:'ti-users',              label:'Team Members',         perm:'manage_staff' },
   { id:'notifications', icon:'ti-bell',            label:'Notifications',        perm:'view_dashboard' },
