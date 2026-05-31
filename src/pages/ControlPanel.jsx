@@ -5,17 +5,15 @@ import { useAuth } from '../lib/auth'
 
 import VerificationPage from './VerificationPage'
 import PlansPage from './PlansPage'
-import NotificationsPage from './NotificationsPage'
 import SettingsPage from './SettingsPage'
 
 const BRAND = '#0099cc'
 
 const TABS = [
-  { key: 'general',       label: 'General',         icon: 'ti-adjustments' },
-  { key: 'verification',  label: 'Verification',    icon: 'ti-shield-check' },
-  { key: 'plans',         label: 'Plans & Billing', icon: 'ti-credit-card' },
-  { key: 'notifications', label: 'Notifications',   icon: 'ti-bell' },
-  { key: 'settings',      label: 'Settings',        icon: 'ti-settings' },
+  { key: 'general',      label: 'General',         icon: 'ti-adjustments' },
+  { key: 'verification', label: 'Verification',    icon: 'ti-shield-check' },
+  { key: 'plans',        label: 'Plans & Billing', icon: 'ti-credit-card' },
+  { key: 'settings',     label: 'Settings',        icon: 'ti-settings' },
 ]
 
 const TOGGLES = [
@@ -30,33 +28,40 @@ export default function ControlPanel({ initialTab = 'general' }) {
   const [tab, setTab] = useState(initialTab)
   useEffect(() => { setTab(initialTab) }, [initialTab])
 
-  return (
-    <div style={{ padding: 24, maxWidth: 1000, margin: '0 auto' }}>
-      <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 4 }}>Control Panel</h1>
-      <p style={{ color: '#64748b', marginBottom: 18, fontSize: 14 }}>
-        Manage your company settings, verification and profile visibility.
-      </p>
+  // Plans ko poori width chahiye, baaki tabs centered
+  const wide = tab === 'plans'
 
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', borderBottom: '1px solid #e6e9ee', marginBottom: 22 }}>
-        {TABS.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)}
-            style={{
-              border: 'none', background: 'none', cursor: 'pointer',
-              padding: '10px 14px', fontSize: 14, fontWeight: 600,
-              color: tab === t.key ? BRAND : '#64748b',
-              borderBottom: tab === t.key ? `2px solid ${BRAND}` : '2px solid transparent',
-              display: 'flex', alignItems: 'center', gap: 6,
-            }}>
-            <i className={`ti ${t.icon}`} style={{ fontSize: 15 }} /> {t.label}
-          </button>
-        ))}
+  return (
+    <div style={{ padding: '24px 20px' }}>
+      <div style={{ maxWidth: 1000, margin: '0 auto' }}>
+        <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 4 }}>Control Panel</h1>
+        <p style={{ color: '#64748b', marginBottom: 18, fontSize: 14 }}>
+          Manage your company settings, verification and profile visibility.
+        </p>
+
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', borderBottom: '1px solid #e6e9ee', marginBottom: 22 }}>
+          {TABS.map(t => (
+            <button key={t.key} onClick={() => setTab(t.key)}
+              style={{
+                border: 'none', background: 'none', cursor: 'pointer',
+                padding: '10px 14px', fontSize: 14, fontWeight: 600,
+                color: tab === t.key ? BRAND : '#64748b',
+                borderBottom: tab === t.key ? `2px solid ${BRAND}` : '2px solid transparent',
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}>
+              <i className={`ti ${t.icon}`} style={{ fontSize: 15 }} /> {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {tab === 'general'       && <GeneralTab />}
-      {tab === 'verification'  && <VerificationPage />}
-      {tab === 'plans'         && <PlansPage />}
-      {tab === 'notifications' && <NotificationsPage />}
-      {tab === 'settings'      && <SettingsPage />}
+      {/* Tab content — Plans full width, baaki centered */}
+      <div style={{ maxWidth: wide ? '100%' : 1000, margin: '0 auto' }}>
+        {tab === 'general'      && <GeneralTab />}
+        {tab === 'verification' && <VerificationPage />}
+        {tab === 'plans'        && <PlansPage />}
+        {tab === 'settings'     && <SettingsPage />}
+      </div>
     </div>
   )
 }
@@ -96,7 +101,7 @@ function GeneralTab() {
   if (!vals) return <div style={{ color: '#64748b' }}>Loading…</div>
 
   return (
-    <div>
+    <div style={{ maxWidth: 760 }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
         <h2 style={{ fontSize:17, fontWeight:700 }}>Profile Visibility</h2>
         {msg && <span style={{ fontSize:13, color: msg.includes('Error')?'#c0392b':'#1a7f4b', fontWeight:600 }}>{msg}</span>}
