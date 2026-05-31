@@ -16,6 +16,7 @@ const MENU = [
   { id:'notifications', icon:'ti-bell',             label:'Notifications',      perm:'view_dashboard' },
 
   { section: 'REPUTATION' },
+  { id:'trust',      icon:'ti-shield-check',     label:'Trust Score',        perm:'view_dashboard' },
   { id:'reviews',    icon:'ti-star',             label:'Reviews',            perm:'view_reviews' },
   { id:'leads',      icon:'ti-message-circle',   label:'Leads',              perm:'view_leads' },
 
