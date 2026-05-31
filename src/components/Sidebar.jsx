@@ -8,12 +8,12 @@ function hasAccess(userPlan, requiredPlan) {
   return (PLAN_RANK[userPlan]||0) >= (PLAN_RANK[requiredPlan]||0)
 }
 
-// Control Panel subpages — sab pe Control Panel highlight rahe
-const CONTROL_PANEL_PAGES = ['controlpanel','verification','verificationStatus','plans','notifications','settings']
+const CONTROL_PANEL_PAGES = ['controlpanel','verification','verificationStatus','plans','settings']
 
 const MENU = [
   { section: 'OVERVIEW' },
-  { id:'dashboard',  icon:'ti-layout-dashboard', label:'Dashboard',          perm:'view_dashboard' },
+  { id:'dashboard',     icon:'ti-layout-dashboard', label:'Dashboard',          perm:'view_dashboard' },
+  { id:'notifications', icon:'ti-bell',             label:'Notifications',      perm:'view_dashboard' },
 
   { section: 'REPUTATION' },
   { id:'reviews',    icon:'ti-star',             label:'Reviews',            perm:'view_reviews' },
