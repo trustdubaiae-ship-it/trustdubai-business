@@ -26,12 +26,15 @@
   --purple-bg:      #f5f3ff;
   --amber:          #e8b84b;
   --amber-light:    #fffbeb;
+  --gold:           #e8b84b;
+  --sidebar-bg:     #0d1117;
+  --sidebar-border: rgba(255,255,255,0.08);
   --shadow:         0 1px 8px rgba(0,0,0,0.06);
   --shadow-md:      0 4px 20px rgba(0,0,0,0.08);
   --radius:         8px;
   --radius-lg:      12px;
 
-  /* Aliases — kuch pages in naamon se class/var expect karte hain */
+  /* Aliases — kuch pages in naamon se expect karte hain */
   --card-bg:        #ffffff;
   --card-border:    #e2e8f0;
   --text-secondary: #475569;
@@ -139,6 +142,7 @@ html, body {
 /* Badges */
 .badge { display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:700; padding:3px 9px; border-radius:99px; line-height:1; }
 .badge-green { background: var(--green-bg); color: #047857; border: 0.5px solid #a7f3d0; }
+.badge-gray  { background: var(--bg2); color: var(--text2); border: 0.5px solid var(--border); }
 
 /* ---------- PLAN CARDS ---------- */
 .plan-card {
@@ -180,6 +184,25 @@ html, body {
 }
 .form-textarea { resize: vertical; min-height: 90px; }
 .form-hint { font-size: 11px; color: var(--text3); margin-top: 4px; }
+
+/* ---------- PROFILE PAGE EXTRAS ---------- */
+.avatar-upload {
+  width: 86px; height: 86px; border-radius: 14px;
+  background: var(--bg2); border: 1.5px dashed var(--border2);
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden; transition: border-color .15s;
+}
+.avatar-upload:hover { border-color: var(--primary); }
+.avatar-upload img { width: 100%; height: 100%; object-fit: cover; }
+
+.spinner {
+  display: inline-block;
+  width: 18px; height: 18px;
+  border: 2px solid rgba(0,0,0,0.15);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
 
 /* Grid helper */
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
