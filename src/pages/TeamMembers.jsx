@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../lib/auth'
 import { useToast } from '../lib/toast'
 import { supabase } from '../lib/supabase'
+import PolicyAgree from '../components/PolicyAgree'
 
 const BRAND = '#0099cc'
 
@@ -48,11 +49,13 @@ export default function TeamMembers() {
 
   async function deleteMember(m) {
     if (!confirm(`Remove ${m.name} from your team?`)) return
-    if (m.photo_url) {
-      try {
-        const path = m.photo_url.split('/company-assets/')[1]
-        if (path) await supabase.storage.from('company-assets').remove([path])
-      } catch (e) {}
+    for (const url of [m.photo_url, m.eid_url, m.eid_back_url]) {
+      if (url) {
+        try {
+          const path = url.split('/company-assets/')[1]
+          if (path) await supabase.storage.from('company-assets').remove([path])
+        } catch (e) {}
+      }
     }
     await supabase.from('team_members').delete().eq('id', m.id)
     setMembers(prev => prev.filter(x => x.id !== m.id))
@@ -150,13 +153,17 @@ function MemberForm({ company, member, onClose, onSaved }) {
   const [bio, setBio] = useState(member?.bio || '')
   const [exp, setExp] = useState(member?.experience_years || 0)
   const [photoUrl, setPhotoUrl] = useState(member?.photo_url || '')
-  const [eidUrl, setEidUrl] = useState(member?.eid_url || '')
+  const [eidFront, setEidFront] = useState(member?.eid_url || '')
+  const [eidBack, setEidBack] = useState(member?.eid_back_url || '')
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
-  const [uploadingEid, setUploadingEid] = useState(false)
+  const [uploadingFront, setUploadingFront] = useState(false)
+  const [uploadingBack, setUploadingBack] = useState(false)
+  const [agreed, setAgreed] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const photoRef = useRef()
-  const eidRef = useRef()
+  const frontRef = useRef()
+  const backRef = useRef()
 
   async function uploadFile(file, kind) {
     const ext = file.name.split('.').pop()
@@ -175,17 +182,25 @@ function MemberForm({ company, member, onClose, onSaved }) {
     try { setPhotoUrl(await uploadFile(file, 'photo')) } catch (e) { toast.error('Photo upload failed') }
     setUploadingPhoto(false)
   }
-  async function onEid(e) {
+  async function onEidFront(e) {
     const file = e.target.files?.[0]; if (!file) return
     if (file.size > 5 * 1024 * 1024) { toast.error('Max 5MB'); return }
-    setUploadingEid(true)
-    try { setEidUrl(await uploadFile(file, 'eid')) } catch (e) { toast.error('EID upload failed') }
-    setUploadingEid(false)
+    setUploadingFront(true)
+    try { setEidFront(await uploadFile(file, 'eid-front')) } catch (e) { toast.error('Upload failed') }
+    setUploadingFront(false)
+  }
+  async function onEidBack(e) {
+    const file = e.target.files?.[0]; if (!file) return
+    if (file.size > 5 * 1024 * 1024) { toast.error('Max 5MB'); return }
+    setUploadingBack(true)
+    try { setEidBack(await uploadFile(file, 'eid-back')) } catch (e) { toast.error('Upload failed') }
+    setUploadingBack(false)
   }
 
   async function submit() {
     setError('')
     if (!name.trim()) { setError('Name is required'); return }
+    if (!agreed) { setError('Please confirm and agree to the TrustDubai Policy'); return }
     setSaving(true)
     const payload = {
       company_id: company.id,
@@ -195,17 +210,19 @@ function MemberForm({ company, member, onClose, onSaved }) {
       bio: bio.trim() || null,
       experience_years: parseInt(exp) || 0,
       photo_url: photoUrl || null,
-      eid_url: eidUrl || null,
+      eid_url: eidFront || null,
+      eid_back_url: eidBack || null,
     }
     let err
     if (isEdit) {
-      // EID dobara upload hua to status wapas pending (admin re-verify kare)
-      if (eidUrl && eidUrl !== member.eid_url) {
+      const frontChanged = eidFront && eidFront !== member.eid_url
+      const backChanged = eidBack && eidBack !== member.eid_back_url
+      if (frontChanged || backChanged) {
         payload.eid_status = 'pending'; payload.is_verified = false; payload.verified_at = null; payload.verified_by = null
       }
       ;({ error: err } = await supabase.from('team_members').update(payload).eq('id', member.id))
     } else {
-      payload.eid_status = eidUrl ? 'pending' : 'pending'
+      payload.eid_status = 'pending'
       ;({ error: err } = await supabase.from('team_members').insert(payload))
     }
     setSaving(false)
@@ -214,9 +231,15 @@ function MemberForm({ company, member, onClose, onSaved }) {
     onSaved()
   }
 
+  const eidBoxStyle = {
+    position: 'relative', width: '100%', aspectRatio: '1.586 / 1', borderRadius: 10,
+    border: '1.5px dashed var(--card-border)', background: 'var(--bg2)', overflow: 'hidden',
+    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+  }
+
   return (
     <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:1000, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background:'var(--card-bg)', borderRadius:16, width:'100%', maxWidth:460, padding:22, maxHeight:'92vh', overflowY:'auto' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background:'var(--card-bg)', borderRadius:16, width:'100%', maxWidth:480, padding:22, maxHeight:'92vh', overflowY:'auto' }}>
         <h3 style={{ fontWeight:700, color:'var(--text-primary)', marginTop:0, marginBottom:16, fontSize:17 }}>{isEdit ? 'Edit Team Member' : 'Add Team Member'}</h3>
 
         {/* Photo */}
@@ -248,25 +271,64 @@ function MemberForm({ company, member, onClose, onSaved }) {
         <label style={lbl}>Short Bio</label>
         <textarea value={bio} onChange={e => setBio(e.target.value)} placeholder="Brief background, expertise..." style={{ ...inp, minHeight:60, resize:'vertical' }} />
 
-        {/* EID upload */}
+        {/* EID Front + Back */}
         <label style={lbl}>Emirates ID (for verification)</label>
-        <div onClick={() => eidRef.current?.click()} style={{ border:'1.5px dashed var(--card-border)', borderRadius:9, padding:'12px', textAlign:'center', cursor:'pointer', marginTop:4, marginBottom:6, background:'var(--bg2)' }}>
-          {uploadingEid ? <div className="spinner" style={{ margin:'0 auto' }} /> : eidUrl ? (
-            <span style={{ fontSize:12.5, color:'#15803d', fontWeight:600 }}><i className="ti ti-file-check" /> EID uploaded — pending admin verification</span>
-          ) : (
-            <span style={{ fontSize:12.5, color:'var(--text-muted)' }}><i className="ti ti-upload" /> Upload Emirates ID (image/PDF, max 5MB)</span>
-          )}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:4, marginBottom:6 }}>
+          {/* Front */}
+          <div>
+            <div onClick={() => frontRef.current?.click()} style={eidBoxStyle}>
+              {uploadingFront ? <div className="spinner" /> : eidFront ? (
+                <>
+                  {eidFront.toLowerCase().endsWith('.pdf')
+                    ? <div style={{ textAlign:'center', color:'#15803d' }}><i className="ti ti-file-check" style={{ fontSize:26 }} /><div style={{ fontSize:10, marginTop:3 }}>PDF uploaded</div></div>
+                    : <img src={eidFront} alt="EID Front" style={{ width:'100%', height:'100%', objectFit:'cover' }} />}
+                  <span style={{ position:'absolute', top:5, right:5, background:'rgba(0,0,0,0.55)', color:'#fff', fontSize:9, padding:'2px 6px', borderRadius:6 }}>Change</span>
+                </>
+              ) : (
+                <div style={{ textAlign:'center', color:'var(--text-muted)' }}>
+                  <i className="ti ti-id" style={{ fontSize:24 }} />
+                  <div style={{ fontSize:11, marginTop:4, fontWeight:600 }}>Front Side</div>
+                  <div style={{ fontSize:9.5 }}>Click to upload</div>
+                </div>
+              )}
+            </div>
+            <input ref={frontRef} type="file" accept="image/*,application/pdf" style={{ display:'none' }} onChange={onEidFront} />
+          </div>
+          {/* Back */}
+          <div>
+            <div onClick={() => backRef.current?.click()} style={eidBoxStyle}>
+              {uploadingBack ? <div className="spinner" /> : eidBack ? (
+                <>
+                  {eidBack.toLowerCase().endsWith('.pdf')
+                    ? <div style={{ textAlign:'center', color:'#15803d' }}><i className="ti ti-file-check" style={{ fontSize:26 }} /><div style={{ fontSize:10, marginTop:3 }}>PDF uploaded</div></div>
+                    : <img src={eidBack} alt="EID Back" style={{ width:'100%', height:'100%', objectFit:'cover' }} />}
+                  <span style={{ position:'absolute', top:5, right:5, background:'rgba(0,0,0,0.55)', color:'#fff', fontSize:9, padding:'2px 6px', borderRadius:6 }}>Change</span>
+                </>
+              ) : (
+                <div style={{ textAlign:'center', color:'var(--text-muted)' }}>
+                  <i className="ti ti-id" style={{ fontSize:24 }} />
+                  <div style={{ fontSize:11, marginTop:4, fontWeight:600 }}>Back Side</div>
+                  <div style={{ fontSize:9.5 }}>Click to upload</div>
+                </div>
+              )}
+            </div>
+            <input ref={backRef} type="file" accept="image/*,application/pdf" style={{ display:'none' }} onChange={onEidBack} />
+          </div>
         </div>
-        <input ref={eidRef} type="file" accept="image/*,application/pdf" style={{ display:'none' }} onChange={onEid} />
         <p style={{ fontSize:11, color:'var(--text-muted)', marginTop:0, marginBottom:14 }}>
-          Admin will review the EID. Once verified, this member shows a verified badge on your public profile.
+          Upload both sides of the Emirates ID (image/PDF, max 5MB each). Admin will review and verify.
         </p>
+
+        {/* Policy agreement */}
+        <div style={{ background:'var(--bg2)', borderRadius:10, padding:'12px 14px', marginBottom:14 }}>
+          <PolicyAgree checked={agreed} onChange={setAgreed} />
+        </div>
 
         {error && <p style={{ fontSize:12, color:'var(--red)', marginBottom:12 }}>{error}</p>}
 
         <div style={{ display:'flex', gap:10 }}>
           <button onClick={onClose} style={{ flex:1, padding:11, borderRadius:9, border:'1px solid var(--card-border)', background:'var(--card-bg)', color:'var(--text-primary)', fontWeight:600, fontSize:13, cursor:'pointer' }}>Cancel</button>
-          <button onClick={submit} disabled={saving || uploadingPhoto || uploadingEid} style={{ flex:1, padding:11, borderRadius:9, border:'none', background:BRAND, color:'#fff', fontWeight:700, fontSize:13, cursor:'pointer', opacity:(saving||uploadingPhoto||uploadingEid)?0.5:1 }}>
+          <button onClick={submit} disabled={saving || uploadingPhoto || uploadingFront || uploadingBack} style={{ flex:1, padding:11, borderRadius:9, border:'none', background:BRAND, color:'#fff', fontWeight:700, fontSize:13, cursor:'pointer', opacity:(saving||uploadingPhoto||uploadingFront||uploadingBack)?0.5:1 }}>
             {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Member'}
           </button>
         </div>
