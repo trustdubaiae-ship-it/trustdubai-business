@@ -10,13 +10,14 @@ const QUESTION_TYPES = [
   { value: 'select', label: 'Dropdown' },
 ]
 
+// soft colors — dark mode mein neon nahi chubhega
 const LEAD_STATUSES = [
-  { value: 'new',            label: 'New',             color: '#03C1F5', bg: 'rgba(3,193,245,0.12)' },
-  { value: 'qualified',      label: 'Qualified',       color: '#8b5cf6', bg: 'rgba(139,92,246,0.12)' },
-  { value: 'in_conversation',label: 'In Conversation', color: '#3b82f6', bg: 'rgba(59,130,246,0.12)' },
-  { value: 'proposal_given', label: 'Proposal Given',  color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
-  { value: 'won',            label: 'Won',             color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
-  { value: 'lost',           label: 'Lost',            color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
+  { value: 'new',            label: 'New',             color: '#64748b', bg: 'rgba(100,116,139,0.14)' },
+  { value: 'qualified',      label: 'Qualified',       color: '#8b5cf6', bg: 'rgba(139,92,246,0.14)' },
+  { value: 'in_conversation',label: 'In Conversation', color: '#3b82f6', bg: 'rgba(59,130,246,0.14)' },
+  { value: 'proposal_given', label: 'Proposal Given',  color: '#f59e0b', bg: 'rgba(245,158,11,0.14)' },
+  { value: 'won',            label: 'Won',             color: '#10b981', bg: 'rgba(16,185,129,0.14)' },
+  { value: 'lost',           label: 'Lost',            color: '#ef4444', bg: 'rgba(239,68,68,0.14)' },
 ]
 
 const STATUS_MAP = {
@@ -41,8 +42,7 @@ export default function LeadsPage() {
   const [newFormTitle, setNewFormTitle] = useState('')
   const [showNewForm, setShowNewForm] = useState(false)
   const [updatingStatus, setUpdatingStatus] = useState(null)
-  // view + filters
-  const [view, setView] = useState('table')        // table | compact | cards
+  const [view, setView] = useState('table')
   const [search, setSearch] = useState('')
   const [fSource, setFSource] = useState('all')
   const [fStatus, setFStatus] = useState('all')
@@ -182,14 +182,13 @@ export default function LeadsPage() {
 
   const sourceBadge = (sub) => {
     const src = (sub.answers?.Source || '').toLowerCase()
-    if (src.includes('meta') || src.includes('facebook') || src.includes('instagram')) return { key:'meta', label: 'Meta Ads', color: '#3b82f6', bg: 'rgba(59,130,246,0.12)' }
-    if (src.includes('whatsapp')) return { key:'whatsapp', label: 'WhatsApp', color: '#25D366', bg: 'rgba(37,211,102,0.12)' }
-    if (src.includes('referral')) return { key:'referral', label: 'Referral', color: '#8b5cf6', bg: 'rgba(139,92,246,0.12)' }
-    if (src) return { key:'other', label: sub.answers.Source, color: '#64748b', bg: 'var(--bg2)' }
-    return { key:'trustdubai', label: 'TrustDubai', color: '#03C1F5', bg: 'rgba(3,193,245,0.12)' }
+    if (src.includes('meta') || src.includes('facebook') || src.includes('instagram')) return { key:'meta', label: 'Meta Ads', color: '#3b82f6', bg: 'rgba(59,130,246,0.14)' }
+    if (src.includes('whatsapp')) return { key:'whatsapp', label: 'WhatsApp', color: '#22c55e', bg: 'rgba(34,197,94,0.14)' }
+    if (src.includes('referral')) return { key:'referral', label: 'Referral', color: '#8b5cf6', bg: 'rgba(139,92,246,0.14)' }
+    if (src) return { key:'other', label: sub.answers.Source, color: '#94a3b8', bg: 'var(--bg2)' }
+    return { key:'trustdubai', label: 'TrustDubai', color: '#0891b2', bg: 'rgba(8,145,178,0.14)' }
   }
 
-  // filtered list
   const filtered = submissions.filter(s => {
     const q = search.trim().toLowerCase()
     if (q && !(`${s.name || ''} ${s.phone || ''} ${s.email || ''}`.toLowerCase().includes(q))) return false
@@ -203,7 +202,9 @@ export default function LeadsPage() {
   const activeCount = submissions.filter(s => !['won', 'lost'].includes(s.status)).length
 
   const card = { background: 'var(--card)', border: '0.5px solid var(--border)', borderRadius: 14, padding: 16 }
+  const inputStyle = { border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--text)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }
   const waMsg = (sub) => 'https://wa.me/' + (sub.phone || '').replace(/[^0-9]/g, '') + '?text=Hi ' + (sub.name || '') + ', I received your inquiry from TrustDubai. How can I help you?'
+  const optStyle = { background: 'var(--card)', color: 'var(--text)' }
 
   const SOURCES = [
     { k:'all', l:'All Sources' }, { k:'trustdubai', l:'TrustDubai' }, { k:'whatsapp', l:'WhatsApp' },
@@ -227,7 +228,7 @@ export default function LeadsPage() {
           <div className="card-title" style={{ marginBottom: 12 }}>New Form</div>
           <div style={{ display: 'flex', gap: 10 }}>
             <input value={newFormTitle} onChange={e => setNewFormTitle(e.target.value)} placeholder="Form title e.g. Interior Design Inquiry"
-              style={{ flex: 1, padding: '10px 14px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--text)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }}
+              style={{ flex: 1, padding: '10px 14px', ...inputStyle }}
               onKeyDown={e => e.key === 'Enter' && createForm()} />
             <button className="btn btn-primary btn-sm" onClick={createForm}>Create</button>
             <button className="btn btn-secondary btn-sm" onClick={() => setShowNewForm(false)}>Cancel</button>
@@ -250,7 +251,6 @@ export default function LeadsPage() {
         ))}
       </div>
 
-      {/* FORMS TAB */}
       {tab === 'forms' && (
         <div>
           {forms.length === 0 ? (
@@ -268,14 +268,14 @@ export default function LeadsPage() {
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                         <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>{form.title}</div>
-                        {form.is_active && <span style={{ background: 'rgba(3,193,245,0.12)', color: '#03C1F5', fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 99, border: '1px solid #03C1F5' }}>LIVE</span>}
+                        {form.is_active && <span style={{ background: 'rgba(8,145,178,0.14)', color: '#0891b2', fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 99, border: '1px solid #0891b2' }}>LIVE</span>}
                       </div>
                       <div style={{ fontSize: 12, color: 'var(--text3)' }}>Created {new Date(form.created_at).toLocaleDateString('en-AE')}</div>
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
                       {!form.is_active && <button className="btn btn-sm btn-secondary" onClick={() => setActive(form.id)}>Set as Active</button>}
                       <button className="btn btn-sm btn-primary" onClick={() => openEditor(form)}>Edit</button>
-                      <button onClick={() => deleteForm(form.id)} style={{ padding: '6px 10px', background: 'rgba(239,68,68,0.12)', color: '#ef4444', border: 'none', borderRadius: 6, cursor: 'pointer' }}><Trash2 size={14} /></button>
+                      <button onClick={() => deleteForm(form.id)} style={{ padding: '6px 10px', background: 'rgba(239,68,68,0.14)', color: '#ef4444', border: 'none', borderRadius: 6, cursor: 'pointer' }}><Trash2 size={14} /></button>
                     </div>
                   </div>
                 </div>
@@ -285,14 +285,13 @@ export default function LeadsPage() {
         </div>
       )}
 
-      {/* EDITOR TAB */}
       {tab === 'editor' && editingForm && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 20 }}>
           <div>
             <div style={{ ...card, marginBottom: 16 }}>
               <div className="card-title" style={{ marginBottom: 12 }}>Form Title</div>
               <input value={editingForm.title} onChange={e => setEditingForm(prev => ({ ...prev, title: e.target.value }))}
-                style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--text)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }} />
+                style={{ width: '100%', padding: '10px 14px', ...inputStyle }} />
             </div>
             <div style={card}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -305,20 +304,20 @@ export default function LeadsPage() {
                   <div key={q.id} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 14, background: 'var(--bg2)' }}>
                     <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
                       <input value={q.question} onChange={e => updateQuestion(q.id, 'question', e.target.value)} placeholder={'Question ' + (i + 1)}
-                        style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--text)', borderRadius: 6, fontSize: 13, fontFamily: 'inherit' }} />
+                        style={{ flex: 1, padding: '8px 12px', ...inputStyle, fontSize: 13 }} />
                       <select value={q.type} onChange={e => updateQuestion(q.id, 'type', e.target.value)}
-                        style={{ padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12, fontFamily: 'inherit', background: 'var(--card)', color: 'var(--text)' }}>
-                        {QUESTION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                        style={{ padding: '8px 10px', ...inputStyle, fontSize: 12 }}>
+                        {QUESTION_TYPES.map(t => <option key={t.value} value={t.value} style={optStyle}>{t.label}</option>)}
                       </select>
-                      <button onClick={() => deleteQuestion(q.id)} style={{ padding: '8px', border: 'none', background: 'rgba(239,68,68,0.12)', borderRadius: 6, cursor: 'pointer', color: '#ef4444' }}><Trash2 size={14} /></button>
+                      <button onClick={() => deleteQuestion(q.id)} style={{ padding: '8px', border: 'none', background: 'rgba(239,68,68,0.14)', borderRadius: 6, cursor: 'pointer', color: '#ef4444' }}><Trash2 size={14} /></button>
                     </div>
                     {(q.type === 'radio' || q.type === 'select') && (
                       <div style={{ paddingLeft: 8 }}>
                         {(q.options || []).map((opt, oi) => (
                           <div key={oi} style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
                             <input value={opt} onChange={e => updateOption(q.id, oi, e.target.value)} placeholder={'Option ' + (oi + 1)}
-                              style={{ flex: 1, padding: '6px 10px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--text)', borderRadius: 6, fontSize: 12, fontFamily: 'inherit' }} />
-                            <button onClick={() => removeOption(q.id, oi)} style={{ padding: '6px 8px', border: 'none', background: 'rgba(239,68,68,0.12)', borderRadius: 6, cursor: 'pointer', color: '#ef4444', fontSize: 12 }}>✕</button>
+                              style={{ flex: 1, padding: '6px 10px', ...inputStyle, fontSize: 12 }} />
+                            <button onClick={() => removeOption(q.id, oi)} style={{ padding: '6px 8px', border: 'none', background: 'rgba(239,68,68,0.14)', borderRadius: 6, cursor: 'pointer', color: '#ef4444', fontSize: 12 }}>✕</button>
                           </div>
                         ))}
                         <button onClick={() => addOption(q.id)} style={{ fontSize: 12, color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0' }}>+ Add option</button>
@@ -348,12 +347,12 @@ export default function LeadsPage() {
                     <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--text2)', display: 'block', marginBottom: 4 }}>
                       {q.question || 'Question ' + (i + 1)}{q.required && <span style={{ color: '#ef4444', marginLeft: 2 }}>*</span>}
                     </label>
-                    {q.type === 'text' && <input disabled placeholder="Customer answer..." style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12, background: 'var(--card)', color: 'var(--text)' }} />}
-                    {q.type === 'select' && <select disabled style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12, background: 'var(--card)', color: 'var(--text)' }}><option>Select an option</option>{(q.options || []).map((o, i) => <option key={i}>{o}</option>)}</select>}
+                    {q.type === 'text' && <input disabled placeholder="Customer answer..." style={{ width: '100%', padding: '8px 10px', ...inputStyle, fontSize: 12 }} />}
+                    {q.type === 'select' && <select disabled style={{ width: '100%', padding: '8px 10px', ...inputStyle, fontSize: 12 }}><option style={optStyle}>Select an option</option>{(q.options || []).map((o, i) => <option key={i} style={optStyle}>{o}</option>)}</select>}
                     {q.type === 'radio' && <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>{(q.options || []).map((o, i) => <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text2)' }}><input type="radio" disabled /> {o || 'Option ' + (i + 1)}</label>)}</div>}
                   </div>
                 ))}
-                <div style={{ background: '#03C1F5', color: '#fff', textAlign: 'center', padding: '8px', borderRadius: 20, fontSize: 13, fontWeight: 500, marginTop: 8 }}>Submit — Get Quote</div>
+                <div style={{ background: 'var(--primary)', color: '#fff', textAlign: 'center', padding: '8px', borderRadius: 20, fontSize: 13, fontWeight: 500, marginTop: 8 }}>Submit — Get Quote</div>
                 <div style={{ textAlign: 'center', marginTop: 8, fontSize: 10, color: 'var(--text3)' }}>Powered by TrustDubai</div>
               </div>
             </div>
@@ -361,14 +360,12 @@ export default function LeadsPage() {
         </div>
       )}
 
-      {/* LEADS TAB */}
       {tab === 'leads' && (
         <div>
-          {/* stat cards */}
           {submissions.length > 0 && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 16 }}>
               {[
-                { label: 'Active Leads', value: activeCount, color: '#03C1F5', glow: 'rgba(3,193,245,0.16)' },
+                { label: 'Active Leads', value: activeCount, color: '#0891b2', glow: 'rgba(8,145,178,0.16)' },
                 { label: 'Won', value: wonCount, color: '#10b981', glow: 'rgba(16,185,129,0.16)' },
                 { label: 'Lost', value: lostCount, color: '#ef4444', glow: 'rgba(239,68,68,0.16)' },
               ].map(s => (
@@ -381,7 +378,6 @@ export default function LeadsPage() {
             </div>
           )}
 
-          {/* toolbar: search + filters + view + import */}
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--card)', border: '0.5px solid var(--border)', borderRadius: 8, padding: '6px 12px', flex: '1 1 220px', minWidth: 180 }}>
               <i className="ti ti-search" style={{ fontSize: 14, color: 'var(--text3)' }} />
@@ -389,15 +385,14 @@ export default function LeadsPage() {
                 style={{ border: 'none', background: 'none', outline: 'none', fontSize: 13, color: 'var(--text)', width: '100%', fontFamily: 'inherit' }} />
             </div>
             <select value={fSource} onChange={e => setFSource(e.target.value)}
-              style={{ padding: '7px 10px', border: '0.5px solid var(--border)', background: 'var(--card)', color: 'var(--text)', borderRadius: 8, fontSize: 12.5, fontFamily: 'inherit', cursor: 'pointer' }}>
-              {SOURCES.map(s => <option key={s.k} value={s.k}>{s.l}</option>)}
+              style={{ padding: '7px 10px', ...inputStyle, fontSize: 12.5, cursor: 'pointer' }}>
+              {SOURCES.map(s => <option key={s.k} value={s.k} style={optStyle}>{s.l}</option>)}
             </select>
             <select value={fStatus} onChange={e => setFStatus(e.target.value)}
-              style={{ padding: '7px 10px', border: '0.5px solid var(--border)', background: 'var(--card)', color: 'var(--text)', borderRadius: 8, fontSize: 12.5, fontFamily: 'inherit', cursor: 'pointer' }}>
-              <option value="all">All Status</option>
-              {LEAD_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              style={{ padding: '7px 10px', ...inputStyle, fontSize: 12.5, cursor: 'pointer' }}>
+              <option value="all" style={optStyle}>All Status</option>
+              {LEAD_STATUSES.map(s => <option key={s.value} value={s.value} style={optStyle}>{s.label}</option>)}
             </select>
-            {/* view toggle */}
             <div style={{ display: 'flex', gap: 2, background: 'var(--bg2)', border: '0.5px solid var(--border)', borderRadius: 8, padding: 2 }}>
               {[['table','ti-table'],['compact','ti-list'],['cards','ti-layout-grid']].map(([v,ic]) => (
                 <button key={v} onClick={() => setView(v)} title={v}
@@ -422,7 +417,6 @@ export default function LeadsPage() {
           ) : filtered.length === 0 ? (
             <div style={{ ...card, textAlign: 'center', padding: '40px 20px', color: 'var(--text3)' }}>No leads match your filter</div>
           ) : view === 'table' ? (
-            /* ---------- TABLE VIEW ---------- */
             <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -445,7 +439,7 @@ export default function LeadsPage() {
                             style={{ borderTop: '0.5px solid var(--border)', cursor: 'pointer' }}>
                             <td style={{ padding: '10px 14px' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                                <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(3,193,245,0.12)', color: '#03C1F5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{(sub.name || 'A')[0].toUpperCase()}</div>
+                                <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--bg2)', color: 'var(--text2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{(sub.name || 'A')[0].toUpperCase()}</div>
                                 <span style={{ fontWeight: 600, color: 'var(--text)' }}>{sub.name || 'Anonymous'}</span>
                               </div>
                             </td>
@@ -454,11 +448,11 @@ export default function LeadsPage() {
                             <td style={{ padding: '10px' }}>
                               <select value={sub.status || 'new'} onClick={e => e.stopPropagation()} onChange={e => updateLeadStatus(sub.id, e.target.value)} disabled={updatingStatus === sub.id}
                                 style={{ padding: '4px 8px', borderRadius: 20, border: '1px solid ' + sc.color, background: sc.bg, color: sc.color, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                                {LEAD_STATUSES.map(s => <option key={s.value} value={s.value} style={{ background: 'var(--card)', color: 'var(--text)' }}>{s.label}</option>)}
+                                {LEAD_STATUSES.map(s => <option key={s.value} value={s.value} style={optStyle}>{s.label}</option>)}
                               </select>
                             </td>
                             <td style={{ padding: '10px 14px', textAlign: 'right' }}>
-                              {sub.phone && <button onClick={e => { e.stopPropagation(); window.open(waMsg(sub), '_blank') }} style={{ padding: '5px 10px', background: '#25D366', color: '#fff', border: 'none', borderRadius: 16, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>WhatsApp</button>}
+                              {sub.phone && <button onClick={e => { e.stopPropagation(); window.open(waMsg(sub), '_blank') }} style={{ padding: '5px 10px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: 16, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>WhatsApp</button>}
                             </td>
                           </tr>
                           {isOpen && (sub.answers && Object.keys(sub.answers).length > 0) && (
@@ -480,13 +474,12 @@ export default function LeadsPage() {
               </div>
             </div>
           ) : view === 'compact' ? (
-            /* ---------- COMPACT VIEW ---------- */
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {filtered.map(sub => {
                 const sc = statusConfig(sub.status || 'new'); const sb = sourceBadge(sub)
                 return (
                   <div key={sub.id} style={{ ...card, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(3,193,245,0.12)', color: '#03C1F5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>{(sub.name || 'A')[0].toUpperCase()}</div>
+                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--bg2)', color: 'var(--text2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>{(sub.name || 'A')[0].toUpperCase()}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600, fontSize: 13.5, color: 'var(--text)' }}>{sub.name || 'Anonymous'}</div>
                       <div style={{ fontSize: 11.5, color: 'var(--text3)' }}>{sub.phone || '—'}{sub.answers?.['Project Type'] ? ' · ' + sub.answers['Project Type'] : ''}</div>
@@ -494,15 +487,14 @@ export default function LeadsPage() {
                     <span style={{ background: sb.bg, color: sb.color, fontSize: 10.5, fontWeight: 600, padding: '2px 8px', borderRadius: 99 }}>{sb.label}</span>
                     <select value={sub.status || 'new'} onChange={e => updateLeadStatus(sub.id, e.target.value)} disabled={updatingStatus === sub.id}
                       style={{ padding: '4px 8px', borderRadius: 20, border: '1px solid ' + sc.color, background: sc.bg, color: sc.color, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                      {LEAD_STATUSES.map(s => <option key={s.value} value={s.value} style={{ background: 'var(--card)', color: 'var(--text)' }}>{s.label}</option>)}
+                      {LEAD_STATUSES.map(s => <option key={s.value} value={s.value} style={optStyle}>{s.label}</option>)}
                     </select>
-                    {sub.phone && <button onClick={() => window.open(waMsg(sub), '_blank')} style={{ padding: '5px 10px', background: '#25D366', color: '#fff', border: 'none', borderRadius: 16, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>WhatsApp</button>}
+                    {sub.phone && <button onClick={() => window.open(waMsg(sub), '_blank')} style={{ padding: '5px 10px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: 16, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>WhatsApp</button>}
                   </div>
                 )
               })}
             </div>
           ) : (
-            /* ---------- CARDS VIEW (2-col compact) ---------- */
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(320px,1fr))', gap: 12 }}>
               {filtered.map(sub => {
                 const sc = statusConfig(sub.status || 'new'); const sb = sourceBadge(sub)
@@ -510,7 +502,7 @@ export default function LeadsPage() {
                   <div key={sub.id} style={card}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                        <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(3,193,245,0.12)', color: '#03C1F5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700 }}>{(sub.name || 'A')[0].toUpperCase()}</div>
+                        <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--bg2)', color: 'var(--text2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700 }}>{(sub.name || 'A')[0].toUpperCase()}</div>
                         <div>
                           <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)' }}>{sub.name || 'Anonymous'}</div>
                           <div style={{ fontSize: 11.5, color: 'var(--text3)' }}>{sub.phone || '—'}</div>
@@ -523,9 +515,9 @@ export default function LeadsPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderTop: '0.5px solid var(--border)', paddingTop: 10 }}>
                       <select value={sub.status || 'new'} onChange={e => updateLeadStatus(sub.id, e.target.value)} disabled={updatingStatus === sub.id}
                         style={{ padding: '4px 8px', borderRadius: 20, border: '1px solid ' + sc.color, background: sc.bg, color: sc.color, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flex: 1 }}>
-                        {LEAD_STATUSES.map(s => <option key={s.value} value={s.value} style={{ background: 'var(--card)', color: 'var(--text)' }}>{s.label}</option>)}
+                        {LEAD_STATUSES.map(s => <option key={s.value} value={s.value} style={optStyle}>{s.label}</option>)}
                       </select>
-                      {sub.phone && <button onClick={() => window.open(waMsg(sub), '_blank')} style={{ padding: '5px 12px', background: '#25D366', color: '#fff', border: 'none', borderRadius: 16, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>WhatsApp</button>}
+                      {sub.phone && <button onClick={() => window.open(waMsg(sub), '_blank')} style={{ padding: '5px 12px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: 16, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>WhatsApp</button>}
                     </div>
                   </div>
                 )
