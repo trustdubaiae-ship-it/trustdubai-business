@@ -279,7 +279,6 @@ export default function DashboardPage({ onNavigate }) {
       setStats({ views:company.profile_views||0, reviews:reviews.length, avgRating:avg, portfolio:portfolioRes.data?.length||0, newReviews:newRev, satisfaction, reputationGrowth:repGrowth, trustScore })
       setMemberCount(membersRes.data?.length||0)
 
-      // ---- LEAD STATS ----
       const leads = leadsRes.data||[]
       const lWon  = leads.filter(l=>l.status==='won').length
       const lActive = leads.filter(l=>!['won','lost'].includes(l.status)).length
@@ -319,7 +318,6 @@ export default function DashboardPage({ onNavigate }) {
     { icon:'ti-shield-check',  label:'Verified',      value:company?.is_verified?'Yes':'No',   color:company?.is_verified?'#10b981':'#ef4444' },
   ]
 
-  // 3 review stat cards + 3 lead stat cards = 6 (top row)
   const statCards = [
     { label:'Trust Score',       value:stats.trustScore,        icon:'ti-shield-check',  color:'#10b981', glow:'rgba(16,185,129,0.16)',  trend:[5,5.5,6,6.2,7,7.5,8,8.2,9,9.1,9.2,parseFloat(stats.trustScore)||0], change:'+6.5%', page:'trust' },
     { label:'Total Reviews',     value:stats.reviews,           icon:'ti-message-circle',color:'#e8b84b', glow:'rgba(232,184,75,0.16)',  trend:[2,5,8,12,18,25,30,42,55,70,85,stats.reviews], change:'+3.1%', page:'reviews' },
@@ -333,6 +331,27 @@ export default function DashboardPage({ onNavigate }) {
 
   return (
     <div className="page-content animate-in" style={{ color:'var(--text)' }}>
+
+      {/* responsive grid rules — mobile pe sab stack */}
+      <style>{`
+        .dash-stats   { display:grid; grid-template-columns:repeat(6,1fr); gap:12px; margin-bottom:14px; }
+        .dash-mid1    { display:grid; grid-template-columns:2.2fr 1fr 1fr; gap:12px; margin-bottom:14px; }
+        .dash-mid2    { display:grid; grid-template-columns:2fr 1.2fr 1fr 1fr 1fr; gap:12px; margin-bottom:14px; }
+        .dash-bottom  { display:grid; grid-template-columns:${aiInsightsOn?'1fr 1fr 1fr 1fr':'1fr 1fr 1fr'}; gap:12px; }
+
+        @media (max-width: 1100px) {
+          .dash-stats  { grid-template-columns:repeat(3,1fr); }
+          .dash-mid1   { grid-template-columns:1fr 1fr; }
+          .dash-mid2   { grid-template-columns:1fr 1fr; }
+          .dash-bottom { grid-template-columns:1fr 1fr; }
+        }
+        @media (max-width: 768px) {
+          .dash-stats  { grid-template-columns:1fr 1fr; gap:10px; }
+          .dash-mid1   { grid-template-columns:1fr; }
+          .dash-mid2   { grid-template-columns:1fr; }
+          .dash-bottom { grid-template-columns:1fr; }
+        }
+      `}</style>
 
       {expiryInfo?.urgent && plan!=='free' && (
         <div style={{ background:expiryInfo.bg, border:`0.5px solid ${expiryInfo.border}`, borderRadius:12, padding:'12px 18px', display:'flex', alignItems:'center', gap:12, marginBottom:16 }}>
@@ -357,8 +376,8 @@ export default function DashboardPage({ onNavigate }) {
         <p style={{ fontSize:12, color:'var(--text2)', marginTop:3 }}>Here's how your business is performing on TrustDubai.</p>
       </div>
 
-      {/* 6 STAT CARDS (3 reviews + 3 leads) */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:12, marginBottom:14 }}>
+      {/* 6 STAT CARDS */}
+      <div className="dash-stats">
         {statCards.map((card,i)=>(
           <GlowCard key={i} glow={card.glow}
             style={{ cursor:card.page?'pointer':'default', transition:'transform .15s, border-color .15s' }}
@@ -381,7 +400,7 @@ export default function DashboardPage({ onNavigate }) {
       </div>
 
       {/* JOURNEY + PROFILE + CLOCK */}
-      <div style={{ display:'grid', gridTemplateColumns:'2.2fr 1fr 1fr', gap:12, marginBottom:14 }}>
+      <div className="dash-mid1">
         <GlowCard glow="rgba(59,130,246,0.12)">
           <div style={{ ...sectionTitle, marginBottom:16 }}>Review Journey Overview</div>
           <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', position:'relative' }}>
@@ -420,7 +439,7 @@ export default function DashboardPage({ onNavigate }) {
       </div>
 
       {/* MIDDLE ROW */}
-      <div style={{ display:'grid', gridTemplateColumns:'2fr 1.2fr 1fr 1fr 1fr', gap:12, marginBottom:14 }}>
+      <div className="dash-mid2">
         <GlowCard glow="rgba(16,185,129,0.1)">
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
             <div>
@@ -537,7 +556,7 @@ export default function DashboardPage({ onNavigate }) {
       </div>
 
       {/* BOTTOM ROW */}
-      <div style={{ display:'grid', gridTemplateColumns: aiInsightsOn?'1fr 1fr 1fr 1fr':'1fr 1fr 1fr', gap:12 }}>
+      <div className="dash-bottom">
         <NotificationsCard cardStyle={{ background:'var(--card)', border:'0.5px solid var(--border)', borderRadius:14, padding:16 }} C={{ text:'var(--text)', text2:'var(--text2)', text3:'var(--text3)', border:'var(--border)', bg:'var(--bg2)' }} onOpenPage={() => onNavigate('notifications')} />
 
         {aiInsightsOn && (
