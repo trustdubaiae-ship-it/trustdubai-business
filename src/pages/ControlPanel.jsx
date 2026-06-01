@@ -1,5 +1,5 @@
 // trustdubai-business/src/pages/ControlPanel.jsx
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 
@@ -8,6 +8,8 @@ import PlansPage from './PlansPage'
 import SettingsPage from './SettingsPage'
 
 const BRAND = '#0099cc'
+const LOGO_BUCKET = 'company-logos'
+const MAX_LOGO_MB = 1
 
 const TABS = [
   { key: 'general',      label: 'General',         icon: 'ti-adjustments' },
@@ -147,6 +149,8 @@ function FinanceTab() {
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
   const [newPay, setNewPay] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const logoFileRef = useRef(null)
 
   const isGoldPlus = ['gold','platinum'].includes(company?.plan)
 
@@ -171,6 +175,27 @@ function FinanceTab() {
   }, [companyId])
 
   function set(k, v) { setF(p => ({ ...p, [k]: v })) }
+
+  async function handleLogoUpload(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) { setMsg('Error: Please choose an image file (PNG, JPG, SVG).'); return }
+    if (file.size > MAX_LOGO_MB * 1024 * 1024) { setMsg(`Error: Logo must be under ${MAX_LOGO_MB}MB.`); return }
+    setUploading(true); setMsg('')
+    try {
+      const ext = (file.name.split('.').pop() || 'png').toLowerCase()
+      const path = `${companyId}/logo_${Date.now()}.${ext}`
+      const { error: upErr } = await supabase.storage.from(LOGO_BUCKET).upload(path, file, { upsert: true })
+      if (upErr) throw upErr
+      const { data: pub } = supabase.storage.from(LOGO_BUCKET).getPublicUrl(path)
+      set('finance_logo_url', pub.publicUrl)
+      setMsg('Logo uploaded ✓ — click Save Settings to keep it.')
+    } catch (err) {
+      console.error(err); setMsg('Error: Upload failed — try again.')
+    }
+    setUploading(false)
+    if (logoFileRef.current) logoFileRef.current.value = ''
+  }
 
   function addPayment() {
     const t = newPay.trim()
@@ -242,12 +267,29 @@ function FinanceTab() {
         </div>
       </div>
 
-      {/* BRANDING + LOGO PREVIEW + SIZE */}
+      {/* BRANDING + LOGO UPLOAD + SIZE */}
       <div style={cardStyle}>
         <div style={sectionTitle}>Branding</div>
-        <label style={labelStyle}>Company Logo URL</label>
+        <label style={labelStyle}>Company Logo</label>
+
+        <input ref={logoFileRef} type="file" accept="image/*" onChange={handleLogoUpload} style={{ display:'none' }} />
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
+          <button onClick={() => logoFileRef.current?.click()} disabled={uploading}
+            style={{ padding:'9px 16px', background:BRAND, color:'#fff', border:'none', borderRadius:8, fontWeight:600, fontSize:13, cursor:'pointer', opacity:uploading?0.6:1, display:'flex', alignItems:'center', gap:6 }}>
+            <i className="ti ti-upload" style={{ fontSize:14 }} /> {uploading ? 'Uploading...' : 'Choose Logo'}
+          </button>
+          {f.finance_logo_url && (
+            <button onClick={() => set('finance_logo_url', '')}
+              style={{ padding:'9px 14px', background:'var(--bg2)', color:'#ef4444', border:'1px solid var(--border)', borderRadius:8, fontWeight:600, fontSize:13, cursor:'pointer' }}>
+              Remove
+            </button>
+          )}
+        </div>
+        <div style={hint}>PNG, JPG or SVG · max {MAX_LOGO_MB}MB. Appears at the top of your quotation/invoice.</div>
+
+        {/* manual URL (optional) */}
+        <label style={{ ...labelStyle, marginTop:14 }}>or paste logo URL</label>
         <input value={f.finance_logo_url} onChange={e => set('finance_logo_url', e.target.value)} placeholder="https://...your-logo.png" style={inputStyle} />
-        <div style={hint}>Logo appears at the top of your quotation/invoice. (URL for now — direct upload coming soon.)</div>
 
         {f.finance_logo_url ? (
           <>
@@ -255,13 +297,12 @@ function FinanceTab() {
               <label style={{ ...labelStyle, marginBottom:0 }}>Logo Size on Quotation</label>
               <span style={{ fontSize:13, fontWeight:700, color:BRAND }}>{f.finance_logo_width}px</span>
             </div>
-            <input type="range" min="60" max="320" step="10"
+            <input type="range" min="50" max="260" step="5"
               value={f.finance_logo_width}
               onChange={e => set('finance_logo_width', parseInt(e.target.value))}
               style={{ width:'100%', accentColor:BRAND, cursor:'pointer' }} />
             <div style={hint}>Adjust the logo size with the slider — live preview below.</div>
 
-            {/* LIVE PREVIEW */}
             <div style={{ marginTop:14, padding:18, background:'var(--bg2)', borderRadius:10, border:'1px dashed var(--border2)' }}>
               <div style={{ fontSize:10, color:'var(--text3)', marginBottom:10, textTransform:'uppercase', letterSpacing:'0.05em' }}>Preview (quotation header)</div>
               <img src={f.finance_logo_url} alt="logo"
@@ -271,7 +312,7 @@ function FinanceTab() {
           </>
         ) : (
           <div style={{ marginTop:12, padding:'12px 14px', background:'var(--bg2)', borderRadius:8, fontSize:12, color:'var(--text3)' }}>
-            Enter a logo URL to see the preview & size slider here.
+            Upload a logo (or paste a URL) to see the preview & size slider here.
           </div>
         )}
       </div>
