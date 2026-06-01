@@ -218,7 +218,7 @@ function FinanceTab() {
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
         <div>
           <h2 style={{ fontSize:17, fontWeight:700, color:'var(--text)' }}>Finance Settings</h2>
-          <p style={{ fontSize:13, color:'var(--text2)', marginTop:2 }}>Ek baar set karo — quotations & projects automatically use karenge.</p>
+          <p style={{ fontSize:13, color:'var(--text2)', marginTop:2 }}>Set once — quotations & projects will use these automatically.</p>
         </div>
         <button onClick={save} disabled={saving}
           style={{ padding:'9px 20px', background:BRAND, color:'#fff', border:'none', borderRadius:8, fontWeight:600, fontSize:14, cursor:'pointer', opacity:saving?0.6:1, flexShrink:0 }}>
@@ -232,11 +232,11 @@ function FinanceTab() {
         <div style={sectionTitle}>Tax Information</div>
         <label style={labelStyle}>TRN (Tax Registration Number)</label>
         <input value={f.trn} onChange={e => set('trn', e.target.value)} placeholder="100xxxxxxxxxxxx" style={inputStyle} />
-        <div style={hint}>Ye quotation & invoice pe automatically aayega.</div>
+        <div style={hint}>This will appear automatically on your quotations & invoices.</div>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:16 }}>
           <div>
             <div style={{ fontWeight:600, fontSize:14, color:'var(--text)' }}>VAT Registered</div>
-            <div style={hint}>On karoge to quotes pe 5% VAT auto-add hoga.</div>
+            <div style={hint}>When on, 5% VAT is auto-added to your quotes.</div>
           </div>
           <Switch on={f.vat_registered} busy={false} onClick={() => set('vat_registered', !f.vat_registered)} />
         </div>
@@ -247,7 +247,7 @@ function FinanceTab() {
         <div style={sectionTitle}>Branding</div>
         <label style={labelStyle}>Company Logo URL</label>
         <input value={f.finance_logo_url} onChange={e => set('finance_logo_url', e.target.value)} placeholder="https://...your-logo.png" style={inputStyle} />
-        <div style={hint}>Logo quotation/invoice ke top pe dikhega. (Abhi URL — baad mein direct upload add karenge.)</div>
+        <div style={hint}>Logo appears at the top of your quotation/invoice. (URL for now — direct upload coming soon.)</div>
 
         {f.finance_logo_url ? (
           <>
@@ -259,9 +259,9 @@ function FinanceTab() {
               value={f.finance_logo_width}
               onChange={e => set('finance_logo_width', parseInt(e.target.value))}
               style={{ width:'100%', accentColor:BRAND, cursor:'pointer' }} />
-            <div style={hint}>Slider se logo ka size adjust karo — neeche preview live dikhega.</div>
+            <div style={hint}>Adjust the logo size with the slider — live preview below.</div>
 
-            {/* LIVE PREVIEW — quotation header jaisा */}
+            {/* LIVE PREVIEW */}
             <div style={{ marginTop:14, padding:18, background:'var(--bg2)', borderRadius:10, border:'1px dashed var(--border2)' }}>
               <div style={{ fontSize:10, color:'var(--text3)', marginBottom:10, textTransform:'uppercase', letterSpacing:'0.05em' }}>Preview (quotation header)</div>
               <img src={f.finance_logo_url} alt="logo"
@@ -271,7 +271,7 @@ function FinanceTab() {
           </>
         ) : (
           <div style={{ marginTop:12, padding:'12px 14px', background:'var(--bg2)', borderRadius:8, fontSize:12, color:'var(--text3)' }}>
-            Logo URL daalo — yahan preview + size slider dikhega.
+            Enter a logo URL to see the preview & size slider here.
           </div>
         )}
       </div>
@@ -289,7 +289,7 @@ function FinanceTab() {
             <input type="number" value={f.project_next_num} onChange={e => set('project_next_num', e.target.value)} placeholder="1" style={inputStyle} />
           </div>
         </div>
-        <div style={hint}>Next project code: <b style={{ color:'var(--text)' }}>{f.project_prefix}{String(f.project_next_num).padStart(3,'0')}</b> — auto-sequence aage badhega.</div>
+        <div style={hint}>Next project code: <b style={{ color:'var(--text)' }}>{f.project_prefix}{String(f.project_next_num).padStart(3,'0')}</b> — auto-sequence will increment.</div>
       </div>
 
       {/* WHY CHOOSE US */}
@@ -299,16 +299,16 @@ function FinanceTab() {
         <textarea value={f.why_choose_us} onChange={e => set('why_choose_us', e.target.value)} rows={4}
           placeholder={"e.g.\n• 7+ years luxury fit-out experience\n• In-house MEP, civil & joinery teams\n• On-time delivery guarantee"}
           style={{ ...inputStyle, resize:'vertical', lineHeight:1.5 }} />
-        <div style={hint}>Quotation banate waqt tick karke add/remove kar sakoge.</div>
+        <div style={hint}>You can tick to add/remove this when creating a quotation.</div>
       </div>
 
       {/* PAYMENT TERMS */}
       <div style={cardStyle}>
         <div style={sectionTitle}>Payment Terms {!isGoldPlus && <span style={{ fontSize:10, color:'#d97706', fontWeight:600 }}>(Gold+ feature)</span>}</div>
-        <div style={hint}>Apne payment options save karo — quotation banate waqt inme se choose karoge (ya custom).</div>
+        <div style={hint}>Save your payment options — choose from these (or custom) when creating a quotation.</div>
 
         <div style={{ marginTop:12, marginBottom:10 }}>
-          {f.payment_terms.length === 0 && <div style={{ fontSize:13, color:'var(--text3)', fontStyle:'italic' }}>Koi payment option nahi — neeche se add karo.</div>}
+          {f.payment_terms.length === 0 && <div style={{ fontSize:13, color:'var(--text3)', fontStyle:'italic' }}>No payment options yet — add one below.</div>}
           {f.payment_terms.map((p, i) => (
             <div key={i} style={{ display:'flex', alignItems:'center', gap:8, background:'var(--bg2)', borderRadius:8, padding:'8px 12px', marginBottom:8 }}>
               <i className="ti ti-cash" style={{ fontSize:14, color:BRAND }} />
@@ -319,7 +319,7 @@ function FinanceTab() {
         </div>
 
         <div style={{ display:'flex', gap:8 }}>
-          <input value={newPay} onChange={e => setNewPay(e.target.value)} placeholder="Custom payment term likho..."
+          <input value={newPay} onChange={e => setNewPay(e.target.value)} placeholder="Write a custom payment term..."
             style={{ ...inputStyle, flex:1 }} onKeyDown={e => e.key === 'Enter' && addPayment()} />
           <button onClick={addPayment} style={{ padding:'9px 16px', background:BRAND, color:'#fff', border:'none', borderRadius:8, fontWeight:600, fontSize:13, cursor:'pointer', whiteSpace:'nowrap' }}>+ Add</button>
         </div>
@@ -340,7 +340,7 @@ function FinanceTab() {
       {/* SIGNATURE */}
       <div style={cardStyle}>
         <div style={sectionTitle}>Signature Style</div>
-        <div style={hint}>Quotation ke neeche kaunsa signature design lagega — choose karo.</div>
+        <div style={hint}>Choose which signature design appears at the bottom of your quotation.</div>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))', gap:10, marginTop:12 }}>
           {SIGN_STYLES.map(s => (
             <div key={s.key} onClick={() => set('signature_style', s.key)}
