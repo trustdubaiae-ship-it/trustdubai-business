@@ -18,6 +18,7 @@ import LeadsPage from './pages/LeadsPage'
 import SponsoredPage from './pages/SponsoredPage'
 import StaffManagement from './pages/StaffManagement'
 import TeamMembers from './pages/TeamMembers'
+import DocumentVerification from './pages/DocumentVerification'
 import FaqPage from './pages/FaqPage'
 import NotificationsPage from './pages/NotificationsPage'
 import TrustScorePage from './pages/TrustScorePage'
@@ -35,11 +36,12 @@ const PAGE_PERM = {
   sponsored: 'view_sponsored',
   staff:     'manage_staff',
   team:      'view_profile',
+  documents: 'view_profile',
   faq:       'view_profile',
   trust:     'view_dashboard',
 }
 
-const LIMITED_PAGES = ['dashboard', 'profile', 'portfolio', 'faq', 'notifications', 'team']
+const LIMITED_PAGES = ['dashboard', 'profile', 'portfolio', 'faq', 'notifications', 'team', 'documents']
 
 function Portal() {
   const { user, company, staff, role, loading, signOut } = useAuth()
@@ -84,6 +86,7 @@ function Portal() {
     sponsored:          <SponsoredPage onNavigate={navigate} />,
     staff:              <StaffManagement />,
     team:               <TeamMembers />,
+    documents:          <DocumentVerification />,
     faq:                <FaqPage />,
     notifications:      <NotificationsPage />,
     trust:              <TrustScorePage />,
@@ -97,7 +100,7 @@ function Portal() {
   const pageTitles = {
     dashboard:'Dashboard', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
     analytics:'Analytics', leads:'Lead Form', sponsored:'Sponsored Placement', staff:'Staff & Access',
-    team:'Our Team', faq:'FAQ Management', notifications:'Notifications', trust:'Trust Score', controlpanel:'Control Panel',
+    team:'Our Team', documents:'Document Verification', faq:'FAQ Management', notifications:'Notifications', trust:'Trust Score', controlpanel:'Control Panel',
     verification:'Control Panel', verificationStatus:'Control Panel', plans:'Control Panel', settings:'Control Panel',
   }
 
