@@ -153,13 +153,14 @@ function FinanceTab() {
   useEffect(() => {
     if (!companyId) return
     supabase.from('companies')
-      .select('trn, vat_registered, finance_logo_url, project_prefix, project_next_num, why_choose_us, payment_terms, signature_style')
+      .select('trn, vat_registered, finance_logo_url, finance_logo_width, project_prefix, project_next_num, why_choose_us, payment_terms, signature_style')
       .eq('id', companyId).single()
       .then(({ data }) => {
         setF({
           trn: data?.trn || '',
           vat_registered: data?.vat_registered ?? false,
           finance_logo_url: data?.finance_logo_url || '',
+          finance_logo_width: data?.finance_logo_width || 140,
           project_prefix: data?.project_prefix || 'PRJ-',
           project_next_num: data?.project_next_num || 1,
           why_choose_us: data?.why_choose_us || '',
@@ -192,6 +193,7 @@ function FinanceTab() {
       trn: f.trn,
       vat_registered: f.vat_registered,
       finance_logo_url: f.finance_logo_url,
+      finance_logo_width: parseInt(f.finance_logo_width) || 140,
       project_prefix: f.project_prefix,
       project_next_num: parseInt(f.project_next_num) || 1,
       why_choose_us: f.why_choose_us,
@@ -240,17 +242,38 @@ function FinanceTab() {
         </div>
       </div>
 
-      {/* BRANDING */}
+      {/* BRANDING + LOGO PREVIEW + SIZE */}
       <div style={cardStyle}>
         <div style={sectionTitle}>Branding</div>
         <label style={labelStyle}>Company Logo URL</label>
         <input value={f.finance_logo_url} onChange={e => set('finance_logo_url', e.target.value)} placeholder="https://...your-logo.png" style={inputStyle} />
         <div style={hint}>Logo quotation/invoice ke top pe dikhega. (Abhi URL — baad mein direct upload add karenge.)</div>
+
         {f.finance_logo_url ? (
-          <div style={{ marginTop:12, padding:12, background:'var(--bg2)', borderRadius:8, display:'inline-block' }}>
-            <img src={f.finance_logo_url} alt="logo" style={{ maxHeight:50, maxWidth:160, objectFit:'contain' }} onError={e => { e.target.style.display='none' }} />
+          <>
+            <div style={{ marginTop:14, marginBottom:6, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <label style={{ ...labelStyle, marginBottom:0 }}>Logo Size on Quotation</label>
+              <span style={{ fontSize:13, fontWeight:700, color:BRAND }}>{f.finance_logo_width}px</span>
+            </div>
+            <input type="range" min="60" max="320" step="10"
+              value={f.finance_logo_width}
+              onChange={e => set('finance_logo_width', parseInt(e.target.value))}
+              style={{ width:'100%', accentColor:BRAND, cursor:'pointer' }} />
+            <div style={hint}>Slider se logo ka size adjust karo — neeche preview live dikhega.</div>
+
+            {/* LIVE PREVIEW — quotation header jaisा */}
+            <div style={{ marginTop:14, padding:18, background:'var(--bg2)', borderRadius:10, border:'1px dashed var(--border2)' }}>
+              <div style={{ fontSize:10, color:'var(--text3)', marginBottom:10, textTransform:'uppercase', letterSpacing:'0.05em' }}>Preview (quotation header)</div>
+              <img src={f.finance_logo_url} alt="logo"
+                style={{ width:f.finance_logo_width, maxWidth:'100%', height:'auto', objectFit:'contain', display:'block' }}
+                onError={e => { e.target.style.display='none' }} />
+            </div>
+          </>
+        ) : (
+          <div style={{ marginTop:12, padding:'12px 14px', background:'var(--bg2)', borderRadius:8, fontSize:12, color:'var(--text3)' }}>
+            Logo URL daalo — yahan preview + size slider dikhega.
           </div>
-        ) : null}
+        )}
       </div>
 
       {/* PROJECT REFERENCE */}
@@ -282,7 +305,7 @@ function FinanceTab() {
       {/* PAYMENT TERMS */}
       <div style={cardStyle}>
         <div style={sectionTitle}>Payment Terms {!isGoldPlus && <span style={{ fontSize:10, color:'#d97706', fontWeight:600 }}>(Gold+ feature)</span>}</div>
-        <div style={hint} >Apne payment options save karo — quotation banate waqt inme se choose karoge (ya custom).</div>
+        <div style={hint}>Apne payment options save karo — quotation banate waqt inme se choose karoge (ya custom).</div>
 
         <div style={{ marginTop:12, marginBottom:10 }}>
           {f.payment_terms.length === 0 && <div style={{ fontSize:13, color:'var(--text3)', fontStyle:'italic' }}>Koi payment option nahi — neeche se add karo.</div>}
