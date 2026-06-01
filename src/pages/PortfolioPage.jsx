@@ -4,22 +4,8 @@ import { useToast } from '../lib/toast'
 import { supabase } from '../lib/supabase'
 import { Upload, Trash2, Edit3, X, Check, Image as ImageIcon, Lock } from 'lucide-react'
 
-const PLAN_LIMITS = {
-  free:     3,
-  silver:   10,
-  gold:     25,
-  platinum: Infinity
-}
-
-const PLAN_LABELS = {
-  free:     'Free (3 photos)',
-  silver:   'Silver (10 photos)',
-  gold:     'Gold (25 photos)',
-  platinum: 'Platinum (Unlimited)'
-}
-
 export default function PortfolioPage() {
-  const { company } = useAuth()
+  const { company, getLimit } = useAuth()
   const toast = useToast()
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
@@ -32,9 +18,12 @@ export default function PortfolioPage() {
   const fileInputRef = useRef()
 
   const plan = company?.plan || 'free'
-  const limit = PLAN_LIMITS[plan] ?? 3
+  // DB se limit (plan_features.portfolio_photos). 999+ = unlimited.
+  const rawLimit = getLimit ? getLimit('portfolio_photos') : 3
+  const isUnlimited = rawLimit >= 999
+  const limit = isUnlimited ? Infinity : (rawLimit || 0)
   const isAtLimit = items.length >= limit
-  const remaining = limit === Infinity ? '∞' : Math.max(0, limit - items.length)
+  const remaining = isUnlimited ? '∞' : Math.max(0, limit - items.length)
 
   useEffect(() => {
     if (company) fetchPortfolio()
@@ -58,7 +47,6 @@ export default function PortfolioPage() {
   async function uploadFiles(files) {
     if (!files || files.length === 0) return
 
-    // Check plan limit
     if (isAtLimit) {
       setShowUpgradePopup(true)
       return
@@ -71,8 +59,7 @@ export default function PortfolioPage() {
     })
     if (validFiles.length === 0) return
 
-    // Trim files to remaining slots
-    const slotsLeft = limit === Infinity ? validFiles.length : limit - items.length
+    const slotsLeft = isUnlimited ? validFiles.length : limit - items.length
     const filesToUpload = validFiles.slice(0, slotsLeft)
     if (filesToUpload.length < validFiles.length) {
       toast.error(`Only ${slotsLeft} slot${slotsLeft !== 1 ? 's' : ''} remaining — uploading first ${filesToUpload.length}`)
@@ -151,6 +138,8 @@ export default function PortfolioPage() {
     fileInputRef.current?.click()
   }
 
+  const limitLabel = isUnlimited ? '∞' : limit
+
   return (
     <div className="page-content animate-in">
       <div style={{ marginBottom: 24, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
@@ -158,7 +147,6 @@ export default function PortfolioPage() {
           <h1 className="font-syne fw-700" style={{ fontSize: 24, marginBottom: 4 }}>Portfolio</h1>
           <p className="text-secondary" style={{ fontSize: 14 }}>Showcase your best work to attract more clients</p>
         </div>
-        {/* Plan limit badge */}
         <div style={{
           background: isAtLimit ? '#fef2f2' : 'var(--gold-light)',
           border: `1px solid ${isAtLimit ? '#fecaca' : 'var(--gold-border)'}`,
@@ -167,40 +155,27 @@ export default function PortfolioPage() {
           display: 'flex', alignItems: 'center', gap: 6
         }}>
           <ImageIcon size={12} />
-          {items.length} / {limit === Infinity ? '∞' : limit} photos
+          {items.length} / {limitLabel} photos
           {isAtLimit && <span style={{ fontWeight: 600 }}>· Limit reached</span>}
         </div>
       </div>
 
-      {/* Plan limits info bar */}
       <div style={{
         background: 'var(--card-bg)', border: '1px solid var(--card-border)',
         borderRadius: 10, padding: '12px 16px', marginBottom: 20,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between'
       }}>
-        <div style={{ display: 'flex', gap: 20 }}>
-          {Object.entries(PLAN_LIMITS).map(([p, l]) => (
-            <div key={p} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{
-                width: 8, height: 8, borderRadius: '50%',
-                background: plan === p ? 'var(--gold)' : 'var(--card-border)'
-              }} />
-              <span style={{
-                fontSize: 12,
-                color: plan === p ? 'var(--gold-dark)' : 'var(--text-muted)',
-                fontWeight: plan === p ? 600 : 400
-              }}>
-                {p.charAt(0).toUpperCase() + p.slice(1)}: {l === Infinity ? '∞' : l}
-              </span>
-            </div>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--gold)' }} />
+          <span style={{ fontSize: 12, color: 'var(--gold-dark)', fontWeight: 600, textTransform: 'capitalize' }}>
+            {plan} Plan: {limitLabel} photos
+          </span>
         </div>
-        {!isAtLimit && (
+        {!isAtLimit ? (
           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
             {remaining} slot{remaining !== 1 && remaining !== '∞' ? 's' : ''} remaining
           </span>
-        )}
-        {isAtLimit && (
+        ) : (
           <button
             onClick={() => setShowUpgradePopup(true)}
             style={{ fontSize: 12, color: 'var(--gold-dark)', background: 'var(--gold-light)', border: '1px solid var(--gold-border)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}
@@ -210,7 +185,6 @@ export default function PortfolioPage() {
         )}
       </div>
 
-      {/* Upload zone */}
       <div
         className={`upload-zone ${dragging ? 'dragging' : ''} ${isAtLimit ? 'disabled' : ''}`}
         style={{ marginBottom: 24, opacity: isAtLimit ? 0.6 : 1, cursor: isAtLimit ? 'not-allowed' : 'pointer' }}
@@ -265,7 +239,6 @@ export default function PortfolioPage() {
         )}
       </div>
 
-      {/* Stats bar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, padding: '8px 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <ImageIcon size={16} color="var(--text-muted)" />
@@ -278,7 +251,6 @@ export default function PortfolioPage() {
         )}
       </div>
 
-      {/* Portfolio grid */}
       {loading ? (
         <div style={{ textAlign: 'center', padding: 60 }}>
           <div className="spinner" style={{ margin: '0 auto' }} />
@@ -341,24 +313,15 @@ export default function PortfolioPage() {
         </div>
       )}
 
-      {/* Upgrade Popup */}
       {showUpgradePopup && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}>
           <div style={{ background: 'var(--card-bg)', borderRadius: 16, padding: 32, width: 420, textAlign: 'center' }}>
             <div style={{ fontSize: 48, marginBottom: 16 }}>📸</div>
             <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Photo Limit Reached</h3>
             <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 20, lineHeight: 1.6 }}>
-              Your <strong>{plan.charAt(0).toUpperCase() + plan.slice(1)}</strong> plan allows <strong>{limit}</strong> photos.
+              Your <strong style={{ textTransform: 'capitalize' }}>{plan}</strong> plan allows <strong>{limitLabel}</strong> photos.
               Upgrade to upload more portfolio photos and attract more clients.
             </p>
-            <div style={{ background: 'var(--bg)', borderRadius: 10, padding: '12px 16px', marginBottom: 20 }}>
-              {Object.entries(PLAN_LIMITS).filter(([p]) => p !== 'free').map(([p, l]) => (
-                <div key={p} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--card-border)', fontSize: 13 }}>
-                  <span style={{ color: 'var(--text-secondary)', textTransform: 'capitalize' }}>{p} Plan</span>
-                  <span style={{ fontWeight: 600, color: 'var(--gold-dark)' }}>{l === Infinity ? 'Unlimited' : l + ' photos'}</span>
-                </div>
-              ))}
-            </div>
             <div style={{ display: 'flex', gap: 10 }}>
               <button
                 className="btn btn-primary"
@@ -370,9 +333,6 @@ export default function PortfolioPage() {
               <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setShowUpgradePopup(false)}>
                 Maybe Later
               </button>
-            </div>
-            <div style={{ marginTop: 12, fontSize: 12, color: 'var(--text-muted)' }}>
-              Silver AED 149 · Gold AED 349 · Platinum AED 699/month
             </div>
           </div>
         </div>
