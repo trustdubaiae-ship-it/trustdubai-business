@@ -1,5 +1,4 @@
 // trustdubai-business/src/lib/permissions.js
-
 // purified permission set — har page/feature ka apna control
 export const PERMISSIONS = [
   { key: 'view_dashboard',    label: 'Dashboard' },
@@ -18,7 +17,6 @@ export const PERMISSIONS = [
   { key: 'view_plans',        label: 'Plans & Billing' },
   { key: 'manage_settings',   label: 'Settings / Integrations' },
 ]
-
 // built-in role presets (typical permissions)
 export const ROLE_PRESETS = {
   manager: {
@@ -36,21 +34,35 @@ export const ROLE_PRESETS = {
     view_dashboard:true,
   },
 }
-
 export function presetForRole(role) {
   return { ...(ROLE_PRESETS[role] || ROLE_PRESETS.staff) }
 }
-
 export function allPermsTrue() {
   const o = {}; PERMISSIONS.forEach(p => { o[p.key] = true }); return o
 }
 export function allPermsFalse() {
   const o = {}; PERMISSIONS.forEach(p => { o[p.key] = false }); return o
 }
-
 // central access check — owner = sab. baaki = jo tick hai. (kuch forced nahi)
 export function can(role, permissions, key) {
   if (role === 'owner') return true
   if (!permissions) return false
   return permissions[key] === true
+}
+
+// ============================================================
+// PLAN FEATURE HELPERS (plan_features table se)
+// planFeatures = { feature_key: { enabled, limit_value }, ... }  (auth.jsx load karta hai)
+// ============================================================
+
+// kya feature plan mein hai? (toggle)
+export function hasFeature(planFeatures, key) {
+  if (!planFeatures) return false
+  return planFeatures[key]?.enabled === true
+}
+
+// limit value laao (portfolio_photos, team_members) — default 0
+export function getLimit(planFeatures, key) {
+  if (!planFeatures) return 0
+  return planFeatures[key]?.limit_value || 0
 }
