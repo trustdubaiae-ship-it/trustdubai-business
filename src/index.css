@@ -34,19 +34,12 @@
   --radius:         8px;
   --radius-lg:      12px;
 
-  /* Aliases — kuch pages in naamon se expect karte hain */
   --card-bg:        #ffffff;
   --card-border:    #e2e8f0;
   --text-secondary: #475569;
   --text-muted:     #94a3b8;
 }
 
-/* ============================================================
-   DARK THEME  (toggle: <html data-theme="dark">)
-   Sirf variables override hote hain — saara existing layout/css
-   inhi variables se chalta hai, to pura portal ek saath flip hota hai.
-   Light theme bilkul untouched.
-   ============================================================ */
 :root[data-theme="dark"] {
   --primary:        #e8b84b;
   --primary-dark:   #c9952a;
@@ -82,12 +75,10 @@
   --text-muted:     #5d6a80;
 }
 
-/* smooth flip on theme switch */
 html, body, .layout, .main, .topbar, .sidebar, .card, .stat-card, .nav-item, .btn {
   transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease;
 }
 
-/* dark-mode fixes for a few hardcoded-color rules */
 :root[data-theme="dark"] .nav-item.active { color: var(--primary); }
 :root[data-theme="dark"] .badge-green     { color: #6ee7b7; border-color: rgba(16,185,129,0.4); }
 :root[data-theme="dark"] .spinner         { border-color: rgba(255,255,255,0.15); border-top-color: var(--primary); }
@@ -104,7 +95,6 @@ html, body {
 * { font-family: 'DM Sans', sans-serif; }
 .font-syne { font-family: 'Syne', sans-serif !important; }
 
-/* Text helpers */
 .text-secondary { color: var(--text2); }
 .text-muted     { color: var(--text3); }
 .fw-700         { font-weight: 700; }
@@ -118,6 +108,13 @@ html, body {
 .topbar-title    { font-size: 15px; font-weight: 700; color: var(--text); }
 .topbar-subtitle { font-size: 9px; color: var(--text3); margin-top: 1px; }
 .topbar-right    { display: flex; align-items: center; gap: 10px; }
+
+/* hamburger button — desktop pe hidden */
+.hamburger-btn { display: none; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 8px; border: 0.5px solid var(--border); background: var(--bg2); color: var(--text); cursor: pointer; flex-shrink: 0; }
+.hamburger-btn i { font-size: 20px; }
+
+/* sidebar dark overlay — mobile only */
+.sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 99; }
 
 /* Page */
 .page-content { padding: 20px 24px; flex: 1; }
@@ -271,3 +268,39 @@ html, body {
 /* Animations */
 @keyframes spin    { to { transform: rotate(360deg); } }
 @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+
+/* ============================================================
+   MOBILE RESPONSIVE  (≤ 768px)
+   Sidebar slide-in via hamburger, main full-width, topbar fit
+   ============================================================ */
+@media (max-width: 768px) {
+  /* sidebar off-screen by default, slides in when .open */
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    width: 250px;
+    box-shadow: 0 0 30px rgba(0,0,0,0.25);
+  }
+  .sidebar.open { transform: translateX(0); }
+
+  /* main takes full width */
+  .main { margin-left: 0; }
+
+  /* show hamburger + overlay on mobile */
+  .hamburger-btn { display: flex; }
+  .sidebar-overlay.show { display: block; }
+
+  /* topbar tighter */
+  .topbar { padding: 0 12px; height: 52px; }
+
+  /* content padding smaller */
+  .page-content { padding: 14px; }
+
+  /* stat cards single/double column friendly */
+  .stat-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+}
+
+@media (max-width: 480px) {
+  .stat-grid { grid-template-columns: 1fr 1fr; }
+  .stat-value { font-size: 18px; }
+}
