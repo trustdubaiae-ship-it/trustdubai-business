@@ -30,8 +30,11 @@ const MENU = [
   { section: 'MY PROFILE' },
   { id:'profile',    icon:'ti-building-store',   label:'Business Profile',   perm:'view_profile' },
   { id:'portfolio',  icon:'ti-photo',            label:'Portfolio',          perm:'view_portfolio' },
-  { id:'staff',      icon:'ti-users',            label:'Team Members',       perm:'manage_staff' },
+  { id:'team',       icon:'ti-users-group',      label:'Our Team',           perm:'view_profile' },
   { id:'faq',        icon:'ti-help-circle',      label:'FAQ',                perm:'view_profile' },
+
+  { section: 'TEAM & ACCESS' },
+  { id:'staff',      icon:'ti-key',              label:'Staff & Access',     perm:'manage_staff' },
 
   { section: 'SETTINGS' },
   { id:'controlpanel', icon:'ti-adjustments',    label:'Control Panel',      perm:'view_profile' },
