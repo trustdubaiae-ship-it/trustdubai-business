@@ -146,6 +146,7 @@ function FinanceTab() {
   const { company } = useAuth()
   const companyId = company?.id
   const [f, setF] = useState(null)
+  const [original, setOriginal] = useState(null)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
   const [newPay, setNewPay] = useState('')
@@ -160,7 +161,7 @@ function FinanceTab() {
       .select('trn, vat_registered, finance_logo_url, finance_logo_width, project_prefix, project_next_num, why_choose_us, payment_terms, signature_style')
       .eq('id', companyId).single()
       .then(({ data }) => {
-        setF({
+        const obj = {
           trn: data?.trn || '',
           vat_registered: data?.vat_registered ?? false,
           finance_logo_url: data?.finance_logo_url || '',
@@ -170,7 +171,9 @@ function FinanceTab() {
           why_choose_us: data?.why_choose_us || '',
           payment_terms: Array.isArray(data?.payment_terms) ? data.payment_terms : [],
           signature_style: data?.signature_style || 'style1',
-        })
+        }
+        setF(obj)
+        setOriginal(JSON.stringify(obj))
       })
   }, [companyId])
 
@@ -227,16 +230,20 @@ function FinanceTab() {
     }).eq('id', companyId)
     setSaving(false)
     if (error) { setMsg('Error saving — try again.'); console.error(error) }
-    else { setMsg('Saved ✓'); setTimeout(() => setMsg(''), 1800) }
+    else { setMsg('Saved ✓'); setOriginal(JSON.stringify(f)); setTimeout(() => setMsg(''), 1800) }
   }
 
   if (!f) return <div style={{ color: 'var(--text2)' }}>Loading…</div>
+
+  const isDirty = original !== null && JSON.stringify(f) !== original
 
   const cardStyle = { background:'var(--card)', border:'1px solid var(--border)', borderRadius:12, padding:18, marginBottom:14 }
   const labelStyle = { fontSize:13, fontWeight:600, color:'var(--text)', marginBottom:6, display:'block' }
   const inputStyle = { width:'100%', padding:'9px 12px', border:'1px solid var(--border)', background:'var(--card)', color:'var(--text)', borderRadius:8, fontSize:14, fontFamily:'inherit', boxSizing:'border-box' }
   const hint = { fontSize:12, color:'var(--text3)', marginTop:4 }
   const sectionTitle = { fontSize:13, fontWeight:700, color:'var(--text)', textTransform:'uppercase', letterSpacing:'0.03em', marginBottom:12 }
+  const saveBtn = (extra={}) => ({ padding:'9px 20px', background: isDirty?BRAND:'var(--bg2)', color: isDirty?'#fff':'var(--text3)', border:'none', borderRadius:8, fontWeight:600, fontSize:14, cursor: (saving||!isDirty)?'default':'pointer', opacity:(saving||!isDirty)?0.6:1, ...extra })
+  const saveLabel = saving ? 'Saving...' : isDirty ? 'Save Settings' : 'Saved ✓'
 
   return (
     <div style={{ maxWidth: 760 }}>
@@ -245,10 +252,7 @@ function FinanceTab() {
           <h2 style={{ fontSize:17, fontWeight:700, color:'var(--text)' }}>Finance Settings</h2>
           <p style={{ fontSize:13, color:'var(--text2)', marginTop:2 }}>Set once — quotations & projects will use these automatically.</p>
         </div>
-        <button onClick={save} disabled={saving}
-          style={{ padding:'9px 20px', background:BRAND, color:'#fff', border:'none', borderRadius:8, fontWeight:600, fontSize:14, cursor:'pointer', opacity:saving?0.6:1, flexShrink:0 }}>
-          {saving ? 'Saving...' : 'Save Settings'}
-        </button>
+        <button onClick={save} disabled={saving || !isDirty} style={saveBtn({ flexShrink:0 })}>{saveLabel}</button>
       </div>
       {msg && <div style={{ fontSize:13, color: msg.includes('Error')?'#ef4444':'#10b981', fontWeight:600, marginBottom:12 }}>{msg}</div>}
 
@@ -287,7 +291,6 @@ function FinanceTab() {
         </div>
         <div style={hint}>PNG, JPG or SVG · max {MAX_LOGO_MB}MB. Appears at the top of your quotation/invoice.</div>
 
-        {/* manual URL (optional) */}
         <label style={{ ...labelStyle, marginTop:14 }}>or paste logo URL</label>
         <input value={f.finance_logo_url} onChange={e => set('finance_logo_url', e.target.value)} placeholder="https://...your-logo.png" style={inputStyle} />
 
@@ -406,10 +409,7 @@ function FinanceTab() {
       </div>
 
       <div style={{ display:'flex', justifyContent:'flex-end', marginTop:4 }}>
-        <button onClick={save} disabled={saving}
-          style={{ padding:'10px 24px', background:BRAND, color:'#fff', border:'none', borderRadius:8, fontWeight:600, fontSize:14, cursor:'pointer', opacity:saving?0.6:1 }}>
-          {saving ? 'Saving...' : 'Save Settings'}
-        </button>
+        <button onClick={save} disabled={saving || !isDirty} style={saveBtn({ padding:'10px 24px' })}>{saveLabel}</button>
       </div>
     </div>
   )
