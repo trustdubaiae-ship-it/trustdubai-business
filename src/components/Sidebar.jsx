@@ -34,7 +34,7 @@ const MENU = [
   { id:'controlpanel', icon:'ti-adjustments',    label:'Control Panel',      perm:'view_profile' },
 ]
 
-export default function Sidebar({ activePage, onNavigate }) {
+export default function Sidebar({ activePage, onNavigate, limitedMode = false, limitedPages = [], open = false }) {
   const { company, staff, role, signOut } = useAuth()
   const planName  = company?.plan || 'free'
   const planColor = planColors[planName] || planColors.free
@@ -66,7 +66,7 @@ export default function Sidebar({ activePage, onNavigate }) {
   }
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar${open ? ' open' : ''}`}>
       <div className="sidebar-logo">
         <div className="sidebar-logo-mark">TD</div>
         <div>
@@ -97,7 +97,9 @@ export default function Sidebar({ activePage, onNavigate }) {
           if (item.section) return (
             <div key={`sec-${i}`} className="nav-section-label">{item.section}</div>
           )
-          const locked   = item.requiredPlan && !hasAccess(planName, item.requiredPlan)
+          const planLocked = item.requiredPlan && !hasAccess(planName, item.requiredPlan)
+          const limitLocked = limitedMode && !limitedPages.includes(item.id)
+          const locked   = planLocked || limitLocked
           const isActive = item.id === 'controlpanel'
             ? CONTROL_PANEL_PAGES.includes(activePage)
             : activePage === item.id
@@ -106,13 +108,16 @@ export default function Sidebar({ activePage, onNavigate }) {
               className={`nav-item${isActive?' active':''}`}
               onClick={() => handleNav(item)}
               style={{ opacity: locked ? 0.55 : 1 }}
-              title={locked ? `Requires ${item.requiredPlan} plan` : ''}>
+              title={planLocked ? `Requires ${item.requiredPlan} plan` : (limitLocked ? 'Available after approval' : '')}>
               <i className={`ti ${item.icon}`}/>
               {item.label}
-              {locked && (
+              {planLocked && (
                 <span style={{ marginLeft:'auto', background:'rgba(232,184,75,0.15)', color:'#d97706', fontSize:7.5, fontWeight:700, padding:'1px 5px', borderRadius:99 }}>
                   {item.requiredPlan.toUpperCase()}
                 </span>
+              )}
+              {!planLocked && limitLocked && (
+                <i className="ti ti-lock" style={{ marginLeft:'auto', fontSize:11, color:'#94a3b8' }}/>
               )}
             </button>
           )
