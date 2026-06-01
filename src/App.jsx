@@ -1,8 +1,9 @@
 // trustdubai-business/src/App.jsx
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { AuthProvider, useAuth } from './lib/auth'
 import { ToastProvider } from './lib/toast'
 import { can } from './lib/permissions'
+import { initTheme, toggleTheme, getTheme } from './lib/theme'
 import Sidebar from './components/Sidebar'
 import LoginNotificationPopup from './components/LoginNotificationPopup'
 import LoginPage from './pages/LoginPage'
@@ -44,6 +45,10 @@ function Portal() {
   const [activePage,   setActivePage]   = useState('dashboard')
   const [showRegister, setShowRegister] = useState(false)
   const [showProfile,  setShowProfile]  = useState(false)
+  const [theme,        setTheme]        = useState(getTheme)
+
+  // restore saved theme on app start
+  useEffect(() => { initTheme() }, [])
 
   if (showRegister) return <RegisterPage onBack={() => setShowRegister(false)} />
 
@@ -203,6 +208,13 @@ function Portal() {
             <div style={{ background: isPlatinum?'rgba(255,255,255,0.05)':'var(--bg2)', border:`0.5px solid ${isPlatinum?'rgba(255,255,255,0.08)':'var(--border)'}`, borderRadius:8, padding:'5px 10px', fontSize:9, color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)', display:'flex', alignItems:'center', gap:5 }}>
               <i className="ti ti-calendar" style={{ fontSize:10 }}/> Last 30 Days <i className="ti ti-chevron-down" style={{ fontSize:9 }}/>
             </div>
+
+            {/* THEME TOGGLE (light/dark) */}
+            <div onClick={() => setTheme(toggleTheme())} title={theme==='dark'?'Switch to light':'Switch to dark'}
+              style={{ cursor:'pointer', width:30, height:30, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)' }}>
+              <i className={`ti ${theme==='dark'?'ti-sun':'ti-moon'}`} style={{ fontSize:17 }}/>
+            </div>
+
             <div onClick={() => setActivePage('notifications')} style={{ position:'relative', cursor:'pointer' }}>
               <i className="ti ti-bell" style={{ fontSize:18, color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)' }}/>
               <div style={{ position:'absolute', top:-2, right:-2, width:7, height:7, background:'#ef4444', borderRadius:'50%', border:`1.5px solid ${isPlatinum?'#161b2e':'var(--card)'}` }}/>
