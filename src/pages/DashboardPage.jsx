@@ -47,7 +47,6 @@ function calcProfileComplete(c) {
   return Math.round(fields.filter(f=>!!c[f]).length/fields.length*100)
 }
 
-/* ---------- small reusable premium card with corner glow ---------- */
 function GlowCard({ glow, children, style, onClick, onMouseEnter, onMouseLeave }) {
   return (
     <div onClick={onClick} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}
@@ -87,7 +86,6 @@ function TrustGauge({ score }) {
   )
 }
 
-/* Sentiment donut */
 function SentimentDonut({ pos, neu, neg }) {
   const total = pos+neu+neg
   const r=38, cx=55, cy=55, circ=2*Math.PI*r
@@ -121,7 +119,6 @@ function AIScoreRow({ label, score, color }) {
   )
 }
 
-/* ---------- CLOCK CARD ---------- */
 function ClockCard({ defaultName }) {
   const [prefs, setPrefs] = useState(loadClockPrefs)
   const [open, setOpen]   = useState(false)
@@ -204,7 +201,7 @@ function ClockCard({ defaultName }) {
             <div style={{ fontSize:10, color:'var(--text3)', marginBottom:5 }}>Time Zone</div>
             <select value={prefs.tz} onChange={e=>update({tz:e.target.value})}
               style={{ width:'100%', border:'1px solid var(--border)', background:'var(--card)', color:'var(--text)', borderRadius:8, padding:'6px 8px', fontSize:11, marginBottom:12, boxSizing:'border-box' }}>
-              {TIMEZONES.map(t=><option key={t.tz} value={t.tz}>{t.label}</option>)}
+              {TIMEZONES.map(t=><option key={t.tz} value={t.tz} style={{ background:'var(--card)', color:'var(--text)' }}>{t.label}</option>)}
             </select>
 
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
@@ -237,6 +234,7 @@ function ClockCard({ defaultName }) {
 export default function DashboardPage({ onNavigate }) {
   const { company, staff, user } = useAuth()
   const [stats,         setStats]         = useState({ views:0, reviews:0, avgRating:0, portfolio:0, newReviews:0, satisfaction:0, reputationGrowth:'Low', trustScore:'0.0' })
+  const [leadStats,     setLeadStats]     = useState({ total:0, active:0, won:0, newThisMonth:0 })
   const [recentReviews, setRecentReviews] = useState([])
   const [memberCount,   setMemberCount]   = useState(0)
   const [reviewDist,    setReviewDist]    = useState({ 5:0, 4:0, 3:0, 2:0, 1:0 })
@@ -253,10 +251,11 @@ export default function DashboardPage({ onNavigate }) {
 
   async function fetchStats() {
     try {
-      const [reviewsRes, portfolioRes, membersRes] = await Promise.all([
+      const [reviewsRes, portfolioRes, membersRes, leadsRes] = await Promise.all([
         supabase.from('reviews').select('rating,created_at').eq('company_id', company.id),
         supabase.from('portfolio_items').select('id').eq('company_id', company.id),
         supabase.from('employees').select('id').eq('current_company_id', company.id),
+        supabase.from('lead_submissions').select('status,created_at').eq('company_id', company.id),
       ])
 
       const reviews = reviewsRes.data||[]
@@ -280,6 +279,13 @@ export default function DashboardPage({ onNavigate }) {
       setStats({ views:company.profile_views||0, reviews:reviews.length, avgRating:avg, portfolio:portfolioRes.data?.length||0, newReviews:newRev, satisfaction, reputationGrowth:repGrowth, trustScore })
       setMemberCount(membersRes.data?.length||0)
 
+      // ---- LEAD STATS ----
+      const leads = leadsRes.data||[]
+      const lWon  = leads.filter(l=>l.status==='won').length
+      const lActive = leads.filter(l=>!['won','lost'].includes(l.status)).length
+      const lNew  = leads.filter(l=>l.created_at>=monthStart).length
+      setLeadStats({ total:leads.length, active:lActive, won:lWon, newThisMonth:lNew })
+
       const {data:recent} = await supabase.from('reviews').select('*').eq('company_id',company.id).order('created_at',{ascending:false}).limit(3)
       setRecentReviews(recent||[])
     } catch(e){console.error(e)}
@@ -292,9 +298,7 @@ export default function DashboardPage({ onNavigate }) {
   const profilePct  = calcProfileComplete(company)
   const profileDone = profilePct >= 100
   const defaultName = staff?.name || company?.name || (user?.email||'').split('@')[0] || ''
-  const maxDist     = Math.max(...Object.values(reviewDist),1)
 
-  // sentiment buckets from ratings
   const pos = reviewDist[5]+reviewDist[4]
   const neu = reviewDist[3]
   const neg = reviewDist[2]+reviewDist[1]
@@ -307,7 +311,6 @@ export default function DashboardPage({ onNavigate }) {
     { done:!!company?.description,          label:'Complete your description',  points:'Profile boost' },
   ]
 
-  // review journey (real-ish funnel from existing data)
   const journey = [
     { icon:'ti-eye',           label:'Profile Views', value:stats.views,                       color:'#3b82f6' },
     { icon:'ti-message-circle',label:'Reviews',       value:stats.reviews,                     color:'#8b5cf6' },
@@ -316,13 +319,14 @@ export default function DashboardPage({ onNavigate }) {
     { icon:'ti-shield-check',  label:'Verified',      value:company?.is_verified?'Yes':'No',   color:company?.is_verified?'#10b981':'#ef4444' },
   ]
 
+  // 3 review stat cards + 3 lead stat cards = 6 (top row)
   const statCards = [
-    { label:'Trust Score',          value:stats.trustScore,            icon:'ti-shield-check',  color:'#10b981', glow:'rgba(16,185,129,0.16)',  trend:[5,5.5,6,6.2,7,7.5,8,8.2,9,9.1,9.2,parseFloat(stats.trustScore)||0], change:'+6.5%', page:'trust' },
-    { label:'Total Reviews',        value:stats.reviews,               icon:'ti-message-circle',color:'#e8b84b', glow:'rgba(232,184,75,0.16)',  trend:[2,5,8,12,18,25,30,42,55,70,85,stats.reviews], change:'+3.1%', page:'reviews' },
-    { label:'New Reviews (30D)',    value:stats.newReviews,            icon:'ti-star',          color:'#3b82f6', glow:'rgba(59,130,246,0.16)',  trend:[0,1,2,3,5,4,6,8,7,9,10,stats.newReviews], change:'+12%', page:'reviews' },
-    { label:'Average Rating',       value:stats.avgRating||'0.0',      icon:'ti-star',          color:'#f59e0b', glow:'rgba(245,158,11,0.16)',  trend:[3,3.2,3.5,3.8,4,4.1,4.3,4.5,4.6,4.7,4.8,parseFloat(stats.avgRating)||0], change:'+0.1', page:'reviews', suffix:'★' },
-    { label:'Customer Satisfaction',value:`${stats.satisfaction}%`,    icon:'ti-mood-smile',    color:'#8b5cf6', glow:'rgba(139,92,246,0.16)',  trend:[60,65,70,72,75,78,80,82,84,86,88,stats.satisfaction], change:'+2.1%', isStr:true },
-    { label:'Reputation Growth',    value:stats.reputationGrowth,      icon:'ti-trending-up',   color:'#06b6d4', glow:'rgba(6,182,212,0.16)',   trend:[20,30,35,45,40,55,60,65,70,75,80,stats.reputationGrowth==='High'?90:stats.reputationGrowth==='Stable'?60:30], change:'vs last mo', isStr:true },
+    { label:'Trust Score',       value:stats.trustScore,        icon:'ti-shield-check',  color:'#10b981', glow:'rgba(16,185,129,0.16)',  trend:[5,5.5,6,6.2,7,7.5,8,8.2,9,9.1,9.2,parseFloat(stats.trustScore)||0], change:'+6.5%', page:'trust' },
+    { label:'Total Reviews',     value:stats.reviews,           icon:'ti-message-circle',color:'#e8b84b', glow:'rgba(232,184,75,0.16)',  trend:[2,5,8,12,18,25,30,42,55,70,85,stats.reviews], change:'+3.1%', page:'reviews' },
+    { label:'Avg Rating',        value:stats.avgRating||'0.0',  icon:'ti-star',          color:'#f59e0b', glow:'rgba(245,158,11,0.16)',  trend:[3,3.2,3.5,3.8,4,4.1,4.3,4.5,4.6,4.7,4.8,parseFloat(stats.avgRating)||0], change:'+0.1', page:'reviews', suffix:'★' },
+    { label:'New Leads (30D)',   value:leadStats.newThisMonth,  icon:'ti-user-plus',     color:'#0891b2', glow:'rgba(8,145,178,0.16)',   trend:[0,2,3,5,8,12,18,22,28,33,38,leadStats.newThisMonth], change:'+ leads', page:'leads' },
+    { label:'Active Pipeline',   value:leadStats.active,        icon:'ti-arrows-right',  color:'#8b5cf6', glow:'rgba(139,92,246,0.16)',  trend:[5,8,12,15,20,25,28,32,35,37,39,leadStats.active], change:'in progress', page:'leads' },
+    { label:'Leads Won',         value:leadStats.won,           icon:'ti-trophy',        color:'#10b981', glow:'rgba(16,185,129,0.16)',  trend:[0,0,1,1,2,2,3,3,4,4,5,leadStats.won], change:'closed', page:'leads' },
   ]
 
   const sectionTitle = { fontSize:11, fontWeight:700, color:'var(--text)', textTransform:'uppercase', letterSpacing:'0.04em' }
@@ -330,7 +334,6 @@ export default function DashboardPage({ onNavigate }) {
   return (
     <div className="page-content animate-in" style={{ color:'var(--text)' }}>
 
-      {/* EXPIRY WARNING */}
       {expiryInfo?.urgent && plan!=='free' && (
         <div style={{ background:expiryInfo.bg, border:`0.5px solid ${expiryInfo.border}`, borderRadius:12, padding:'12px 18px', display:'flex', alignItems:'center', gap:12, marginBottom:16 }}>
           <i className="ti ti-alert-triangle" style={{ fontSize:18, color:expiryInfo.color }}/>
@@ -347,7 +350,6 @@ export default function DashboardPage({ onNavigate }) {
         </div>
       )}
 
-      {/* HEADER */}
       <div style={{ marginBottom:16 }}>
         <h1 className="font-syne" style={{ fontSize:23, fontWeight:800, color:'var(--text)', letterSpacing:'-0.3px' }}>
           {company?.name||'My Business'} {pc.welcomeEmoji}
@@ -355,7 +357,7 @@ export default function DashboardPage({ onNavigate }) {
         <p style={{ fontSize:12, color:'var(--text2)', marginTop:3 }}>Here's how your business is performing on TrustDubai.</p>
       </div>
 
-      {/* 6 STAT CARDS */}
+      {/* 6 STAT CARDS (3 reviews + 3 leads) */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:12, marginBottom:14 }}>
         {statCards.map((card,i)=>(
           <GlowCard key={i} glow={card.glow}
@@ -370,7 +372,7 @@ export default function DashboardPage({ onNavigate }) {
               <span style={{ fontSize:9, color:'var(--text3)', fontWeight:600 }}>{card.change}</span>
             </div>
             <div style={{ fontSize:9, color:'var(--text3)', marginBottom:4 }}>{card.label}</div>
-            <div style={{ fontSize:card.isStr?18:22, fontWeight:700, color:'var(--text)', lineHeight:1, marginBottom:7 }}>
+            <div style={{ fontSize:22, fontWeight:700, color:'var(--text)', lineHeight:1, marginBottom:7 }}>
               {loading?'—':card.suffix?`${card.value}${card.suffix}`:card.value}
             </div>
             <Sparkline data={card.trend} color={card.color} height={28}/>
@@ -378,10 +380,8 @@ export default function DashboardPage({ onNavigate }) {
         ))}
       </div>
 
-      {/* JOURNEY + PLAN/PROFILE/CLOCK ROW */}
+      {/* JOURNEY + PROFILE + CLOCK */}
       <div style={{ display:'grid', gridTemplateColumns:'2.2fr 1fr 1fr', gap:12, marginBottom:14 }}>
-
-        {/* Review Journey */}
         <GlowCard glow="rgba(59,130,246,0.12)">
           <div style={{ ...sectionTitle, marginBottom:16 }}>Review Journey Overview</div>
           <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', position:'relative' }}>
@@ -398,7 +398,6 @@ export default function DashboardPage({ onNavigate }) {
           </div>
         </GlowCard>
 
-        {/* Profile completion */}
         <GlowCard glow={profileDone?'rgba(16,185,129,0.14)':'rgba(232,184,75,0.14)'} style={{ display:'flex', flexDirection:'column', justifyContent:'center' }}>
           {profileDone ? (
             <div style={{ textAlign:'center' }}>
@@ -417,14 +416,11 @@ export default function DashboardPage({ onNavigate }) {
           )}
         </GlowCard>
 
-        {/* Clock */}
         <ClockCard defaultName={defaultName} />
       </div>
 
-      {/* MIDDLE ROW: Sentiment | AI Summary | Donut | Trust gauge | Highlights */}
+      {/* MIDDLE ROW */}
       <div style={{ display:'grid', gridTemplateColumns:'2fr 1.2fr 1fr 1fr 1fr', gap:12, marginBottom:14 }}>
-
-        {/* Sentiment area chart */}
         <GlowCard glow="rgba(16,185,129,0.1)">
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
             <div>
@@ -432,7 +428,7 @@ export default function DashboardPage({ onNavigate }) {
               <div style={{ fontSize:9, color:'var(--text3)', marginTop:2 }}>Interactive · last 12 months</div>
             </div>
             <select style={{ fontSize:9, color:'var(--text2)', background:'var(--bg2)', border:'0.5px solid var(--border)', borderRadius:6, padding:'3px 8px', cursor:'pointer' }}>
-              <option>last 12 months</option>
+              <option style={{ background:'var(--card)', color:'var(--text)' }}>last 12 months</option>
             </select>
           </div>
           <div style={{ display:'flex', gap:12, marginBottom:8 }}>
@@ -461,7 +457,6 @@ export default function DashboardPage({ onNavigate }) {
           </div>
         </GlowCard>
 
-        {/* AI Business Summary */}
         <GlowCard glow="rgba(139,92,246,0.14)">
           <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:10 }}>
             <i className="ti ti-robot" style={{ fontSize:14, color:'#8b5cf6' }}/>
@@ -481,7 +476,6 @@ export default function DashboardPage({ onNavigate }) {
           ))}
         </GlowCard>
 
-        {/* Sentiment Donut */}
         <GlowCard glow="rgba(16,185,129,0.12)">
           <div style={{ ...sectionTitle, marginBottom:10 }}>Review Sentiment</div>
           <div style={{ display:'flex', justifyContent:'center', marginBottom:8 }}>
@@ -497,7 +491,6 @@ export default function DashboardPage({ onNavigate }) {
           ))}
         </GlowCard>
 
-        {/* Trust Score gauge */}
         <GlowCard glow="rgba(16,185,129,0.12)">
           <div style={{ ...sectionTitle, marginBottom:10 }}>Trust Score</div>
           <div style={{ display:'flex', justifyContent:'center', marginBottom:8 }}>
@@ -518,7 +511,6 @@ export default function DashboardPage({ onNavigate }) {
           ))}
         </GlowCard>
 
-        {/* Review Highlights */}
         <GlowCard glow="rgba(232,184,75,0.12)">
           <div style={{ ...sectionTitle, marginBottom:10 }}>Review Highlights</div>
           <div style={{ fontSize:9, fontWeight:700, color:'var(--text2)', marginBottom:6 }}>What People Love</div>
@@ -546,11 +538,8 @@ export default function DashboardPage({ onNavigate }) {
 
       {/* BOTTOM ROW */}
       <div style={{ display:'grid', gridTemplateColumns: aiInsightsOn?'1fr 1fr 1fr 1fr':'1fr 1fr 1fr', gap:12 }}>
-
-        {/* Notifications (existing component) */}
         <NotificationsCard cardStyle={{ background:'var(--card)', border:'0.5px solid var(--border)', borderRadius:14, padding:16 }} C={{ text:'var(--text)', text2:'var(--text2)', text3:'var(--text3)', border:'var(--border)', bg:'var(--bg2)' }} onOpenPage={() => onNavigate('notifications')} />
 
-        {/* AI Insights */}
         {aiInsightsOn && (
           <GlowCard glow="rgba(232,184,75,0.12)">
             <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:12 }}>
@@ -565,7 +554,6 @@ export default function DashboardPage({ onNavigate }) {
           </GlowCard>
         )}
 
-        {/* Latest Reviews */}
         <GlowCard glow="rgba(59,130,246,0.1)">
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
             <div style={sectionTitle}>Latest Reviews</div>
@@ -594,7 +582,6 @@ export default function DashboardPage({ onNavigate }) {
           ))}
         </GlowCard>
 
-        {/* Verification + Premium */}
         <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
           <GlowCard glow={company?.is_verified?'rgba(16,185,129,0.14)':'rgba(239,68,68,0.14)'} style={{ flex:1 }}>
             <div style={{ ...sectionTitle, marginBottom:10 }}>Verification Status</div>
