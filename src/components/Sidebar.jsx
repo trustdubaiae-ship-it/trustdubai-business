@@ -11,8 +11,6 @@ function hasAccess(userPlan, requiredPlan) {
 
 const CONTROL_PANEL_PAGES = ['controlpanel','verification','verificationStatus','plans','settings']
 
-// menu item -> kaunsa plan feature isse control karta hai (feature_key)
-// jisme featureKey nahi, wo hamesha unlocked (dashboard, profile, etc.)
 const MENU = [
   { section: 'OVERVIEW' },
   { id:'dashboard',     icon:'ti-layout-dashboard', label:'Dashboard',          perm:'view_dashboard' },
@@ -30,6 +28,7 @@ const MENU = [
   { section: 'MY PROFILE' },
   { id:'profile',    icon:'ti-building-store',   label:'Business Profile',   perm:'view_profile' },
   { id:'portfolio',  icon:'ti-photo',            label:'Portfolio',          perm:'view_portfolio' },
+  { id:'documents',  icon:'ti-file-certificate', label:'Verification',       perm:'view_profile' },
   { id:'team',       icon:'ti-users-group',      label:'Our Team',           perm:'view_profile' },
   { id:'faq',        icon:'ti-help-circle',      label:'FAQ',                perm:'view_profile' },
 
@@ -55,7 +54,6 @@ export default function Sidebar({ activePage, onNavigate, limitedMode = false, l
   const [lockModal, setLockModal] = useState({ open:false, name:'' })
 
   function handleNav(item, featureLocked) {
-    // feature plan mein nahi -> popup
     if (featureLocked) { setLockModal({ open:true, name:item.label }); return }
     onNavigate(item.id)
   }
@@ -106,9 +104,7 @@ export default function Sidebar({ activePage, onNavigate, limitedMode = false, l
           if (item.section) return (
             <div key={`sec-${i}`} className="nav-section-label">{item.section}</div>
           )
-          // limited mode (pending approval) lock
           const limitLocked = limitedMode && !limitedPages.includes(item.id)
-          // plan feature lock (owner ko bhi lock — kyunki ye plan ka matter hai, role ka nahi)
           const featureLocked = !limitLocked && item.featureKey ? !hasFeature(item.featureKey) : false
           const locked = limitLocked || featureLocked
 
