@@ -41,6 +41,58 @@
   --text-muted:     #94a3b8;
 }
 
+/* ============================================================
+   DARK THEME  (toggle: <html data-theme="dark">)
+   Sirf variables override hote hain — saara existing layout/css
+   inhi variables se chalta hai, to pura portal ek saath flip hota hai.
+   Light theme bilkul untouched.
+   ============================================================ */
+:root[data-theme="dark"] {
+  --primary:        #e8b84b;
+  --primary-dark:   #c9952a;
+  --primary-bg:     rgba(232,184,75,0.12);
+  --primary-border: rgba(232,184,75,0.32);
+  --bg:             #0a0e17;
+  --bg2:            #131a28;
+  --card:           #111826;
+  --border:         #1f2a3d;
+  --border2:        #2c3a52;
+  --text:           #e7edf6;
+  --text2:          #9aa6bb;
+  --text3:          #5d6a80;
+  --green:          #34d399;
+  --green-bg:       rgba(16,185,129,0.14);
+  --red:            #f87171;
+  --red-bg:         rgba(239,68,68,0.14);
+  --blue:           #60a5fa;
+  --blue-bg:        rgba(59,130,246,0.14);
+  --purple:         #a78bfa;
+  --purple-bg:      rgba(139,92,246,0.16);
+  --amber:          #e8b84b;
+  --amber-light:    rgba(232,184,75,0.12);
+  --gold:           #e8b84b;
+  --sidebar-bg:     #0a0e17;
+  --sidebar-border: rgba(255,255,255,0.06);
+  --shadow:         0 1px 8px rgba(0,0,0,0.4);
+  --shadow-md:      0 8px 28px rgba(0,0,0,0.55);
+
+  --card-bg:        #111826;
+  --card-border:    #1f2a3d;
+  --text-secondary: #9aa6bb;
+  --text-muted:     #5d6a80;
+}
+
+/* smooth flip on theme switch */
+html, body, .layout, .main, .topbar, .sidebar, .card, .stat-card, .nav-item, .btn {
+  transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease;
+}
+
+/* dark-mode fixes for a few hardcoded-color rules */
+:root[data-theme="dark"] .nav-item.active { color: var(--primary); }
+:root[data-theme="dark"] .badge-green     { color: #6ee7b7; border-color: rgba(16,185,129,0.4); }
+:root[data-theme="dark"] .spinner         { border-color: rgba(255,255,255,0.15); border-top-color: var(--primary); }
+:root[data-theme="dark"] .star.empty      { color: var(--border2); }
+
 html, body {
   font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   background: var(--bg);
