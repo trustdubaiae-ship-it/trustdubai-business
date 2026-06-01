@@ -13,6 +13,14 @@ const EID_BADGE = {
   rejected: { label: 'Verification Rejected', bg: '#fee2e2', fg: '#b91c1c', icon: 'ti-alert-triangle' },
 }
 
+// UAE Emirates ID: 784-YYYY-NNNNNNN-N  (15 digits)
+function formatEid(raw) {
+  const d = (raw || '').replace(/\D/g, '').slice(0, 15)
+  const p = [d.slice(0, 3), d.slice(3, 7), d.slice(7, 14), d.slice(14, 15)].filter(Boolean)
+  return p.join('-')
+}
+function eidDigits(raw) { return (raw || '').replace(/\D/g, '') }
+
 export default function TeamMembers() {
   const { company, getLimit } = useAuth()
   const toast = useToast()
@@ -62,6 +70,15 @@ export default function TeamMembers() {
     toast.success('Team member removed')
   }
 
+  // days to expiry
+  function expiryInfo(dateStr) {
+    if (!dateStr) return null
+    const today = new Date(); today.setHours(0,0,0,0)
+    const exp = new Date(dateStr); exp.setHours(0,0,0,0)
+    const days = Math.round((exp - today) / 86400000)
+    return { days, expired: days < 0 }
+  }
+
   return (
     <div className="page-content animate-in" style={{ maxWidth: 860 }}>
       <style>{`
@@ -101,6 +118,7 @@ export default function TeamMembers() {
         <div className="tm-grid">
           {members.map(m => {
             const badge = EID_BADGE[m.eid_status] || EID_BADGE.pending
+            const exp = expiryInfo(m.eid_expiry)
             return (
               <div key={m.id} style={{ background:'var(--card-bg)', border:'1px solid var(--card-border)', borderRadius:14, padding:14, display:'flex', gap:12 }}>
                 <div style={{ width:56, height:56, borderRadius:12, background: m.photo_url ? 'transparent' : BRAND, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:20, flexShrink:0, overflow:'hidden' }}>
@@ -120,6 +138,11 @@ export default function TeamMembers() {
                   <div style={{ marginTop:6, display:'inline-flex', alignItems:'center', gap:4, fontSize:10.5, fontWeight:600, padding:'2px 8px', borderRadius:99, background:badge.bg, color:badge.fg }}>
                     <i className={`ti ${badge.icon}`} style={{ fontSize:12 }} /> {badge.label}
                   </div>
+                  {exp && (
+                    <div style={{ fontSize:10.5, marginTop:5, fontWeight:600, color: exp.expired ? 'var(--red)' : exp.days <= 30 ? '#b45309' : 'var(--text-muted)' }}>
+                      {exp.expired ? '⚠ EID expired' : `EID expires in ${exp.days} day${exp.days !== 1 ? 's' : ''}`}
+                    </div>
+                  )}
                   <div style={{ marginTop:8, display:'flex', gap:10 }}>
                     <button onClick={() => openEdit(m)} style={{ fontSize:12, color:BRAND, fontWeight:600, background:'none', border:'none', cursor:'pointer', padding:0 }}>Edit</button>
                     <button onClick={() => deleteMember(m)} style={{ fontSize:12, color:'var(--red)', fontWeight:600, background:'none', border:'none', cursor:'pointer', padding:0 }}>Remove</button>
@@ -152,6 +175,8 @@ function MemberForm({ company, member, onClose, onSaved }) {
   const [memberType, setMemberType] = useState(member?.member_type || 'professional')
   const [bio, setBio] = useState(member?.bio || '')
   const [exp, setExp] = useState(member?.experience_years || 0)
+  const [eidNumber, setEidNumber] = useState(member?.eid_number || '')
+  const [eidExpiry, setEidExpiry] = useState(member?.eid_expiry || '')
   const [photoUrl, setPhotoUrl] = useState(member?.photo_url || '')
   const [eidFront, setEidFront] = useState(member?.eid_url || '')
   const [eidBack, setEidBack] = useState(member?.eid_back_url || '')
@@ -200,6 +225,10 @@ function MemberForm({ company, member, onClose, onSaved }) {
   async function submit() {
     setError('')
     if (!name.trim()) { setError('Name is required'); return }
+    if (eidDigits(eidNumber).length !== 15) { setError('Emirates ID number must be 15 digits (784-XXXX-XXXXXXX-X)'); return }
+    if (!eidExpiry) { setError('EID expiry date is required'); return }
+    if (!eidFront) { setError('EID front photo is required'); return }
+    if (!eidBack) { setError('EID back photo is required'); return }
     if (!agreed) { setError('Please confirm and agree to the TrustDubai Policy'); return }
     setSaving(true)
     const payload = {
@@ -209,15 +238,19 @@ function MemberForm({ company, member, onClose, onSaved }) {
       member_type: memberType,
       bio: bio.trim() || null,
       experience_years: parseInt(exp) || 0,
+      eid_number: formatEid(eidNumber),
+      eid_expiry: eidExpiry,
       photo_url: photoUrl || null,
-      eid_url: eidFront || null,
-      eid_back_url: eidBack || null,
+      eid_url: eidFront,
+      eid_back_url: eidBack,
     }
     let err
     if (isEdit) {
-      const frontChanged = eidFront && eidFront !== member.eid_url
-      const backChanged = eidBack && eidBack !== member.eid_back_url
-      if (frontChanged || backChanged) {
+      const frontChanged = eidFront !== member.eid_url
+      const backChanged = eidBack !== member.eid_back_url
+      const numChanged = formatEid(eidNumber) !== member.eid_number
+      const expChanged = eidExpiry !== member.eid_expiry
+      if (frontChanged || backChanged || numChanged || expChanged) {
         payload.eid_status = 'pending'; payload.is_verified = false; payload.verified_at = null; payload.verified_by = null
       }
       ;({ error: err } = await supabase.from('team_members').update(payload).eq('id', member.id))
@@ -268,13 +301,15 @@ function MemberForm({ company, member, onClose, onSaved }) {
         <label style={lbl}>Experience (years)</label>
         <input type="number" min="0" value={exp} onChange={e => setExp(e.target.value)} style={inp} />
 
-        <label style={lbl}>Short Bio</label>
-        <textarea value={bio} onChange={e => setBio(e.target.value)} placeholder="Brief background, expertise..." style={{ ...inp, minHeight:60, resize:'vertical' }} />
+        <label style={lbl}>Emirates ID Number *</label>
+        <input value={eidNumber} onChange={e => setEidNumber(formatEid(e.target.value))} placeholder="784-XXXX-XXXXXXX-X" inputMode="numeric" style={inp} />
+
+        <label style={lbl}>EID Expiry Date *</label>
+        <input type="date" value={eidExpiry || ''} onChange={e => setEidExpiry(e.target.value)} style={inp} />
 
         {/* EID Front + Back */}
-        <label style={lbl}>Emirates ID (for verification)</label>
+        <label style={lbl}>Emirates ID Photo * (Front &amp; Back)</label>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:4, marginBottom:6 }}>
-          {/* Front */}
           <div>
             <div onClick={() => frontRef.current?.click()} style={eidBoxStyle}>
               {uploadingFront ? <div className="spinner" /> : eidFront ? (
@@ -294,7 +329,6 @@ function MemberForm({ company, member, onClose, onSaved }) {
             </div>
             <input ref={frontRef} type="file" accept="image/*,application/pdf" style={{ display:'none' }} onChange={onEidFront} />
           </div>
-          {/* Back */}
           <div>
             <div onClick={() => backRef.current?.click()} style={eidBoxStyle}>
               {uploadingBack ? <div className="spinner" /> : eidBack ? (
@@ -316,7 +350,7 @@ function MemberForm({ company, member, onClose, onSaved }) {
           </div>
         </div>
         <p style={{ fontSize:11, color:'var(--text-muted)', marginTop:0, marginBottom:14 }}>
-          Upload both sides of the Emirates ID (image/PDF, max 5MB each). Admin will review and verify.
+          Upload both sides of the Emirates ID (image/PDF, max 5MB each). Admin will verify the ID number and expiry against the photo.
         </p>
 
         {/* Policy agreement */}
