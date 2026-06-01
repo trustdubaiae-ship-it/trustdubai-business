@@ -45,11 +45,10 @@ function Portal() {
   const [showRegister, setShowRegister] = useState(false)
   const [showProfile,  setShowProfile]  = useState(false)
   const [theme,        setTheme]        = useState(getTheme)
-  const [sidebarOpen,  setSidebarOpen]  = useState(false)  // mobile sidebar
+  const [sidebarOpen,  setSidebarOpen]  = useState(false)
 
   useEffect(() => { initTheme() }, [])
 
-  // page change pe mobile sidebar band kardo
   function navigate(page) {
     setActivePage(page)
     setSidebarOpen(false)
@@ -101,9 +100,7 @@ function Portal() {
 
   const neededPerm = PAGE_PERM[activePage]
   const permAllowed = !neededPerm || can(role, staff?.permissions, neededPerm)
-
   const limitedBlocked = !isApproved && !LIMITED_PAGES.includes(activePage)
-  const allowed = permAllowed && !limitedBlocked
 
   const planColors = { free:'#6b7280', silver:'#64748b', gold:'#d97706', platinum:'#8b5cf6' }
   const planName   = company?.plan || 'free'
@@ -175,7 +172,6 @@ function Portal() {
 
   return (
     <div className="layout" style={{ background: pageBg }}>
-      {/* mobile overlay */}
       <div className={`sidebar-overlay${sidebarOpen ? ' show' : ''}`} onClick={() => setSidebarOpen(false)} />
 
       <Sidebar
@@ -189,8 +185,7 @@ function Portal() {
       <main className="main" style={{ background: pageBg }}>
 
         <div className="topbar" style={{ background: isPlatinum?'#161b2e':'var(--card)', borderBottom:`0.5px solid ${isPlatinum?'rgba(139,92,246,0.2)':'var(--border)'}` }}>
-          <div style={{ display:'flex', alignItems:'center', gap:10, minWidth:0 }}>
-            {/* hamburger — sirf mobile pe dikhega */}
+          <div style={{ display:'flex', alignItems:'center', gap:10, minWidth:0, flex:1 }}>
             <button className="hamburger-btn" onClick={() => setSidebarOpen(true)} aria-label="Menu">
               <i className="ti ti-menu-2" />
             </button>
@@ -208,25 +203,21 @@ function Portal() {
             </div>
           </div>
 
-          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-            {/* status pill */}
+          <div style={{ display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
             {!isApproved && (
               <div className="topbar-statuspill" style={{ background: isRejected?'rgba(220,38,38,0.1)':'rgba(0,153,204,0.1)', border:`0.5px solid ${isRejected?'rgba(220,38,38,0.3)':'rgba(0,153,204,0.3)'}`, borderRadius:8, padding:'4px 10px', fontSize:9, fontWeight:700, color: isRejected?'#dc2626':'#0077a3', display:'flex', alignItems:'center', gap:4, whiteSpace:'nowrap' }}>
                 <i className={`ti ${isRejected?'ti-alert-triangle':'ti-clock'}`} style={{ fontSize:10 }}/>
                 {isRejected ? 'Rejected' : 'Under Review'}
               </div>
             )}
-            {/* search — desktop only */}
             <div className="topbar-search" style={{ background: isPlatinum?'rgba(255,255,255,0.05)':'var(--bg2)', border:`0.5px solid ${isPlatinum?'rgba(255,255,255,0.08)':'var(--border)'}`, borderRadius:20, padding:'6px 12px', display:'flex', alignItems:'center', gap:6, minWidth:180 }}>
               <i className="ti ti-search" style={{ fontSize:11, color: isPlatinum?'rgba(255,255,255,0.3)':'var(--text3)' }}/>
               <input placeholder="Global search..." style={{ border:'none', background:'none', outline:'none', fontSize:10, color: isPlatinum?'rgba(255,255,255,0.6)':'var(--text)', width:'100%' }}/>
             </div>
-            {/* date — desktop only */}
             <div className="topbar-date" style={{ background: isPlatinum?'rgba(255,255,255,0.05)':'var(--bg2)', border:`0.5px solid ${isPlatinum?'rgba(255,255,255,0.08)':'var(--border)'}`, borderRadius:8, padding:'5px 10px', fontSize:9, color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)', display:'flex', alignItems:'center', gap:5, whiteSpace:'nowrap' }}>
               <i className="ti ti-calendar" style={{ fontSize:10 }}/> Last 30 Days <i className="ti ti-chevron-down" style={{ fontSize:9 }}/>
             </div>
 
-            {/* THEME TOGGLE */}
             <div onClick={() => setTheme(toggleTheme())} title={theme==='dark'?'Switch to light':'Switch to dark'}
               style={{ cursor:'pointer', width:30, height:30, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)', flexShrink:0 }}>
               <i className={`ti ${theme==='dark'?'ti-sun':'ti-moon'}`} style={{ fontSize:17 }}/>
@@ -236,9 +227,7 @@ function Portal() {
               <i className="ti ti-bell" style={{ fontSize:18, color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)' }}/>
               <div style={{ position:'absolute', top:-2, right:-2, width:7, height:7, background:'#ef4444', borderRadius:'50%', border:`1.5px solid ${isPlatinum?'#161b2e':'var(--card)'}` }}/>
             </div>
-            {/* message icon — desktop only */}
             <i className="ti ti-message-circle topbar-msg" style={{ fontSize:18, color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)', cursor:'pointer' }}/>
-            {/* plan pill — desktop only */}
             <div className="topbar-plan" style={{ background: planName==='gold'?'#fffbeb': planName==='platinum'?'rgba(139,92,246,0.15)':'var(--bg2)', border:`0.5px solid ${planName==='gold'?'#fcd34d': planName==='platinum'?'rgba(139,92,246,0.3)':'var(--border)'}`, borderRadius:8, padding:'4px 10px', fontSize:9, color: planColors[planName], fontWeight:700, display:'flex', alignItems:'center', gap:4, whiteSpace:'nowrap' }}>
               <i className={`ti ${planName==='platinum'?'ti-diamond': planName==='gold'?'ti-star':'ti-building'}`} style={{ fontSize:10 }}/>
               {planName.charAt(0).toUpperCase()+planName.slice(1)} Plan
