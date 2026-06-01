@@ -36,6 +36,9 @@ const PAGE_PERM = {
   trust:     'view_dashboard',
 }
 
+// Pages allowed while company is still PENDING approval (limited mode)
+const LIMITED_PAGES = ['dashboard', 'profile', 'portfolio', 'faq', 'notifications']
+
 function Portal() {
   const { user, company, staff, role, loading, signOut } = useAuth()
   const [activePage,   setActivePage]   = useState('dashboard')
@@ -56,6 +59,11 @@ function Portal() {
   if (!user)    return <LoginPage onRegister={() => setShowRegister(true)} />
   if (!company) return <NoCompanyPage />
 
+  // ---- approval status ----
+  const status     = (company.status || 'pending').toLowerCase()
+  const isApproved = status === 'approved'
+  const isRejected = status === 'rejected'
+
   const allPages = {
     dashboard:          <DashboardPage onNavigate={setActivePage} />,
     profile:            <ProfilePage />,
@@ -68,7 +76,6 @@ function Portal() {
     faq:                <FaqPage />,
     notifications:      <NotificationsPage />,
     trust:              <TrustScorePage />,
-    // Consolidated → Control Panel (tabbed)
     controlpanel:       <ControlPanel initialTab="general" />,
     verification:       <ControlPanel initialTab="verification" />,
     verificationStatus: <ControlPanel initialTab="verification" />,
@@ -84,7 +91,11 @@ function Portal() {
   }
 
   const neededPerm = PAGE_PERM[activePage]
-  const allowed = !neededPerm || can(role, staff?.permissions, neededPerm)
+  const permAllowed = !neededPerm || can(role, staff?.permissions, neededPerm)
+
+  // In limited (pending) mode, only LIMITED_PAGES allowed
+  const limitedBlocked = !isApproved && !LIMITED_PAGES.includes(activePage)
+  const allowed = permAllowed && !limitedBlocked
 
   const planColors = { free:'#6b7280', silver:'#64748b', gold:'#d97706', platinum:'#8b5cf6' }
   const planName   = company?.plan || 'free'
@@ -95,6 +106,45 @@ function Portal() {
   const displayEmail = user?.email || ''
   const roleLabel    = ROLE_LABEL[role] || 'Member'
   const avatarLetter = (displayName?.[0] || '?').toUpperCase()
+
+  // ---- review banner (shown when not approved) ----
+  const ReviewBanner = !isApproved && (
+    <div style={{
+      margin:'0 0 18px', padding:'14px 18px', borderRadius:12,
+      background: isRejected ? 'rgba(220,38,38,0.08)' : 'rgba(0,153,204,0.08)',
+      border:`1px solid ${isRejected ? 'rgba(220,38,38,0.3)' : 'rgba(0,153,204,0.3)'}`,
+      display:'flex', alignItems:'center', gap:12,
+    }}>
+      <div style={{ fontSize:22 }}>{isRejected ? '⚠️' : '⏳'}</div>
+      <div style={{ flex:1 }}>
+        <div style={{ fontSize:14, fontWeight:700, color: isRejected ? '#dc2626' : '#0077a3' }}>
+          {isRejected ? 'Application Rejected' : 'Application Under Review'}
+        </div>
+        <div style={{ fontSize:12.5, color:'#5d6b7e', marginTop:2 }}>
+          {isRejected
+            ? (company.rejection_reason || 'Please review and re-submit your details. Contact support if needed.')
+            : 'Your business is being reviewed by our team. Meanwhile, you can set up your profile, logo, portfolio and FAQ — it will go live once approved. You\'ll be notified by email.'}
+        </div>
+      </div>
+    </div>
+  )
+
+  // Locked screen for blocked pages in limited mode
+  const LockedScreen = (
+    <div style={{ padding:40, display:'flex', justifyContent:'center' }}>
+      <div style={{ background:'#fff', borderRadius:16, padding:32, maxWidth:440, textAlign:'center', boxShadow:'0 4px 20px rgba(0,0,0,0.06)' }}>
+        <div style={{ fontSize:38, marginBottom:10 }}>🔒</div>
+        <h3 style={{ margin:'0 0 6px', color:'#0f172a' }}>Available after approval</h3>
+        <p style={{ fontSize:13, color:'#64748b', margin:'0 0 18px', lineHeight:1.5 }}>
+          This section unlocks once your business is approved. For now, you can complete your profile, logo, portfolio and FAQ so you're ready to go live.
+        </p>
+        <button onClick={() => setActivePage('profile')}
+          style={{ padding:'10px 18px', borderRadius:9, border:'none', background:'#0099cc', color:'#fff', fontWeight:600, cursor:'pointer' }}>
+          Complete Your Profile →
+        </button>
+      </div>
+    </div>
+  )
 
   const AccessDenied = (
     <div style={{ padding:40, display:'flex', justifyContent:'center' }}>
@@ -112,9 +162,15 @@ function Portal() {
     </div>
   )
 
+  // decide what to render in main area
+  let mainContent
+  if (!permAllowed) mainContent = AccessDenied
+  else if (limitedBlocked) mainContent = LockedScreen
+  else mainContent = (allPages[activePage] || allPages.dashboard)
+
   return (
     <div className="layout" style={{ background: pageBg }}>
-      <Sidebar activePage={activePage} onNavigate={setActivePage} />
+      <Sidebar activePage={activePage} onNavigate={setActivePage} limitedMode={!isApproved} limitedPages={LIMITED_PAGES} />
       <main className="main" style={{ background: pageBg }}>
 
         <div className="topbar" style={{ background: isPlatinum?'#161b2e':'var(--card)', borderBottom:`0.5px solid ${isPlatinum?'rgba(139,92,246,0.2)':'var(--border)'}` }}>
@@ -133,6 +189,13 @@ function Portal() {
           </div>
 
           <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+            {/* status pill */}
+            {!isApproved && (
+              <div style={{ background: isRejected?'rgba(220,38,38,0.1)':'rgba(0,153,204,0.1)', border:`0.5px solid ${isRejected?'rgba(220,38,38,0.3)':'rgba(0,153,204,0.3)'}`, borderRadius:8, padding:'4px 10px', fontSize:9, fontWeight:700, color: isRejected?'#dc2626':'#0077a3', display:'flex', alignItems:'center', gap:4 }}>
+                <i className={`ti ${isRejected?'ti-alert-triangle':'ti-clock'}`} style={{ fontSize:10 }}/>
+                {isRejected ? 'Rejected' : 'Under Review'}
+              </div>
+            )}
             <div style={{ background: isPlatinum?'rgba(255,255,255,0.05)':'var(--bg2)', border:`0.5px solid ${isPlatinum?'rgba(255,255,255,0.08)':'var(--border)'}`, borderRadius:20, padding:'6px 12px', display:'flex', alignItems:'center', gap:6, minWidth:180 }}>
               <i className="ti ti-search" style={{ fontSize:11, color: isPlatinum?'rgba(255,255,255,0.3)':'var(--text3)' }}/>
               <input placeholder="Global search..." style={{ border:'none', background:'none', outline:'none', fontSize:10, color: isPlatinum?'rgba(255,255,255,0.6)':'var(--text)', width:'100%' }}/>
@@ -169,6 +232,7 @@ function Portal() {
                     <div style={{ padding:'10px 14px', fontSize:12, color:'#475569', display:'flex', flexDirection:'column', gap:8 }}>
                       <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ color:'#94a3b8' }}>Company</span><span style={{ fontWeight:600, color:'#0f172a' }}>{company?.name}</span></div>
                       <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ color:'#94a3b8' }}>Role</span><span style={{ fontWeight:600, color:'#0099cc' }}>{roleLabel}</span></div>
+                      <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ color:'#94a3b8' }}>Status</span><span style={{ fontWeight:600, color: isApproved?'#1e9e63':(isRejected?'#dc2626':'#0077a3'), textTransform:'capitalize' }}>{isApproved?'Approved':(isRejected?'Rejected':'Under Review')}</span></div>
                       <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ color:'#94a3b8' }}>Plan</span><span style={{ fontWeight:600, color: planColors[planName], textTransform:'capitalize' }}>{planName}</span></div>
                     </div>
                     <div style={{ borderTop:'1px solid #f1f5f9', padding:8 }}>
@@ -183,7 +247,10 @@ function Portal() {
           </div>
         </div>
 
-        {allowed ? (allPages[activePage] || allPages.dashboard) : AccessDenied}
+        <div style={{ padding:'18px' }}>
+          {ReviewBanner}
+          {mainContent}
+        </div>
       </main>
 
       <LoginNotificationPopup onOpenPage={() => setActivePage('notifications')} />
