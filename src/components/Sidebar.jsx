@@ -1,6 +1,7 @@
-// trustdubai-business/src/components/Sidebar.jsx
+import { useState } from 'react'
 import { useAuth } from '../lib/auth'
 import { can } from '../lib/permissions'
+import UpgradeLockModal from './UpgradeLockModal'
 
 const planColors = { free:'#6b7280', silver:'#64748b', gold:'#d97706', platinum:'#8b5cf6' }
 const PLAN_RANK = { free:0, silver:1, gold:2, platinum:3 }
@@ -10,6 +11,8 @@ function hasAccess(userPlan, requiredPlan) {
 
 const CONTROL_PANEL_PAGES = ['controlpanel','verification','verificationStatus','plans','settings']
 
+// menu item -> kaunsa plan feature isse control karta hai (feature_key)
+// jisme featureKey nahi, wo hamesha unlocked (dashboard, profile, etc.)
 const MENU = [
   { section: 'OVERVIEW' },
   { id:'dashboard',     icon:'ti-layout-dashboard', label:'Dashboard',          perm:'view_dashboard' },
@@ -17,12 +20,12 @@ const MENU = [
 
   { section: 'REPUTATION' },
   { id:'trust',      icon:'ti-shield-check',     label:'Trust Score',        perm:'view_dashboard' },
-  { id:'reviews',    icon:'ti-star',             label:'Reviews',            perm:'view_reviews' },
-  { id:'leads',      icon:'ti-message-circle',   label:'Leads',              perm:'view_leads' },
+  { id:'reviews',    icon:'ti-star',             label:'Reviews',            perm:'view_reviews',  featureKey:'reply_reviews' },
+  { id:'leads',      icon:'ti-message-circle',   label:'Leads',              perm:'view_leads',    featureKey:'lead_email' },
 
   { section: 'GROWTH' },
-  { id:'analytics',  icon:'ti-chart-bar',        label:'Analytics',          perm:'view_analytics', requiredPlan:'gold' },
-  { id:'sponsored',  icon:'ti-ad-2',             label:'Sponsored Placement',perm:'view_sponsored' },
+  { id:'analytics',  icon:'ti-chart-bar',        label:'Analytics',          perm:'view_analytics', featureKey:'analytics' },
+  { id:'sponsored',  icon:'ti-ad-2',             label:'Sponsored Placement',perm:'view_sponsored', featureKey:'featured_homepage' },
 
   { section: 'MY PROFILE' },
   { id:'profile',    icon:'ti-building-store',   label:'Business Profile',   perm:'view_profile' },
@@ -35,7 +38,7 @@ const MENU = [
 ]
 
 export default function Sidebar({ activePage, onNavigate, limitedMode = false, limitedPages = [], open = false }) {
-  const { company, staff, role, signOut } = useAuth()
+  const { company, staff, role, signOut, hasFeature } = useAuth()
   const planName  = company?.plan || 'free'
   const planColor = planColors[planName] || planColors.free
   const perms     = staff?.permissions || null
@@ -46,8 +49,11 @@ export default function Sidebar({ activePage, onNavigate, limitedMode = false, l
 
   const planIcons = { free:'ti-building', silver:'ti-medal', gold:'ti-star', platinum:'ti-diamond' }
 
-  function handleNav(item) {
-    if (item.requiredPlan && !hasAccess(planName, item.requiredPlan)) { onNavigate('plans'); return }
+  const [lockModal, setLockModal] = useState({ open:false, name:'' })
+
+  function handleNav(item, featureLocked) {
+    // feature plan mein nahi -> popup
+    if (featureLocked) { setLockModal({ open:true, name:item.label }); return }
     onNavigate(item.id)
   }
 
@@ -97,26 +103,25 @@ export default function Sidebar({ activePage, onNavigate, limitedMode = false, l
           if (item.section) return (
             <div key={`sec-${i}`} className="nav-section-label">{item.section}</div>
           )
-          const planLocked = item.requiredPlan && !hasAccess(planName, item.requiredPlan)
+          // limited mode (pending approval) lock
           const limitLocked = limitedMode && !limitedPages.includes(item.id)
-          const locked   = planLocked || limitLocked
+          // plan feature lock (owner ko bhi lock — kyunki ye plan ka matter hai, role ka nahi)
+          const featureLocked = !limitLocked && item.featureKey ? !hasFeature(item.featureKey) : false
+          const locked = limitLocked || featureLocked
+
           const isActive = item.id === 'controlpanel'
             ? CONTROL_PANEL_PAGES.includes(activePage)
             : activePage === item.id
+
           return (
             <button key={`${item.id}-${i}`}
               className={`nav-item${isActive?' active':''}`}
-              onClick={() => handleNav(item)}
-              style={{ opacity: locked ? 0.55 : 1 }}
-              title={planLocked ? `Requires ${item.requiredPlan} plan` : (limitLocked ? 'Available after approval' : '')}>
+              onClick={() => handleNav(item, featureLocked)}
+              style={{ opacity: locked ? 0.6 : 1 }}
+              title={featureLocked ? 'Upgrade plan to unlock' : (limitLocked ? 'Available after approval' : '')}>
               <i className={`ti ${item.icon}`}/>
               {item.label}
-              {planLocked && (
-                <span style={{ marginLeft:'auto', background:'rgba(232,184,75,0.15)', color:'#d97706', fontSize:7.5, fontWeight:700, padding:'1px 5px', borderRadius:99 }}>
-                  {item.requiredPlan.toUpperCase()}
-                </span>
-              )}
-              {!planLocked && limitLocked && (
+              {locked && (
                 <i className="ti ti-lock" style={{ marginLeft:'auto', fontSize:11, color:'#94a3b8' }}/>
               )}
             </button>
@@ -152,6 +157,14 @@ export default function Sidebar({ activePage, onNavigate, limitedMode = false, l
           Sign Out
         </button>
       </div>
+
+      <UpgradeLockModal
+        open={lockModal.open}
+        featureName={lockModal.name}
+        currentPlan={planName}
+        onClose={() => setLockModal({ open:false, name:'' })}
+        onUpgrade={() => { setLockModal({ open:false, name:'' }); onNavigate('plans') }}
+      />
     </aside>
   )
 }
