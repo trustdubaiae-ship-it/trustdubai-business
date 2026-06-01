@@ -271,7 +271,6 @@ html, body {
 
 /* ============================================================
    MOBILE RESPONSIVE  (≤ 768px)
-   Sidebar slide-in via hamburger, main full-width, topbar fit
    ============================================================ */
 @media (max-width: 768px) {
   /* sidebar off-screen by default, slides in when .open */
@@ -283,20 +282,26 @@ html, body {
   }
   .sidebar.open { transform: translateX(0); }
 
-  /* main takes full width */
+  /* main full width */
   .main { margin-left: 0; }
 
-  /* show hamburger + overlay on mobile */
+  /* hamburger + overlay visible on mobile */
   .hamburger-btn { display: flex; }
   .sidebar-overlay.show { display: block; }
 
   /* topbar tighter */
   .topbar { padding: 0 12px; height: 52px; }
 
+  /* topbar: mobile pe sirf zaroori cheezein */
+  .topbar-search,
+  .topbar-date,
+  .topbar-msg,
+  .topbar-plan { display: none; }
+
   /* content padding smaller */
   .page-content { padding: 14px; }
 
-  /* stat cards single/double column friendly */
+  /* stat cards friendly */
   .stat-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
 }
 
