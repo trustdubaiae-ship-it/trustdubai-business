@@ -37,7 +37,6 @@ const PAGE_PERM = {
   trust:     'view_dashboard',
 }
 
-// Pages allowed while company is still PENDING approval (limited mode)
 const LIMITED_PAGES = ['dashboard', 'profile', 'portfolio', 'faq', 'notifications']
 
 function Portal() {
@@ -46,9 +45,15 @@ function Portal() {
   const [showRegister, setShowRegister] = useState(false)
   const [showProfile,  setShowProfile]  = useState(false)
   const [theme,        setTheme]        = useState(getTheme)
+  const [sidebarOpen,  setSidebarOpen]  = useState(false)  // mobile sidebar
 
-  // restore saved theme on app start
   useEffect(() => { initTheme() }, [])
+
+  // page change pe mobile sidebar band kardo
+  function navigate(page) {
+    setActivePage(page)
+    setSidebarOpen(false)
+  }
 
   if (showRegister) return <RegisterPage onBack={() => setShowRegister(false)} />
 
@@ -64,19 +69,18 @@ function Portal() {
   if (!user)    return <LoginPage onRegister={() => setShowRegister(true)} />
   if (!company) return <NoCompanyPage />
 
-  // ---- approval status ----
   const status     = (company.status || 'pending').toLowerCase()
   const isApproved = status === 'approved'
   const isRejected = status === 'rejected'
 
   const allPages = {
-    dashboard:          <DashboardPage onNavigate={setActivePage} />,
+    dashboard:          <DashboardPage onNavigate={navigate} />,
     profile:            <ProfilePage />,
     reviews:            <ReviewsPage />,
     portfolio:          <PortfolioPage />,
-    analytics:          <AnalyticsPage onNavigate={setActivePage} />,
+    analytics:          <AnalyticsPage onNavigate={navigate} />,
     leads:              <LeadsPage />,
-    sponsored:          <SponsoredPage onNavigate={setActivePage} />,
+    sponsored:          <SponsoredPage onNavigate={navigate} />,
     staff:              <StaffManagement />,
     faq:                <FaqPage />,
     notifications:      <NotificationsPage />,
@@ -98,7 +102,6 @@ function Portal() {
   const neededPerm = PAGE_PERM[activePage]
   const permAllowed = !neededPerm || can(role, staff?.permissions, neededPerm)
 
-  // In limited (pending) mode, only LIMITED_PAGES allowed
   const limitedBlocked = !isApproved && !LIMITED_PAGES.includes(activePage)
   const allowed = permAllowed && !limitedBlocked
 
@@ -112,7 +115,6 @@ function Portal() {
   const roleLabel    = ROLE_LABEL[role] || 'Member'
   const avatarLetter = (displayName?.[0] || '?').toUpperCase()
 
-  // ---- review banner (shown when not approved) ----
   const ReviewBanner = !isApproved && (
     <div style={{
       margin:'0 0 18px', padding:'14px 18px', borderRadius:12,
@@ -134,7 +136,6 @@ function Portal() {
     </div>
   )
 
-  // Locked screen for blocked pages in limited mode
   const LockedScreen = (
     <div style={{ padding:40, display:'flex', justifyContent:'center' }}>
       <div style={{ background:'#fff', borderRadius:16, padding:32, maxWidth:440, textAlign:'center', boxShadow:'0 4px 20px rgba(0,0,0,0.06)' }}>
@@ -143,7 +144,7 @@ function Portal() {
         <p style={{ fontSize:13, color:'#64748b', margin:'0 0 18px', lineHeight:1.5 }}>
           This section unlocks once your business is approved. For now, you can complete your profile, logo, portfolio and FAQ so you're ready to go live.
         </p>
-        <button onClick={() => setActivePage('profile')}
+        <button onClick={() => navigate('profile')}
           style={{ padding:'10px 18px', borderRadius:9, border:'none', background:'#0099cc', color:'#fff', fontWeight:600, cursor:'pointer' }}>
           Complete Your Profile →
         </button>
@@ -159,7 +160,7 @@ function Portal() {
         <p style={{ fontSize:13, color:'#64748b', margin:'0 0 16px' }}>
           You don't have permission to view this section. Please contact your business owner.
         </p>
-        <button onClick={() => setActivePage('dashboard')}
+        <button onClick={() => navigate('dashboard')}
           style={{ padding:'10px 18px', borderRadius:9, border:'none', background:'#0099cc', color:'#fff', fontWeight:600, cursor:'pointer' }}>
           Go to Dashboard
         </button>
@@ -167,7 +168,6 @@ function Portal() {
     </div>
   )
 
-  // decide what to render in main area
   let mainContent
   if (!permAllowed) mainContent = AccessDenied
   else if (limitedBlocked) mainContent = LockedScreen
@@ -175,19 +175,34 @@ function Portal() {
 
   return (
     <div className="layout" style={{ background: pageBg }}>
-      <Sidebar activePage={activePage} onNavigate={setActivePage} limitedMode={!isApproved} limitedPages={LIMITED_PAGES} />
+      {/* mobile overlay */}
+      <div className={`sidebar-overlay${sidebarOpen ? ' show' : ''}`} onClick={() => setSidebarOpen(false)} />
+
+      <Sidebar
+        activePage={activePage}
+        onNavigate={navigate}
+        limitedMode={!isApproved}
+        limitedPages={LIMITED_PAGES}
+        open={sidebarOpen}
+      />
+
       <main className="main" style={{ background: pageBg }}>
 
         <div className="topbar" style={{ background: isPlatinum?'#161b2e':'var(--card)', borderBottom:`0.5px solid ${isPlatinum?'rgba(139,92,246,0.2)':'var(--border)'}` }}>
-          <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-            <div style={{ width:34, height:34, borderRadius:9, background:'linear-gradient(135deg,#e8b84b,#c9952a)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:14, color:'#0d1117' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10, minWidth:0 }}>
+            {/* hamburger — sirf mobile pe dikhega */}
+            <button className="hamburger-btn" onClick={() => setSidebarOpen(true)} aria-label="Menu">
+              <i className="ti ti-menu-2" />
+            </button>
+
+            <div style={{ width:34, height:34, borderRadius:9, background:'linear-gradient(135deg,#e8b84b,#c9952a)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:14, color:'#0d1117', flexShrink:0 }}>
               {company?.name?.[0]?.toUpperCase()||'?'}
             </div>
-            <div>
-              <div style={{ fontSize:14, fontWeight:700, color: isPlatinum?'#f1f5f9':'var(--text)' }}>
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontSize:14, fontWeight:700, color: isPlatinum?'#f1f5f9':'var(--text)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
                 {company?.name||'My Business'}
               </div>
-              <div style={{ fontSize:9, color: isPlatinum?'rgba(167,139,250,0.7)':'var(--text3)', marginTop:1 }}>
+              <div style={{ fontSize:9, color: isPlatinum?'rgba(167,139,250,0.7)':'var(--text3)', marginTop:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
                 {pageTitles[activePage]} · business.trustdubai.ae
               </div>
             </div>
@@ -196,36 +211,40 @@ function Portal() {
           <div style={{ display:'flex', alignItems:'center', gap:10 }}>
             {/* status pill */}
             {!isApproved && (
-              <div style={{ background: isRejected?'rgba(220,38,38,0.1)':'rgba(0,153,204,0.1)', border:`0.5px solid ${isRejected?'rgba(220,38,38,0.3)':'rgba(0,153,204,0.3)'}`, borderRadius:8, padding:'4px 10px', fontSize:9, fontWeight:700, color: isRejected?'#dc2626':'#0077a3', display:'flex', alignItems:'center', gap:4 }}>
+              <div className="topbar-statuspill" style={{ background: isRejected?'rgba(220,38,38,0.1)':'rgba(0,153,204,0.1)', border:`0.5px solid ${isRejected?'rgba(220,38,38,0.3)':'rgba(0,153,204,0.3)'}`, borderRadius:8, padding:'4px 10px', fontSize:9, fontWeight:700, color: isRejected?'#dc2626':'#0077a3', display:'flex', alignItems:'center', gap:4, whiteSpace:'nowrap' }}>
                 <i className={`ti ${isRejected?'ti-alert-triangle':'ti-clock'}`} style={{ fontSize:10 }}/>
                 {isRejected ? 'Rejected' : 'Under Review'}
               </div>
             )}
-            <div style={{ background: isPlatinum?'rgba(255,255,255,0.05)':'var(--bg2)', border:`0.5px solid ${isPlatinum?'rgba(255,255,255,0.08)':'var(--border)'}`, borderRadius:20, padding:'6px 12px', display:'flex', alignItems:'center', gap:6, minWidth:180 }}>
+            {/* search — desktop only */}
+            <div className="topbar-search" style={{ background: isPlatinum?'rgba(255,255,255,0.05)':'var(--bg2)', border:`0.5px solid ${isPlatinum?'rgba(255,255,255,0.08)':'var(--border)'}`, borderRadius:20, padding:'6px 12px', display:'flex', alignItems:'center', gap:6, minWidth:180 }}>
               <i className="ti ti-search" style={{ fontSize:11, color: isPlatinum?'rgba(255,255,255,0.3)':'var(--text3)' }}/>
               <input placeholder="Global search..." style={{ border:'none', background:'none', outline:'none', fontSize:10, color: isPlatinum?'rgba(255,255,255,0.6)':'var(--text)', width:'100%' }}/>
             </div>
-            <div style={{ background: isPlatinum?'rgba(255,255,255,0.05)':'var(--bg2)', border:`0.5px solid ${isPlatinum?'rgba(255,255,255,0.08)':'var(--border)'}`, borderRadius:8, padding:'5px 10px', fontSize:9, color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)', display:'flex', alignItems:'center', gap:5 }}>
+            {/* date — desktop only */}
+            <div className="topbar-date" style={{ background: isPlatinum?'rgba(255,255,255,0.05)':'var(--bg2)', border:`0.5px solid ${isPlatinum?'rgba(255,255,255,0.08)':'var(--border)'}`, borderRadius:8, padding:'5px 10px', fontSize:9, color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)', display:'flex', alignItems:'center', gap:5, whiteSpace:'nowrap' }}>
               <i className="ti ti-calendar" style={{ fontSize:10 }}/> Last 30 Days <i className="ti ti-chevron-down" style={{ fontSize:9 }}/>
             </div>
 
-            {/* THEME TOGGLE (light/dark) */}
+            {/* THEME TOGGLE */}
             <div onClick={() => setTheme(toggleTheme())} title={theme==='dark'?'Switch to light':'Switch to dark'}
-              style={{ cursor:'pointer', width:30, height:30, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)' }}>
+              style={{ cursor:'pointer', width:30, height:30, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)', flexShrink:0 }}>
               <i className={`ti ${theme==='dark'?'ti-sun':'ti-moon'}`} style={{ fontSize:17 }}/>
             </div>
 
-            <div onClick={() => setActivePage('notifications')} style={{ position:'relative', cursor:'pointer' }}>
+            <div onClick={() => navigate('notifications')} style={{ position:'relative', cursor:'pointer', flexShrink:0 }}>
               <i className="ti ti-bell" style={{ fontSize:18, color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)' }}/>
               <div style={{ position:'absolute', top:-2, right:-2, width:7, height:7, background:'#ef4444', borderRadius:'50%', border:`1.5px solid ${isPlatinum?'#161b2e':'var(--card)'}` }}/>
             </div>
-            <i className="ti ti-message-circle" style={{ fontSize:18, color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)', cursor:'pointer' }}/>
-            <div style={{ background: planName==='gold'?'#fffbeb': planName==='platinum'?'rgba(139,92,246,0.15)':'var(--bg2)', border:`0.5px solid ${planName==='gold'?'#fcd34d': planName==='platinum'?'rgba(139,92,246,0.3)':'var(--border)'}`, borderRadius:8, padding:'4px 10px', fontSize:9, color: planColors[planName], fontWeight:700, display:'flex', alignItems:'center', gap:4 }}>
+            {/* message icon — desktop only */}
+            <i className="ti ti-message-circle topbar-msg" style={{ fontSize:18, color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)', cursor:'pointer' }}/>
+            {/* plan pill — desktop only */}
+            <div className="topbar-plan" style={{ background: planName==='gold'?'#fffbeb': planName==='platinum'?'rgba(139,92,246,0.15)':'var(--bg2)', border:`0.5px solid ${planName==='gold'?'#fcd34d': planName==='platinum'?'rgba(139,92,246,0.3)':'var(--border)'}`, borderRadius:8, padding:'4px 10px', fontSize:9, color: planColors[planName], fontWeight:700, display:'flex', alignItems:'center', gap:4, whiteSpace:'nowrap' }}>
               <i className={`ti ${planName==='platinum'?'ti-diamond': planName==='gold'?'ti-star':'ti-building'}`} style={{ fontSize:10 }}/>
               {planName.charAt(0).toUpperCase()+planName.slice(1)} Plan
             </div>
 
-            <div style={{ position:'relative' }}>
+            <div style={{ position:'relative', flexShrink:0 }}>
               <div onClick={() => setShowProfile(v => !v)} title={`${displayName} · ${displayEmail}`}
                 style={{ width:32, height:32, borderRadius:8, background:'#0099cc', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:13, color:'#fff', cursor:'pointer' }}>
                 {avatarLetter}
@@ -259,13 +278,13 @@ function Portal() {
           </div>
         </div>
 
-        <div style={{ padding:'18px' }}>
+        <div className="page-content">
           {ReviewBanner}
           {mainContent}
         </div>
       </main>
 
-      <LoginNotificationPopup onOpenPage={() => setActivePage('notifications')} />
+      <LoginNotificationPopup onOpenPage={() => navigate('notifications')} />
     </div>
   )
 }
