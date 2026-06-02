@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase'
 const BRAND = '#0099cc'
 const TYPE_ICON = {
   general:'ti-bell', lead:'ti-phone', review:'ti-star',
-  comment:'ti-message-circle', announcement:'ti-speakerphone', system:'ti-settings',
+  comment:'ti-message-circle', system:'ti-settings',
 }
 const STATUS = {
   unread:      { label:'New',         bg:'#dbeafe', fg:'#1d4ed8' },
@@ -36,10 +36,13 @@ export default function NotificationsPage() {
   const load = useCallback(async () => {
     if (!company?.id) return
     setLoading(true)
+    // INTERNAL ONLY: company's own staff notifications (sender_type = 'business').
+    // External / admin announcements now live in the Inbox, not here.
     const { data } = await supabase
       .from('notifications')
       .select('*')
-      .or(`company_id.eq.${company.id},company_id.is.null`)
+      .eq('company_id', company.id)
+      .eq('sender_type', 'business')
       .order('created_at', { ascending:false })
       .limit(100)
     let rows = data || []
@@ -73,7 +76,7 @@ export default function NotificationsPage() {
       })
       setItems(p => p.map(x => x.id===n.id ? { ...x, ...patch } : x))
     }
-    setActive(null)  // <-- popup band karo action ke baad
+    setActive(null)
   }
 
   if (loading) return <div style={{ padding:32, color:'#94a3b8' }}>Loading notifications…</div>
@@ -92,7 +95,7 @@ export default function NotificationsPage() {
         )}
       </div>
       <p style={{ fontSize:13, color:'#64748b', marginBottom:16 }}>
-        {seeAll ? 'All team notifications' : 'Your notifications'} · {company?.name}
+        Internal team reminders &amp; tasks · {company?.name}
       </p>
 
       <div style={{ display:'flex', gap:8, marginBottom:16, flexWrap:'wrap' }}>
@@ -120,9 +123,9 @@ export default function NotificationsPage() {
               <div key={n.id} onClick={() => setActive(n)}
                 style={{ display:'flex', alignItems:'flex-start', gap:12, background:'#fff', border:'0.5px solid #e2e8f0',
                   borderRadius:12, padding:14, cursor:'pointer' }}>
-                <div style={{ width:38, height:38, borderRadius:10, background:(n.sender_type==='admin'?'#fff7ed':'#e6f6fb'),
+                <div style={{ width:38, height:38, borderRadius:10, background:'#e6f6fb',
                   display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                  <i className={`ti ${TYPE_ICON[n.type]||'ti-bell'}`} style={{ fontSize:17, color:n.sender_type==='admin'?'#d97706':BRAND }}/>
+                  <i className={`ti ${TYPE_ICON[n.type]||'ti-bell'}`} style={{ fontSize:17, color:BRAND }}/>
                 </div>
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8 }}>
@@ -131,7 +134,7 @@ export default function NotificationsPage() {
                   </div>
                   {n.message && <p style={{ fontSize:12, color:'#64748b', margin:'3px 0 0', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{n.message}</p>}
                   <div style={{ fontSize:11, color:'#94a3b8', marginTop:4 }}>
-                    {n.sender_type==='admin' ? '📢 Trust Dubai' : '👥 Internal'}
+                    <i className="ti ti-users" style={{ fontSize:11, verticalAlign:'-1px', marginRight:3 }}/>Internal
                     {n.priority==='high' && <span style={{ color:'#dc2626', fontWeight:600 }}> · High Priority</span>}
                     {' · '}{new Date(n.created_at).toLocaleString('en-GB')}
                   </div>
@@ -170,12 +173,12 @@ function DetailModal({ n, onClose, onStatus }) {
     <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:60, background:'rgba(0,0,0,0.4)', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
       <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:16, width:'100%', maxWidth:460, padding:20, maxHeight:'90vh', overflowY:'auto' }}>
         <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:8 }}>
-          <i className={`ti ${TYPE_ICON[n.type]||'ti-bell'}`} style={{ fontSize:22, color:n.sender_type==='admin'?'#d97706':BRAND }}/>
+          <i className={`ti ${TYPE_ICON[n.type]||'ti-bell'}`} style={{ fontSize:22, color:BRAND }}/>
           <h4 style={{ margin:0, fontSize:16, fontWeight:700, color:'#0f172a' }}>{n.title}</h4>
         </div>
         {n.message && <p style={{ fontSize:13, color:'#475569', margin:'0 0 8px' }}>{n.message}</p>}
         <p style={{ fontSize:11, color:'#94a3b8', margin:'0 0 16px' }}>
-          {n.sender_type==='admin' ? 'From Trust Dubai' : 'Internal'} · {new Date(n.created_at).toLocaleString('en-GB')}
+          Internal · {new Date(n.created_at).toLocaleString('en-GB')}
         </p>
 
         <div style={{ display:'flex', gap:8, marginBottom:16 }}>
@@ -207,7 +210,7 @@ function DetailModal({ n, onClose, onStatus }) {
   )
 }
 
-/* ---------- Send Notification ---------- */
+/* ---------- Send Notification (internal) ---------- */
 function SendModal({ company, staff, staffList, onClose, onSent }) {
   const [to, setTo] = useState('')
   const [title, setTitle] = useState('')
