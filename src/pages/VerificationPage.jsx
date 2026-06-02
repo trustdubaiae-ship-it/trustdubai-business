@@ -8,6 +8,7 @@ const BUCKET = 'verification-docs'
 
 const STATUS_STYLE = {
   approved: { bg: '#e6f7ed', color: '#1a7f4b', label: 'Approved ✓' },
+  verified: { bg: '#e6f7ed', color: '#1a7f4b', label: 'Approved ✓' },
   rejected: { bg: '#fdecec', color: '#c0392b', label: 'Rejected ✕' },
   pending:  { bg: '#fff6e6', color: '#b8860b', label: 'Pending review' },
 }
@@ -21,18 +22,25 @@ export default function VerificationPage() {
   const [savingNum, setSavingNum] = useState(false)
   const [msg, setMsg] = useState({ text: '', type: 'info' })
 
+  // Owner EID local fields
+  const [eidNumber, setEidNumber] = useState('')
+  const [eidExpiry, setEidExpiry] = useState('')
+  const [savingEid, setSavingEid] = useState(false)
+
   const companyId = company?.id
 
   async function loadCompany() {
     if (!companyId) return
     const { data, error } = await supabase
       .from('companies')
-      .select('id, trade_license_number, trade_license_url, trade_license_status, owner_eid_url, owner_eid_status, phone_verified, verification_percent, verification_status')
+      .select('id, trade_license_number, trade_license_url, trade_license_status, owner_eid_url, owner_eid_status, owner_eid_number, owner_eid_expiry, owner_eid_front_url, owner_eid_back_url, phone_verified, verification_percent, verification_status')
       .eq('id', companyId)
       .single()
     if (!error && data) {
       setRow(data)
       setTlNumber(data.trade_license_number || '')
+      setEidNumber(data.owner_eid_number || '')
+      setEidExpiry(data.owner_eid_expiry || '')
     }
     setLoading(false)
   }
@@ -54,36 +62,64 @@ export default function VerificationPage() {
     setSavingNum(false)
   }
 
-  async function uploadDoc(file, kind) {
+  // Trade License upload (unchanged behaviour)
+  async function uploadTradeLicense(file) {
     if (!file || !companyId) return
-    setBusy(kind)
+    setBusy('trade_license')
     try {
       const ext = file.name.split('.').pop()
-      const path = `${companyId}/${kind}_${Date.now()}.${ext}`
-      const { error: upErr } = await supabase.storage
-        .from(BUCKET).upload(path, file, { upsert: true })
+      const path = `${companyId}/trade_license_${Date.now()}.${ext}`
+      const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: true })
       if (upErr) throw upErr
-
-      const urlCol = kind === 'trade_license' ? 'trade_license_url' : 'owner_eid_url'
-      const statusCol = kind === 'trade_license' ? 'trade_license_status' : 'owner_eid_status'
-      const patch = { [urlCol]: path, [statusCol]: 'pending' }
-      if (kind === 'trade_license') patch.trade_license_number = tlNumber
-
-      const { error: dbErr } = await supabase
-        .from('companies').update(patch).eq('id', companyId)
+      const { error: dbErr } = await supabase.from('companies').update({
+        trade_license_url: path, trade_license_status: 'pending', trade_license_number: tlNumber,
+      }).eq('id', companyId)
       if (dbErr) throw dbErr
-
-      await supabase.from('verification_log').insert({
-        company_id: companyId, target: kind, action: 'submit',
-      })
-
+      await supabase.from('verification_log').insert({ company_id: companyId, target: 'trade_license', action: 'submit' })
       flash('Document uploaded and sent for review.', 'success')
       await loadCompany()
     } catch (e) {
       flash('Upload failed: ' + (e.message || 'please try again'), 'error')
-    } finally {
-      setBusy('')
-    }
+    } finally { setBusy('') }
+  }
+
+  // Owner EID front/back upload
+  async function uploadEidSide(file, side) {
+    if (!file || !companyId) return
+    const kind = side === 'front' ? 'eid_front' : 'eid_back'
+    setBusy(kind)
+    try {
+      const ext = file.name.split('.').pop()
+      const path = `${companyId}/owner_eid_${side}_${Date.now()}.${ext}`
+      const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: true })
+      if (upErr) throw upErr
+      const col = side === 'front' ? 'owner_eid_front_url' : 'owner_eid_back_url'
+      const { error: dbErr } = await supabase.from('companies').update({
+        [col]: path, owner_eid_status: 'pending',
+      }).eq('id', companyId)
+      if (dbErr) throw dbErr
+      await supabase.from('verification_log').insert({ company_id: companyId, target: 'owner_eid', action: 'submit' })
+      flash(`Emirates ID ${side} uploaded.`, 'success')
+      await loadCompany()
+    } catch (e) {
+      flash('Upload failed: ' + (e.message || 'please try again'), 'error')
+    } finally { setBusy('') }
+  }
+
+  // Save Owner EID number + expiry
+  async function saveEidDetails() {
+    if (!companyId) return
+    if (!eidNumber.trim()) { flash('Please enter the Emirates ID number.', 'error'); return }
+    if (!eidExpiry) { flash('Please select the EID expiry date.', 'error'); return }
+    setSavingEid(true)
+    const { error } = await supabase.from('companies').update({
+      owner_eid_number: eidNumber.trim(),
+      owner_eid_expiry: eidExpiry,
+      owner_eid_status: 'pending',
+    }).eq('id', companyId)
+    if (error) flash('Could not save EID details. Please try again.', 'error')
+    else { flash('Emirates ID details saved and sent for review.', 'success'); await loadCompany() }
+    setSavingEid(false)
   }
 
   async function viewMyDoc(path) {
@@ -104,18 +140,36 @@ export default function VerificationPage() {
   const pct = row?.verification_percent ?? 0
   const isVerified = row?.verification_status === 'verified'
 
-  const items = [
-    { kind: 'trade_license', title: 'Trade License', weight: 10, mandatory: true,
-      status: row?.trade_license_status, url: row?.trade_license_url },
-    { kind: 'owner_eid', title: 'Owner Emirates ID', weight: 7, mandatory: false,
-      status: row?.owner_eid_status, url: row?.owner_eid_url },
-  ]
-
   const msgStyle = {
     info:    { bg: '#eef7ff', color: '#0b5d8a' },
     success: { bg: '#e6f7ed', color: '#1a7f4b' },
     error:   { bg: '#fdecec', color: '#c0392b' },
   }[msg.type]
+
+  // Trade License card data
+  const tlStatus = row?.trade_license_status
+  const tlSt = STATUS_STYLE[tlStatus] || STATUS_STYLE.pending
+  const tlUploaded = !!row?.trade_license_url
+
+  // Owner EID data
+  const eidStatus = row?.owner_eid_status
+  const eidSt = STATUS_STYLE[eidStatus] || STATUS_STYLE.pending
+  const eidFront = row?.owner_eid_front_url || row?.owner_eid_url   // fallback to old single url
+  const eidBack = row?.owner_eid_back_url
+  const eidUploaded = !!eidFront
+
+  // EID expiry countdown
+  let eidExpiryNote = null
+  if (row?.owner_eid_expiry) {
+    const today = new Date(); today.setHours(0,0,0,0)
+    const exp = new Date(row.owner_eid_expiry)
+    const days = Math.round((exp - today) / 86400000)
+    if (days < 0) eidExpiryNote = { text: 'Expired', color: '#c0392b' }
+    else if (days <= 30) eidExpiryNote = { text: `Expires in ${days} day${days !== 1 ? 's' : ''}`, color: '#d97706' }
+    else eidExpiryNote = { text: `Valid until ${row.owner_eid_expiry}`, color: '#1a7f4b' }
+  }
+
+  const inputStyle = { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #d8dde4', fontSize: 14, boxSizing: 'border-box' }
 
   return (
     <div style={{ maxWidth: 760, margin: '0 auto', padding: '24px 16px' }}>
@@ -144,7 +198,7 @@ export default function VerificationPage() {
             </span>
           )}
         </div>
-        {!row?.owner_eid_url && (
+        {!eidUploaded && (
           <p style={{ marginTop: 12, fontSize: 13, color: '#667', background: '#f5f9ff', padding: '10px 12px', borderRadius: 8 }}>
             💡 Add your Owner Emirates ID to boost your verification % (+7%) — higher score helps you get more leads.
           </p>
@@ -182,64 +236,117 @@ export default function VerificationPage() {
         </div>
       </div>
 
-      {/* DOC UPLOAD CARDS */}
-      {items.map((it) => {
-        const st = STATUS_STYLE[it.status] || STATUS_STYLE.pending
-        const uploaded = !!it.url
-        return (
-          <div key={it.kind} style={{ background: '#fff', border: '1px solid #e6e9ee', borderRadius: 12, padding: 18, marginBottom: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <div>
-                <span style={{ fontWeight: 600 }}>{it.title}</span>
-                {it.mandatory
-                  ? <span style={{ color: '#c0392b', marginLeft: 6, fontSize: 12 }}>* required</span>
-                  : <span style={{ color: '#999', marginLeft: 6, fontSize: 12 }}>optional</span>}
-                <span style={{ color: BRAND, marginLeft: 8, fontSize: 12, fontWeight: 600 }}>+{it.weight}%</span>
-              </div>
-              {uploaded && (
-                <span style={{ background: st.bg, color: st.color, padding: '4px 10px', borderRadius: 16, fontSize: 12, fontWeight: 600 }}>
-                  {st.label}
-                </span>
-              )}
-            </div>
-
-            {/* Uploaded file indicator */}
-            {uploaded && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#f5f9ff', border: '1px solid #dbeafe', borderRadius: 8, padding: '9px 12px', marginBottom: 10 }}>
-                <i className="ti ti-file-check" style={{ fontSize: 18, color: BRAND }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#0b5d8a' }}>File uploaded</div>
-                  <div style={{ fontSize: 11, color: '#667', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fileName(it.url)}</div>
-                </div>
-                <button onClick={() => viewMyDoc(it.url)}
-                  style={{ background: 'transparent', border: `1px solid ${BRAND}`, color: BRAND, padding: '6px 12px', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                  View
-                </button>
-              </div>
-            )}
-
-            <label style={{
-              display: 'inline-block', cursor: 'pointer', fontSize: 14,
-              background: busy === it.kind ? '#9bd' : BRAND, color: '#fff',
-              padding: '9px 16px', borderRadius: 8, fontWeight: 600,
-            }}>
-              {busy === it.kind ? 'Uploading…' : uploaded ? 'Re-upload' : 'Upload document'}
-              <input
-                type="file"
-                accept="image/*,application/pdf"
-                style={{ display: 'none' }}
-                disabled={busy === it.kind}
-                onChange={(e) => uploadDoc(e.target.files?.[0], it.kind)}
-              />
-            </label>
-            {it.status === 'rejected' && (
-              <p style={{ marginTop: 8, fontSize: 13, color: '#c0392b' }}>
-                Rejected — please re-upload a clear, valid document.
-              </p>
-            )}
+      {/* TRADE LICENSE CARD */}
+      <div style={{ background: '#fff', border: '1px solid #e6e9ee', borderRadius: 12, padding: 18, marginBottom: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <div>
+            <span style={{ fontWeight: 600 }}>Trade License</span>
+            <span style={{ color: '#c0392b', marginLeft: 6, fontSize: 12 }}>* required</span>
+            <span style={{ color: BRAND, marginLeft: 8, fontSize: 12, fontWeight: 600 }}>+10%</span>
           </div>
-        )
-      })}
+          {tlUploaded && (
+            <span style={{ background: tlSt.bg, color: tlSt.color, padding: '4px 10px', borderRadius: 16, fontSize: 12, fontWeight: 600 }}>
+              {tlSt.label}
+            </span>
+          )}
+        </div>
+        {tlUploaded && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#f5f9ff', border: '1px solid #dbeafe', borderRadius: 8, padding: '9px 12px', marginBottom: 10 }}>
+            <i className="ti ti-file-check" style={{ fontSize: 18, color: BRAND }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#0b5d8a' }}>File uploaded</div>
+              <div style={{ fontSize: 11, color: '#667', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fileName(row.trade_license_url)}</div>
+            </div>
+            <button onClick={() => viewMyDoc(row.trade_license_url)}
+              style={{ background: 'transparent', border: `1px solid ${BRAND}`, color: BRAND, padding: '6px 12px', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+              View
+            </button>
+          </div>
+        )}
+        <label style={{ display: 'inline-block', cursor: 'pointer', fontSize: 14, background: busy === 'trade_license' ? '#9bd' : BRAND, color: '#fff', padding: '9px 16px', borderRadius: 8, fontWeight: 600 }}>
+          {busy === 'trade_license' ? 'Uploading…' : tlUploaded ? 'Re-upload' : 'Upload document'}
+          <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} disabled={busy === 'trade_license'}
+            onChange={(e) => uploadTradeLicense(e.target.files?.[0])} />
+        </label>
+        {tlStatus === 'rejected' && (
+          <p style={{ marginTop: 8, fontSize: 13, color: '#c0392b' }}>Rejected — please re-upload a clear, valid document.</p>
+        )}
+      </div>
+
+      {/* OWNER EMIRATES ID CARD (number + expiry + front/back) */}
+      <div style={{ background: '#fff', border: '1px solid #e6e9ee', borderRadius: 12, padding: 18, marginBottom: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div>
+            <span style={{ fontWeight: 600 }}>Owner Emirates ID</span>
+            <span style={{ color: '#999', marginLeft: 6, fontSize: 12 }}>optional</span>
+            <span style={{ color: BRAND, marginLeft: 8, fontSize: 12, fontWeight: 600 }}>+7%</span>
+          </div>
+          {eidUploaded && (
+            <span style={{ background: eidSt.bg, color: eidSt.color, padding: '4px 10px', borderRadius: 16, fontSize: 12, fontWeight: 600 }}>
+              {eidSt.label}
+            </span>
+          )}
+        </div>
+
+        {/* EID Number */}
+        <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Emirates ID Number</label>
+        <input value={eidNumber} onChange={(e) => setEidNumber(e.target.value)} placeholder="784-XXXX-XXXXXXX-X" style={{ ...inputStyle, marginBottom: 12 }} />
+
+        {/* EID Expiry */}
+        <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>EID Expiry Date</label>
+        <input type="date" value={eidExpiry || ''} onChange={(e) => setEidExpiry(e.target.value)} style={{ ...inputStyle, marginBottom: eidExpiryNote ? 6 : 12 }} />
+        {eidExpiryNote && (
+          <div style={{ fontSize: 12, fontWeight: 600, color: eidExpiryNote.color, marginBottom: 12 }}>
+            <i className="ti ti-clock" style={{ fontSize: 13, verticalAlign: '-2px', marginRight: 4 }} />{eidExpiryNote.text}
+          </div>
+        )}
+
+        {/* Front / Back upload */}
+        <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Emirates ID Photo (Front &amp; Back)</label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+          {/* Front */}
+          <div style={{ border: '1px dashed #cfd6df', borderRadius: 10, padding: 12, textAlign: 'center', background: '#fafbfc' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#445', marginBottom: 6 }}>Front Side</div>
+            {eidFront ? (
+              <button onClick={() => viewMyDoc(eidFront)} style={{ background: 'transparent', border: `1px solid ${BRAND}`, color: BRAND, padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer', marginBottom: 6 }}>
+                View uploaded
+              </button>
+            ) : null}
+            <label style={{ display: 'block', cursor: 'pointer', fontSize: 12.5, background: busy === 'eid_front' ? '#9bd' : BRAND, color: '#fff', padding: '7px 10px', borderRadius: 7, fontWeight: 600 }}>
+              {busy === 'eid_front' ? 'Uploading…' : eidFront ? 'Re-upload' : 'Upload front'}
+              <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} disabled={busy === 'eid_front'}
+                onChange={(e) => uploadEidSide(e.target.files?.[0], 'front')} />
+            </label>
+          </div>
+          {/* Back */}
+          <div style={{ border: '1px dashed #cfd6df', borderRadius: 10, padding: 12, textAlign: 'center', background: '#fafbfc' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#445', marginBottom: 6 }}>Back Side</div>
+            {eidBack ? (
+              <button onClick={() => viewMyDoc(eidBack)} style={{ background: 'transparent', border: `1px solid ${BRAND}`, color: BRAND, padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer', marginBottom: 6 }}>
+                View uploaded
+              </button>
+            ) : null}
+            <label style={{ display: 'block', cursor: 'pointer', fontSize: 12.5, background: busy === 'eid_back' ? '#9bd' : BRAND, color: '#fff', padding: '7px 10px', borderRadius: 7, fontWeight: 600 }}>
+              {busy === 'eid_back' ? 'Uploading…' : eidBack ? 'Re-upload' : 'Upload back'}
+              <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} disabled={busy === 'eid_back'}
+                onChange={(e) => uploadEidSide(e.target.files?.[0], 'back')} />
+            </label>
+          </div>
+        </div>
+
+        {/* Save EID number + expiry */}
+        <button onClick={saveEidDetails} disabled={savingEid}
+          style={{ width: '100%', padding: '10px', background: savingEid ? '#9bd' : BRAND, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
+          {savingEid ? 'Saving…' : 'Save Emirates ID Details'}
+        </button>
+
+        <p style={{ marginTop: 8, fontSize: 12, color: '#778' }}>
+          Upload both sides of the Emirates ID. Admin will verify the ID number and expiry against the photo.
+        </p>
+        {eidStatus === 'rejected' && (
+          <p style={{ marginTop: 6, fontSize: 13, color: '#c0392b' }}>Rejected — please re-upload a clear, valid Emirates ID.</p>
+        )}
+      </div>
 
       {/* PHONE — method pending */}
       <div style={{ background: '#fafbfc', border: '1px dashed #cfd6df', borderRadius: 12, padding: 18, marginBottom: 14 }}>
