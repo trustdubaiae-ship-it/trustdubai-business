@@ -27,18 +27,24 @@ import ControlPanel from './pages/ControlPanel'
 const ROLE_LABEL = { owner:'Owner', manager:'Manager', sales:'Sales', engineer:'Engineer', staff:'Staff' }
 
 const PAGE_PERM = {
-  dashboard: 'view_dashboard',
-  profile:   'view_profile',
-  reviews:   'view_reviews',
-  portfolio: 'view_portfolio',
-  analytics: 'view_analytics',
-  leads:     'view_leads',
-  sponsored: 'view_sponsored',
-  staff:     'manage_staff',
-  team:      'view_profile',
-  documents: 'view_profile',
-  faq:       'view_profile',
-  trust:     'view_dashboard',
+  dashboard:          'view_dashboard',
+  notifications:      'view_dashboard',
+  profile:            'view_profile',
+  reviews:            'view_reviews',
+  portfolio:          'view_portfolio',
+  analytics:          'view_analytics',
+  leads:              'view_leads',
+  sponsored:          'view_sponsored',
+  staff:              'manage_staff',
+  team:               'view_profile',
+  documents:          'view_profile',
+  faq:                'view_profile',
+  trust:              'view_dashboard',
+  controlpanel:       'view_profile',
+  verification:       'view_profile',
+  verificationStatus: 'view_profile',
+  plans:              'view_profile',
+  settings:           'view_profile',
 }
 
 const LIMITED_PAGES = ['dashboard', 'profile', 'portfolio', 'faq', 'notifications', 'team', 'documents']
@@ -186,7 +192,7 @@ function Portal() {
         <div style={{ fontSize:34, marginBottom:8 }}>🔒</div>
         <h3 style={{ margin:'0 0 6px', color:'#0f172a' }}>Access Restricted</h3>
         <p style={{ fontSize:13, color:'#64748b', margin:'0 0 16px' }}>
-          You don't have permission to view this section. Please contact your business owner.
+          Restricted. Please contact {company?.name || 'your company'} admin.
         </p>
         <button onClick={() => navigate('dashboard')}
           style={{ padding:'10px 18px', borderRadius:9, border:'none', background:'#0099cc', color:'#fff', fontWeight:600, cursor:'pointer' }}>
