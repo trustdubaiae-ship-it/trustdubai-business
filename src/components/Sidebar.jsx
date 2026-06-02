@@ -1,3 +1,4 @@
+// trustdubai-business/src/components/Sidebar.jsx
 import { useState } from 'react'
 import { useAuth } from '../lib/auth'
 import { can } from '../lib/permissions'
@@ -52,23 +53,29 @@ export default function Sidebar({ activePage, onNavigate, limitedMode = false, l
   const planIcons = { free:'ti-building', silver:'ti-medal', gold:'ti-star', platinum:'ti-diamond' }
 
   const [lockModal, setLockModal] = useState({ open:false, name:'' })
+  const [restrictModal, setRestrictModal] = useState({ open:false, name:'' })
 
-  function handleNav(item, featureLocked) {
+  // priority: permission lock pehle (owner control), phir plan/feature lock
+  function handleNav(item, permLocked, featureLocked) {
+    if (permLocked)    { setRestrictModal({ open:true, name:item.label }); return }
     if (featureLocked) { setLockModal({ open:true, name:item.label }); return }
     onNavigate(item.id)
   }
 
+  // Build menu WITHOUT hiding items on permission.
+  // Section dikhega agar usme koi child item hai (locked ya unlocked).
+  // Permission na ho to item dikhega lekin permLocked flag ke saath (greyed + inactive).
   const visibleMenu = []
   for (let i = 0; i < MENU.length; i++) {
     const item = MENU[i]
     if (item.section) {
       let hasChild = false
       for (let j = i + 1; j < MENU.length && !MENU[j].section; j++) {
-        if (can(role, perms, MENU[j].perm)) { hasChild = true; break }
+        hasChild = true; break
       }
       if (hasChild) visibleMenu.push(item)
-    } else if (can(role, perms, item.perm)) {
-      visibleMenu.push(item)
+    } else {
+      visibleMenu.push({ ...item, permLocked: !can(role, perms, item.perm) })
     }
   }
 
@@ -104,20 +111,28 @@ export default function Sidebar({ activePage, onNavigate, limitedMode = false, l
           if (item.section) return (
             <div key={`sec-${i}`} className="nav-section-label">{item.section}</div>
           )
-          const limitLocked = limitedMode && !limitedPages.includes(item.id)
-          const featureLocked = !limitLocked && item.featureKey ? !hasFeature(item.featureKey) : false
-          const locked = limitLocked || featureLocked
 
-          const isActive = item.id === 'controlpanel'
+          const permLocked   = item.permLocked
+          // plan/feature lock sirf tab dekho jab permission allowed ho
+          const limitLocked  = !permLocked && limitedMode && !limitedPages.includes(item.id)
+          const featureLocked= !permLocked && !limitLocked && item.featureKey ? !hasFeature(item.featureKey) : false
+          const locked       = permLocked || limitLocked || featureLocked
+
+          const isActive = !permLocked && (item.id === 'controlpanel'
             ? CONTROL_PANEL_PAGES.includes(activePage)
-            : activePage === item.id
+            : activePage === item.id)
+
+          const titleText = permLocked
+            ? 'Restricted — contact your company admin'
+            : (featureLocked ? 'Upgrade plan to unlock'
+              : (limitLocked ? 'Available after approval' : ''))
 
           return (
             <button key={`${item.id}-${i}`}
               className={`nav-item${isActive?' active':''}`}
-              onClick={() => handleNav(item, featureLocked)}
-              style={{ opacity: locked ? 0.6 : 1 }}
-              title={featureLocked ? 'Upgrade plan to unlock' : (limitLocked ? 'Available after approval' : '')}>
+              onClick={() => handleNav(item, permLocked, featureLocked)}
+              style={{ opacity: locked ? 0.5 : 1, cursor: permLocked ? 'not-allowed' : 'pointer' }}
+              title={titleText}>
               <i className={`ti ${item.icon}`}/>
               {item.label}
               {locked && (
@@ -164,6 +179,31 @@ export default function Sidebar({ activePage, onNavigate, limitedMode = false, l
         onClose={() => setLockModal({ open:false, name:'' })}
         onUpgrade={() => { setLockModal({ open:false, name:'' }); onNavigate('plans') }}
       />
+
+      {restrictModal.open && (
+        <div
+          onClick={() => setRestrictModal({ open:false, name:'' })}
+          style={{ position:'fixed', inset:0, zIndex:60, background:'rgba(0,0,0,0.45)',
+            display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ background:'#fff', borderRadius:16, width:'100%', maxWidth:380, padding:24, textAlign:'center' }}>
+            <div style={{ width:52, height:52, borderRadius:'50%', background:'#fef2f2',
+              display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 14px' }}>
+              <i className="ti ti-lock" style={{ fontSize:24, color:'#dc2626' }}/>
+            </div>
+            <h4 style={{ margin:'0 0 8px', fontSize:16, fontWeight:700, color:'#0f172a' }}>Access Restricted</h4>
+            <p style={{ margin:'0 0 18px', fontSize:13, color:'#64748b', lineHeight:1.6 }}>
+              Restricted. Please contact {company?.name || 'your company'} admin.
+            </p>
+            <button
+              onClick={() => setRestrictModal({ open:false, name:'' })}
+              style={{ width:'100%', padding:'11px', borderRadius:9, border:'none', color:'#fff',
+                fontWeight:600, fontSize:13, background:'#0099cc', cursor:'pointer' }}>
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </aside>
   )
 }
