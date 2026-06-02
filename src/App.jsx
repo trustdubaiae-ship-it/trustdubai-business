@@ -43,9 +43,24 @@ const PAGE_PERM = {
 
 const LIMITED_PAGES = ['dashboard', 'profile', 'portfolio', 'faq', 'notifications', 'team', 'documents']
 
+// --- Refresh persistence (URL hash) ---
+// activePage is mirrored in the URL hash (e.g. #leads) so a page refresh
+// restores the same page instead of resetting to Dashboard. This also enables
+// deep-linking (notification click -> #documents) for the Inbox ecosystem.
+const VALID_PAGES = [
+  'dashboard', 'profile', 'reviews', 'portfolio', 'analytics', 'leads',
+  'sponsored', 'staff', 'team', 'documents', 'faq', 'notifications', 'trust',
+  'controlpanel', 'verification', 'verificationStatus', 'plans', 'settings',
+]
+
+function getPageFromHash() {
+  const raw = (window.location.hash || '').replace(/^#/, '')
+  return VALID_PAGES.includes(raw) ? raw : 'dashboard'
+}
+
 function Portal() {
   const { user, company, staff, role, loading, signOut } = useAuth()
-  const [activePage,   setActivePage]   = useState('dashboard')
+  const [activePage,   setActivePage]   = useState(getPageFromHash)
   const [showRegister, setShowRegister] = useState(false)
   const [showProfile,  setShowProfile]  = useState(false)
   const [theme,        setTheme]        = useState(getTheme)
@@ -53,9 +68,19 @@ function Portal() {
 
   useEffect(() => { initTheme() }, [])
 
+  // Keep activePage in sync when the URL hash changes (refresh, back/forward button)
+  useEffect(() => {
+    const onHash = () => setActivePage(getPageFromHash())
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+
   function navigate(page) {
     setActivePage(page)
     setSidebarOpen(false)
+    if (window.location.hash.replace(/^#/, '') !== page) {
+      window.location.hash = page
+    }
   }
 
   if (showRegister) return <RegisterPage onBack={() => setShowRegister(false)} />
