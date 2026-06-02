@@ -21,6 +21,7 @@ import TeamMembers from './pages/TeamMembers'
 import DocumentVerification from './pages/DocumentVerification'
 import FaqPage from './pages/FaqPage'
 import NotificationsPage from './pages/NotificationsPage'
+import InboxPage from './pages/InboxPage'
 import TrustScorePage from './pages/TrustScorePage'
 import ControlPanel from './pages/ControlPanel'
 
@@ -28,6 +29,7 @@ const ROLE_LABEL = { owner:'Owner', manager:'Manager', sales:'Sales', engineer:'
 
 const PAGE_PERM = {
   dashboard:          'view_dashboard',
+  inbox:              'view_dashboard',
   notifications:      'view_dashboard',
   profile:            'view_profile',
   reviews:            'view_reviews',
@@ -47,14 +49,14 @@ const PAGE_PERM = {
   settings:           'view_profile',
 }
 
-const LIMITED_PAGES = ['dashboard', 'profile', 'portfolio', 'faq', 'notifications', 'team', 'documents']
+const LIMITED_PAGES = ['dashboard', 'inbox', 'profile', 'portfolio', 'faq', 'notifications', 'team', 'documents']
 
 // --- Refresh persistence (URL hash) ---
 // activePage is mirrored in the URL hash (e.g. #leads) so a page refresh
 // restores the same page instead of resetting to Dashboard. This also enables
 // deep-linking (notification click -> #documents) for the Inbox ecosystem.
 const VALID_PAGES = [
-  'dashboard', 'profile', 'reviews', 'portfolio', 'analytics', 'leads',
+  'dashboard', 'inbox', 'profile', 'reviews', 'portfolio', 'analytics', 'leads',
   'sponsored', 'staff', 'team', 'documents', 'faq', 'notifications', 'trust',
   'controlpanel', 'verification', 'verificationStatus', 'plans', 'settings',
 ]
@@ -109,6 +111,7 @@ function Portal() {
 
   const allPages = {
     dashboard:          <DashboardPage onNavigate={navigate} />,
+    inbox:              <InboxPage />,
     profile:            <ProfilePage />,
     reviews:            <ReviewsPage />,
     portfolio:          <PortfolioPage />,
@@ -129,7 +132,7 @@ function Portal() {
   }
 
   const pageTitles = {
-    dashboard:'Dashboard', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
+    dashboard:'Dashboard', inbox:'Inbox', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
     analytics:'Analytics', leads:'Lead Form', sponsored:'Sponsored Placement', staff:'Staff & Access',
     team:'Our Team', documents:'Document Verification', faq:'FAQ Management', notifications:'Notifications', trust:'Trust Score', controlpanel:'Control Panel',
     verification:'Control Panel', verificationStatus:'Control Panel', plans:'Control Panel', settings:'Control Panel',
