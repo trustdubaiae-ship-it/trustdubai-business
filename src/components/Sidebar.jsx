@@ -15,6 +15,7 @@ const CONTROL_PANEL_PAGES = ['controlpanel','verification','verificationStatus',
 const MENU = [
   { section: 'OVERVIEW' },
   { id:'dashboard',     icon:'ti-layout-dashboard', label:'Dashboard',          perm:'view_dashboard' },
+  { id:'inbox',         icon:'ti-mail',             label:'Inbox',              perm:'view_dashboard' },
   { id:'notifications', icon:'ti-bell',             label:'Notifications',      perm:'view_dashboard' },
 
   { section: 'REPUTATION' },
