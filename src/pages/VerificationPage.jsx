@@ -13,6 +13,12 @@ const STATUS_STYLE = {
   pending:  { bg: '#fff6e6', color: '#b8860b', label: 'Pending review' },
 }
 
+function isImagePath(p) {
+  if (!p) return false
+  const ext = (p.split('.').pop() || '').toLowerCase()
+  return ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext)
+}
+
 export default function VerificationPage() {
   const { company } = useAuth()
   const [row, setRow] = useState(null)
@@ -26,6 +32,9 @@ export default function VerificationPage() {
   const [eidNumber, setEidNumber] = useState('')
   const [eidExpiry, setEidExpiry] = useState('')
   const [savingEid, setSavingEid] = useState(false)
+
+  // signed-url previews { tl, eidFront, eidBack }
+  const [previews, setPreviews] = useState({})
 
   const companyId = company?.id
 
@@ -41,8 +50,26 @@ export default function VerificationPage() {
       setTlNumber(data.trade_license_number || '')
       setEidNumber(data.owner_eid_number || '')
       setEidExpiry(data.owner_eid_expiry || '')
+      loadPreviews(data)
     }
     setLoading(false)
+  }
+
+  // fetch signed URLs for any image documents (private bucket)
+  async function loadPreviews(data) {
+    const front = data.owner_eid_front_url || data.owner_eid_url
+    const back = data.owner_eid_back_url
+    const tl = data.trade_license_url
+    const next = {}
+    async function signed(path) {
+      if (!path || !isImagePath(path)) return null
+      const { data: s } = await supabase.storage.from(BUCKET).createSignedUrl(path, 600)
+      return s?.signedUrl || null
+    }
+    next.tl = await signed(tl)
+    next.eidFront = await signed(front)
+    next.eidBack = await signed(back)
+    setPreviews(next)
   }
 
   useEffect(() => { loadCompany() }, [companyId])
@@ -62,7 +89,6 @@ export default function VerificationPage() {
     setSavingNum(false)
   }
 
-  // Trade License upload (unchanged behaviour)
   async function uploadTradeLicense(file) {
     if (!file || !companyId) return
     setBusy('trade_license')
@@ -83,7 +109,6 @@ export default function VerificationPage() {
     } finally { setBusy('') }
   }
 
-  // Owner EID front/back upload
   async function uploadEidSide(file, side) {
     if (!file || !companyId) return
     const kind = side === 'front' ? 'eid_front' : 'eid_back'
@@ -106,7 +131,6 @@ export default function VerificationPage() {
     } finally { setBusy('') }
   }
 
-  // Save Owner EID number + expiry
   async function saveEidDetails() {
     if (!companyId) return
     if (!eidNumber.trim()) { flash('Please enter the Emirates ID number.', 'error'); return }
@@ -146,17 +170,17 @@ export default function VerificationPage() {
     error:   { bg: '#fdecec', color: '#c0392b' },
   }[msg.type]
 
-  // Trade License card data
+  // Trade License
   const tlStatus = row?.trade_license_status
   const tlSt = STATUS_STYLE[tlStatus] || STATUS_STYLE.pending
   const tlUploaded = !!row?.trade_license_url
 
-  // Owner EID data
+  // Owner EID
   const eidStatus = row?.owner_eid_status
   const eidSt = STATUS_STYLE[eidStatus] || STATUS_STYLE.pending
-  const eidFront = row?.owner_eid_front_url || row?.owner_eid_url   // fallback to old single url
-  const eidBack = row?.owner_eid_back_url
-  const eidUploaded = !!eidFront
+  const eidFrontPath = row?.owner_eid_front_url || row?.owner_eid_url
+  const eidBackPath = row?.owner_eid_back_url
+  const eidUploaded = !!eidFrontPath
 
   // EID expiry countdown
   let eidExpiryNote = null
@@ -170,6 +194,48 @@ export default function VerificationPage() {
   }
 
   const inputStyle = { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #d8dde4', fontSize: 14, boxSizing: 'border-box' }
+
+  // ATM-card style box (aspect ratio ~1.586:1, like a real ID card)
+  const cardBox = {
+    width: '100%', aspectRatio: '1.586 / 1', borderRadius: 12, overflow: 'hidden',
+    border: '1px solid #d8dde4', background: '#f1f4f8', position: 'relative',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  }
+
+  function EidSide({ side }) {
+    const isFront = side === 'front'
+    const path = isFront ? eidFrontPath : eidBackPath
+    const preview = isFront ? previews.eidFront : previews.eidBack
+    const kind = isFront ? 'eid_front' : 'eid_back'
+    const isPdf = path && !isImagePath(path)
+    return (
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#445', marginBottom: 6, textAlign: 'center' }}>
+          {isFront ? 'Front Side' : 'Back Side'}
+        </div>
+        <div style={cardBox} onClick={() => path && viewMyDoc(path)}>
+          {preview ? (
+            <img src={preview} alt={`EID ${side}`} style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer' }} />
+          ) : isPdf ? (
+            <div style={{ textAlign: 'center', cursor: 'pointer' }}>
+              <i className="ti ti-file-text" style={{ fontSize: 30, color: BRAND }} />
+              <div style={{ fontSize: 11, color: '#667', marginTop: 4 }}>PDF uploaded — tap to view</div>
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', color: '#94a3b8' }}>
+              <i className="ti ti-id" style={{ fontSize: 30 }} />
+              <div style={{ fontSize: 11, marginTop: 4 }}>No {isFront ? 'front' : 'back'} uploaded</div>
+            </div>
+          )}
+        </div>
+        <label style={{ display: 'block', cursor: 'pointer', textAlign: 'center', marginTop: 8, fontSize: 12.5, background: busy === kind ? '#9bd' : BRAND, color: '#fff', padding: '7px 10px', borderRadius: 7, fontWeight: 600 }}>
+          {busy === kind ? 'Uploading…' : path ? 'Re-upload' : `Upload ${isFront ? 'front' : 'back'}`}
+          <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} disabled={busy === kind}
+            onChange={(e) => uploadEidSide(e.target.files?.[0], side)} />
+        </label>
+      </div>
+    )
+  }
 
   return (
     <div style={{ maxWidth: 760, margin: '0 auto', padding: '24px 16px' }}>
@@ -217,26 +283,16 @@ export default function VerificationPage() {
           Trade License Number
         </label>
         <div style={{ display: 'flex', gap: 8 }}>
-          <input
-            value={tlNumber}
-            onChange={(e) => setTlNumber(e.target.value)}
-            placeholder="e.g. 1234567"
-            style={{ flex: 1, padding: '10px 12px', borderRadius: 8, border: '1px solid #d8dde4', fontSize: 14 }}
-          />
-          <button
-            onClick={saveTlNumber}
-            disabled={savingNum || tlNumber === (row?.trade_license_number || '')}
-            style={{
-              background: (savingNum || tlNumber === (row?.trade_license_number || '')) ? '#cbd5e1' : BRAND,
-              color: '#fff', border: 'none', borderRadius: 8, padding: '0 18px', fontWeight: 600,
-              fontSize: 14, cursor: 'pointer', whiteSpace: 'nowrap',
-            }}>
+          <input value={tlNumber} onChange={(e) => setTlNumber(e.target.value)} placeholder="e.g. 1234567"
+            style={{ flex: 1, padding: '10px 12px', borderRadius: 8, border: '1px solid #d8dde4', fontSize: 14 }} />
+          <button onClick={saveTlNumber} disabled={savingNum || tlNumber === (row?.trade_license_number || '')}
+            style={{ background: (savingNum || tlNumber === (row?.trade_license_number || '')) ? '#cbd5e1' : BRAND, color: '#fff', border: 'none', borderRadius: 8, padding: '0 18px', fontWeight: 600, fontSize: 14, cursor: 'pointer', whiteSpace: 'nowrap' }}>
             {savingNum ? 'Saving…' : 'Save'}
           </button>
         </div>
       </div>
 
-      {/* TRADE LICENSE CARD */}
+      {/* TRADE LICENSE CARD (with small thumbnail) */}
       <div style={{ background: '#fff', border: '1px solid #e6e9ee', borderRadius: 12, padding: 18, marginBottom: 14 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <div>
@@ -252,7 +308,13 @@ export default function VerificationPage() {
         </div>
         {tlUploaded && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#f5f9ff', border: '1px solid #dbeafe', borderRadius: 8, padding: '9px 12px', marginBottom: 10 }}>
-            <i className="ti ti-file-check" style={{ fontSize: 18, color: BRAND }} />
+            {/* small thumbnail */}
+            {previews.tl ? (
+              <img src={previews.tl} alt="TL" onClick={() => viewMyDoc(row.trade_license_url)}
+                style={{ width: 46, height: 46, borderRadius: 6, objectFit: 'cover', cursor: 'pointer', flexShrink: 0, border: '1px solid #dbeafe' }} />
+            ) : (
+              <i className="ti ti-file-check" style={{ fontSize: 18, color: BRAND }} />
+            )}
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: '#0b5d8a' }}>File uploaded</div>
               <div style={{ fontSize: 11, color: '#667', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fileName(row.trade_license_url)}</div>
@@ -273,7 +335,7 @@ export default function VerificationPage() {
         )}
       </div>
 
-      {/* OWNER EMIRATES ID CARD (number + expiry + front/back) */}
+      {/* OWNER EMIRATES ID CARD */}
       <div style={{ background: '#fff', border: '1px solid #e6e9ee', borderRadius: 12, padding: 18, marginBottom: 14 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <div>
@@ -288,11 +350,9 @@ export default function VerificationPage() {
           )}
         </div>
 
-        {/* EID Number */}
         <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Emirates ID Number</label>
         <input value={eidNumber} onChange={(e) => setEidNumber(e.target.value)} placeholder="784-XXXX-XXXXXXX-X" style={{ ...inputStyle, marginBottom: 12 }} />
 
-        {/* EID Expiry */}
         <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>EID Expiry Date</label>
         <input type="date" value={eidExpiry || ''} onChange={(e) => setEidExpiry(e.target.value)} style={{ ...inputStyle, marginBottom: eidExpiryNote ? 6 : 12 }} />
         {eidExpiryNote && (
@@ -301,40 +361,12 @@ export default function VerificationPage() {
           </div>
         )}
 
-        {/* Front / Back upload */}
-        <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Emirates ID Photo (Front &amp; Back)</label>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-          {/* Front */}
-          <div style={{ border: '1px dashed #cfd6df', borderRadius: 10, padding: 12, textAlign: 'center', background: '#fafbfc' }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#445', marginBottom: 6 }}>Front Side</div>
-            {eidFront ? (
-              <button onClick={() => viewMyDoc(eidFront)} style={{ background: 'transparent', border: `1px solid ${BRAND}`, color: BRAND, padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer', marginBottom: 6 }}>
-                View uploaded
-              </button>
-            ) : null}
-            <label style={{ display: 'block', cursor: 'pointer', fontSize: 12.5, background: busy === 'eid_front' ? '#9bd' : BRAND, color: '#fff', padding: '7px 10px', borderRadius: 7, fontWeight: 600 }}>
-              {busy === 'eid_front' ? 'Uploading…' : eidFront ? 'Re-upload' : 'Upload front'}
-              <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} disabled={busy === 'eid_front'}
-                onChange={(e) => uploadEidSide(e.target.files?.[0], 'front')} />
-            </label>
-          </div>
-          {/* Back */}
-          <div style={{ border: '1px dashed #cfd6df', borderRadius: 10, padding: 12, textAlign: 'center', background: '#fafbfc' }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#445', marginBottom: 6 }}>Back Side</div>
-            {eidBack ? (
-              <button onClick={() => viewMyDoc(eidBack)} style={{ background: 'transparent', border: `1px solid ${BRAND}`, color: BRAND, padding: '5px 10px', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer', marginBottom: 6 }}>
-                View uploaded
-              </button>
-            ) : null}
-            <label style={{ display: 'block', cursor: 'pointer', fontSize: 12.5, background: busy === 'eid_back' ? '#9bd' : BRAND, color: '#fff', padding: '7px 10px', borderRadius: 7, fontWeight: 600 }}>
-              {busy === 'eid_back' ? 'Uploading…' : eidBack ? 'Re-upload' : 'Upload back'}
-              <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} disabled={busy === 'eid_back'}
-                onChange={(e) => uploadEidSide(e.target.files?.[0], 'back')} />
-            </label>
-          </div>
+        <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Emirates ID Photo (Front &amp; Back)</label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+          <EidSide side="front" />
+          <EidSide side="back" />
         </div>
 
-        {/* Save EID number + expiry */}
         <button onClick={saveEidDetails} disabled={savingEid}
           style={{ width: '100%', padding: '10px', background: savingEid ? '#9bd' : BRAND, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
           {savingEid ? 'Saving…' : 'Save Emirates ID Details'}
@@ -348,7 +380,7 @@ export default function VerificationPage() {
         )}
       </div>
 
-      {/* PHONE — method pending */}
+      {/* PHONE */}
       <div style={{ background: '#fafbfc', border: '1px dashed #cfd6df', borderRadius: 12, padding: 18, marginBottom: 14 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontWeight: 600 }}>Phone Verification
