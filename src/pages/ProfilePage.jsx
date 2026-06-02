@@ -2,23 +2,19 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../lib/auth'
 import { useToast } from '../lib/toast'
 import { supabase } from '../lib/supabase'
-import { Camera, Save, Globe, Phone, Mail, MapPin, Tag, AlertTriangle, X } from 'lucide-react'
-
-const CATEGORIES = [
-  'Construction & Renovation', 'Interior Design', 'Electrical', 'Plumbing',
-  'HVAC & AC', 'Painting', 'Flooring', 'Kitchen & Bath', 'Landscaping',
-  'Security Systems', 'IT & Technology', 'Cleaning Services', 'Movers & Storage',
-  'Legal Services', 'Real Estate', 'Healthcare', 'Education', 'Automotive',
-  'Food & Restaurant', 'Retail', 'Finance & Accounting', 'Other'
-]
-
-const PLAN_CAT_LIMITS = { free: 2, silver: 10, gold: Infinity, platinum: Infinity }
+import { Camera, Save, Globe, Phone, Mail, MapPin, Tag, AlertTriangle, X, Plus } from 'lucide-react'
 
 export default function ProfilePage() {
   const { company, refreshCompany } = useAuth()
   const toast = useToast()
   const [saving, setSaving] = useState(false)
   const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [allCategories, setAllCategories] = useState([])   // from DB categories table
+  const [catLimit, setCatLimit] = useState(2)              // from plan_features business_categories
+  const [showRequest, setShowRequest] = useState(false)
+  const [reqName, setReqName] = useState('')
+  const [reqNote, setReqNote] = useState('')
+  const [reqSending, setReqSending] = useState(false)
   const [form, setForm] = useState({
     name: '', description: '', phone: '', email: '', website: '',
     location: '', categories: [], tagline: '',
@@ -26,7 +22,28 @@ export default function ProfilePage() {
   })
 
   const plan = company?.plan || 'free'
-  const catLimit = PLAN_CAT_LIMITS[plan] || 2
+
+  // load DB categories + plan limit
+  useEffect(() => { loadCategoriesAndLimit() }, [plan])
+
+  async function loadCategoriesAndLimit() {
+    try {
+      const { data: cats } = await supabase
+        .from('categories')
+        .select('name')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true })
+      setAllCategories((cats || []).map(c => c.name))
+
+      const { data: pf } = await supabase
+        .from('plan_features')
+        .select('limit_value')
+        .eq('feature_key', 'business_categories')
+        .eq('plan_name', plan)
+        .maybeSingle()
+      if (pf && typeof pf.limit_value === 'number') setCatLimit(pf.limit_value)
+    } catch (e) { console.error(e) }
+  }
 
   useEffect(() => {
     if (company) {
@@ -53,6 +70,11 @@ export default function ProfilePage() {
     }
   }, [company])
 
+  // 999 = unlimited
+  const isUnlimited = catLimit >= 999
+  const planLimitLabel = isUnlimited ? 'Unlimited' : catLimit
+  const limitReached = !isUnlimited && form.categories.length >= catLimit
+
   function handleChange(field, value) {
     setForm(prev => ({ ...prev, [field]: value }))
   }
@@ -60,8 +82,8 @@ export default function ProfilePage() {
   function addCategory(cat) {
     if (!cat) return
     if (form.categories.includes(cat)) return
-    if (form.categories.length >= catLimit) {
-      toast.error(`Your ${plan} plan allows max ${catLimit === Infinity ? 'unlimited' : catLimit} categories`)
+    if (!isUnlimited && form.categories.length >= catLimit) {
+      toast.error(`Your ${plan} plan allows max ${catLimit} categories`)
       return
     }
     setForm(prev => ({ ...prev, categories: [...prev.categories, cat] }))
@@ -69,6 +91,30 @@ export default function ProfilePage() {
 
   function removeCategory(cat) {
     setForm(prev => ({ ...prev, categories: prev.categories.filter(c => c !== cat) }))
+  }
+
+  async function submitRequest() {
+    const name = reqName.trim()
+    if (!name) { toast.error('Enter the category name'); return }
+    setReqSending(true)
+    try {
+      const { error } = await supabase.from('category_requests').insert({
+        company_id: company.id,
+        company_name: company.name,
+        requested_name: name,
+        note: reqNote.trim() || null,
+        status: 'pending',
+      })
+      if (error) throw error
+      toast.success('Category request sent to TrustDubai for review.')
+      setShowRequest(false)
+      setReqName('')
+      setReqNote('')
+    } catch (e) {
+      toast.error('Failed to send request: ' + e.message)
+    } finally {
+      setReqSending(false)
+    }
   }
 
   async function handleSave() {
@@ -127,7 +173,7 @@ export default function ProfilePage() {
     }
   }
 
-  const planLimitLabel = catLimit === Infinity ? 'Unlimited' : catLimit
+  const availableCats = allCategories.filter(c => !form.categories.includes(c))
 
   return (
     <div className="page-content animate-in">
@@ -193,8 +239,8 @@ export default function ProfilePage() {
                 </label>
                 <span style={{
                   fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 99,
-                  background: form.categories.length >= catLimit && catLimit !== Infinity ? 'rgba(239,68,68,0.1)' : 'rgba(0,153,204,0.1)',
-                  color: form.categories.length >= catLimit && catLimit !== Infinity ? '#ef4444' : '#0099cc'
+                  background: limitReached ? 'rgba(239,68,68,0.1)' : 'rgba(0,153,204,0.1)',
+                  color: limitReached ? '#ef4444' : '#0099cc'
                 }}>
                   {form.categories.length}/{planLimitLabel}
                 </span>
@@ -213,21 +259,48 @@ export default function ProfilePage() {
                 </div>
               )}
 
-              {(form.categories.length < catLimit || catLimit === Infinity) && (
+              {!limitReached && (
                 <select className="form-select" value="" onChange={e => { addCategory(e.target.value); e.target.value = '' }}>
                   <option value="">+ Add a category...</option>
-                  {CATEGORIES.filter(c => !form.categories.includes(c)).map(c => (
+                  {availableCats.map(c => (
                     <option key={c} value={c}>{c}</option>
                   ))}
                 </select>
               )}
 
-              {form.categories.length >= catLimit && catLimit !== Infinity && (
+              {limitReached && (
                 <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(232,184,75,0.1)', border: '1px solid rgba(232,184,75,0.3)', borderRadius: 8, fontSize: 12, color: '#92400e' }}>
-                  ⚡ Upgrade your plan to add more categories.
-                  <span style={{ color: '#d97706', fontWeight: 600, marginLeft: 4 }}>Silver: 10 · Gold: Unlimited</span>
+                  ⚡ You've reached your plan's category limit. Upgrade to add more.
                 </div>
               )}
+
+              {/* Request a new category */}
+              <div style={{ marginTop: 10 }}>
+                {!showRequest ? (
+                  <button onClick={() => setShowRequest(true)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', color: '#0099cc', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0 }}>
+                    <Plus size={13} /> Can't find your category? Request it
+                  </button>
+                ) : (
+                  <div style={{ padding: 12, background: 'rgba(0,153,204,0.04)', border: '1px solid rgba(0,153,204,0.2)', borderRadius: 8 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>Request a new category</div>
+                    <input className="form-input" value={reqName} onChange={e => setReqName(e.target.value)} placeholder="Category name (e.g. Solar Installation)" style={{ marginBottom: 8 }} />
+                    <input className="form-input" value={reqNote} onChange={e => setReqNote(e.target.value)} placeholder="Note (optional)" style={{ marginBottom: 10 }} />
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button className="btn btn-primary" onClick={submitRequest} disabled={reqSending} style={{ fontSize: 12, padding: '6px 14px' }}>
+                        {reqSending ? 'Sending...' : 'Send Request'}
+                      </button>
+                      <button onClick={() => { setShowRequest(false); setReqName(''); setReqNote('') }}
+                        style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-secondary)', fontSize: 12, padding: '6px 14px', cursor: 'pointer' }}>
+                        Cancel
+                      </button>
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 8 }}>
+                      TrustDubai will review your request. Approved categories become available to all businesses.
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
