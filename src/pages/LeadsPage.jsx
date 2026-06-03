@@ -389,7 +389,19 @@ export default function LeadsPage() {
         const { error } = await supabase.from('lead_submissions').insert(chunk)
         if (!error) ok += chunk.length
       }
-      await fetchAll(); toast.success(`${ok} leads imported!`); setMainTab('mine')
+
+      // Also create central client records (with UID) for each imported lead
+      const clientRows = records.map(r => ({
+        name: r.name,
+        phone: r.phone || null,
+        email: r.email || null,
+        source: r.answers?.['Source'] || 'excel',
+      }))
+      for (let i = 0; i < clientRows.length; i += 50) {
+        await supabase.from('clients').insert(clientRows.slice(i, i + 50))
+      }
+
+      await fetchAll(); toast.success(`${ok} leads imported!`); setMainTab('mine') 
     } catch (err) { console.error(err); toast.error('Import failed — CSV format check karo') }
     setImporting(false)
     if (fileRef.current) fileRef.current.value = ''
