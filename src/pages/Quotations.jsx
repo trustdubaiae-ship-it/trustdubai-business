@@ -16,7 +16,8 @@ const MODE_STYLE = {
 }
 const FILTERS = ['all', 'draft', 'sent', 'approved']
 const STATUS_FLOW = ['draft', 'sent', 'approved', 'rejected']
-const blankItem = () => ({ desc:'', qty:1, rate:0 })
+const UNITS = ['Lump Sum', 'Nos', 'm²', 'm', 'L/s', 'Set', 'Hour', 'Day']
+const blankItem = () => ({ desc:'', unit:'Nos', qty:1, rate:0 })
 
 export default function Quotations() {
   const { company } = useAuth()
@@ -24,7 +25,7 @@ export default function Quotations() {
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
 
   const [, forceUpdate] = useState(0)
-  const [view, setView]       = useState('list')   // 'list' | 'builder' | 'detail'
+  const [view, setView]       = useState('list')
   const [quotes, setQuotes]   = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch]   = useState('')
@@ -37,7 +38,7 @@ export default function Quotations() {
   // builder
   const [tpl, setTpl]         = useState(null)
   const [saving, setSaving]   = useState(false)
-  const [editId, setEditId]   = useState(null)        // if editing existing quote
+  const [editId, setEditId]   = useState(null)
   const [client, setClient]   = useState(null)
   const [clientSearch, setClientSearch] = useState('')
   const [suggestions, setSuggestions] = useState([])
@@ -68,7 +69,6 @@ export default function Quotations() {
     setTpl(data || null)
   }
 
-  // ---------- client search ----------
   async function searchClients(q) {
     setClientSearch(q); setClient(null)
     if (!q.trim()) { setSuggestions([]); setShowSug(false); return }
@@ -80,7 +80,6 @@ export default function Quotations() {
   }
   function pickClient(c) { setClient(c); setClientSearch(c.name); setShowSug(false) }
 
-  // ---------- detail ----------
   function openDetail(q) { setActiveQuote(q); setView('detail') }
 
   async function changeStatus(newStatus) {
@@ -104,7 +103,6 @@ export default function Quotations() {
     setActiveQuote(null); setView('list'); fetchQuotes()
   }
 
-  // ---------- builder ----------
   function openBuilder() {
     setEditId(null)
     setClient(null); setClientSearch(''); setSuggestions([]); setShowSug(false)
@@ -120,7 +118,7 @@ export default function Quotations() {
     setClientSearch(q.client_name || '')
     setSuggestions([]); setShowSug(false)
     setProjectTitle(q.project_title || '')
-    setItems(Array.isArray(q.items) && q.items.length ? q.items.map(it => ({ desc:it.desc||'', qty:it.qty??1, rate:it.rate??0 })) : [blankItem()])
+    setItems(Array.isArray(q.items) && q.items.length ? q.items.map(it => ({ desc:it.desc||'', unit:it.unit||'Nos', qty:it.qty??1, rate:it.rate??0 })) : [blankItem()])
     setNotes('')
     setVatEnabled(!!q.vat_amount || (tpl?.default_vat_enabled ?? true))
     setDiscountType(null); setDiscountValue(0)
@@ -153,7 +151,7 @@ export default function Quotations() {
         client_email: client.email || null,
         project_title: projectTitle.trim() || null,
         mode: 'simple',
-        items: validItems.map(it => ({ desc:it.desc.trim(), qty:Number(it.qty)||0, rate:Number(it.rate)||0 })),
+        items: validItems.map(it => ({ desc:it.desc.trim(), unit:it.unit||'Nos', qty:Number(it.qty)||0, rate:Number(it.rate)||0 })),
         subtotal,
         vat_amount: vatAmount,
         total: grandTotal,
@@ -182,7 +180,6 @@ export default function Quotations() {
     } finally { setSaving(false) }
   }
 
-  // ---------- derived ----------
   let list = quotes
   if (filter !== 'all') list = list.filter(q => (q.status||'draft')===filter)
   if (search.trim()) {
@@ -196,7 +193,6 @@ export default function Quotations() {
   const apprVal = quotes.filter(q => (q.status||'draft')==='approved').reduce((s,q)=> s+(q.total||0),0)
   const fmtShort = n => n>=1000 ? (n/1000).toFixed(n%1000===0?0:1)+'k' : String(Math.round(n))
 
-  // ---------- theme ----------
   const text=isDark?'#f1f5f9':'#0f172a', textSub=isDark?'#94a3b8':'#64748b', textMuted=isDark?'#475569':'#94a3b8'
   const border=isDark?'rgba(255,255,255,0.08)':'#e2e8f0', cardBg=isDark?'#1e293b':'#ffffff'
   const subBg=isDark?'rgba(255,255,255,0.04)':'#f8fafc', pillBg=isDark?'rgba(255,255,255,0.05)':'#fff', inputBg=isDark?'#0f172a':'#fff'
@@ -225,7 +221,6 @@ export default function Quotations() {
           <span style={{ fontSize:11, color:st.color, background:isDark?st.color+'22':st.bg, padding:'4px 11px', borderRadius:99, fontWeight:600 }}>{st.label}</span>
         </div>
 
-        {/* Client */}
         <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, padding:'12px 14px', marginBottom:12, display:'flex', alignItems:'center', gap:11 }}>
           <div style={{ width:36, height:36, borderRadius:8, background:isDark?'rgba(3,193,245,0.12)':'#e0f9ff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:600, color:'#0077a3' }}>{initials(q.client_name)}</div>
           <div style={{ flex:1 }}>
@@ -234,14 +229,14 @@ export default function Quotations() {
           </div>
         </div>
 
-        {/* Items */}
         <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, overflow:'hidden', marginBottom:12 }}>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 50px 80px 90px', gap:8, padding:'9px 13px', background:subBg, fontSize:11, color:textSub, textTransform:'uppercase', letterSpacing:'.3px' }}>
-            <span>Description</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 70px 44px 70px 80px', gap:8, padding:'9px 13px', background:subBg, fontSize:11, color:textSub, textTransform:'uppercase', letterSpacing:'.3px' }}>
+            <span>Description</span><span>Unit</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span>
           </div>
           {qItems.map((it, i) => (
-            <div key={i} style={{ display:'grid', gridTemplateColumns:'1fr 50px 80px 90px', gap:8, padding:'9px 13px', borderTop:`1px solid ${border}`, fontSize:13, color:text }}>
+            <div key={i} style={{ display:'grid', gridTemplateColumns:'1fr 70px 44px 70px 80px', gap:8, padding:'9px 13px', borderTop:`1px solid ${border}`, fontSize:13, color:text }}>
               <span>{it.desc}</span>
+              <span style={{ color:textSub, fontSize:12 }}>{it.unit||'—'}</span>
               <span style={{ color:textSub }}>{it.qty}</span>
               <span style={{ color:textSub }}>{Number(it.rate).toLocaleString('en-AE')}</span>
               <span style={{ textAlign:'right' }}>{Math.round((Number(it.qty)||0)*(Number(it.rate)||0)).toLocaleString('en-AE')}</span>
@@ -249,7 +244,6 @@ export default function Quotations() {
           ))}
         </div>
 
-        {/* Totals */}
         <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:14 }}>
           <div style={{ width:230 }}>
             <div style={{ display:'flex', justifyContent:'space-between', fontSize:13, color:textSub, padding:'3px 0' }}><span>Subtotal</span><span>{fmt(q.subtotal||0)}</span></div>
@@ -258,7 +252,6 @@ export default function Quotations() {
           </div>
         </div>
 
-        {/* Status changer */}
         <div style={{ borderTop:`1px dashed ${border}`, paddingTop:13, marginBottom:13 }}>
           <div style={{ fontSize:11, color:textMuted, textTransform:'uppercase', letterSpacing:'.4px', marginBottom:8 }}>Status</div>
           <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
@@ -276,7 +269,6 @@ export default function Quotations() {
           </div>
         </div>
 
-        {/* Actions */}
         <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
           <button onClick={()=>editQuote(q)} style={{ flex:1, minWidth:90, padding:'10px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}>
             <i className="ti ti-edit" style={{ fontSize:14, verticalAlign:'-2px', marginRight:4 }}/> Edit
@@ -307,7 +299,6 @@ export default function Quotations() {
           <span style={{ fontSize:11, color:'#0077a3', background:isDark?'rgba(3,193,245,0.15)':'#e0f9ff', padding:'4px 11px', borderRadius:99, fontWeight:600 }}>Simple</span>
         </div>
 
-        {/* Client select */}
         <div style={{ marginBottom:12, position:'relative' }}>
           <label style={{ fontSize:12, color:textSub, display:'block', marginBottom:5 }}>Select client <span style={{ color:'#dc2626' }}>*</span></label>
           {client ? (
@@ -354,31 +345,33 @@ export default function Quotations() {
 
         <input value={projectTitle} onChange={e=>setProjectTitle(e.target.value)} placeholder="Project title (e.g. Interior Fit-Out)" style={{ ...inputStyle, marginBottom:14 }}/>
 
-        {/* Items */}
+        {/* Items with UNIT */}
         <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, overflow:'hidden', marginBottom:14 }}>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 60px 90px 96px 30px', gap:8, padding:'9px 12px', background:subBg, fontSize:11, color:textSub, textTransform:'uppercase', letterSpacing:'.3px' }}>
-            <span>Description</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span><span/>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 78px 52px 78px 80px 28px', gap:6, padding:'9px 11px', background:subBg, fontSize:11, color:textSub, textTransform:'uppercase', letterSpacing:'.3px' }}>
+            <span>Description</span><span>Unit</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span><span/>
           </div>
           {items.map((it, idx) => {
             const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
             return (
-              <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 60px 90px 96px 30px', gap:8, padding:'8px 12px', alignItems:'center', borderTop:`1px solid ${border}` }}>
-                <input value={it.desc} onChange={e=>updateItem(idx,'desc',e.target.value)} placeholder="Item description" style={{ ...inputStyle, padding:'7px 9px', fontSize:12.5 }}/>
-                <input type="number" value={it.qty} onChange={e=>updateItem(idx,'qty',e.target.value)} style={{ ...inputStyle, padding:'7px 9px', fontSize:12.5 }}/>
-                <input type="number" value={it.rate} onChange={e=>updateItem(idx,'rate',e.target.value)} style={{ ...inputStyle, padding:'7px 9px', fontSize:12.5 }}/>
-                <span style={{ textAlign:'right', fontSize:13, color:text }}>{Math.round(lt).toLocaleString('en-AE')}</span>
+              <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 78px 52px 78px 80px 28px', gap:6, padding:'8px 11px', alignItems:'center', borderTop:`1px solid ${border}` }}>
+                <input value={it.desc} onChange={e=>updateItem(idx,'desc',e.target.value)} placeholder="Item description" style={{ ...inputStyle, padding:'7px 8px', fontSize:12.5 }}/>
+                <select value={it.unit} onChange={e=>updateItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 5px', fontSize:11.5 }}>
+                  {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
+                </select>
+                <input type="number" value={it.qty} onChange={e=>updateItem(idx,'qty',e.target.value)} style={{ ...inputStyle, padding:'7px 6px', fontSize:12.5 }}/>
+                <input type="number" value={it.rate} onChange={e=>updateItem(idx,'rate',e.target.value)} style={{ ...inputStyle, padding:'7px 8px', fontSize:12.5 }}/>
+                <span style={{ textAlign:'right', fontSize:12.5, color:text }}>{Math.round(lt).toLocaleString('en-AE')}</span>
                 <button onClick={()=>removeItem(idx)} style={{ background:'none', border:'none', cursor:'pointer', color:textMuted, display:'flex', justifyContent:'center' }}><i className="ti ti-x" style={{ fontSize:15 }}/></button>
               </div>
             )
           })}
-          <div style={{ padding:'9px 12px', borderTop:`1px solid ${border}` }}>
+          <div style={{ padding:'9px 11px', borderTop:`1px solid ${border}` }}>
             <button onClick={addItem} style={{ fontSize:12, padding:'6px 12px', border:`1px solid ${border}`, borderRadius:7, background:'none', color:'#0099cc', cursor:'pointer', fontWeight:600 }}>
               <i className="ti ti-plus" style={{ fontSize:13, verticalAlign:'-2px', marginRight:3 }}/> Add line item
             </button>
           </div>
         </div>
 
-        {/* Discount/VAT + Totals */}
         <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
           <div style={{ flex:1, minWidth:230, display:'flex', flexDirection:'column', gap:10 }}>
             <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, padding:'11px 13px' }}>
