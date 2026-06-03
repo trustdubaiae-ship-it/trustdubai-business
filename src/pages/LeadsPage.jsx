@@ -864,8 +864,7 @@ export default function LeadsPage() {
               return (
                 <div key={s.key} onClick={s.click ? () => toggleQuick(s.key) : undefined}
                   style={{ ...card, padding: '11px 14px', cursor: s.click ? 'pointer' : 'default',
-                    borderColor: active ? s.color : 'var(--border)', borderWidth: active ? 1.5 : 0.5, borderStyle: 'solid',
-                    background: active ? s.color.replace(')', ', 0.06)').replace('rgb', 'rgba').replace('#', '') && active ? 'var(--card)' : 'var(--card)' }}>
+                    borderColor: active ? s.color : 'var(--border)', borderWidth: active ? 1.5 : 0.5, borderStyle: 'solid' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ fontSize: 11, color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 5 }}><i className={'ti ' + s.icon} style={{ fontSize: 12, color: s.color }} /> {s.label}</div>
                     {active && <i className="ti ti-circle-check-filled" style={{ fontSize: 13, color: s.color }} />}
