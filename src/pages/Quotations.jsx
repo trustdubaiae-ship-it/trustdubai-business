@@ -880,9 +880,8 @@ export default function Quotations() {
         </div>
 
         <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-          <button onClick={()=>setView('detail')} disabled={voSaving} style={{ flex:1, minWidth:100, padding:'11px', borderRadius:9, border:`1px solid ${border}`, background:'transparent', color:textSub, fontSize:13, cursor:'pointer' }}>Cancel</button>
-          <button onClick={()=>saveVo(false)} disabled={voSaving} style={{ flex:1, minWidth:100, padding:'11px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}>{voSaving?'Saving...':(voEditId?'Update':'Save draft')}</button>
-          <button onClick={()=>saveVo(true)} disabled={voSaving} style={{ flex:1, minWidth:100, padding:'11px', borderRadius:9, border:'none', background:'#0099cc', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer' }}><i className="ti ti-send" style={{ fontSize:14, verticalAlign:'-2px', marginRight:4 }}/> {voSaving?'...':'Send'}</button>
+          <button onClick={()=>setView('detail')} disabled={voSaving} style={{ flex:1, minWidth:120, padding:'11px', borderRadius:9, border:`1px solid ${border}`, background:'transparent', color:textSub, fontSize:13, cursor:'pointer' }}>Cancel</button>
+          <button onClick={()=>saveVo(false)} disabled={voSaving} style={{ flex:2, minWidth:160, padding:'11px', borderRadius:9, border:'none', background:'#0099cc', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer' }}><i className="ti ti-check" style={{ fontSize:14, verticalAlign:'-2px', marginRight:4 }}/> {voSaving?'Saving...':(voEditId?'Update VO':'Save VO')}</button>
         </div>
       </div>
     )
