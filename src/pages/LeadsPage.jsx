@@ -82,6 +82,7 @@ export default function LeadsPage() {
   const [view, setView] = useState('board')
   const [search, setSearch] = useState('')
   const [fSource, setFSource] = useState('all')
+  const [quickFilter, setQuickFilter] = useState('')   // '' | due | overdue | hot
   const [mobileStage, setMobileStage] = useState('new')
   const [dragId, setDragId] = useState(null)
 
@@ -99,7 +100,6 @@ export default function LeadsPage() {
   const [tplName, setTplName] = useState('')
   const [tplBody, setTplBody] = useState('')
 
-  // Add Lead modal
   const [showAdd, setShowAdd] = useState(false)
   const [addMore, setAddMore] = useState(false)
   const [savingAdd, setSavingAdd] = useState(false)
@@ -173,7 +173,6 @@ export default function LeadsPage() {
     await fetchAll(); setSaving(false); toast.success('Form saved!')
   }
 
-  // ===== ADD LEAD =====
   function openAdd() { setAddF(blankAdd); setAddMore(false); setShowAdd(true) }
   function closeAdd() { setShowAdd(false) }
   function setA(k, v) { setAddF(p => ({ ...p, [k]: v })) }
@@ -387,15 +386,23 @@ export default function LeadsPage() {
 
   const isTD = mainTab === 'trustdubai'
   const baseLeads = isTD ? tdLeads : myLeads
+  const today = new Date().toISOString().split('T')[0]
+
+  function matchesQuick(l) {
+    if (quickFilter === 'due') return l.follow_up_date === today && !['won','lost'].includes(l.status)
+    if (quickFilter === 'overdue') return l.follow_up_date && l.follow_up_date < today && !['won','lost'].includes(l.status)
+    if (quickFilter === 'hot') return l.temperature === 'hot' && !['won','lost'].includes(l.status)
+    return true
+  }
 
   const filtered = baseLeads.filter(l => {
     const q = search.trim().toLowerCase()
     if (q && !(`${l.name || ''} ${l.phone || ''} ${l.email || ''}`.toLowerCase().includes(q))) return false
     if (!isTD && fSource !== 'all' && mySource(l) !== fSource) return false
+    if (!matchesQuick(l)) return false
     return true
   })
 
-  const today = new Date().toISOString().split('T')[0]
   const dueToday = baseLeads.filter(l => l.follow_up_date === today && !['won','lost'].includes(l.status)).length
   const overdue  = baseLeads.filter(l => l.follow_up_date && l.follow_up_date < today && !['won','lost'].includes(l.status)).length
   const hotCount = baseLeads.filter(l => l.temperature === 'hot' && !['won','lost'].includes(l.status)).length
@@ -404,11 +411,14 @@ export default function LeadsPage() {
   const mySrcCount = (k) => myLeads.filter(l => mySource(l) === k).length
 
   function toggleSource(k) { setFSource(prev => prev === k ? 'all' : k) }
+  function toggleQuick(k) { setQuickFilter(prev => prev === k ? '' : k) }
   function nextStage(stage) {
     const i = PIPELINE.findIndex(p => p.stage === stage)
     if (i >= 0 && i < PIPELINE.length - 1) return PIPELINE[i + 1].stage
     return stage
   }
+
+  const QUICK_LABELS = { due: 'Due today', overdue: 'Overdue', hot: 'Hot leads' }
 
   const card = { background: 'var(--card)', border: '0.5px solid var(--border)', borderRadius: 14, padding: 16 }
   const inputStyle = { border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--text)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }
@@ -646,7 +656,6 @@ export default function LeadsPage() {
 
           <div style={{ border: '0.5px solid var(--border)', borderRadius: 10, padding: 13, marginBottom: 12 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 10 }}><i className="ti ti-message-2" style={{ fontSize: 14, color: '#0f7a52' }} /> Send follow-up message</div>
-
             <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 6 }}>Quick templates</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
               {DEFAULT_TEMPLATES.map(t => (
@@ -654,7 +663,6 @@ export default function LeadsPage() {
                   style={{ fontSize: 10, padding: '5px 10px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', border: 'none', background: 'var(--bg2)', color: 'var(--text2)' }}>{t.name}</button>
               ))}
             </div>
-
             <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 6 }}>My templates</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
               {templates.map(t => (
@@ -668,7 +676,6 @@ export default function LeadsPage() {
                 <i className="ti ti-plus" style={{ fontSize: 12 }} /> New template
               </button>
             </div>
-
             {showNewTpl && (
               <div style={{ background: 'var(--bg2)', borderRadius: 8, padding: 11, marginBottom: 10 }}>
                 <input value={tplName} onChange={e => setTplName(e.target.value)} placeholder='Template name — e.g. "Ramadan greeting"'
@@ -682,7 +689,6 @@ export default function LeadsPage() {
                 </div>
               </div>
             )}
-
             <textarea value={msgText} onChange={e => setMsgText(e.target.value)} placeholder="Tap a template above or write your message..."
               style={{ width: '100%', minHeight: 50, padding: '8px 10px', ...inputStyle, fontSize: 12, resize: 'vertical', marginBottom: 9 }} />
             <button onClick={sendWhatsApp} disabled={!lead.phone}
@@ -734,6 +740,16 @@ export default function LeadsPage() {
             <button className="btn btn-primary" onClick={openAdd}>+ Add Lead</button>
             <button className="btn btn-secondary" onClick={() => fileRef.current?.click()}>⬆ Import CSV</button>
           </div>}
+        </div>
+      )
+    }
+    if (quickFilter && filtered.length === 0) {
+      const msg = quickFilter === 'due' ? "No follow-ups due today — you're all caught up!" : quickFilter === 'overdue' ? 'No overdue follow-ups — nicely done!' : 'No hot leads right now.'
+      return (
+        <div style={{ ...card, textAlign: 'center', padding: '50px 20px' }}>
+          <i className="ti ti-circle-check" style={{ fontSize: 40, color: '#10b981', display: 'block', marginBottom: 12 }} />
+          <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 6, color: 'var(--text)' }}>{msg}</h3>
+          <button onClick={() => setQuickFilter('')} className="btn btn-secondary btn-sm" style={{ marginTop: 8 }}>Show all leads</button>
         </div>
       )
     }
@@ -833,21 +849,40 @@ export default function LeadsPage() {
   }
 
   function Toolbar() {
+    const STAT_CARDS = [
+      { key: 'due',     label: 'Due today', value: dueToday, color: '#0891b2', icon: 'ti-clock', click: true },
+      { key: 'overdue', label: 'Overdue',   value: overdue,  color: '#ef4444', icon: 'ti-alert-triangle', click: true },
+      { key: 'hot',     label: 'Hot',       value: hotCount, color: '#d85a30', icon: 'ti-flame', click: true },
+      { key: 'won',     label: 'Won rate',  value: wonRate + '%', color: '#10b981', icon: 'ti-trophy', click: false },
+    ]
     return (
       <>
         {baseLeads.length > 0 && (
           <div style={{ display: 'grid', gridTemplateColumns: mobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 10, marginBottom: 12 }}>
-            {[
-              { label: 'Due today', value: dueToday, color: '#0891b2', icon: 'ti-clock' },
-              { label: 'Overdue',   value: overdue,  color: '#ef4444', icon: 'ti-alert-triangle' },
-              { label: 'Hot',       value: hotCount, color: '#d85a30', icon: 'ti-flame' },
-              { label: 'Won rate',  value: wonRate + '%', color: '#10b981', icon: 'ti-trophy' },
-            ].map(s => (
-              <div key={s.label} style={{ ...card, padding: '11px 14px' }}>
-                <div style={{ fontSize: 11, color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 5 }}><i className={'ti ' + s.icon} style={{ fontSize: 12, color: s.color }} /> {s.label}</div>
-                <div style={{ fontSize: 21, fontWeight: 700, color: s.color, marginTop: 2 }}>{s.value}</div>
-              </div>
-            ))}
+            {STAT_CARDS.map(s => {
+              const active = s.click && quickFilter === s.key
+              return (
+                <div key={s.key} onClick={s.click ? () => toggleQuick(s.key) : undefined}
+                  style={{ ...card, padding: '11px 14px', cursor: s.click ? 'pointer' : 'default',
+                    borderColor: active ? s.color : 'var(--border)', borderWidth: active ? 1.5 : 0.5, borderStyle: 'solid',
+                    background: active ? s.color.replace(')', ', 0.06)').replace('rgb', 'rgba').replace('#', '') && active ? 'var(--card)' : 'var(--card)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontSize: 11, color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 5 }}><i className={'ti ' + s.icon} style={{ fontSize: 12, color: s.color }} /> {s.label}</div>
+                    {active && <i className="ti ti-circle-check-filled" style={{ fontSize: 13, color: s.color }} />}
+                  </div>
+                  <div style={{ fontSize: 21, fontWeight: 700, color: s.color, marginTop: 2 }}>{s.value}</div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {quickFilter && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg2)', borderRadius: 8, padding: '8px 13px', marginBottom: 12 }}>
+            <span style={{ fontSize: 12, color: 'var(--text2)' }}>Showing: <b style={{ color: 'var(--text)' }}>{QUICK_LABELS[quickFilter]}</b> · {filtered.length} {filtered.length === 1 ? 'lead' : 'leads'}</span>
+            <button onClick={() => setQuickFilter('')} style={{ marginLeft: 'auto', fontSize: 12, color: '#0099cc', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <i className="ti ti-x" style={{ fontSize: 13 }} /> Show all
+            </button>
           </div>
         )}
 
@@ -907,7 +942,7 @@ export default function LeadsPage() {
           { id: 'mine',       label: 'My Leads',         count: myLeads.length, icon: 'ti-building-store' },
           { id: 'forms',      label: 'Forms',            count: forms.length,   icon: 'ti-forms' },
         ].map(t => (
-          <button key={t.id} onClick={() => { setMainTab(t.id); setFSource('all'); setSearch(''); closeEditor() }} style={{
+          <button key={t.id} onClick={() => { setMainTab(t.id); setFSource('all'); setSearch(''); setQuickFilter(''); closeEditor() }} style={{
             padding: '9px 16px', border: 'none', background: 'none', cursor: 'pointer',
             fontSize: 13.5, fontWeight: 600, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6,
             color: mainTab === t.id ? 'var(--primary)' : 'var(--text2)',
