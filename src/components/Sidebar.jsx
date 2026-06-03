@@ -23,7 +23,8 @@ const MENU = [
   { id:'leads',      icon:'ti-message-circle',   label:'Leads',              perm:'view_leads',    featureKey:'lead_email' },
 
   { section: 'SALES HUB' },
-  { id:'quotations', icon:'ti-file-invoice',     label:'Quotations',         perm:'view_leads' },
+  { id:'quotations',    icon:'ti-file-invoice',  label:'Quotations',         perm:'view_leads' },
+  { id:'quoteSettings', icon:'ti-settings',      label:'Quote Settings',     perm:'view_profile' },
 
   { section: 'GROWTH' },
   { id:'analytics',  icon:'ti-chart-bar',        label:'Analytics',          perm:'view_analytics', featureKey:'analytics' },
