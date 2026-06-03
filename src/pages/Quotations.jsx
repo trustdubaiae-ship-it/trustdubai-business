@@ -23,31 +23,20 @@ export default function Quotations() {
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
 
   const [, forceUpdate] = useState(0)
-  // view: 'list' | 'select' | 'newproject' | 'builder'
-  const [view, setView]       = useState('list')
+  const [view, setView]       = useState('list')   // 'list' | 'builder'
   const [quotes, setQuotes]   = useState([])
-  const [projects, setProjects] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch]   = useState('')
   const [filter, setFilter]   = useState('all')
 
-  // select step
-  const [projSearch, setProjSearch] = useState('')
-
-  // new project form
-  const [npName, setNpName]   = useState('')
-  const [npPhone, setNpPhone] = useState('')
-  const [npType, setNpType]   = useState('')
-  const [npOpt, setNpOpt]     = useState({ location:false, email:false, budget:false })
-  const [npLocation, setNpLocation] = useState('')
-  const [npEmail, setNpEmail] = useState('')
-  const [npBudget, setNpBudget] = useState('')
-  const [npSaving, setNpSaving] = useState(false)
-
   // builder
-  const [activeProject, setActiveProject] = useState(null)  // selected/created project row
   const [tpl, setTpl]         = useState(null)
   const [saving, setSaving]   = useState(false)
+  const [client, setClient]   = useState(null)        // selected client row
+  const [clientSearch, setClientSearch] = useState('')
+  const [suggestions, setSuggestions] = useState([])
+  const [showSug, setShowSug] = useState(false)
+  const [projectTitle, setProjectTitle] = useState('')
   const [items, setItems]     = useState([blankItem()])
   const [vatEnabled, setVatEnabled]   = useState(true)
   const [discountType, setDiscountType] = useState(null)
@@ -55,7 +44,7 @@ export default function Quotations() {
   const [notes, setNotes]     = useState('')
 
   useEffect(() => {
-    if (company?.id) { fetchQuotes(); fetchTemplate(); fetchProjects() }
+    if (company?.id) { fetchQuotes(); fetchTemplate() }
     const observer = new MutationObserver(() => forceUpdate(n => n + 1))
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
     return () => observer.disconnect()
@@ -80,60 +69,29 @@ export default function Quotations() {
       .eq('company_id', company.id).maybeSingle()
     setTpl(data || null)
   }
-  async function fetchProjects() {
-    const { data } = await supabase.from('projects').select('*')
-      .eq('company_id', company.id).order('created_at', { ascending: false })
-    setProjects(data || [])
-  }
 
-  // ---------- NEW QUOTATION → step 1 (select) ----------
-  function startNewQuote() {
-    setProjSearch('')
-    setView('select')
+  // ---------- client search (clients table) ----------
+  async function searchClients(q) {
+    setClientSearch(q)
+    setClient(null)
+    if (!q.trim()) { setSuggestions([]); setShowSug(false); return }
+    const term = q.trim()
+    const { data } = await supabase.from('clients').select('*')
+      .or(`name.ilike.%${term}%,phone.ilike.%${term}%,uid.ilike.%${term}%`)
+      .order('name').limit(8)
+    setSuggestions(data || [])
+    setShowSug(true)
   }
-
-  // ---------- new project ----------
-  function openNewProject() {
-    setNpName(''); setNpPhone(''); setNpType('')
-    setNpOpt({ location:false, email:false, budget:false })
-    setNpLocation(''); setNpEmail(''); setNpBudget('')
-    setView('newproject')
-  }
-  async function saveProject() {
-    if (!npName.trim()) { toast.error('Client name is required'); return }
-    if (!npPhone.trim()) { toast.error('Phone is required'); return }
-    if (!npType.trim()) { toast.error('Project type is required'); return }
-    setNpSaving(true)
-    try {
-      const { data: uid, error: uidErr } = await supabase.rpc('fn_next_uid', { p_company_id: company.id })
-      if (uidErr) throw uidErr
-      const row = {
-        company_id: company.id,
-        code: uid,
-        name: npType.trim(),
-        client_name: npName.trim(),
-        client_phone: npPhone.trim(),
-        client_email: npOpt.email ? (npEmail.trim() || null) : null,
-        location: npOpt.location ? (npLocation.trim() || null) : null,
-        budget: npOpt.budget && npBudget ? Number(npBudget) : null,
-        source: 'manual',
-        status: 'active',
-      }
-      const { data: proj, error: pErr } = await supabase.from('projects').insert(row).select().single()
-      if (pErr) throw pErr
-      toast.success('Project created · ' + uid)
-      fetchProjects()
-      openBuilder(proj)
-    } catch (e) {
-      toast.error('Failed: ' + (e.message || 'unknown'))
-    } finally {
-      setNpSaving(false)
-    }
+  function pickClient(c) {
+    setClient(c)
+    setClientSearch(c.name)
+    setShowSug(false)
   }
 
   // ---------- builder ----------
-  function openBuilder(proj) {
-    setActiveProject(proj)
+  function openBuilder() {
+    setClient(null); setClientSearch(''); setSuggestions([]); setShowSug(false)
+    setProjectTitle('')
     setItems([blankItem()]); setNotes('')
     setVatEnabled(tpl?.default_vat_enabled ?? true)
     setDiscountType(null); setDiscountValue(0)
@@ -152,6 +110,7 @@ export default function Quotations() {
   const fmt = n => 'AED ' + Math.round(n).toLocaleString('en-AE')
 
   async function saveQuote(sendNow) {
+    if (!client) { toast.error('Select a client first'); return }
     const validItems = items.filter(it => it.desc.trim())
     if (validItems.length === 0) { toast.error('Add at least one line item'); return }
     setSaving(true)
@@ -164,11 +123,12 @@ export default function Quotations() {
       const { data: q, error: qErr } = await supabase.from('quotations').insert({
         company_id: company.id,
         quote_number: quoteNumber,
-        project_id: activeProject?.id || null,
-        source_uid: activeProject?.code || null,
-        client_name: activeProject?.client_name || null,
-        client_phone: activeProject?.client_phone || null,
-        project_title: activeProject?.name || null,
+        client_id: client.id,
+        client_uid: client.uid,
+        source_uid: client.uid,
+        client_name: client.name,
+        client_phone: client.phone || null,
+        project_title: projectTitle.trim() || null,
         mode: 'simple',
         status: sendNow ? 'sent' : 'draft',
         current_revision: 0,
@@ -192,10 +152,6 @@ export default function Quotations() {
       })
       if (rErr) throw rErr
 
-      // mark project as quoted
-      if (activeProject?.id) {
-        await supabase.from('projects').update({ status:'quoted' }).eq('id', activeProject.id)
-      }
       toast.success(sendNow ? 'Quotation sent ✓' : 'Draft saved ✓')
       setView('list'); fetchQuotes()
     } catch (e) {
@@ -209,20 +165,13 @@ export default function Quotations() {
   if (search.trim()) {
     const s = search.toLowerCase()
     list = list.filter(q => q.quote_number?.toLowerCase().includes(s) || q.client_name?.toLowerCase().includes(s)
-      || q.project_title?.toLowerCase().includes(s) || q.source_uid?.toLowerCase().includes(s))
+      || q.project_title?.toLowerCase().includes(s) || q.client_uid?.toLowerCase().includes(s))
   }
   const total   = quotes.length
   const sentCnt = quotes.filter(q => (q.status||'draft')==='sent').length
   const apprCnt = quotes.filter(q => (q.status||'draft')==='approved').length
   const apprVal = quotes.filter(q => (q.status||'draft')==='approved').reduce((s,q)=> s+(q._total||0),0)
   const fmtShort = n => n>=1000 ? (n/1000).toFixed(n%1000===0?0:1)+'k' : String(Math.round(n))
-
-  let projList = projects
-  if (projSearch.trim()) {
-    const s = projSearch.toLowerCase()
-    projList = projList.filter(p => p.client_name?.toLowerCase().includes(s) || p.name?.toLowerCase().includes(s)
-      || p.code?.toLowerCase().includes(s) || p.client_phone?.toLowerCase().includes(s))
-  }
 
   // ---------- theme ----------
   const text=isDark?'#f1f5f9':'#0f172a', textSub=isDark?'#94a3b8':'#64748b', textMuted=isDark?'#475569':'#94a3b8'
@@ -231,136 +180,14 @@ export default function Quotations() {
   const inputStyle = { padding:'9px 11px', border:`1px solid ${border}`, borderRadius:8, fontSize:13, background:inputBg, color:text, outline:'none', width:'100%' }
   const initials = nm => nm ? nm.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase() : '?'
 
-  const backBtn = (onClick) => (
-    <button onClick={onClick} style={{ width:34, height:34, borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:textSub, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
-      <i className="ti ti-arrow-left" style={{ fontSize:16 }}/>
-    </button>
-  )
-
-  // ============ SELECT STEP ============
-  if (view === 'select') {
-    return (
-      <div>
-        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:18 }}>
-          {backBtn(() => setView('list'))}
-          <div style={{ flex:1 }}>
-            <h1 style={{ fontSize:19, fontWeight:700, color:text, margin:0 }}>New Quotation</h1>
-            <div style={{ fontSize:12, color:textMuted }}>Step 1 — choose who it's for</div>
-          </div>
-        </div>
-
-        <div style={{ fontSize:13, color:textSub, marginBottom:8 }}>Select a lead or project</div>
-        <div style={{ position:'relative', marginBottom:12 }}>
-          <input value={projSearch} onChange={e=>setProjSearch(e.target.value)} placeholder="Type a name, phone or UID..."
-            style={{ ...inputStyle, paddingLeft:34 }} />
-          <i className="ti ti-search" style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)', fontSize:15, color:textMuted }}/>
-        </div>
-
-        {projList.length > 0 ? (
-          <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, overflow:'hidden', marginBottom:14 }}>
-            {projList.map((p, i) => (
-              <div key={p.id} onClick={() => openBuilder(p)}
-                style={{ display:'flex', alignItems:'center', gap:11, padding:'10px 13px', cursor:'pointer', borderTop: i>0?`1px solid ${border}`:'none' }}
-                onMouseEnter={e=>e.currentTarget.style.background=subBg}
-                onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                <div style={{ width:34, height:34, borderRadius:8, background:subBg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:600, color:textSub, flexShrink:0 }}>{initials(p.client_name)}</div>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontSize:13, fontWeight:600, color:text }}>{p.client_name}</div>
-                  <div style={{ fontSize:11, color:textSub, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                    {p.name || '—'}{p.location?' · '+p.location:''}{p.source && p.source!=='manual'?' · from '+p.source:''}
-                  </div>
-                </div>
-                <span style={{ fontSize:10, color:'#0077a3', background: isDark?'rgba(3,193,245,0.12)':'#e0f9ff', padding:'2px 8px', borderRadius:99, fontFamily:'monospace', flexShrink:0 }}>{p.code}</span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div style={{ textAlign:'center', padding:'24px', color:textMuted, fontSize:13, background:cardBg, border:`1px solid ${border}`, borderRadius:10, marginBottom:14 }}>
-            {projects.length===0 ? 'No projects yet — add your first below.' : 'No match found.'}
-          </div>
-        )}
-
-        <div style={{ display:'flex', alignItems:'center', gap:10, margin:'14px 0' }}>
-          <div style={{ flex:1, height:1, background:border }}/>
-          <span style={{ fontSize:11, color:textMuted }}>or</span>
-          <div style={{ flex:1, height:1, background:border }}/>
-        </div>
-
-        <button onClick={openNewProject}
-          style={{ width:'100%', padding:'11px', borderRadius:9, border:'none', background:'#0099cc', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:5 }}>
-          <i className="ti ti-plus" style={{ fontSize:15 }}/> Add new project / lead
-        </button>
-        <div style={{ fontSize:11, color:textMuted, textAlign:'center', marginTop:8 }}>A new project gets its own UID automatically</div>
-      </div>
-    )
-  }
-
-  // ============ NEW PROJECT FORM ============
-  if (view === 'newproject') {
-    const optRow = (key, label, value, setter, type='text') => (
-      <div style={{ display:'flex', alignItems:'center', gap:10, background:cardBg, border:`1px solid ${npOpt[key]?'#0099cc':border}`, borderRadius:8, padding:'8px 11px', opacity: npOpt[key]?1:0.6 }}>
-        <input type="checkbox" checked={npOpt[key]} onChange={e=>setNpOpt(o=>({...o,[key]:e.target.checked}))} style={{ width:'auto', flexShrink:0 }}/>
-        <label style={{ fontSize:12, color:textSub, width:80, flexShrink:0 }}>{label}</label>
-        <input type={type} value={value} onChange={e=>setter(e.target.value)} disabled={!npOpt[key]}
-          placeholder={npOpt[key]?'':'Not included'} style={{ ...inputStyle, padding:'7px 9px', fontSize:12.5 }}/>
-      </div>
-    )
-    return (
-      <div>
-        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:6 }}>
-          {backBtn(() => setView('select'))}
-          <div style={{ flex:1 }}>
-            <h1 style={{ fontSize:19, fontWeight:700, color:text, margin:0 }}>New Project / Lead</h1>
-            <div style={{ fontSize:12, color:textMuted }}>UID will be assigned on save</div>
-          </div>
-          <span style={{ fontSize:10, color:textMuted, background:subBg, padding:'3px 9px', borderRadius:99, fontFamily:'monospace' }}>TD-{company?.company_code||'····'}-····</span>
-        </div>
-
-        <div style={{ fontSize:11, color:textMuted, textTransform:'uppercase', letterSpacing:'.4px', margin:'14px 0 8px' }}>Required</div>
-        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-          <div>
-            <label style={{ fontSize:12, color:textSub, display:'block', marginBottom:4 }}>Client name <span style={{ color:'#dc2626' }}>*</span></label>
-            <input value={npName} onChange={e=>setNpName(e.target.value)} placeholder="e.g. Mr. Ankit" style={inputStyle}/>
-          </div>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-            <div>
-              <label style={{ fontSize:12, color:textSub, display:'block', marginBottom:4 }}>Phone <span style={{ color:'#dc2626' }}>*</span></label>
-              <input value={npPhone} onChange={e=>setNpPhone(e.target.value)} placeholder="+971 50 ..." style={inputStyle}/>
-            </div>
-            <div>
-              <label style={{ fontSize:12, color:textSub, display:'block', marginBottom:4 }}>Project type <span style={{ color:'#dc2626' }}>*</span></label>
-              <input value={npType} onChange={e=>setNpType(e.target.value)} placeholder="e.g. Interior Fit-Out" style={inputStyle}/>
-            </div>
-          </div>
-        </div>
-
-        <div style={{ fontSize:11, color:textMuted, textTransform:'uppercase', letterSpacing:'.4px', margin:'18px 0 8px' }}>
-          Optional <span style={{ textTransform:'none', letterSpacing:0 }}>· tick to include</span>
-        </div>
-        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-          {optRow('location','Location', npLocation, setNpLocation)}
-          {optRow('email','Email', npEmail, setNpEmail)}
-          {optRow('budget','Budget', npBudget, setNpBudget, 'number')}
-        </div>
-
-        <div style={{ display:'flex', gap:8, marginTop:16 }}>
-          <button onClick={()=>setView('select')} disabled={npSaving}
-            style={{ flex:1, padding:'11px', borderRadius:9, border:`1px solid ${border}`, background:'transparent', color:textSub, fontSize:13, cursor:'pointer' }}>Cancel</button>
-          <button onClick={saveProject} disabled={npSaving}
-            style={{ flex:2, padding:'11px', borderRadius:9, border:'none', background:'#0099cc', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer' }}>
-            <i className="ti ti-check" style={{ fontSize:15, verticalAlign:'-2px', marginRight:4 }}/> {npSaving?'Saving...':'Save & continue to quote'}
-          </button>
-        </div>
-      </div>
-    )
-  }
-
   // ============ BUILDER ============
   if (view === 'builder') {
     return (
       <div>
         <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14 }}>
-          {backBtn(() => setView('list'))}
+          <button onClick={() => setView('list')} style={{ width:34, height:34, borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:textSub, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <i className="ti ti-arrow-left" style={{ fontSize:16 }}/>
+          </button>
           <div style={{ flex:1 }}>
             <h1 style={{ fontSize:19, fontWeight:700, color:text, margin:0 }}>New Quotation</h1>
             <div style={{ fontSize:12, color:textMuted }}>Simple mode · Rev 0</div>
@@ -368,20 +195,52 @@ export default function Quotations() {
           <span style={{ fontSize:11, color:'#0077a3', background:isDark?'rgba(3,193,245,0.15)':'#e0f9ff', padding:'4px 11px', borderRadius:99, fontWeight:600 }}>Simple</span>
         </div>
 
-        {/* Client strip */}
-        {activeProject && (
-          <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, padding:'10px 13px', marginBottom:12, display:'flex', alignItems:'center', gap:10 }}>
-            <div style={{ width:34, height:34, borderRadius:8, background:isDark?'rgba(3,193,245,0.12)':'#e0f9ff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:600, color:'#0077a3' }}>{initials(activeProject.client_name)}</div>
-            <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:13, fontWeight:600, color:text }}>{activeProject.client_name}{activeProject.name?' · '+activeProject.name:''}</div>
-              <div style={{ fontSize:11, color:textSub }}>{activeProject.client_phone||''}{activeProject.location?' · '+activeProject.location:''}</div>
+        {/* Client select */}
+        <div style={{ marginBottom:12, position:'relative' }}>
+          <label style={{ fontSize:12, color:textSub, display:'block', marginBottom:5 }}>Select client <span style={{ color:'#dc2626' }}>*</span></label>
+          {client ? (
+            <div style={{ background:cardBg, border:`1px solid #0099cc`, borderRadius:8, padding:'10px 12px', display:'flex', alignItems:'center', gap:10 }}>
+              <div style={{ width:32, height:32, borderRadius:8, background:isDark?'rgba(3,193,245,0.12)':'#e0f9ff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:600, color:'#0077a3' }}>{initials(client.name)}</div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:13, fontWeight:600, color:text }}>{client.name}</div>
+                <div style={{ fontSize:11, color:textSub }}>{client.phone||'—'}{client.email?' · '+client.email:''}</div>
+              </div>
+              <span style={{ fontSize:10, color:'#0077a3', fontFamily:'monospace' }}>{client.uid}</span>
+              <button onClick={()=>{ setClient(null); setClientSearch('') }} style={{ background:'none', border:'none', cursor:'pointer', color:textMuted }}><i className="ti ti-x" style={{ fontSize:15 }}/></button>
             </div>
-            <div style={{ textAlign:'right' }}>
-              <div style={{ fontSize:10, color:textMuted, fontFamily:'monospace' }}>{activeProject.code}</div>
-              <div style={{ fontSize:10, color:'#0077a3', fontFamily:'monospace' }}>Ref pending</div>
-            </div>
-          </div>
-        )}
+          ) : (
+            <>
+              <div style={{ position:'relative' }}>
+                <input value={clientSearch} onChange={e=>searchClients(e.target.value)} onFocus={()=>clientSearch&&setShowSug(true)}
+                  placeholder="Type client name, phone or UID..." style={{ ...inputStyle, paddingLeft:34 }} />
+                <i className="ti ti-search" style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)', fontSize:15, color:textMuted }}/>
+              </div>
+              {showSug && (
+                <div style={{ position:'absolute', top:'100%', left:0, right:0, marginTop:4, background:cardBg, border:`1px solid ${border}`, borderRadius:8, boxShadow:'0 8px 24px rgba(0,0,0,0.12)', zIndex:20, overflow:'hidden', maxHeight:280, overflowY:'auto' }}>
+                  {suggestions.length > 0 ? suggestions.map((c,i) => (
+                    <div key={c.id} onClick={()=>pickClient(c)}
+                      style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 12px', cursor:'pointer', borderTop: i>0?`1px solid ${border}`:'none' }}
+                      onMouseEnter={e=>e.currentTarget.style.background=subBg} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                      <div style={{ width:30, height:30, borderRadius:7, background:subBg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:600, color:textSub }}>{initials(c.name)}</div>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:13, fontWeight:600, color:text }}>{c.name}</div>
+                        <div style={{ fontSize:11, color:textSub }}>{c.phone||'—'}</div>
+                      </div>
+                      <span style={{ fontSize:10, color:textMuted, fontFamily:'monospace' }}>{c.uid}</span>
+                    </div>
+                  )) : (
+                    <div style={{ padding:'14px 12px', textAlign:'center' }}>
+                      <div style={{ fontSize:12, color:textSub, marginBottom:4 }}>No client found</div>
+                      <div style={{ fontSize:11, color:textMuted }}>Client not listed? Add them in My Leads first, then select here.</div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <input value={projectTitle} onChange={e=>setProjectTitle(e.target.value)} placeholder="Project title (e.g. Interior Fit-Out)" style={{ ...inputStyle, marginBottom:14 }}/>
 
         {/* Items */}
         <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, overflow:'hidden', marginBottom:14 }}>
@@ -461,7 +320,7 @@ export default function Quotations() {
           <h1 style={{ fontSize:21, fontWeight:700, color:text, margin:0 }}>Quotations</h1>
           <p style={{ fontSize:13, color:textSub, marginTop:3 }}>Create, send &amp; track your quotes · {total} total</p>
         </div>
-        <button onClick={startNewQuote} style={{ padding:'9px 16px', background:'#0099cc', color:'#fff', border:'none', borderRadius:9, fontSize:13, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:5 }}>
+        <button onClick={openBuilder} style={{ padding:'9px 16px', background:'#0099cc', color:'#fff', border:'none', borderRadius:9, fontSize:13, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:5 }}>
           <i className="ti ti-plus" style={{ fontSize:15 }}/> New Quotation
         </button>
       </div>
@@ -496,7 +355,7 @@ export default function Quotations() {
           <div style={{ width:56, height:56, borderRadius:14, background:subBg, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 14px' }}><i className="ti ti-file-invoice" style={{ fontSize:26, color:textMuted }}/></div>
           <h3 style={{ fontSize:16, fontWeight:700, color:text, margin:'0 0 6px' }}>{quotes.length===0?'No quotations yet':'No quotes match your filter'}</h3>
           <p style={{ fontSize:13, color:textSub, margin:'0 0 18px', lineHeight:1.5 }}>{quotes.length===0?'Create your first quotation and send it to a client in minutes.':'Try a different status filter or search term.'}</p>
-          {quotes.length===0 && <button onClick={startNewQuote} style={{ padding:'10px 18px', background:'#0099cc', color:'#fff', border:'none', borderRadius:9, fontSize:13, fontWeight:600, cursor:'pointer' }}>+ New Quotation</button>}
+          {quotes.length===0 && <button onClick={openBuilder} style={{ padding:'10px 18px', background:'#0099cc', color:'#fff', border:'none', borderRadius:9, fontSize:13, fontWeight:600, cursor:'pointer' }}>+ New Quotation</button>}
         </div>
       ) : (
         <div style={{ display:'flex', flexDirection:'column', gap:9 }}>
@@ -513,7 +372,7 @@ export default function Quotations() {
                   <div style={{ fontSize:14, fontWeight:600, color:text, display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
                     {q.quote_number||'Untitled'}
                     <span style={{ fontSize:11, color:md.color, background:isDark?md.color+'22':md.bg, padding:'1px 8px', borderRadius:99 }}>{md.label}</span>
-                    {q.source_uid && <span style={{ fontSize:10, color:textMuted, fontFamily:'monospace' }}>{q.source_uid}</span>}
+                    {q.client_uid && <span style={{ fontSize:10, color:textMuted, fontFamily:'monospace' }}>{q.client_uid}</span>}
                   </div>
                   <div style={{ fontSize:12, color:textSub, marginTop:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                     {q.client_name||'No client'}{q.project_title?' · '+q.project_title:''} · Rev {q.current_revision??0}
