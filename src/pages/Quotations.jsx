@@ -24,7 +24,6 @@ const PLAN_RANK = { free:0, silver:1, gold:2, platinum:3 }
 const blankItem  = () => ({ desc:'', unit:'Nos', qty:1, rate:0 })
 const blankItemT = (trade) => ({ desc:'', unit:'Nos', qty:1, rate:0, trade: trade || '' })
 
-// Group items by trade, preserving each item's original index for editing.
 function groupByTradeIdx(items, order) {
   const groups = {}
   items.forEach((it, idx) => {
@@ -35,12 +34,10 @@ function groupByTradeIdx(items, order) {
   ;(order || []).forEach(t => { if (groups[t]) seq.push(t) })
   Object.keys(groups).forEach(t => { if (!seq.includes(t)) seq.push(t) })
   return seq.map(t => ({
-    trade: t,
-    rows: groups[t],
+    trade: t, rows: groups[t],
     subtotal: groups[t].reduce((s, r) => s + (Number(r.it.qty)||0)*(Number(r.it.rate)||0), 0),
   }))
 }
-// Read-only grouping (detail/preview/print)
 function groupByTrade(items, order) {
   const groups = {}
   ;(items || []).forEach(it => {
@@ -51,14 +48,34 @@ function groupByTrade(items, order) {
   ;(order || []).forEach(t => { if (groups[t]) seq.push(t) })
   Object.keys(groups).forEach(t => { if (!seq.includes(t)) seq.push(t) })
   return seq.map(t => ({
-    trade: t,
-    items: groups[t],
+    trade: t, items: groups[t],
     subtotal: groups[t].reduce((s, it) => s + (Number(it.qty)||0)*(Number(it.rate)||0), 0),
   }))
 }
 
-const DEFAULT_TERMS = 'Quotation valid for 7 days. Prices in AED. Work commences after advance payment & design approval. All as per approved drawing and engineer\'s instruction.'
-const DEFAULT_PAYMENT = '50% Advance · 40% On 60% completion · 10% On handover'
+const DEFAULT_TERMS = 'Quotation valid for 30 days. Prices in AED. Work commences after advance payment & design approval. All as per approved drawing and engineer\'s instruction.'
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => (
+    { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]
+  ))
+}
+function parseWhyTpl(raw) {
+  if (!raw) return []
+  try {
+    const p = JSON.parse(raw)
+    if (Array.isArray(p)) return p.map(x => ({ title: x.title || '', detail: x.detail || '' })).filter(x => x.title || x.detail)
+  } catch {}
+  return String(raw).split('\n').filter(l => l.trim()).map(l => ({ title: l.trim(), detail: '' }))
+}
+function parsePaymentTpl(raw) {
+  if (Array.isArray(raw) && raw.length) {
+    return raw.map(x => (typeof x === 'object'
+      ? { percent: Number(x.percent) || 0, label: x.label || '', description: x.description || '' }
+      : { percent: 0, label: String(x), description: '' }))
+  }
+  return []
+}
 
 const DRAFT_KEY = 'td_quote_draft_v1'
 const loadDraft  = () => { try { const r = localStorage.getItem(DRAFT_KEY); return r ? JSON.parse(r) : null } catch { return null } }
@@ -70,11 +87,12 @@ export default function Quotations() {
   const toast = useToast()
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
 
-  const planName = company?.plan || 'free'
-  const canBoq   = (PLAN_RANK[planName] || 0) >= 2
+  const planName    = company?.plan || 'free'
+  const canBoq      = (PLAN_RANK[planName] || 0) >= 2
+  const canPremium  = (PLAN_RANK[planName] || 0) >= 2
 
   const [, forceUpdate] = useState(0)
-  const [view, setView]       = useState('list')   // list | builder | detail | preview
+  const [view, setView]       = useState('list')
   const [quotes, setQuotes]   = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch]   = useState('')
@@ -114,7 +132,6 @@ export default function Quotations() {
     return () => observer.disconnect()
   }, [company?.id])
 
-  // Auto-save builder data to browser (only for NEW quote, not edit)
   useEffect(() => {
     if (view !== 'builder' || editId) return
     const hasContent = client || projectTitle.trim() || items.some(it => it.desc.trim())
@@ -178,14 +195,12 @@ export default function Quotations() {
   }
 
   function openBuilder() {
-    setEditId(null)
-    setMode('simple')
+    setEditId(null); setMode('simple')
     setClient(null); setClientSearch(''); setSuggestions([]); setShowSug(false)
     setProjectTitle(''); setItems([blankItem()]); setNotes('')
     setVatEnabled(tpl?.default_vat_enabled ?? true)
     setDiscountType(null); setDiscountValue(0)
-    setShowFooter(true); setShowSignature(true)
-    setAddTradePick('')
+    setShowFooter(true); setShowSignature(true); setAddTradePick('')
     setView('builder')
   }
   function resumeDraft() {
@@ -193,19 +208,14 @@ export default function Quotations() {
     if (!d) { setDraftExists(false); return }
     setEditId(null)
     setMode(d.mode === 'boq' && canBoq ? 'boq' : 'simple')
-    setClient(d.client || null)
-    setClientSearch(d.clientSearch || '')
+    setClient(d.client || null); setClientSearch(d.clientSearch || '')
     setSuggestions([]); setShowSug(false)
     setProjectTitle(d.projectTitle || '')
     setItems(Array.isArray(d.items) && d.items.length ? d.items : [blankItem()])
     setVatEnabled(d.vatEnabled ?? true)
-    setDiscountType(d.discountType ?? null)
-    setDiscountValue(d.discountValue ?? 0)
-    setNotes(d.notes || '')
-    setShowFooter(d.showFooter ?? true)
-    setShowSignature(d.showSignature ?? true)
-    setAddTradePick('')
-    setView('builder')
+    setDiscountType(d.discountType ?? null); setDiscountValue(d.discountValue ?? 0)
+    setNotes(d.notes || ''); setShowFooter(d.showFooter ?? true); setShowSignature(d.showSignature ?? true)
+    setAddTradePick(''); setView('builder')
   }
   function discardDraft() { clearDraft(); setDraftExists(false); toast.info('Draft discarded') }
 
@@ -213,8 +223,7 @@ export default function Quotations() {
     setEditId(q.id)
     setMode(q.mode === 'boq' && canBoq ? 'boq' : (q.mode || 'simple'))
     setClient(q.client_id ? { id:q.client_id, uid:q.client_uid, name:q.client_name, phone:q.client_phone, email:q.client_email } : null)
-    setClientSearch(q.client_name || '')
-    setSuggestions([]); setShowSug(false)
+    setClientSearch(q.client_name || ''); setSuggestions([]); setShowSug(false)
     setProjectTitle(q.project_title || '')
     setItems(Array.isArray(q.items) && q.items.length
       ? q.items.map(it => ({ desc:it.desc||'', unit:it.unit||'Nos', qty:it.qty??1, rate:it.rate??0, trade: it.trade || '' }))
@@ -222,13 +231,10 @@ export default function Quotations() {
     setNotes('')
     setVatEnabled(!!q.vat_amount || (tpl?.default_vat_enabled ?? true))
     setDiscountType(null); setDiscountValue(0)
-    setShowFooter(q.show_footer ?? true)
-    setShowSignature(q.show_signature ?? true)
-    setAddTradePick('')
-    setView('builder')
+    setShowFooter(q.show_footer ?? true); setShowSignature(q.show_signature ?? true)
+    setAddTradePick(''); setView('builder')
   }
 
-  // ---- mode switch (plan gated) ----
   function switchMode(m) {
     if (m === mode) return
     if (m === 'boq' && !canBoq) { setLockModal(true); return }
@@ -242,16 +248,9 @@ export default function Quotations() {
   function updateItem(idx, field, val) { setItems(prev => prev.map((it,i)=> i===idx?{...it,[field]:val}:it)) }
   function addItem() { setItems(prev => [...prev, blankItem()]) }
   function removeItem(idx) { setItems(prev => prev.length===1?prev:prev.filter((_,i)=>i!==idx)) }
-
-  // ---- BOQ helpers ----
   function addItemToTrade(trade) { setItems(prev => [...prev, blankItemT(trade)]) }
   function removeItemBoq(idx) { setItems(prev => prev.filter((_,i)=>i!==idx)) }
-  function addTradeSection() {
-    const t = addTradePick
-    if (!t) return
-    addItemToTrade(t)
-    setAddTradePick('')
-  }
+  function addTradeSection() { if (!addTradePick) return; addItemToTrade(addTradePick); setAddTradePick('') }
 
   const subtotal = items.reduce((s,it)=> s + (Number(it.qty)||0)*(Number(it.rate)||0), 0)
   const discountAmount = discountType==='percent' ? Math.round(subtotal*(Number(discountValue)||0)/100)
@@ -301,6 +300,235 @@ export default function Quotations() {
     } finally { setSaving(false) }
   }
 
+  // ============ PDF HTML GENERATOR (shared by Preview + Print) ============
+  function buildQuoteHTML(q) {
+    const cName  = escapeHtml(tpl?.company_legal_name || company?.name || 'Company')
+    const cLogo  = company?.logo_url || ''
+    const tagline= escapeHtml(tpl?.tagline || 'Dubai, UAE')
+    const cPhone = escapeHtml(tpl?.contact_phone || company?.phone || '')
+    const cEmail = escapeHtml(tpl?.contact_email || '')
+    const trn    = escapeHtml(tpl?.trn_number || '')
+    const terms  = escapeHtml(tpl?.default_terms || DEFAULT_TERMS)
+    const wantFooter = q.show_footer ?? true
+    const wantSign   = q.show_signature ?? true
+    const qItems = Array.isArray(q.items) ? q.items : []
+    const isBoq  = (q.mode === 'boq')
+    const dateStr = new Date(q.created_at || Date.now()).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })
+
+    const sub = Number(q.subtotal||0), vat = Number(q.vat_amount||0), tot = Number(q.total||0)
+    const disc = Math.max(0, sub - (tot - vat))
+    const n = v => Math.round(v).toLocaleString('en-AE')
+
+    const payments = parsePaymentTpl(tpl?.payment_schedule)
+    const whys = parseWhyTpl(tpl?.why_choose_us)
+
+    const colgroup = `<colgroup><col style="width:26px"><col><col style="width:44px"><col style="width:36px"><col style="width:60px"><col style="width:72px"></colgroup>`
+    const td = 'padding:7px 8px;font-size:10.5px;border-bottom:0.5px solid #ededed;'
+    const tdDesc = `${td}word-break:break-word;overflow-wrap:anywhere;`
+
+    const rowHtml = (it, i, premium) => `<tr>
+      <td style="${td}color:#999;">${i}</td>
+      <td style="${tdDesc}">${escapeHtml(it.desc||'')}</td>
+      <td style="${td}text-align:center;color:#777;">${escapeHtml(it.unit||'')}</td>
+      <td style="${td}text-align:center;color:#777;">${escapeHtml(it.qty||0)}</td>
+      <td style="${td}text-align:right;color:#777;">${n(Number(it.rate)||0)}</td>
+      <td style="${td}text-align:right;">${n((Number(it.qty)||0)*(Number(it.rate)||0))}</td>
+    </tr>`
+
+    const bandBg = canPremium ? '#c9952a' : '#1a1a1a'
+    const bandColor = canPremium ? '#1a1a1a' : '#fff'
+
+    let bodyRows = ''
+    if (isBoq) {
+      const groups = groupByTrade(qItems, tradeList)
+      bodyRows = groups.map((g, gi) => `
+        <tr><td colspan="6" style="background:${bandBg};color:${bandColor};font-size:10px;font-weight:700;padding:5px 10px;letter-spacing:1px;">${escapeHtml(String.fromCharCode(65+gi))} · ${escapeHtml(g.trade.toUpperCase())}</td></tr>
+        ${g.items.map((it,i)=>rowHtml(it,i+1)).join('')}
+        <tr><td colspan="5" style="text-align:right;padding:6px 10px;background:#faf6ec;font-size:10px;font-weight:700;color:#6b6b6b;">${escapeHtml(g.trade)} Subtotal</td><td style="text-align:right;padding:6px 10px;background:#faf6ec;font-size:10px;font-weight:700;color:#c9952a;">AED ${n(g.subtotal)}</td></tr>
+      `).join('')
+    } else {
+      bodyRows = qItems.map((it,i)=>rowHtml(it,i+1)).join('')
+    }
+
+    const logoBox = cLogo
+      ? `<img src="${escapeHtml(cLogo)}" style="width:54px;height:54px;border-radius:11px;object-fit:cover;">`
+      : `<div style="width:54px;height:54px;border-radius:11px;background:#1a1a1a;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:22px;color:#c9952a;">${cName[0]||'C'}</div>`
+
+    // ----- PREMIUM (Gold+) -----
+    if (canPremium) {
+      const paymentCards = payments.length ? `
+        <div style="padding:18px 30px 0;">
+          <div style="font-size:10px;color:#c9952a;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:10px;">— Payment Schedule</div>
+          <div style="display:flex;gap:8px;">
+            ${payments.map(p => `<div style="flex:1;border:0.5px solid #eee;border-top:2px solid #c9952a;padding:9px 10px;">
+              <div style="font-size:16px;font-weight:700;color:#c9952a;">${escapeHtml(p.percent)}%</div>
+              <div style="font-size:9.5px;font-weight:700;margin-top:3px;">${escapeHtml(p.label||'')}</div>
+              ${p.description?`<div style="font-size:8.5px;color:#888;margin-top:2px;line-height:1.4;">${escapeHtml(p.description)}</div>`:''}
+            </div>`).join('')}
+          </div>
+        </div>` : ''
+
+      const whyBlock = whys.length ? `
+        <div style="padding:18px 30px 0;">
+          <div style="font-size:10px;color:#c9952a;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:10px;">— Why Choose ${cName.split(' ').slice(0,2).join(' ')}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px 16px;">
+            ${whys.map(w => `<div style="display:flex;gap:7px;">
+              <span style="color:#c9952a;font-size:13px;font-weight:700;line-height:1.2;">✓</span>
+              <div><div style="font-size:10px;font-weight:700;">${escapeHtml(w.title||'')}</div>${w.detail?`<div style="font-size:8.5px;color:#888;line-height:1.5;">${escapeHtml(w.detail)}</div>`:''}</div>
+            </div>`).join('')}
+          </div>
+        </div>` : ''
+
+      const signBlock = wantSign ? `
+        <div style="padding:20px 30px 6px;margin-top:14px;border-top:0.5px solid #eee;display:flex;gap:30px;">
+          <div style="flex:1;text-align:center;"><div style="font-size:9px;font-weight:700;color:#6b6b6b;margin-bottom:24px;">For ${cName}</div><div style="border-bottom:1px solid #1a1a1a;"></div><div style="font-size:8px;color:#999;margin-top:4px;">Authorized Signatory · Date · Stamp</div></div>
+          <div style="flex:1;text-align:center;"><div style="font-size:9px;font-weight:700;color:#6b6b6b;margin-bottom:24px;">Client Acceptance & Approval</div><div style="border-bottom:1px solid #1a1a1a;"></div><div style="font-size:8px;color:#999;margin-top:4px;">Name · Signature · Date</div></div>
+        </div>` : ''
+
+      return `<div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;max-width:680px;margin:0 auto;background:#fff;">
+        <div style="height:5px;background:#c9952a;"></div>
+        <div style="padding:22px 30px 0;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
+            <div style="display:flex;gap:13px;align-items:center;">
+              ${logoBox}
+              <div>
+                <div style="font-size:16px;font-weight:700;">${cName}</div>
+                <div style="font-size:9px;color:#8a8a8a;letter-spacing:1px;text-transform:uppercase;margin-top:2px;">${tagline}</div>
+                <div style="font-size:9.5px;color:#8a8a8a;margin-top:3px;">${cPhone}${cEmail?' · '+cEmail:''}${trn?' · TRN '+trn:''}</div>
+              </div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:20px;font-weight:700;color:#c9952a;letter-spacing:2px;">QUOTATION</div>
+              <div style="display:inline-block;margin-top:6px;background:#faf6ec;border:0.5px solid #e8d9b5;border-radius:5px;padding:5px 9px;text-align:left;">
+                <div style="font-size:9px;color:#6b6b6b;font-family:monospace;">Ref · ${escapeHtml(q.quote_number||'')}</div>
+                ${q.client_uid?`<div style="font-size:9px;color:#6b6b6b;font-family:monospace;">UID · ${escapeHtml(q.client_uid)}</div>`:''}
+                <div style="font-size:9px;color:#6b6b6b;">Date · ${dateStr}</div>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;gap:14px;margin-bottom:16px;">
+            <div style="flex:1;background:#faf9f7;border-left:2.5px solid #c9952a;padding:9px 13px;">
+              <div style="font-size:8.5px;color:#b08f3f;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:3px;">Bill To</div>
+              <div style="font-size:12.5px;font-weight:700;word-break:break-word;">${escapeHtml(q.client_name||'')}</div>
+              <div style="font-size:10px;color:#6b6b6b;">${escapeHtml(q.client_phone||'')}</div>
+            </div>
+            <div style="flex:1;background:#faf9f7;border-left:2.5px solid #c9952a;padding:9px 13px;">
+              <div style="font-size:8.5px;color:#b08f3f;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:3px;">Project</div>
+              <div style="font-size:12.5px;font-weight:700;word-break:break-word;">${escapeHtml(q.project_title||'—')}</div>
+            </div>
+          </div>
+        </div>
+        <div style="padding:0 30px;">
+          <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
+            ${colgroup}
+            <thead><tr style="background:#1a1a1a;color:#fff;">
+              <th style="padding:7px 8px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.5px;">#</th>
+              <th style="padding:7px 8px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.5px;">Description</th>
+              <th style="padding:7px 8px;text-align:center;font-size:9px;">Unit</th>
+              <th style="padding:7px 8px;text-align:center;font-size:9px;">Qty</th>
+              <th style="padding:7px 8px;text-align:right;font-size:9px;">Rate</th>
+              <th style="padding:7px 8px;text-align:right;font-size:9px;">Amount</th>
+            </tr></thead>
+            <tbody>${bodyRows}</tbody>
+          </table>
+        </div>
+        <div style="padding:16px 30px 0;display:flex;justify-content:flex-end;">
+          <div style="width:250px;">
+            <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:3px 0;color:#6b6b6b;"><span>${disc>0?'Gross Total':'Subtotal'}</span><span>AED ${n(sub)}</span></div>
+            ${disc>0?`<div style="display:flex;justify-content:space-between;font-size:10.5px;padding:3px 0;color:#0f6e56;"><span>Discount</span><span>− ${n(disc)}</span></div>`:''}
+            ${vat>0?`<div style="display:flex;justify-content:space-between;font-size:10.5px;padding:3px 0;color:#6b6b6b;"><span>VAT 5%</span><span>${n(vat)}</span></div>`:''}
+            <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding:7px 10px;margin-top:5px;background:#1a1a1a;color:#fff;border-radius:4px;"><span>Grand Total</span><span style="color:#c9952a;">AED ${n(tot)}</span></div>
+          </div>
+        </div>
+        ${wantFooter ? paymentCards + whyBlock + `
+          <div style="padding:18px 30px 0;">
+            <div style="font-size:10px;color:#c9952a;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:7px;">— Terms & Conditions</div>
+            <div style="font-size:8.5px;color:#888;line-height:1.7;white-space:pre-line;">${terms}</div>
+          </div>` : ''}
+        ${signBlock}
+        <div style="background:#1a1a1a;color:#9a9a9a;font-size:8.5px;text-align:center;padding:9px;margin-top:18px;">${cName} &nbsp;·&nbsp; ${cPhone}${cEmail?' &nbsp;·&nbsp; '+cEmail:''} &nbsp;·&nbsp; ${tagline}</div>
+      </div>`
+    }
+
+    // ----- STANDARD (Free/Silver) -----
+    const paymentStr = payments.length
+      ? payments.map(p => p.label ? `${p.percent}% ${p.label}` : `${p.percent}%`).join(' · ')
+      : '50% Advance · 40% On completion · 10% On handover'
+    const footerHtml = wantFooter ? `<div style="background:#faf8f3;border-radius:5px;padding:11px 13px;margin-bottom:14px;">
+        <div style="font-size:9px;color:#c9952a;text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:5px;">Payment Schedule</div>
+        <div style="font-size:10.5px;color:#555;">${escapeHtml(paymentStr)}</div>
+        <div style="font-size:9px;color:#c9952a;text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin:9px 0 5px;">Terms</div>
+        <div style="font-size:10px;color:#777;line-height:1.6;white-space:pre-line;">${terms}</div>
+      </div>` : ''
+    const signHtml = wantSign ? `<div style="text-align:center;"><div style="width:120px;border-bottom:1px solid #1a1a1a;margin-bottom:4px;height:30px;"></div><div style="font-size:9.5px;color:#6b6b6b;">Authorized Signature &amp; Stamp</div></div>` : '<div></div>'
+
+    return `<div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;max-width:680px;margin:0 auto;padding:30px;background:#fff;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #c9952a;padding-bottom:14px;margin-bottom:16px;">
+        <div style="display:flex;gap:11px;align-items:center;">
+          ${cLogo?`<img src="${escapeHtml(cLogo)}" style="width:46px;height:46px;border-radius:9px;object-fit:cover;">`:`<div style="width:46px;height:46px;border-radius:9px;background:#c9952a;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;color:#fff;">${cName[0]||'C'}</div>`}
+          <div>
+            <div style="font-size:15px;font-weight:700;">${cName}</div>
+            <div style="font-size:10px;color:#6b6b6b;">${tagline}</div>
+            <div style="font-size:10px;color:#6b6b6b;">${cPhone}${trn?' · TRN '+trn:''}</div>
+          </div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:17px;font-weight:700;color:#c9952a;">QUOTATION</div>
+          <div style="font-size:10px;color:#6b6b6b;margin-top:3px;font-family:monospace;">Ref: ${escapeHtml(q.quote_number||'')}</div>
+          ${q.client_uid?`<div style="font-size:10px;color:#6b6b6b;font-family:monospace;">UID: ${escapeHtml(q.client_uid)}</div>`:''}
+          <div style="font-size:10px;color:#6b6b6b;">Date: ${dateStr}</div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:16px;gap:14px;">
+        <div style="min-width:0;"><div style="font-size:9px;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Bill To</div>
+          <div style="font-size:12px;font-weight:700;word-break:break-word;">${escapeHtml(q.client_name||'')}</div>
+          <div style="font-size:11px;color:#6b6b6b;">${escapeHtml(q.client_phone||'')}</div></div>
+        <div style="text-align:right;min-width:0;"><div style="font-size:9px;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Project</div>
+          <div style="font-size:12px;font-weight:700;word-break:break-word;">${escapeHtml(q.project_title||'—')}</div></div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:14px;">
+        ${colgroup}
+        <thead><tr style="background:#1a1a1a;color:#fff;">
+          <th style="padding:7px 8px;text-align:left;font-size:10px;">#</th>
+          <th style="padding:7px 8px;text-align:left;font-size:10px;">Description</th>
+          <th style="padding:7px 8px;text-align:center;font-size:10px;">Unit</th>
+          <th style="padding:7px 8px;text-align:center;font-size:10px;">Qty</th>
+          <th style="padding:7px 8px;text-align:right;font-size:10px;">Rate</th>
+          <th style="padding:7px 8px;text-align:right;font-size:10px;">Total</th>
+        </tr></thead>
+        <tbody>${bodyRows}</tbody>
+      </table>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+        <div style="width:240px;">
+          <div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0;color:#6b6b6b;"><span>${disc>0?'Gross Total':'Subtotal'}</span><span>AED ${n(sub)}</span></div>
+          ${disc>0?`<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0;color:#0f6e56;"><span>Discount</span><span>− ${n(disc)}</span></div>`:''}
+          ${vat>0?`<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0;color:#6b6b6b;"><span>VAT 5%</span><span>${n(vat)}</span></div>`:''}
+          <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding:6px 0 0;border-top:1.5px solid #1a1a1a;margin-top:4px;"><span>Grand Total</span><span style="color:#c9952a;">AED ${n(tot)}</span></div>
+        </div>
+      </div>
+      ${footerHtml}
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;padding-top:14px;">
+        <div style="font-size:9.5px;color:#999;">Thank you for choosing ${cName}.</div>
+        ${signHtml}
+      </div>
+    </div>`
+  }
+
+  function printQuote(q) {
+    const pageHtml = buildQuoteHTML(q)
+    const w = window.open('', '_blank')
+    if (!w) { toast.error('Allow pop-ups to print/preview'); return }
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(q.quote_number||'Quote')}</title></head><body style="margin:0;background:#fff;">${pageHtml}</body></html>`)
+    w.document.close()
+    setTimeout(()=>{ w.focus(); w.print() }, 400)
+  }
+
+  function whatsappQuote(q) {
+    const phone = (q.client_phone||'').replace(/[^0-9]/g,'')
+    const msg = `Dear ${q.client_name||'Client'},\n\nPlease find your quotation ${q.quote_number} from ${company?.name||''}.\nProject: ${q.project_title||'—'}\nTotal: AED ${Number(q.total||0).toLocaleString('en-AE')}\n\nThank you.`
+    window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(msg), '_blank')
+  }
+
   let list = quotes
   if (filter !== 'all') list = list.filter(q => (q.status||'draft')===filter)
   if (search.trim()) {
@@ -320,224 +548,23 @@ export default function Quotations() {
   const inputStyle = { padding:'9px 11px', border:`1px solid ${border}`, borderRadius:8, fontSize:13, background:inputBg, color:text, outline:'none', width:'100%' }
   const initials = nm => nm ? nm.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase() : '?'
 
-  // ---------- PRINT ----------
-  function printQuote(q) {
-    const cName = company?.name || 'Company'
-    const cPhone = company?.phone || ''
-    const cLogo = company?.logo_url || ''
-    const trn = tpl?.trn_number || ''
-    const terms = tpl?.default_terms || DEFAULT_TERMS
-    const payment = (Array.isArray(tpl?.payment_schedule) ? tpl.payment_schedule.map(p=>p.label?`${p.percent}% ${p.label}`:p).join(' · ') : tpl?.payment_schedule) || DEFAULT_PAYMENT
-    const wantFooter = q.show_footer ?? true
-    const wantSign = q.show_signature ?? true
-    const qItems = Array.isArray(q.items) ? q.items : []
-    const isBoq = (q.mode === 'boq')
-
-    let bodyRows = ''
-    if (isBoq) {
-      const groups = groupByTrade(qItems, tradeList)
-      bodyRows = groups.map(g => {
-        const rows = g.items.map((it,i)=>`<tr>
-          <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;color:#6b6b6b;">${i+1}</td>
-          <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;">${it.desc||''}</td>
-          <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;text-align:center;color:#6b6b6b;">${it.unit||''}</td>
-          <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;text-align:center;color:#6b6b6b;">${it.qty||0}</td>
-          <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;text-align:right;color:#6b6b6b;">${Number(it.rate||0).toLocaleString('en-AE')}</td>
-          <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;text-align:right;">${Math.round((Number(it.qty)||0)*(Number(it.rate)||0)).toLocaleString('en-AE')}</td>
-        </tr>`).join('')
-        return `<tr><td colspan="6" style="background:#1a1a1a;color:#fff;font-size:10px;font-weight:700;padding:6px 8px;text-transform:uppercase;letter-spacing:.5px;">${g.trade}</td></tr>
-          ${rows}
-          <tr><td colspan="5" style="padding:6px 8px;font-size:10.5px;font-weight:700;text-align:right;background:#faf8f3;">${g.trade} Subtotal</td><td style="padding:6px 8px;font-size:10.5px;font-weight:700;text-align:right;background:#faf8f3;color:#c9952a;">AED ${Math.round(g.subtotal).toLocaleString('en-AE')}</td></tr>`
-      }).join('')
-    } else {
-      bodyRows = qItems.map((it,i)=>`<tr>
-        <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;color:#6b6b6b;">${i+1}</td>
-        <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;">${it.desc||''}</td>
-        <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;text-align:center;color:#6b6b6b;">${it.unit||''}</td>
-        <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;text-align:center;color:#6b6b6b;">${it.qty||0}</td>
-        <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;text-align:right;color:#6b6b6b;">${Number(it.rate||0).toLocaleString('en-AE')}</td>
-        <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;text-align:right;">${Math.round((Number(it.qty)||0)*(Number(it.rate)||0)).toLocaleString('en-AE')}</td>
-      </tr>`).join('')
-    }
-
-    const footerHtml = wantFooter ? `<div style="background:#faf8f3;border-radius:5px;padding:11px 13px;margin-bottom:14px;">
-        <div style="font-size:9px;color:#c9952a;text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:5px;">Payment Schedule</div>
-        <div style="font-size:10.5px;color:#555;">${payment}</div>
-        <div style="font-size:9px;color:#c9952a;text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin:9px 0 5px;">Terms</div>
-        <div style="font-size:10px;color:#777;line-height:1.6;">${terms}</div>
-      </div>` : ''
-    const signHtml = wantSign ? `<div style="text-align:center;"><div style="width:120px;border-bottom:1px solid #1a1a1a;margin-bottom:4px;height:30px;"></div><div style="font-size:9.5px;color:#6b6b6b;">Authorized Signature &amp; Stamp</div></div>` : '<div></div>'
-
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${q.quote_number}</title></head>
-    <body style="font-family:Arial,sans-serif;color:#1a1a1a;max-width:720px;margin:0 auto;padding:30px;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #c9952a;padding-bottom:14px;margin-bottom:16px;">
-        <div style="display:flex;gap:11px;align-items:center;">
-          ${cLogo?`<img src="${cLogo}" style="width:46px;height:46px;border-radius:9px;object-fit:cover;">`:`<div style="width:46px;height:46px;border-radius:9px;background:#c9952a;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;color:#fff;">${cName[0]||'C'}</div>`}
-          <div>
-            <div style="font-size:15px;font-weight:700;">${cName}</div>
-            ${tpl?.tagline?`<div style="font-size:10px;color:#6b6b6b;">${tpl.tagline}</div>`:`<div style="font-size:10px;color:#6b6b6b;">Dubai, UAE</div>`}
-            <div style="font-size:10px;color:#6b6b6b;">${cPhone}${trn?' · TRN '+trn:''}</div>
-          </div>
-        </div>
-        <div style="text-align:right;">
-          <div style="font-size:17px;font-weight:700;color:#c9952a;">QUOTATION</div>
-          <div style="font-size:10px;color:#6b6b6b;margin-top:3px;font-family:monospace;">Ref: ${q.quote_number}</div>
-          ${q.client_uid?`<div style="font-size:10px;color:#6b6b6b;font-family:monospace;">UID: ${q.client_uid}</div>`:''}
-          <div style="font-size:10px;color:#6b6b6b;">Date: ${new Date(q.created_at||Date.now()).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</div>
-        </div>
-      </div>
-      <div style="display:flex;justify-content:space-between;margin-bottom:16px;">
-        <div>
-          <div style="font-size:9px;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Bill To</div>
-          <div style="font-size:12px;font-weight:700;">${q.client_name||''}</div>
-          <div style="font-size:11px;color:#6b6b6b;">${q.client_phone||''}</div>
-        </div>
-        <div style="text-align:right;">
-          <div style="font-size:9px;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Project</div>
-          <div style="font-size:12px;font-weight:700;">${q.project_title||'—'}</div>
-        </div>
-      </div>
-      <table style="width:100%;border-collapse:collapse;margin-bottom:14px;">
-        <thead><tr style="background:#1a1a1a;color:#fff;">
-          <th style="padding:7px 8px;text-align:left;font-size:10px;">#</th>
-          <th style="padding:7px 8px;text-align:left;font-size:10px;">Description</th>
-          <th style="padding:7px 8px;text-align:center;font-size:10px;">Unit</th>
-          <th style="padding:7px 8px;text-align:center;font-size:10px;">Qty</th>
-          <th style="padding:7px 8px;text-align:right;font-size:10px;">Rate</th>
-          <th style="padding:7px 8px;text-align:right;font-size:10px;">Total</th>
-        </tr></thead>
-        <tbody>${bodyRows}</tbody>
-      </table>
-      <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
-        <div style="width:240px;">
-          <div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0;color:#6b6b6b;"><span>Subtotal</span><span>AED ${Number(q.subtotal||0).toLocaleString('en-AE')}</span></div>
-          ${q.vat_amount>0?`<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0;color:#6b6b6b;"><span>VAT 5%</span><span>AED ${Number(q.vat_amount).toLocaleString('en-AE')}</span></div>`:''}
-          <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding:6px 0 0;border-top:1.5px solid #1a1a1a;margin-top:4px;"><span>Grand Total</span><span style="color:#c9952a;">AED ${Number(q.total||0).toLocaleString('en-AE')}</span></div>
-        </div>
-      </div>
-      ${footerHtml}
-      <div style="display:flex;justify-content:space-between;align-items:flex-end;padding-top:14px;">
-        <div style="font-size:9.5px;color:#999;">Thank you for choosing ${cName}.</div>
-        ${signHtml}
-      </div>
-    </body></html>`
-
-    const w = window.open('', '_blank')
-    if (!w) { toast.error('Allow pop-ups to print/preview'); return }
-    w.document.write(html); w.document.close()
-    setTimeout(()=>{ w.focus(); w.print() }, 400)
-  }
-
-  function whatsappQuote(q) {
-    const phone = (q.client_phone||'').replace(/[^0-9]/g,'')
-    const msg = `Dear ${q.client_name||'Client'},\n\nPlease find your quotation ${q.quote_number} from ${company?.name||''}.\nProject: ${q.project_title||'—'}\nTotal: AED ${Number(q.total||0).toLocaleString('en-AE')}\n\nThank you.`
-    window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(msg), '_blank')
-  }
-
   // ============ PREVIEW ============
   if (view === 'preview' && activeQuote) {
     const q = activeQuote
-    const cName = company?.name || 'Company'
-    const cLogo = company?.logo_url || ''
-    const trn = tpl?.trn_number || ''
-    const terms = tpl?.default_terms || DEFAULT_TERMS
-    const payment = (Array.isArray(tpl?.payment_schedule) ? tpl.payment_schedule.map(p=>p.label?`${p.percent}% ${p.label}`:p).join(' · ') : tpl?.payment_schedule) || DEFAULT_PAYMENT
-    const wantFooter = q.show_footer ?? true
-    const wantSign = q.show_signature ?? true
-    const qItems = Array.isArray(q.items) ? q.items : []
-    const isBoq = (q.mode === 'boq')
-    const groups = isBoq ? groupByTrade(qItems, tradeList) : null
+    const pageHtml = buildQuoteHTML(q)
     return (
       <div>
         <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
           <button onClick={() => setView('detail')} style={{ width:34, height:34, borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:textSub, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
             <i className="ti ti-arrow-left" style={{ fontSize:16 }}/>
           </button>
-          <div style={{ flex:1 }}><h1 style={{ fontSize:18, fontWeight:700, color:text, margin:0 }}>Preview · {q.quote_number}</h1></div>
-        </div>
-
-        <div style={{ background:'#fff', borderRadius:8, padding:'26px 28px', maxWidth:620, margin:'0 auto', boxShadow:'0 2px 12px rgba(0,0,0,0.1)', color:'#1a1a1a' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', borderBottom:'2px solid #c9952a', paddingBottom:14, marginBottom:16 }}>
-            <div style={{ display:'flex', gap:11, alignItems:'center' }}>
-              {cLogo ? <img src={cLogo} style={{ width:46, height:46, borderRadius:9, objectFit:'cover' }}/> : <div style={{ width:46, height:46, borderRadius:9, background:'#c9952a', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:18, color:'#fff' }}>{cName[0]||'C'}</div>}
-              <div>
-                <div style={{ fontSize:15, fontWeight:700 }}>{cName}</div>
-                <div style={{ fontSize:10, color:'#6b6b6b' }}>{tpl?.tagline || 'Dubai, UAE'}</div>
-                <div style={{ fontSize:10, color:'#6b6b6b' }}>{company?.phone||''}{trn?' · TRN '+trn:''}</div>
-              </div>
-            </div>
-            <div style={{ textAlign:'right' }}>
-              <div style={{ fontSize:17, fontWeight:700, color:'#c9952a' }}>QUOTATION</div>
-              <div style={{ fontSize:10, color:'#6b6b6b', marginTop:3, fontFamily:'monospace' }}>Ref: {q.quote_number}</div>
-              {q.client_uid && <div style={{ fontSize:10, color:'#6b6b6b', fontFamily:'monospace' }}>UID: {q.client_uid}</div>}
-              <div style={{ fontSize:10, color:'#6b6b6b' }}>Date: {new Date(q.created_at||Date.now()).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</div>
-            </div>
-          </div>
-          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:16 }}>
-            <div><div style={{ fontSize:9, color:'#999', textTransform:'uppercase', letterSpacing:'.5px', marginBottom:3 }}>Bill To</div>
-              <div style={{ fontSize:12, fontWeight:700 }}>{q.client_name}</div>
-              <div style={{ fontSize:11, color:'#6b6b6b' }}>{q.client_phone||''}</div></div>
-            <div style={{ textAlign:'right' }}><div style={{ fontSize:9, color:'#999', textTransform:'uppercase', letterSpacing:'.5px', marginBottom:3 }}>Project</div>
-              <div style={{ fontSize:12, fontWeight:700 }}>{q.project_title||'—'}</div></div>
-          </div>
-          <table style={{ width:'100%', borderCollapse:'collapse', marginBottom:14 }}>
-            <thead><tr style={{ background:'#1a1a1a', color:'#fff' }}>
-              <th style={{ padding:'7px 8px', textAlign:'left', fontSize:10 }}>#</th>
-              <th style={{ padding:'7px 8px', textAlign:'left', fontSize:10 }}>Description</th>
-              <th style={{ padding:'7px 8px', textAlign:'center', fontSize:10 }}>Unit</th>
-              <th style={{ padding:'7px 8px', textAlign:'center', fontSize:10 }}>Qty</th>
-              <th style={{ padding:'7px 8px', textAlign:'right', fontSize:10 }}>Rate</th>
-              <th style={{ padding:'7px 8px', textAlign:'right', fontSize:10 }}>Total</th>
-            </tr></thead>
-            <tbody>
-              {isBoq ? groups.map((g, gi) => (
-                <>
-                  <tr key={'h'+gi}><td colSpan={6} style={{ background:'#1a1a1a', color:'#fff', fontSize:10, fontWeight:700, padding:'6px 8px', textTransform:'uppercase', letterSpacing:'.5px' }}>{g.trade}</td></tr>
-                  {g.items.map((it,i)=>(
-                    <tr key={gi+'-'+i}>
-                      <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11, color:'#6b6b6b' }}>{i+1}</td>
-                      <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11 }}>{it.desc}</td>
-                      <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11, textAlign:'center', color:'#6b6b6b' }}>{it.unit||''}</td>
-                      <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11, textAlign:'center', color:'#6b6b6b' }}>{it.qty}</td>
-                      <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11, textAlign:'right', color:'#6b6b6b' }}>{Number(it.rate||0).toLocaleString('en-AE')}</td>
-                      <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11, textAlign:'right' }}>{Math.round((Number(it.qty)||0)*(Number(it.rate)||0)).toLocaleString('en-AE')}</td>
-                    </tr>
-                  ))}
-                  <tr key={'s'+gi}><td colSpan={5} style={{ padding:'6px 8px', fontSize:10.5, fontWeight:700, textAlign:'right', background:'#faf8f3' }}>{g.trade} Subtotal</td><td style={{ padding:'6px 8px', fontSize:10.5, fontWeight:700, textAlign:'right', background:'#faf8f3', color:'#c9952a' }}>AED {Math.round(g.subtotal).toLocaleString('en-AE')}</td></tr>
-                </>
-              )) : qItems.map((it,i)=>(
-                <tr key={i}>
-                  <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11, color:'#6b6b6b' }}>{i+1}</td>
-                  <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11 }}>{it.desc}</td>
-                  <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11, textAlign:'center', color:'#6b6b6b' }}>{it.unit||''}</td>
-                  <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11, textAlign:'center', color:'#6b6b6b' }}>{it.qty}</td>
-                  <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11, textAlign:'right', color:'#6b6b6b' }}>{Number(it.rate||0).toLocaleString('en-AE')}</td>
-                  <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11, textAlign:'right' }}>{Math.round((Number(it.qty)||0)*(Number(it.rate)||0)).toLocaleString('en-AE')}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:16 }}>
-            <div style={{ width:240 }}>
-              <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, padding:'3px 0', color:'#6b6b6b' }}><span>Subtotal</span><span>AED {Number(q.subtotal||0).toLocaleString('en-AE')}</span></div>
-              {q.vat_amount>0 && <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, padding:'3px 0', color:'#6b6b6b' }}><span>VAT 5%</span><span>AED {Number(q.vat_amount).toLocaleString('en-AE')}</span></div>}
-              <div style={{ display:'flex', justifyContent:'space-between', fontSize:13, fontWeight:700, padding:'6px 0 0', borderTop:'1.5px solid #1a1a1a', marginTop:4 }}><span>Grand Total</span><span style={{ color:'#c9952a' }}>AED {Number(q.total||0).toLocaleString('en-AE')}</span></div>
-            </div>
-          </div>
-          {wantFooter && (
-            <div style={{ background:'#faf8f3', borderRadius:5, padding:'11px 13px', marginBottom:14 }}>
-              <div style={{ fontSize:9, color:'#c9952a', textTransform:'uppercase', letterSpacing:'.5px', fontWeight:700, marginBottom:5 }}>Payment Schedule</div>
-              <div style={{ fontSize:10.5, color:'#555' }}>{payment}</div>
-              <div style={{ fontSize:9, color:'#c9952a', textTransform:'uppercase', letterSpacing:'.5px', fontWeight:700, margin:'9px 0 5px' }}>Terms</div>
-              <div style={{ fontSize:10, color:'#777', lineHeight:1.6 }}>{terms}</div>
-            </div>
-          )}
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', paddingTop:14 }}>
-            <div style={{ fontSize:9.5, color:'#999' }}>Thank you for choosing {cName}.</div>
-            {wantSign && <div style={{ textAlign:'center' }}><div style={{ width:120, borderBottom:'1px solid #1a1a1a', marginBottom:4, height:30 }}/><div style={{ fontSize:9.5, color:'#6b6b6b' }}>Authorized Signature &amp; Stamp</div></div>}
+          <div style={{ flex:1 }}>
+            <h1 style={{ fontSize:18, fontWeight:700, color:text, margin:0 }}>Preview · {q.quote_number}</h1>
+            {canPremium && <div style={{ fontSize:11, color:'#d97706', fontWeight:600 }}>Premium template</div>}
           </div>
         </div>
-
+        <div style={{ maxWidth:720, margin:'0 auto', boxShadow:'0 2px 16px rgba(0,0,0,0.12)', overflowX:'auto', background:'#fff' }}
+          dangerouslySetInnerHTML={{ __html: pageHtml }} />
         <div style={{ display:'flex', gap:8, justifyContent:'center', marginTop:16, flexWrap:'wrap' }}>
           <button onClick={()=>printQuote(q)} style={{ padding:'10px 18px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}><i className="ti ti-printer" style={{ fontSize:14, verticalAlign:'-2px', marginRight:5 }}/> Print / PDF</button>
           <button onClick={()=>whatsappQuote(q)} style={{ padding:'10px 18px', borderRadius:9, border:'none', background:'#22c55e', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer' }}><i className="ti ti-brand-whatsapp" style={{ fontSize:14, verticalAlign:'-2px', marginRight:5 }}/> Send via WhatsApp</button>
@@ -572,7 +599,7 @@ export default function Quotations() {
 
         <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, padding:'12px 14px', marginBottom:12, display:'flex', alignItems:'center', gap:11 }}>
           <div style={{ width:36, height:36, borderRadius:8, background:isDark?'rgba(3,193,245,0.12)':'#e0f9ff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:600, color:'#0077a3' }}>{initials(q.client_name)}</div>
-          <div style={{ flex:1 }}>
+          <div style={{ flex:1, minWidth:0 }}>
             <div style={{ fontSize:14, fontWeight:600, color:text }}>{q.client_name}</div>
             <div style={{ fontSize:12, color:textSub }}>{q.client_phone||'—'}{q.project_title?' · '+q.project_title:''}</div>
           </div>
@@ -586,7 +613,7 @@ export default function Quotations() {
             </div>
             {g.items.map((it,i)=>(
               <div key={i} style={{ display:'grid', gridTemplateColumns:'1fr 70px 44px 70px 80px', gap:8, padding:'9px 13px', borderTop:`1px solid ${border}`, fontSize:13, color:text }}>
-                <span>{it.desc}</span><span style={{ color:textSub, fontSize:12 }}>{it.unit||'—'}</span><span style={{ color:textSub }}>{it.qty}</span>
+                <span style={{ wordBreak:'break-word' }}>{it.desc}</span><span style={{ color:textSub, fontSize:12 }}>{it.unit||'—'}</span><span style={{ color:textSub }}>{it.qty}</span>
                 <span style={{ color:textSub }}>{Number(it.rate).toLocaleString('en-AE')}</span>
                 <span style={{ textAlign:'right' }}>{Math.round((Number(it.qty)||0)*(Number(it.rate)||0)).toLocaleString('en-AE')}</span>
               </div>
@@ -599,7 +626,7 @@ export default function Quotations() {
             </div>
             {qItems.map((it, i) => (
               <div key={i} style={{ display:'grid', gridTemplateColumns:'1fr 70px 44px 70px 80px', gap:8, padding:'9px 13px', borderTop:`1px solid ${border}`, fontSize:13, color:text }}>
-                <span>{it.desc}</span><span style={{ color:textSub, fontSize:12 }}>{it.unit||'—'}</span><span style={{ color:textSub }}>{it.qty}</span>
+                <span style={{ wordBreak:'break-word' }}>{it.desc}</span><span style={{ color:textSub, fontSize:12 }}>{it.unit||'—'}</span><span style={{ color:textSub }}>{it.qty}</span>
                 <span style={{ color:textSub }}>{Number(it.rate).toLocaleString('en-AE')}</span>
                 <span style={{ textAlign:'right' }}>{Math.round((Number(it.qty)||0)*(Number(it.rate)||0)).toLocaleString('en-AE')}</span>
               </div>
@@ -663,7 +690,6 @@ export default function Quotations() {
           <span style={{ fontSize:11, color:md.color, background:isDark?md.color+'22':md.bg, padding:'4px 11px', borderRadius:99, fontWeight:600 }}>{md.label}</span>
         </div>
 
-        {/* Mode switcher */}
         <div style={{ display:'inline-flex', background:pillBg, border:`1px solid ${border}`, borderRadius:10, padding:3, marginBottom:16 }}>
           <button onClick={()=>switchMode('simple')}
             style={{ fontSize:13, fontWeight: mode==='simple'?600:400, padding:'6px 16px', borderRadius:7, border:'none', cursor:'pointer',
@@ -721,7 +747,6 @@ export default function Quotations() {
 
         <input value={projectTitle} onChange={e=>setProjectTitle(e.target.value)} placeholder="Project title (e.g. Interior Fit-Out)" style={{ ...inputStyle, marginBottom:14 }}/>
 
-        {/* ITEMS — SIMPLE */}
         {mode === 'simple' && (
           <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, overflow:'hidden', marginBottom:14 }}>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 78px 52px 78px 80px 28px', gap:6, padding:'9px 11px', background:subBg, fontSize:11, color:textSub, textTransform:'uppercase', letterSpacing:'.3px' }}>
@@ -750,10 +775,9 @@ export default function Quotations() {
           </div>
         )}
 
-        {/* ITEMS — BOQ (trade-grouped) */}
         {mode === 'boq' && (
           <>
-            {boqGroups.map((g, gi) => (
+            {boqGroups.map((g) => (
               <div key={g.trade} style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, overflow:'hidden', marginBottom:10 }}>
                 <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'9px 13px', background:subBg }}>
                   <span style={{ fontSize:13, fontWeight:600, color:text, display:'flex', alignItems:'center', gap:7 }}>
@@ -826,7 +850,6 @@ export default function Quotations() {
           </div>
         </div>
 
-        {/* Document options */}
         <div style={{ borderTop:`1px dashed ${border}`, paddingTop:13, marginBottom:14 }}>
           <div style={{ fontSize:11, color:textMuted, textTransform:'uppercase', letterSpacing:'.4px', marginBottom:8 }}>Document options</div>
           <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
@@ -835,7 +858,7 @@ export default function Quotations() {
               <i className="ti ti-align-left" style={{ fontSize:15, color:textSub }}/>
               <div style={{ flex:1 }}>
                 <div style={{ fontSize:13, color:text }}>Footer note</div>
-                <div style={{ fontSize:11, color:textMuted }}>Terms &amp; payment schedule on the PDF</div>
+                <div style={{ fontSize:11, color:textMuted }}>Terms, payment{canPremium?' & why-choose-us':''} on the PDF</div>
               </div>
             </label>
             <label style={{ display:'flex', alignItems:'center', gap:10, background:cardBg, border:`1px solid ${showSignature?'#0099cc':border}`, borderRadius:8, padding:'9px 12px', cursor:'pointer' }}>
@@ -843,7 +866,7 @@ export default function Quotations() {
               <i className="ti ti-writing-sign" style={{ fontSize:15, color:textSub }}/>
               <div style={{ flex:1 }}>
                 <div style={{ fontSize:13, color:text }}>Signature &amp; stamp</div>
-                <div style={{ fontSize:11, color:textMuted }}>Authorized signature block on the PDF</div>
+                <div style={{ fontSize:11, color:textMuted }}>{canPremium?'Dual-party signature block':'Authorized signature block'} on the PDF</div>
               </div>
             </label>
           </div>
