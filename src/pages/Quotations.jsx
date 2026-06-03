@@ -22,6 +22,11 @@ const blankItem = () => ({ desc:'', unit:'Nos', qty:1, rate:0 })
 const DEFAULT_TERMS = 'Quotation valid for 7 days. Prices in AED. Work commences after advance payment & design approval. All as per approved drawing and engineer\'s instruction.'
 const DEFAULT_PAYMENT = '50% Advance · 40% On 60% completion · 10% On handover'
 
+const DRAFT_KEY = 'td_quote_draft_v1'
+const loadDraft  = () => { try { const r = localStorage.getItem(DRAFT_KEY); return r ? JSON.parse(r) : null } catch { return null } }
+const saveDraft  = (d) => { try { localStorage.setItem(DRAFT_KEY, JSON.stringify(d)) } catch {} }
+const clearDraft = () => { try { localStorage.removeItem(DRAFT_KEY) } catch {} }
+
 export default function Quotations() {
   const { company } = useAuth()
   const toast = useToast()
@@ -33,6 +38,7 @@ export default function Quotations() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch]   = useState('')
   const [filter, setFilter]   = useState('all')
+  const [draftExists, setDraftExists] = useState(false)
 
   const [activeQuote, setActiveQuote] = useState(null)
   const [statusBusy, setStatusBusy]   = useState(false)
@@ -50,13 +56,28 @@ export default function Quotations() {
   const [discountType, setDiscountType] = useState(null)
   const [discountValue, setDiscountValue] = useState(0)
   const [notes, setNotes]     = useState('')
+  const [showFooter, setShowFooter] = useState(true)
+  const [showSignature, setShowSignature] = useState(true)
 
   useEffect(() => {
     if (company?.id) { fetchQuotes(); fetchTemplate() }
+    setDraftExists(!!loadDraft())
     const observer = new MutationObserver(() => forceUpdate(n => n + 1))
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
     return () => observer.disconnect()
   }, [company?.id])
+
+  // Auto-save builder data to browser (only for NEW quote, not edit)
+  useEffect(() => {
+    if (view !== 'builder' || editId) return
+    const hasContent = client || projectTitle.trim() || items.some(it => it.desc.trim())
+    if (!hasContent) return
+    const t = setTimeout(() => {
+      saveDraft({ client, clientSearch, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature })
+      setDraftExists(true)
+    }, 500)
+    return () => clearTimeout(t)
+  }, [view, editId, client, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature])
 
   async function fetchQuotes() {
     setLoading(true)
@@ -112,12 +133,31 @@ export default function Quotations() {
   function openBuilder() {
     setEditId(null)
     setClient(null); setClientSearch(''); setSuggestions([]); setShowSug(false)
-    setProjectTitle('')
-    setItems([blankItem()]); setNotes('')
+    setProjectTitle(''); setItems([blankItem()]); setNotes('')
     setVatEnabled(tpl?.default_vat_enabled ?? true)
     setDiscountType(null); setDiscountValue(0)
+    setShowFooter(true); setShowSignature(true)
     setView('builder')
   }
+  function resumeDraft() {
+    const d = loadDraft()
+    if (!d) { setDraftExists(false); return }
+    setEditId(null)
+    setClient(d.client || null)
+    setClientSearch(d.clientSearch || '')
+    setSuggestions([]); setShowSug(false)
+    setProjectTitle(d.projectTitle || '')
+    setItems(Array.isArray(d.items) && d.items.length ? d.items : [blankItem()])
+    setVatEnabled(d.vatEnabled ?? true)
+    setDiscountType(d.discountType ?? null)
+    setDiscountValue(d.discountValue ?? 0)
+    setNotes(d.notes || '')
+    setShowFooter(d.showFooter ?? true)
+    setShowSignature(d.showSignature ?? true)
+    setView('builder')
+  }
+  function discardDraft() { clearDraft(); setDraftExists(false); toast.info('Draft discarded') }
+
   function editQuote(q) {
     setEditId(q.id)
     setClient(q.client_id ? { id:q.client_id, uid:q.client_uid, name:q.client_name, phone:q.client_phone, email:q.client_email } : null)
@@ -128,6 +168,8 @@ export default function Quotations() {
     setNotes('')
     setVatEnabled(!!q.vat_amount || (tpl?.default_vat_enabled ?? true))
     setDiscountType(null); setDiscountValue(0)
+    setShowFooter(q.show_footer ?? true)
+    setShowSignature(q.show_signature ?? true)
     setView('builder')
   }
   function updateItem(idx, field, val) { setItems(prev => prev.map((it,i)=> i===idx?{...it,[field]:val}:it)) }
@@ -155,6 +197,7 @@ export default function Quotations() {
         items: validItems.map(it => ({ desc:it.desc.trim(), unit:it.unit||'Nos', qty:Number(it.qty)||0, rate:Number(it.rate)||0 })),
         subtotal, vat_amount: vatAmount, total: grandTotal,
         payment_terms: tpl?.payment_schedule || null, why_choose_us: tpl?.why_choose_us || null,
+        show_footer: showFooter, show_signature: showSignature,
         status: sendNow ? 'sent' : 'draft',
       }
       if (editId) {
@@ -171,6 +214,7 @@ export default function Quotations() {
         if (error) throw error
         toast.success(sendNow ? 'Quotation sent ✓' : 'Draft saved ✓')
       }
+      clearDraft(); setDraftExists(false)
       setView('list'); fetchQuotes()
     } catch (e) {
       toast.error('Save failed: ' + (e.message || 'unknown'))
@@ -204,6 +248,8 @@ export default function Quotations() {
     const trn = tpl?.trn_number || ''
     const terms = tpl?.default_terms || DEFAULT_TERMS
     const payment = (Array.isArray(tpl?.payment_schedule) ? tpl.payment_schedule.join(' · ') : tpl?.payment_schedule) || DEFAULT_PAYMENT
+    const wantFooter = q.show_footer ?? true
+    const wantSign = q.show_signature ?? true
     const qItems = Array.isArray(q.items) ? q.items : []
     const rows = qItems.map((it,i)=>`<tr>
       <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;color:#6b6b6b;">${i+1}</td>
@@ -213,6 +259,14 @@ export default function Quotations() {
       <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;text-align:right;color:#6b6b6b;">${Number(it.rate||0).toLocaleString('en-AE')}</td>
       <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;text-align:right;">${Math.round((Number(it.qty)||0)*(Number(it.rate)||0)).toLocaleString('en-AE')}</td>
     </tr>`).join('')
+
+    const footerHtml = wantFooter ? `<div style="background:#faf8f3;border-radius:5px;padding:11px 13px;margin-bottom:14px;">
+        <div style="font-size:9px;color:#c9952a;text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:5px;">Payment Schedule</div>
+        <div style="font-size:10.5px;color:#555;">${payment}</div>
+        <div style="font-size:9px;color:#c9952a;text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin:9px 0 5px;">Terms</div>
+        <div style="font-size:10px;color:#777;line-height:1.6;">${terms}</div>
+      </div>` : ''
+    const signHtml = wantSign ? `<div style="text-align:center;"><div style="width:120px;border-bottom:1px solid #1a1a1a;margin-bottom:4px;height:30px;"></div><div style="font-size:9.5px;color:#6b6b6b;">Authorized Signature &amp; Stamp</div></div>` : '<div></div>'
 
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${q.quote_number}</title></head>
     <body style="font-family:Arial,sans-serif;color:#1a1a1a;max-width:720px;margin:0 auto;padding:30px;">
@@ -261,15 +315,10 @@ export default function Quotations() {
           <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding:6px 0 0;border-top:1.5px solid #1a1a1a;margin-top:4px;"><span>Grand Total</span><span style="color:#c9952a;">AED ${Number(q.total||0).toLocaleString('en-AE')}</span></div>
         </div>
       </div>
-      <div style="background:#faf8f3;border-radius:5px;padding:11px 13px;margin-bottom:14px;">
-        <div style="font-size:9px;color:#c9952a;text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:5px;">Payment Schedule</div>
-        <div style="font-size:10.5px;color:#555;">${payment}</div>
-        <div style="font-size:9px;color:#c9952a;text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin:9px 0 5px;">Terms</div>
-        <div style="font-size:10px;color:#777;line-height:1.6;">${terms}</div>
-      </div>
+      ${footerHtml}
       <div style="display:flex;justify-content:space-between;align-items:flex-end;padding-top:14px;">
         <div style="font-size:9.5px;color:#999;">Thank you for choosing ${cName}.</div>
-        <div style="text-align:center;"><div style="width:120px;border-bottom:1px solid #1a1a1a;margin-bottom:4px;height:30px;"></div><div style="font-size:9.5px;color:#6b6b6b;">Authorized Signature &amp; Stamp</div></div>
+        ${signHtml}
       </div>
     </body></html>`
 
@@ -293,6 +342,8 @@ export default function Quotations() {
     const trn = tpl?.trn_number || ''
     const terms = tpl?.default_terms || DEFAULT_TERMS
     const payment = (Array.isArray(tpl?.payment_schedule) ? tpl.payment_schedule.join(' · ') : tpl?.payment_schedule) || DEFAULT_PAYMENT
+    const wantFooter = q.show_footer ?? true
+    const wantSign = q.show_signature ?? true
     const qItems = Array.isArray(q.items) ? q.items : []
     return (
       <div>
@@ -303,7 +354,6 @@ export default function Quotations() {
           <div style={{ flex:1 }}><h1 style={{ fontSize:18, fontWeight:700, color:text, margin:0 }}>Preview · {q.quote_number}</h1></div>
         </div>
 
-        {/* Paper */}
         <div style={{ background:'#fff', borderRadius:8, padding:'26px 28px', maxWidth:620, margin:'0 auto', boxShadow:'0 2px 12px rgba(0,0,0,0.1)', color:'#1a1a1a' }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', borderBottom:'2px solid #c9952a', paddingBottom:14, marginBottom:16 }}>
             <div style={{ display:'flex', gap:11, alignItems:'center' }}>
@@ -355,19 +405,20 @@ export default function Quotations() {
               <div style={{ display:'flex', justifyContent:'space-between', fontSize:13, fontWeight:700, padding:'6px 0 0', borderTop:'1.5px solid #1a1a1a', marginTop:4 }}><span>Grand Total</span><span style={{ color:'#c9952a' }}>AED {Number(q.total||0).toLocaleString('en-AE')}</span></div>
             </div>
           </div>
-          <div style={{ background:'#faf8f3', borderRadius:5, padding:'11px 13px', marginBottom:14 }}>
-            <div style={{ fontSize:9, color:'#c9952a', textTransform:'uppercase', letterSpacing:'.5px', fontWeight:700, marginBottom:5 }}>Payment Schedule</div>
-            <div style={{ fontSize:10.5, color:'#555' }}>{payment}</div>
-            <div style={{ fontSize:9, color:'#c9952a', textTransform:'uppercase', letterSpacing:'.5px', fontWeight:700, margin:'9px 0 5px' }}>Terms</div>
-            <div style={{ fontSize:10, color:'#777', lineHeight:1.6 }}>{terms}</div>
-          </div>
+          {wantFooter && (
+            <div style={{ background:'#faf8f3', borderRadius:5, padding:'11px 13px', marginBottom:14 }}>
+              <div style={{ fontSize:9, color:'#c9952a', textTransform:'uppercase', letterSpacing:'.5px', fontWeight:700, marginBottom:5 }}>Payment Schedule</div>
+              <div style={{ fontSize:10.5, color:'#555' }}>{payment}</div>
+              <div style={{ fontSize:9, color:'#c9952a', textTransform:'uppercase', letterSpacing:'.5px', fontWeight:700, margin:'9px 0 5px' }}>Terms</div>
+              <div style={{ fontSize:10, color:'#777', lineHeight:1.6 }}>{terms}</div>
+            </div>
+          )}
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', paddingTop:14 }}>
             <div style={{ fontSize:9.5, color:'#999' }}>Thank you for choosing {cName}.</div>
-            <div style={{ textAlign:'center' }}><div style={{ width:120, borderBottom:'1px solid #1a1a1a', marginBottom:4, height:30 }}/><div style={{ fontSize:9.5, color:'#6b6b6b' }}>Authorized Signature &amp; Stamp</div></div>
+            {wantSign && <div style={{ textAlign:'center' }}><div style={{ width:120, borderBottom:'1px solid #1a1a1a', marginBottom:4, height:30 }}/><div style={{ fontSize:9.5, color:'#6b6b6b' }}>Authorized Signature &amp; Stamp</div></div>}
           </div>
         </div>
 
-        {/* Actions */}
         <div style={{ display:'flex', gap:8, justifyContent:'center', marginTop:16, flexWrap:'wrap' }}>
           <button onClick={()=>printQuote(q)} style={{ padding:'10px 18px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}><i className="ti ti-printer" style={{ fontSize:14, verticalAlign:'-2px', marginRight:5 }}/> Print / PDF</button>
           <button onClick={()=>whatsappQuote(q)} style={{ padding:'10px 18px', borderRadius:9, border:'none', background:'#22c55e', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer' }}><i className="ti ti-brand-whatsapp" style={{ fontSize:14, verticalAlign:'-2px', marginRight:5 }}/> Send via WhatsApp</button>
@@ -467,7 +518,7 @@ export default function Quotations() {
           </button>
           <div style={{ flex:1 }}>
             <h1 style={{ fontSize:19, fontWeight:700, color:text, margin:0 }}>{editId ? 'Edit Quotation' : 'New Quotation'}</h1>
-            <div style={{ fontSize:12, color:textMuted }}>Simple mode</div>
+            <div style={{ fontSize:12, color:textMuted }}>Simple mode{!editId && draftExists ? ' · auto-saving' : ''}</div>
           </div>
           <span style={{ fontSize:11, color:'#0077a3', background:isDark?'rgba(3,193,245,0.15)':'#e0f9ff', padding:'4px 11px', borderRadius:99, fontWeight:600 }}>Simple</span>
         </div>
@@ -544,7 +595,7 @@ export default function Quotations() {
           </div>
         </div>
 
-        <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
+        <div style={{ display:'flex', gap:12, flexWrap:'wrap', marginBottom:14 }}>
           <div style={{ flex:1, minWidth:230, display:'flex', flexDirection:'column', gap:10 }}>
             <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, padding:'11px 13px' }}>
               <div style={{ fontSize:12, fontWeight:600, color:textSub, marginBottom:8 }}>Discount</div>
@@ -572,8 +623,31 @@ export default function Quotations() {
           </div>
         </div>
 
-        <div style={{ display:'flex', gap:8, marginTop:16, flexWrap:'wrap' }}>
-          <button onClick={()=>setView('list')} disabled={saving} style={{ flex:1, minWidth:100, padding:'11px', borderRadius:9, border:`1px solid ${border}`, background:'transparent', color:textSub, fontSize:13, cursor:'pointer' }}>Cancel</button>
+        {/* Document options */}
+        <div style={{ borderTop:`1px dashed ${border}`, paddingTop:13, marginBottom:14 }}>
+          <div style={{ fontSize:11, color:textMuted, textTransform:'uppercase', letterSpacing:'.4px', marginBottom:8 }}>Document options</div>
+          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+            <label style={{ display:'flex', alignItems:'center', gap:10, background:cardBg, border:`1px solid ${showFooter?'#0099cc':border}`, borderRadius:8, padding:'9px 12px', cursor:'pointer' }}>
+              <input type="checkbox" checked={showFooter} onChange={e=>setShowFooter(e.target.checked)} style={{ width:'auto' }}/>
+              <i className="ti ti-align-left" style={{ fontSize:15, color:textSub }}/>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:13, color:text }}>Footer note</div>
+                <div style={{ fontSize:11, color:textMuted }}>Terms &amp; payment schedule on the PDF</div>
+              </div>
+            </label>
+            <label style={{ display:'flex', alignItems:'center', gap:10, background:cardBg, border:`1px solid ${showSignature?'#0099cc':border}`, borderRadius:8, padding:'9px 12px', cursor:'pointer' }}>
+              <input type="checkbox" checked={showSignature} onChange={e=>setShowSignature(e.target.checked)} style={{ width:'auto' }}/>
+              <i className="ti ti-writing-sign" style={{ fontSize:15, color:textSub }}/>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:13, color:text }}>Signature &amp; stamp</div>
+                <div style={{ fontSize:11, color:textMuted }}>Authorized signature block on the PDF</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+          <button onClick={()=>{ if(!editId){clearDraft(); setDraftExists(false)} setView('list') }} disabled={saving} style={{ flex:1, minWidth:100, padding:'11px', borderRadius:9, border:`1px solid ${border}`, background:'transparent', color:textSub, fontSize:13, cursor:'pointer' }}>Cancel</button>
           <button onClick={()=>saveQuote(false)} disabled={saving} style={{ flex:1, minWidth:100, padding:'11px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}>{saving?'Saving...':(editId?'Update':'Save draft')}</button>
           <button onClick={()=>saveQuote(true)} disabled={saving} style={{ flex:1, minWidth:100, padding:'11px', borderRadius:9, border:'none', background:'#0099cc', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer' }}><i className="ti ti-send" style={{ fontSize:14, verticalAlign:'-2px', marginRight:4 }}/> {saving?'...':'Send'}</button>
         </div>
@@ -599,6 +673,18 @@ export default function Quotations() {
           <i className="ti ti-plus" style={{ fontSize:15 }}/> New Quotation
         </button>
       </div>
+
+      {draftExists && (
+        <div style={{ display:'flex', alignItems:'center', gap:10, background:isDark?'rgba(232,184,75,0.1)':'#fffbeb', border:`1px solid ${isDark?'rgba(232,184,75,0.25)':'#fcd34d'}`, borderRadius:10, padding:'11px 14px', marginBottom:14 }}>
+          <i className="ti ti-device-floppy" style={{ fontSize:18, color:'#d97706' }}/>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:13, fontWeight:600, color:text }}>You have an unsaved quotation draft</div>
+            <div style={{ fontSize:11, color:textSub }}>Continue where you left off, or discard it.</div>
+          </div>
+          <button onClick={resumeDraft} style={{ fontSize:12, fontWeight:600, padding:'7px 14px', borderRadius:8, border:'none', background:'#0099cc', color:'#fff', cursor:'pointer' }}>Resume</button>
+          <button onClick={discardDraft} style={{ fontSize:12, padding:'7px 12px', borderRadius:8, border:`1px solid ${border}`, background:'transparent', color:textSub, cursor:'pointer' }}>Discard</button>
+        </div>
+      )}
 
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10, marginBottom:16 }}>
         {STATS.map(s => (
