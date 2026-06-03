@@ -12,11 +12,12 @@ const LOGO_BUCKET = 'company-logos'
 const MAX_LOGO_MB = 1
 
 const TABS = [
-  { key: 'general',      label: 'General',         icon: 'ti-adjustments' },
-  { key: 'finance',      label: 'Finance',         icon: 'ti-cash' },
-  { key: 'verification', label: 'Verification',    icon: 'ti-shield-check' },
-  { key: 'plans',        label: 'Plans & Billing', icon: 'ti-credit-card' },
-  { key: 'settings',     label: 'Settings',        icon: 'ti-settings' },
+  { key: 'general',      label: 'General',           icon: 'ti-adjustments' },
+  { key: 'finance',      label: 'Finance',           icon: 'ti-cash' },
+  { key: 'templates',    label: 'Message Templates', icon: 'ti-message-2' },
+  { key: 'verification', label: 'Verification',      icon: 'ti-shield-check' },
+  { key: 'plans',        label: 'Plans & Billing',   icon: 'ti-credit-card' },
+  { key: 'settings',     label: 'Settings',          icon: 'ti-settings' },
 ]
 
 const TOGGLES = [
@@ -60,6 +61,7 @@ export default function ControlPanel({ initialTab = 'general' }) {
       <div style={{ maxWidth: wide ? '100%' : 1000, margin: '0 auto' }}>
         {tab === 'general'      && <GeneralTab />}
         {tab === 'finance'      && <FinanceTab />}
+        {tab === 'templates'    && <TemplatesTab />}
         {tab === 'verification' && <VerificationPage />}
         {tab === 'plans'        && <PlansPage />}
         {tab === 'settings'     && <SettingsPage />}
@@ -121,6 +123,137 @@ function GeneralTab() {
           <Switch on={!!vals[t.col]} busy={saving === t.col} onClick={() => toggle(t.col)} />
         </div>
       ))}
+    </div>
+  )
+}
+
+/* ============== MESSAGE TEMPLATES TAB ============== */
+const DEFAULT_TEMPLATES = [
+  { name: 'Gentle check-in', body: 'Hi {name}, just following up on your {req} inquiry. Would you like to schedule a quick call this week?' },
+  { name: 'Share quote',     body: 'Hi {name}, thank you for your interest. I have prepared a quote for your {req} — when is a good time to discuss?' },
+  { name: 'Site visit invite', body: 'Hi {name}, we would love to visit your site for an accurate assessment. What day works best for you?' },
+  { name: 'Thank you',       body: 'Hi {name}, thank you for choosing us. We look forward to working on your {req}.' },
+]
+
+function TemplatesTab() {
+  const { company } = useAuth()
+  const companyId = company?.id
+  const [templates, setTemplates] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [editing, setEditing] = useState(null)
+  const [name, setName] = useState('')
+  const [body, setBody] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  useEffect(() => { if (companyId) load() }, [companyId])
+
+  async function load() {
+    setLoading(true)
+    const { data } = await supabase.from('message_templates').select('*').eq('company_id', companyId).order('sort_order', { ascending: true })
+    setTemplates(data || [])
+    setLoading(false)
+  }
+
+  function startNew() { setEditing('new'); setName(''); setBody(''); setMsg('') }
+  function startEdit(t) { setEditing(t.id); setName(t.name); setBody(t.body); setMsg('') }
+  function cancel() { setEditing(null); setName(''); setBody('') }
+
+  async function save() {
+    if (!name.trim() || !body.trim()) { setMsg('Error: Enter name and message.'); return }
+    setSaving(true); setMsg('')
+    if (editing === 'new') {
+      const { data, error } = await supabase.from('message_templates')
+        .insert({ company_id: companyId, name: name.trim(), body: body.trim(), sort_order: templates.length })
+        .select().single()
+      if (error) { setMsg('Error saving — try again.'); setSaving(false); return }
+      setTemplates(prev => [...prev, data])
+    } else {
+      const { error } = await supabase.from('message_templates')
+        .update({ name: name.trim(), body: body.trim() }).eq('id', editing)
+      if (error) { setMsg('Error saving — try again.'); setSaving(false); return }
+      setTemplates(prev => prev.map(t => t.id === editing ? { ...t, name: name.trim(), body: body.trim() } : t))
+    }
+    setSaving(false); setEditing(null); setName(''); setBody('')
+    setMsg('Saved ✓'); setTimeout(() => setMsg(''), 1500)
+  }
+
+  async function remove(id) {
+    if (!window.confirm('Delete this template?')) return
+    await supabase.from('message_templates').delete().eq('id', id)
+    setTemplates(prev => prev.filter(t => t.id !== id))
+  }
+
+  const cardStyle = { background:'var(--card)', border:'1px solid var(--border)', borderRadius:12, padding:16, marginBottom:12 }
+  const inputStyle = { width:'100%', padding:'9px 12px', border:'1px solid var(--border)', background:'var(--card)', color:'var(--text)', borderRadius:8, fontSize:14, fontFamily:'inherit', boxSizing:'border-box' }
+  const hint = { fontSize:12, color:'var(--text3)', marginTop:4 }
+
+  if (loading) return <div style={{ color:'var(--text2)' }}>Loading…</div>
+
+  return (
+    <div style={{ maxWidth: 760 }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+        <div>
+          <h2 style={{ fontSize:17, fontWeight:700, color:'var(--text)' }}>Message Templates</h2>
+          <p style={{ fontSize:13, color:'var(--text2)', marginTop:2 }}>Ready WhatsApp messages for lead follow-ups. Use them in Lead Hub.</p>
+        </div>
+        {msg && <span style={{ fontSize:13, color: msg.includes('Error')?'#ef4444':'#10b981', fontWeight:600 }}>{msg}</span>}
+      </div>
+
+      <div style={{ ...cardStyle, background:'var(--bg2)' }}>
+        <div style={{ fontSize:12, fontWeight:700, color:'var(--text)', textTransform:'uppercase', letterSpacing:'0.03em', marginBottom:10 }}>Built-in templates</div>
+        <div style={{ fontSize:12, color:'var(--text3)', marginBottom:12 }}>These are always available in Lead Hub — you can't edit or delete them.</div>
+        {DEFAULT_TEMPLATES.map(t => (
+          <div key={t.name} style={{ display:'flex', gap:10, alignItems:'flex-start', padding:'8px 0', borderTop:'1px dashed var(--border)' }}>
+            <span style={{ fontSize:12, fontWeight:700, color:BRAND, minWidth:120 }}>{t.name}</span>
+            <span style={{ fontSize:12, color:'var(--text2)', lineHeight:1.4 }}>{t.body}</span>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', margin:'18px 0 12px' }}>
+        <div style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>My templates ({templates.length})</div>
+        {editing === null && (
+          <button onClick={startNew} style={{ padding:'8px 16px', background:BRAND, color:'#fff', border:'none', borderRadius:8, fontWeight:600, fontSize:13, cursor:'pointer', display:'flex', alignItems:'center', gap:6 }}>
+            <i className="ti ti-plus" style={{ fontSize:14 }} /> New template
+          </button>
+        )}
+      </div>
+
+      {editing !== null && (
+        <div style={{ ...cardStyle, borderColor:BRAND }}>
+          <div style={{ fontSize:13, fontWeight:700, color:'var(--text)', marginBottom:10 }}>{editing === 'new' ? 'New template' : 'Edit template'}</div>
+          <input value={name} onChange={e => setName(e.target.value)} placeholder='Template name — e.g. "Ramadan greeting"' style={{ ...inputStyle, marginBottom:10 }} />
+          <textarea value={body} onChange={e => setBody(e.target.value)} rows={3} placeholder="Message text… use {name} for customer name, {req} for requirement"
+            style={{ ...inputStyle, resize:'vertical', lineHeight:1.5 }} />
+          <div style={hint}>Placeholders: <b style={{ color:'var(--text)' }}>{'{name}'}</b> = customer name, <b style={{ color:'var(--text)' }}>{'{req}'}</b> = requirement (auto-filled when sending)</div>
+          <div style={{ display:'flex', gap:8, marginTop:12 }}>
+            <button onClick={save} disabled={saving} style={{ padding:'9px 18px', background:BRAND, color:'#fff', border:'none', borderRadius:8, fontWeight:600, fontSize:13, cursor:'pointer', opacity:saving?0.6:1 }}>{saving ? 'Saving...' : 'Save template'}</button>
+            <button onClick={cancel} style={{ padding:'9px 16px', background:'var(--bg2)', color:'var(--text2)', border:'1px solid var(--border)', borderRadius:8, fontWeight:600, fontSize:13, cursor:'pointer' }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {templates.length === 0 && editing === null ? (
+        <div style={{ ...cardStyle, textAlign:'center', padding:'40px 20px' }}>
+          <i className="ti ti-message-plus" style={{ fontSize:36, color:'var(--text3)', display:'block', marginBottom:10 }} />
+          <div style={{ fontSize:14, fontWeight:600, color:'var(--text)', marginBottom:4 }}>No custom templates yet</div>
+          <div style={{ fontSize:13, color:'var(--text2)' }}>Create reusable messages for offers, greetings, negotiations and more.</div>
+        </div>
+      ) : (
+        templates.map(t => (
+          <div key={t.id} style={{ ...cardStyle, display:'flex', gap:12, alignItems:'flex-start' }}>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:14, fontWeight:700, color:'var(--text)', marginBottom:4 }}>{t.name}</div>
+              <div style={{ fontSize:13, color:'var(--text2)', lineHeight:1.5 }}>{t.body}</div>
+            </div>
+            <div style={{ display:'flex', gap:6, flexShrink:0 }}>
+              <button onClick={() => startEdit(t)} style={{ padding:'6px 10px', background:'var(--bg2)', color:'var(--text2)', border:'1px solid var(--border)', borderRadius:7, cursor:'pointer', fontSize:12 }}><i className="ti ti-edit" style={{ fontSize:13 }} /></button>
+              <button onClick={() => remove(t.id)} style={{ padding:'6px 10px', background:'rgba(239,68,68,0.12)', color:'#ef4444', border:'none', borderRadius:7, cursor:'pointer', fontSize:12 }}><i className="ti ti-trash" style={{ fontSize:13 }} /></button>
+            </div>
+          </div>
+        ))
+      )}
     </div>
   )
 }
