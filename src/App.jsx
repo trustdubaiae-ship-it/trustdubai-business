@@ -15,6 +15,7 @@ import PortfolioPage from './pages/PortfolioPage'
 import AnalyticsPage from './pages/AnalyticsPage'
 import LeadsPage from './pages/LeadsPage'
 import Quotations from './pages/Quotations'
+import QuoteSettings from './pages/QuoteSettings'
 import SponsoredPage from './pages/SponsoredPage'
 import StaffManagement from './pages/StaffManagement'
 import TeamMembers from './pages/TeamMembers'
@@ -37,6 +38,7 @@ const PAGE_PERM = {
   analytics:          'view_analytics',
   leads:              'view_leads',
   quotations:         'view_leads',
+  quoteSettings:      'view_profile',
   sponsored:          'view_sponsored',
   staff:              'manage_staff',
   team:               'view_profile',
@@ -50,14 +52,14 @@ const PAGE_PERM = {
   settings:           'view_profile',
 }
 
-const LIMITED_PAGES = ['dashboard', 'inbox', 'profile', 'portfolio', 'faq', 'notifications', 'team', 'documents']
+const LIMITED_PAGES = ['dashboard', 'inbox', 'profile', 'portfolio', 'faq', 'notifications', 'team', 'documents', 'quoteSettings']
 
 // --- Refresh persistence (URL hash) ---
 // activePage is mirrored in the URL hash (e.g. #leads) so a page refresh
 // restores the same page instead of resetting to Dashboard. This also enables
 // deep-linking (notification click -> #documents) for the Inbox ecosystem.
 const VALID_PAGES = [
-  'dashboard', 'inbox', 'profile', 'reviews', 'portfolio', 'analytics', 'leads', 'quotations',
+  'dashboard', 'inbox', 'profile', 'reviews', 'portfolio', 'analytics', 'leads', 'quotations', 'quoteSettings',
   'sponsored', 'staff', 'team', 'documents', 'faq', 'notifications', 'trust',
   'controlpanel', 'verification', 'verificationStatus', 'plans', 'settings',
 ]
@@ -119,6 +121,7 @@ function Portal() {
     analytics:          <AnalyticsPage onNavigate={navigate} />,
     leads:              <LeadsPage />,
     quotations:         <Quotations />,
+    quoteSettings:      <QuoteSettings />,
     sponsored:          <SponsoredPage onNavigate={navigate} />,
     staff:              <StaffManagement />,
     team:               <TeamMembers />,
@@ -135,7 +138,7 @@ function Portal() {
 
   const pageTitles = {
     dashboard:'Dashboard', inbox:'Inbox', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
-    analytics:'Analytics', leads:'Lead Form', quotations:'Quotations', sponsored:'Sponsored Placement', staff:'Staff & Access',
+    analytics:'Analytics', leads:'Lead Form', quotations:'Quotations', quoteSettings:'Quote Settings', sponsored:'Sponsored Placement', staff:'Staff & Access',
     team:'Our Team', documents:'Document Verification', faq:'FAQ Management', notifications:'Notifications', trust:'Trust Score', controlpanel:'Control Panel',
     verification:'Control Panel', verificationStatus:'Control Panel', plans:'Control Panel', settings:'Control Panel',
   }
