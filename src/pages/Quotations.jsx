@@ -23,7 +23,7 @@ export default function Quotations() {
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
 
   const [, forceUpdate] = useState(0)
-  const [view, setView]       = useState('list')   // 'list' | 'builder'
+  const [view, setView]       = useState('list')
   const [quotes, setQuotes]   = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch]   = useState('')
@@ -32,7 +32,7 @@ export default function Quotations() {
   // builder
   const [tpl, setTpl]         = useState(null)
   const [saving, setSaving]   = useState(false)
-  const [client, setClient]   = useState(null)        // selected client row
+  const [client, setClient]   = useState(null)
   const [clientSearch, setClientSearch] = useState('')
   const [suggestions, setSuggestions] = useState([])
   const [showSug, setShowSug] = useState(false)
@@ -54,15 +54,7 @@ export default function Quotations() {
     setLoading(true)
     const { data: qs } = await supabase.from('quotations').select('*')
       .eq('company_id', company.id).order('created_at', { ascending: false })
-    if (!qs || qs.length === 0) { setQuotes([]); setLoading(false); return }
-    const ids = qs.map(q => q.id)
-    const { data: revs } = await supabase.from('quotation_revisions')
-      .select('quotation_id, rev_number, total').in('quotation_id', ids)
-    const merged = qs.map(q => {
-      const cur = (revs || []).find(r => r.quotation_id === q.id && r.rev_number === q.current_revision)
-      return { ...q, _total: cur?.total || 0 }
-    })
-    setQuotes(merged); setLoading(false)
+    setQuotes(qs || []); setLoading(false)
   }
   async function fetchTemplate() {
     const { data } = await supabase.from('quotation_templates').select('*')
@@ -70,7 +62,7 @@ export default function Quotations() {
     setTpl(data || null)
   }
 
-  // ---------- client search (clients table) ----------
+  // ---------- client search ----------
   async function searchClients(q) {
     setClientSearch(q)
     setClient(null)
@@ -82,11 +74,7 @@ export default function Quotations() {
     setSuggestions(data || [])
     setShowSug(true)
   }
-  function pickClient(c) {
-    setClient(c)
-    setClientSearch(c.name)
-    setShowSug(false)
-  }
+  function pickClient(c) { setClient(c); setClientSearch(c.name); setShowSug(false) }
 
   // ---------- builder ----------
   function openBuilder() {
@@ -120,7 +108,7 @@ export default function Quotations() {
       const prefix = tpl?.quote_prefix || 'QTN'
       const quoteNumber = `${prefix}-${String(seq).padStart(3,'0')}`
 
-      const { data: q, error: qErr } = await supabase.from('quotations').insert({
+      const { error: qErr } = await supabase.from('quotations').insert({
         company_id: company.id,
         quote_number: quoteNumber,
         client_id: client.id,
@@ -128,29 +116,18 @@ export default function Quotations() {
         source_uid: client.uid,
         client_name: client.name,
         client_phone: client.phone || null,
+        client_email: client.email || null,
         project_title: projectTitle.trim() || null,
         mode: 'simple',
-        status: sendNow ? 'sent' : 'draft',
-        current_revision: 0,
-      }).select().single()
-      if (qErr) throw qErr
-
-      const { error: rErr } = await supabase.from('quotation_revisions').insert({
-        quotation_id: q.id,
-        rev_number: 0,
         items: validItems.map(it => ({ desc:it.desc.trim(), qty:Number(it.qty)||0, rate:Number(it.rate)||0 })),
-        discount_type: discountType,
-        discount_value: Number(discountValue)||0,
-        discount_amount: discountAmount,
-        subtotal, vat_enabled: vatEnabled, vat_amount: vatAmount, total: grandTotal,
+        subtotal,
+        vat_amount: vatAmount,
+        total: grandTotal,
+        payment_terms: tpl?.payment_schedule || null,
         why_choose_us: tpl?.why_choose_us || null,
-        terms: tpl?.default_terms || null,
-        payment_schedule: tpl?.payment_schedule || [],
-        notes: notes.trim() || null,
-        is_locked: !!sendNow,
-        sent_at: sendNow ? new Date().toISOString() : null,
+        status: sendNow ? 'sent' : 'draft',
       })
-      if (rErr) throw rErr
+      if (qErr) throw qErr
 
       toast.success(sendNow ? 'Quotation sent ✓' : 'Draft saved ✓')
       setView('list'); fetchQuotes()
@@ -170,7 +147,7 @@ export default function Quotations() {
   const total   = quotes.length
   const sentCnt = quotes.filter(q => (q.status||'draft')==='sent').length
   const apprCnt = quotes.filter(q => (q.status||'draft')==='approved').length
-  const apprVal = quotes.filter(q => (q.status||'draft')==='approved').reduce((s,q)=> s+(q._total||0),0)
+  const apprVal = quotes.filter(q => (q.status||'draft')==='approved').reduce((s,q)=> s+(q.total||0),0)
   const fmtShort = n => n>=1000 ? (n/1000).toFixed(n%1000===0?0:1)+'k' : String(Math.round(n))
 
   // ---------- theme ----------
@@ -190,7 +167,7 @@ export default function Quotations() {
           </button>
           <div style={{ flex:1 }}>
             <h1 style={{ fontSize:19, fontWeight:700, color:text, margin:0 }}>New Quotation</h1>
-            <div style={{ fontSize:12, color:textMuted }}>Simple mode · Rev 0</div>
+            <div style={{ fontSize:12, color:textMuted }}>Simple mode</div>
           </div>
           <span style={{ fontSize:11, color:'#0077a3', background:isDark?'rgba(3,193,245,0.15)':'#e0f9ff', padding:'4px 11px', borderRadius:99, fontWeight:600 }}>Simple</span>
         </div>
@@ -375,11 +352,11 @@ export default function Quotations() {
                     {q.client_uid && <span style={{ fontSize:10, color:textMuted, fontFamily:'monospace' }}>{q.client_uid}</span>}
                   </div>
                   <div style={{ fontSize:12, color:textSub, marginTop:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                    {q.client_name||'No client'}{q.project_title?' · '+q.project_title:''} · Rev {q.current_revision??0}
+                    {q.client_name||'No client'}{q.project_title?' · '+q.project_title:''}
                   </div>
                 </div>
                 <div style={{ textAlign:'right', flexShrink:0 }}>
-                  <div style={{ fontSize:14, fontWeight:600, color:text }}>{fmt(q._total)}</div>
+                  <div style={{ fontSize:14, fontWeight:600, color:text }}>{fmt(q.total||0)}</div>
                   <span style={{ fontSize:11, color:st.color, background:isDark?st.color+'22':st.bg, padding:'2px 9px', borderRadius:99 }}>{st.label}</span>
                 </div>
               </div>
