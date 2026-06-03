@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { useToast } from '../lib/toast'
+import UpgradeLockModal from '../components/UpgradeLockModal'
 
 const STATUS_STYLE = {
   draft:    { label:'draft',    color:'#64748b', bg:'#f1f5f9' },
@@ -17,7 +18,44 @@ const MODE_STYLE = {
 const FILTERS = ['all', 'draft', 'sent', 'approved']
 const STATUS_FLOW = ['draft', 'sent', 'approved', 'rejected']
 const UNITS = ['Lump Sum', 'Nos', 'm²', 'm', 'L/s', 'Set', 'Hour', 'Day']
-const blankItem = () => ({ desc:'', unit:'Nos', qty:1, rate:0 })
+const TRADE_FALLBACK = ['Civil', 'MEP', 'False Ceiling', 'Flooring', 'Painting', 'Joinery', 'Sanitary', 'Misc']
+const PLAN_RANK = { free:0, silver:1, gold:2, platinum:3 }
+
+const blankItem  = () => ({ desc:'', unit:'Nos', qty:1, rate:0 })
+const blankItemT = (trade) => ({ desc:'', unit:'Nos', qty:1, rate:0, trade: trade || '' })
+
+// Group items by trade, preserving each item's original index for editing.
+function groupByTradeIdx(items, order) {
+  const groups = {}
+  items.forEach((it, idx) => {
+    const t = it.trade || 'Misc'
+    ;(groups[t] = groups[t] || []).push({ it, idx })
+  })
+  const seq = []
+  ;(order || []).forEach(t => { if (groups[t]) seq.push(t) })
+  Object.keys(groups).forEach(t => { if (!seq.includes(t)) seq.push(t) })
+  return seq.map(t => ({
+    trade: t,
+    rows: groups[t],
+    subtotal: groups[t].reduce((s, r) => s + (Number(r.it.qty)||0)*(Number(r.it.rate)||0), 0),
+  }))
+}
+// Read-only grouping (detail/preview/print)
+function groupByTrade(items, order) {
+  const groups = {}
+  ;(items || []).forEach(it => {
+    const t = it.trade || 'Misc'
+    ;(groups[t] = groups[t] || []).push(it)
+  })
+  const seq = []
+  ;(order || []).forEach(t => { if (groups[t]) seq.push(t) })
+  Object.keys(groups).forEach(t => { if (!seq.includes(t)) seq.push(t) })
+  return seq.map(t => ({
+    trade: t,
+    items: groups[t],
+    subtotal: groups[t].reduce((s, it) => s + (Number(it.qty)||0)*(Number(it.rate)||0), 0),
+  }))
+}
 
 const DEFAULT_TERMS = 'Quotation valid for 7 days. Prices in AED. Work commences after advance payment & design approval. All as per approved drawing and engineer\'s instruction.'
 const DEFAULT_PAYMENT = '50% Advance · 40% On 60% completion · 10% On handover'
@@ -31,6 +69,9 @@ export default function Quotations() {
   const { company } = useAuth()
   const toast = useToast()
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+
+  const planName = company?.plan || 'free'
+  const canBoq   = (PLAN_RANK[planName] || 0) >= 2
 
   const [, forceUpdate] = useState(0)
   const [view, setView]       = useState('list')   // list | builder | detail | preview
@@ -46,6 +87,8 @@ export default function Quotations() {
   const [tpl, setTpl]         = useState(null)
   const [saving, setSaving]   = useState(false)
   const [editId, setEditId]   = useState(null)
+  const [mode, setMode]       = useState('simple')
+  const [lockModal, setLockModal] = useState(false)
   const [client, setClient]   = useState(null)
   const [clientSearch, setClientSearch] = useState('')
   const [suggestions, setSuggestions] = useState([])
@@ -58,6 +101,10 @@ export default function Quotations() {
   const [notes, setNotes]     = useState('')
   const [showFooter, setShowFooter] = useState(true)
   const [showSignature, setShowSignature] = useState(true)
+  const [addTradePick, setAddTradePick] = useState('')
+
+  const tradeList = (Array.isArray(tpl?.default_trades) && tpl.default_trades.length)
+    ? tpl.default_trades : TRADE_FALLBACK
 
   useEffect(() => {
     if (company?.id) { fetchQuotes(); fetchTemplate() }
@@ -73,11 +120,11 @@ export default function Quotations() {
     const hasContent = client || projectTitle.trim() || items.some(it => it.desc.trim())
     if (!hasContent) return
     const t = setTimeout(() => {
-      saveDraft({ client, clientSearch, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature })
+      saveDraft({ mode, client, clientSearch, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature })
       setDraftExists(true)
     }, 500)
     return () => clearTimeout(t)
-  }, [view, editId, client, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature])
+  }, [view, editId, mode, client, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature])
 
   async function fetchQuotes() {
     setLoading(true)
@@ -132,17 +179,20 @@ export default function Quotations() {
 
   function openBuilder() {
     setEditId(null)
+    setMode('simple')
     setClient(null); setClientSearch(''); setSuggestions([]); setShowSug(false)
     setProjectTitle(''); setItems([blankItem()]); setNotes('')
     setVatEnabled(tpl?.default_vat_enabled ?? true)
     setDiscountType(null); setDiscountValue(0)
     setShowFooter(true); setShowSignature(true)
+    setAddTradePick('')
     setView('builder')
   }
   function resumeDraft() {
     const d = loadDraft()
     if (!d) { setDraftExists(false); return }
     setEditId(null)
+    setMode(d.mode === 'boq' && canBoq ? 'boq' : 'simple')
     setClient(d.client || null)
     setClientSearch(d.clientSearch || '')
     setSuggestions([]); setShowSug(false)
@@ -154,27 +204,54 @@ export default function Quotations() {
     setNotes(d.notes || '')
     setShowFooter(d.showFooter ?? true)
     setShowSignature(d.showSignature ?? true)
+    setAddTradePick('')
     setView('builder')
   }
   function discardDraft() { clearDraft(); setDraftExists(false); toast.info('Draft discarded') }
 
   function editQuote(q) {
     setEditId(q.id)
+    setMode(q.mode === 'boq' && canBoq ? 'boq' : (q.mode || 'simple'))
     setClient(q.client_id ? { id:q.client_id, uid:q.client_uid, name:q.client_name, phone:q.client_phone, email:q.client_email } : null)
     setClientSearch(q.client_name || '')
     setSuggestions([]); setShowSug(false)
     setProjectTitle(q.project_title || '')
-    setItems(Array.isArray(q.items) && q.items.length ? q.items.map(it => ({ desc:it.desc||'', unit:it.unit||'Nos', qty:it.qty??1, rate:it.rate??0 })) : [blankItem()])
+    setItems(Array.isArray(q.items) && q.items.length
+      ? q.items.map(it => ({ desc:it.desc||'', unit:it.unit||'Nos', qty:it.qty??1, rate:it.rate??0, trade: it.trade || '' }))
+      : [blankItem()])
     setNotes('')
     setVatEnabled(!!q.vat_amount || (tpl?.default_vat_enabled ?? true))
     setDiscountType(null); setDiscountValue(0)
     setShowFooter(q.show_footer ?? true)
     setShowSignature(q.show_signature ?? true)
+    setAddTradePick('')
     setView('builder')
   }
+
+  // ---- mode switch (plan gated) ----
+  function switchMode(m) {
+    if (m === mode) return
+    if (m === 'boq' && !canBoq) { setLockModal(true); return }
+    if (m === 'boq') {
+      const def = tradeList[0] || 'Misc'
+      setItems(prev => prev.map(it => it.trade ? it : { ...it, trade: def }))
+    }
+    setMode(m)
+  }
+
   function updateItem(idx, field, val) { setItems(prev => prev.map((it,i)=> i===idx?{...it,[field]:val}:it)) }
   function addItem() { setItems(prev => [...prev, blankItem()]) }
   function removeItem(idx) { setItems(prev => prev.length===1?prev:prev.filter((_,i)=>i!==idx)) }
+
+  // ---- BOQ helpers ----
+  function addItemToTrade(trade) { setItems(prev => [...prev, blankItemT(trade)]) }
+  function removeItemBoq(idx) { setItems(prev => prev.filter((_,i)=>i!==idx)) }
+  function addTradeSection() {
+    const t = addTradePick
+    if (!t) return
+    addItemToTrade(t)
+    setAddTradePick('')
+  }
 
   const subtotal = items.reduce((s,it)=> s + (Number(it.qty)||0)*(Number(it.rate)||0), 0)
   const discountAmount = discountType==='percent' ? Math.round(subtotal*(Number(discountValue)||0)/100)
@@ -193,8 +270,11 @@ export default function Quotations() {
       const payload = {
         client_id: client.id, client_uid: client.uid, source_uid: client.uid,
         client_name: client.name, client_phone: client.phone || null, client_email: client.email || null,
-        project_title: projectTitle.trim() || null, mode: 'simple',
-        items: validItems.map(it => ({ desc:it.desc.trim(), unit:it.unit||'Nos', qty:Number(it.qty)||0, rate:Number(it.rate)||0 })),
+        project_title: projectTitle.trim() || null, mode,
+        items: validItems.map(it => ({
+          desc:it.desc.trim(), unit:it.unit||'Nos', qty:Number(it.qty)||0, rate:Number(it.rate)||0,
+          ...(mode === 'boq' ? { trade: it.trade || 'Misc' } : {}),
+        })),
         subtotal, vat_amount: vatAmount, total: grandTotal,
         payment_terms: tpl?.payment_schedule || null, why_choose_us: tpl?.why_choose_us || null,
         show_footer: showFooter, show_signature: showSignature,
@@ -247,18 +327,38 @@ export default function Quotations() {
     const cLogo = company?.logo_url || ''
     const trn = tpl?.trn_number || ''
     const terms = tpl?.default_terms || DEFAULT_TERMS
-    const payment = (Array.isArray(tpl?.payment_schedule) ? tpl.payment_schedule.join(' · ') : tpl?.payment_schedule) || DEFAULT_PAYMENT
+    const payment = (Array.isArray(tpl?.payment_schedule) ? tpl.payment_schedule.map(p=>p.label?`${p.percent}% ${p.label}`:p).join(' · ') : tpl?.payment_schedule) || DEFAULT_PAYMENT
     const wantFooter = q.show_footer ?? true
     const wantSign = q.show_signature ?? true
     const qItems = Array.isArray(q.items) ? q.items : []
-    const rows = qItems.map((it,i)=>`<tr>
-      <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;color:#6b6b6b;">${i+1}</td>
-      <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;">${it.desc||''}</td>
-      <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;text-align:center;color:#6b6b6b;">${it.unit||''}</td>
-      <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;text-align:center;color:#6b6b6b;">${it.qty||0}</td>
-      <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;text-align:right;color:#6b6b6b;">${Number(it.rate||0).toLocaleString('en-AE')}</td>
-      <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;text-align:right;">${Math.round((Number(it.qty)||0)*(Number(it.rate)||0)).toLocaleString('en-AE')}</td>
-    </tr>`).join('')
+    const isBoq = (q.mode === 'boq')
+
+    let bodyRows = ''
+    if (isBoq) {
+      const groups = groupByTrade(qItems, tradeList)
+      bodyRows = groups.map(g => {
+        const rows = g.items.map((it,i)=>`<tr>
+          <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;color:#6b6b6b;">${i+1}</td>
+          <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;">${it.desc||''}</td>
+          <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;text-align:center;color:#6b6b6b;">${it.unit||''}</td>
+          <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;text-align:center;color:#6b6b6b;">${it.qty||0}</td>
+          <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;text-align:right;color:#6b6b6b;">${Number(it.rate||0).toLocaleString('en-AE')}</td>
+          <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;text-align:right;">${Math.round((Number(it.qty)||0)*(Number(it.rate)||0)).toLocaleString('en-AE')}</td>
+        </tr>`).join('')
+        return `<tr><td colspan="6" style="background:#1a1a1a;color:#fff;font-size:10px;font-weight:700;padding:6px 8px;text-transform:uppercase;letter-spacing:.5px;">${g.trade}</td></tr>
+          ${rows}
+          <tr><td colspan="5" style="padding:6px 8px;font-size:10.5px;font-weight:700;text-align:right;background:#faf8f3;">${g.trade} Subtotal</td><td style="padding:6px 8px;font-size:10.5px;font-weight:700;text-align:right;background:#faf8f3;color:#c9952a;">AED ${Math.round(g.subtotal).toLocaleString('en-AE')}</td></tr>`
+      }).join('')
+    } else {
+      bodyRows = qItems.map((it,i)=>`<tr>
+        <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;color:#6b6b6b;">${i+1}</td>
+        <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;">${it.desc||''}</td>
+        <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;text-align:center;color:#6b6b6b;">${it.unit||''}</td>
+        <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;text-align:center;color:#6b6b6b;">${it.qty||0}</td>
+        <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;text-align:right;color:#6b6b6b;">${Number(it.rate||0).toLocaleString('en-AE')}</td>
+        <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;text-align:right;">${Math.round((Number(it.qty)||0)*(Number(it.rate)||0)).toLocaleString('en-AE')}</td>
+      </tr>`).join('')
+    }
 
     const footerHtml = wantFooter ? `<div style="background:#faf8f3;border-radius:5px;padding:11px 13px;margin-bottom:14px;">
         <div style="font-size:9px;color:#c9952a;text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:5px;">Payment Schedule</div>
@@ -275,7 +375,7 @@ export default function Quotations() {
           ${cLogo?`<img src="${cLogo}" style="width:46px;height:46px;border-radius:9px;object-fit:cover;">`:`<div style="width:46px;height:46px;border-radius:9px;background:#c9952a;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;color:#fff;">${cName[0]||'C'}</div>`}
           <div>
             <div style="font-size:15px;font-weight:700;">${cName}</div>
-            <div style="font-size:10px;color:#6b6b6b;">Dubai, UAE</div>
+            ${tpl?.tagline?`<div style="font-size:10px;color:#6b6b6b;">${tpl.tagline}</div>`:`<div style="font-size:10px;color:#6b6b6b;">Dubai, UAE</div>`}
             <div style="font-size:10px;color:#6b6b6b;">${cPhone}${trn?' · TRN '+trn:''}</div>
           </div>
         </div>
@@ -306,7 +406,7 @@ export default function Quotations() {
           <th style="padding:7px 8px;text-align:right;font-size:10px;">Rate</th>
           <th style="padding:7px 8px;text-align:right;font-size:10px;">Total</th>
         </tr></thead>
-        <tbody>${rows}</tbody>
+        <tbody>${bodyRows}</tbody>
       </table>
       <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
         <div style="width:240px;">
@@ -341,10 +441,12 @@ export default function Quotations() {
     const cLogo = company?.logo_url || ''
     const trn = tpl?.trn_number || ''
     const terms = tpl?.default_terms || DEFAULT_TERMS
-    const payment = (Array.isArray(tpl?.payment_schedule) ? tpl.payment_schedule.join(' · ') : tpl?.payment_schedule) || DEFAULT_PAYMENT
+    const payment = (Array.isArray(tpl?.payment_schedule) ? tpl.payment_schedule.map(p=>p.label?`${p.percent}% ${p.label}`:p).join(' · ') : tpl?.payment_schedule) || DEFAULT_PAYMENT
     const wantFooter = q.show_footer ?? true
     const wantSign = q.show_signature ?? true
     const qItems = Array.isArray(q.items) ? q.items : []
+    const isBoq = (q.mode === 'boq')
+    const groups = isBoq ? groupByTrade(qItems, tradeList) : null
     return (
       <div>
         <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
@@ -360,7 +462,7 @@ export default function Quotations() {
               {cLogo ? <img src={cLogo} style={{ width:46, height:46, borderRadius:9, objectFit:'cover' }}/> : <div style={{ width:46, height:46, borderRadius:9, background:'#c9952a', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:18, color:'#fff' }}>{cName[0]||'C'}</div>}
               <div>
                 <div style={{ fontSize:15, fontWeight:700 }}>{cName}</div>
-                <div style={{ fontSize:10, color:'#6b6b6b' }}>Dubai, UAE</div>
+                <div style={{ fontSize:10, color:'#6b6b6b' }}>{tpl?.tagline || 'Dubai, UAE'}</div>
                 <div style={{ fontSize:10, color:'#6b6b6b' }}>{company?.phone||''}{trn?' · TRN '+trn:''}</div>
               </div>
             </div>
@@ -387,16 +489,33 @@ export default function Quotations() {
               <th style={{ padding:'7px 8px', textAlign:'right', fontSize:10 }}>Rate</th>
               <th style={{ padding:'7px 8px', textAlign:'right', fontSize:10 }}>Total</th>
             </tr></thead>
-            <tbody>{qItems.map((it,i)=>(
-              <tr key={i}>
-                <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11, color:'#6b6b6b' }}>{i+1}</td>
-                <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11 }}>{it.desc}</td>
-                <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11, textAlign:'center', color:'#6b6b6b' }}>{it.unit||''}</td>
-                <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11, textAlign:'center', color:'#6b6b6b' }}>{it.qty}</td>
-                <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11, textAlign:'right', color:'#6b6b6b' }}>{Number(it.rate||0).toLocaleString('en-AE')}</td>
-                <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11, textAlign:'right' }}>{Math.round((Number(it.qty)||0)*(Number(it.rate)||0)).toLocaleString('en-AE')}</td>
-              </tr>
-            ))}</tbody>
+            <tbody>
+              {isBoq ? groups.map((g, gi) => (
+                <>
+                  <tr key={'h'+gi}><td colSpan={6} style={{ background:'#1a1a1a', color:'#fff', fontSize:10, fontWeight:700, padding:'6px 8px', textTransform:'uppercase', letterSpacing:'.5px' }}>{g.trade}</td></tr>
+                  {g.items.map((it,i)=>(
+                    <tr key={gi+'-'+i}>
+                      <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11, color:'#6b6b6b' }}>{i+1}</td>
+                      <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11 }}>{it.desc}</td>
+                      <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11, textAlign:'center', color:'#6b6b6b' }}>{it.unit||''}</td>
+                      <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11, textAlign:'center', color:'#6b6b6b' }}>{it.qty}</td>
+                      <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11, textAlign:'right', color:'#6b6b6b' }}>{Number(it.rate||0).toLocaleString('en-AE')}</td>
+                      <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11, textAlign:'right' }}>{Math.round((Number(it.qty)||0)*(Number(it.rate)||0)).toLocaleString('en-AE')}</td>
+                    </tr>
+                  ))}
+                  <tr key={'s'+gi}><td colSpan={5} style={{ padding:'6px 8px', fontSize:10.5, fontWeight:700, textAlign:'right', background:'#faf8f3' }}>{g.trade} Subtotal</td><td style={{ padding:'6px 8px', fontSize:10.5, fontWeight:700, textAlign:'right', background:'#faf8f3', color:'#c9952a' }}>AED {Math.round(g.subtotal).toLocaleString('en-AE')}</td></tr>
+                </>
+              )) : qItems.map((it,i)=>(
+                <tr key={i}>
+                  <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11, color:'#6b6b6b' }}>{i+1}</td>
+                  <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11 }}>{it.desc}</td>
+                  <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11, textAlign:'center', color:'#6b6b6b' }}>{it.unit||''}</td>
+                  <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11, textAlign:'center', color:'#6b6b6b' }}>{it.qty}</td>
+                  <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11, textAlign:'right', color:'#6b6b6b' }}>{Number(it.rate||0).toLocaleString('en-AE')}</td>
+                  <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11, textAlign:'right' }}>{Math.round((Number(it.qty)||0)*(Number(it.rate)||0)).toLocaleString('en-AE')}</td>
+                </tr>
+              ))}
+            </tbody>
           </table>
           <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:16 }}>
             <div style={{ width:240 }}>
@@ -433,6 +552,8 @@ export default function Quotations() {
     const md = MODE_STYLE[q.mode||'simple']||MODE_STYLE.simple
     const st = STATUS_STYLE[q.status||'draft']||STATUS_STYLE.draft
     const qItems = Array.isArray(q.items) ? q.items : []
+    const isBoq = (q.mode === 'boq')
+    const groups = isBoq ? groupByTrade(qItems, tradeList) : null
     return (
       <div>
         <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
@@ -457,18 +578,34 @@ export default function Quotations() {
           </div>
         </div>
 
-        <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, overflow:'hidden', marginBottom:12 }}>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 70px 44px 70px 80px', gap:8, padding:'9px 13px', background:subBg, fontSize:11, color:textSub, textTransform:'uppercase', letterSpacing:'.3px' }}>
-            <span>Description</span><span>Unit</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span>
-          </div>
-          {qItems.map((it, i) => (
-            <div key={i} style={{ display:'grid', gridTemplateColumns:'1fr 70px 44px 70px 80px', gap:8, padding:'9px 13px', borderTop:`1px solid ${border}`, fontSize:13, color:text }}>
-              <span>{it.desc}</span><span style={{ color:textSub, fontSize:12 }}>{it.unit||'—'}</span><span style={{ color:textSub }}>{it.qty}</span>
-              <span style={{ color:textSub }}>{Number(it.rate).toLocaleString('en-AE')}</span>
-              <span style={{ textAlign:'right' }}>{Math.round((Number(it.qty)||0)*(Number(it.rate)||0)).toLocaleString('en-AE')}</span>
+        {isBoq ? groups.map((g, gi) => (
+          <div key={gi} style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, overflow:'hidden', marginBottom:10 }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'9px 13px', background:subBg }}>
+              <span style={{ fontSize:13, fontWeight:600, color:text }}>{g.trade}</span>
+              <span style={{ fontSize:12, color:textSub }}>Subtotal: <span style={{ fontWeight:600, color:text }}>{fmt(g.subtotal)}</span></span>
             </div>
-          ))}
-        </div>
+            {g.items.map((it,i)=>(
+              <div key={i} style={{ display:'grid', gridTemplateColumns:'1fr 70px 44px 70px 80px', gap:8, padding:'9px 13px', borderTop:`1px solid ${border}`, fontSize:13, color:text }}>
+                <span>{it.desc}</span><span style={{ color:textSub, fontSize:12 }}>{it.unit||'—'}</span><span style={{ color:textSub }}>{it.qty}</span>
+                <span style={{ color:textSub }}>{Number(it.rate).toLocaleString('en-AE')}</span>
+                <span style={{ textAlign:'right' }}>{Math.round((Number(it.qty)||0)*(Number(it.rate)||0)).toLocaleString('en-AE')}</span>
+              </div>
+            ))}
+          </div>
+        )) : (
+          <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, overflow:'hidden', marginBottom:12 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 70px 44px 70px 80px', gap:8, padding:'9px 13px', background:subBg, fontSize:11, color:textSub, textTransform:'uppercase', letterSpacing:'.3px' }}>
+              <span>Description</span><span>Unit</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span>
+            </div>
+            {qItems.map((it, i) => (
+              <div key={i} style={{ display:'grid', gridTemplateColumns:'1fr 70px 44px 70px 80px', gap:8, padding:'9px 13px', borderTop:`1px solid ${border}`, fontSize:13, color:text }}>
+                <span>{it.desc}</span><span style={{ color:textSub, fontSize:12 }}>{it.unit||'—'}</span><span style={{ color:textSub }}>{it.qty}</span>
+                <span style={{ color:textSub }}>{Number(it.rate).toLocaleString('en-AE')}</span>
+                <span style={{ textAlign:'right' }}>{Math.round((Number(it.qty)||0)*(Number(it.rate)||0)).toLocaleString('en-AE')}</span>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:14 }}>
           <div style={{ width:230 }}>
@@ -510,6 +647,9 @@ export default function Quotations() {
 
   // ============ BUILDER ============
   if (view === 'builder') {
+    const md = MODE_STYLE[mode] || MODE_STYLE.simple
+    const boqGroups = mode === 'boq' ? groupByTradeIdx(items, tradeList) : null
+    const availableTrades = tradeList.filter(t => !(boqGroups||[]).some(g => g.trade === t))
     return (
       <div>
         <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14 }}>
@@ -518,9 +658,21 @@ export default function Quotations() {
           </button>
           <div style={{ flex:1 }}>
             <h1 style={{ fontSize:19, fontWeight:700, color:text, margin:0 }}>{editId ? 'Edit Quotation' : 'New Quotation'}</h1>
-            <div style={{ fontSize:12, color:textMuted }}>Simple mode{!editId && draftExists ? ' · auto-saving' : ''}</div>
+            <div style={{ fontSize:12, color:textMuted }}>{md.label} mode{!editId && draftExists ? ' · auto-saving' : ''}</div>
           </div>
-          <span style={{ fontSize:11, color:'#0077a3', background:isDark?'rgba(3,193,245,0.15)':'#e0f9ff', padding:'4px 11px', borderRadius:99, fontWeight:600 }}>Simple</span>
+          <span style={{ fontSize:11, color:md.color, background:isDark?md.color+'22':md.bg, padding:'4px 11px', borderRadius:99, fontWeight:600 }}>{md.label}</span>
+        </div>
+
+        {/* Mode switcher */}
+        <div style={{ display:'inline-flex', background:pillBg, border:`1px solid ${border}`, borderRadius:10, padding:3, marginBottom:16 }}>
+          <button onClick={()=>switchMode('simple')}
+            style={{ fontSize:13, fontWeight: mode==='simple'?600:400, padding:'6px 16px', borderRadius:7, border:'none', cursor:'pointer',
+              background: mode==='simple'?(isDark?'rgba(3,193,245,0.15)':'#e0f9ff'):'transparent', color: mode==='simple'?'#0099cc':textSub }}>Simple</button>
+          <button onClick={()=>switchMode('boq')}
+            style={{ fontSize:13, fontWeight: mode==='boq'?600:400, padding:'6px 16px', borderRadius:7, border:'none', cursor:'pointer', display:'flex', alignItems:'center', gap:5,
+              background: mode==='boq'?(isDark?'rgba(3,193,245,0.15)':'#e0f9ff'):'transparent', color: mode==='boq'?'#0099cc':(canBoq?textSub:textMuted) }}>
+            BOQ {!canBoq && <i className="ti ti-lock" style={{ fontSize:12 }}/>}
+          </button>
         </div>
 
         <div style={{ marginBottom:12, position:'relative' }}>
@@ -569,31 +721,82 @@ export default function Quotations() {
 
         <input value={projectTitle} onChange={e=>setProjectTitle(e.target.value)} placeholder="Project title (e.g. Interior Fit-Out)" style={{ ...inputStyle, marginBottom:14 }}/>
 
-        <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, overflow:'hidden', marginBottom:14 }}>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 78px 52px 78px 80px 28px', gap:6, padding:'9px 11px', background:subBg, fontSize:11, color:textSub, textTransform:'uppercase', letterSpacing:'.3px' }}>
-            <span>Description</span><span>Unit</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span><span/>
+        {/* ITEMS — SIMPLE */}
+        {mode === 'simple' && (
+          <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, overflow:'hidden', marginBottom:14 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 78px 52px 78px 80px 28px', gap:6, padding:'9px 11px', background:subBg, fontSize:11, color:textSub, textTransform:'uppercase', letterSpacing:'.3px' }}>
+              <span>Description</span><span>Unit</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span><span/>
+            </div>
+            {items.map((it, idx) => {
+              const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
+              return (
+                <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 78px 52px 78px 80px 28px', gap:6, padding:'8px 11px', alignItems:'center', borderTop:`1px solid ${border}` }}>
+                  <input value={it.desc} onChange={e=>updateItem(idx,'desc',e.target.value)} placeholder="Item description" style={{ ...inputStyle, padding:'7px 8px', fontSize:12.5 }}/>
+                  <select value={it.unit} onChange={e=>updateItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 5px', fontSize:11.5 }}>
+                    {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
+                  </select>
+                  <input type="number" value={it.qty} onChange={e=>updateItem(idx,'qty',e.target.value)} style={{ ...inputStyle, padding:'7px 6px', fontSize:12.5 }}/>
+                  <input type="number" value={it.rate} onChange={e=>updateItem(idx,'rate',e.target.value)} style={{ ...inputStyle, padding:'7px 8px', fontSize:12.5 }}/>
+                  <span style={{ textAlign:'right', fontSize:12.5, color:text }}>{Math.round(lt).toLocaleString('en-AE')}</span>
+                  <button onClick={()=>removeItem(idx)} style={{ background:'none', border:'none', cursor:'pointer', color:textMuted, display:'flex', justifyContent:'center' }}><i className="ti ti-x" style={{ fontSize:15 }}/></button>
+                </div>
+              )
+            })}
+            <div style={{ padding:'9px 11px', borderTop:`1px solid ${border}` }}>
+              <button onClick={addItem} style={{ fontSize:12, padding:'6px 12px', border:`1px solid ${border}`, borderRadius:7, background:'none', color:'#0099cc', cursor:'pointer', fontWeight:600 }}>
+                <i className="ti ti-plus" style={{ fontSize:13, verticalAlign:'-2px', marginRight:3 }}/> Add line item
+              </button>
+            </div>
           </div>
-          {items.map((it, idx) => {
-            const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
-            return (
-              <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 78px 52px 78px 80px 28px', gap:6, padding:'8px 11px', alignItems:'center', borderTop:`1px solid ${border}` }}>
-                <input value={it.desc} onChange={e=>updateItem(idx,'desc',e.target.value)} placeholder="Item description" style={{ ...inputStyle, padding:'7px 8px', fontSize:12.5 }}/>
-                <select value={it.unit} onChange={e=>updateItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 5px', fontSize:11.5 }}>
-                  {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
-                </select>
-                <input type="number" value={it.qty} onChange={e=>updateItem(idx,'qty',e.target.value)} style={{ ...inputStyle, padding:'7px 6px', fontSize:12.5 }}/>
-                <input type="number" value={it.rate} onChange={e=>updateItem(idx,'rate',e.target.value)} style={{ ...inputStyle, padding:'7px 8px', fontSize:12.5 }}/>
-                <span style={{ textAlign:'right', fontSize:12.5, color:text }}>{Math.round(lt).toLocaleString('en-AE')}</span>
-                <button onClick={()=>removeItem(idx)} style={{ background:'none', border:'none', cursor:'pointer', color:textMuted, display:'flex', justifyContent:'center' }}><i className="ti ti-x" style={{ fontSize:15 }}/></button>
+        )}
+
+        {/* ITEMS — BOQ (trade-grouped) */}
+        {mode === 'boq' && (
+          <>
+            {boqGroups.map((g, gi) => (
+              <div key={g.trade} style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, overflow:'hidden', marginBottom:10 }}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'9px 13px', background:subBg }}>
+                  <span style={{ fontSize:13, fontWeight:600, color:text, display:'flex', alignItems:'center', gap:7 }}>
+                    <i className="ti ti-tools" style={{ fontSize:15, color:'#0099cc' }}/> {g.trade}
+                  </span>
+                  <span style={{ fontSize:12, color:textSub }}>Subtotal: <span style={{ fontWeight:600, color:text }}>{fmt(g.subtotal)}</span></span>
+                </div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 70px 48px 70px 72px 26px', gap:6, padding:'7px 11px', fontSize:10.5, color:textMuted, textTransform:'uppercase', letterSpacing:'.3px' }}>
+                  <span>Description</span><span>Unit</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span><span/>
+                </div>
+                {g.rows.map(({ it, idx }) => {
+                  const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
+                  return (
+                    <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 70px 48px 70px 72px 26px', gap:6, padding:'6px 11px', alignItems:'center', borderTop:`1px solid ${border}` }}>
+                      <input value={it.desc} onChange={e=>updateItem(idx,'desc',e.target.value)} placeholder="Item description" style={{ ...inputStyle, padding:'7px 8px', fontSize:12 }}/>
+                      <select value={it.unit} onChange={e=>updateItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 4px', fontSize:11 }}>
+                        {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
+                      </select>
+                      <input type="number" value={it.qty} onChange={e=>updateItem(idx,'qty',e.target.value)} style={{ ...inputStyle, padding:'7px 4px', fontSize:12 }}/>
+                      <input type="number" value={it.rate} onChange={e=>updateItem(idx,'rate',e.target.value)} style={{ ...inputStyle, padding:'7px 6px', fontSize:12 }}/>
+                      <span style={{ textAlign:'right', fontSize:12, color:text }}>{Math.round(lt).toLocaleString('en-AE')}</span>
+                      <button onClick={()=>removeItemBoq(idx)} style={{ background:'none', border:'none', cursor:'pointer', color:textMuted, display:'flex', justifyContent:'center' }}><i className="ti ti-x" style={{ fontSize:14 }}/></button>
+                    </div>
+                  )
+                })}
+                <div style={{ padding:'8px 11px', borderTop:`1px solid ${border}` }}>
+                  <button onClick={()=>addItemToTrade(g.trade)} style={{ fontSize:12, padding:'5px 11px', border:`1px solid ${border}`, borderRadius:7, background:'none', color:'#0099cc', cursor:'pointer', fontWeight:600 }}>
+                    <i className="ti ti-plus" style={{ fontSize:12, verticalAlign:'-2px', marginRight:3 }}/> Add item to {g.trade}
+                  </button>
+                </div>
               </div>
-            )
-          })}
-          <div style={{ padding:'9px 11px', borderTop:`1px solid ${border}` }}>
-            <button onClick={addItem} style={{ fontSize:12, padding:'6px 12px', border:`1px solid ${border}`, borderRadius:7, background:'none', color:'#0099cc', cursor:'pointer', fontWeight:600 }}>
-              <i className="ti ti-plus" style={{ fontSize:13, verticalAlign:'-2px', marginRight:3 }}/> Add line item
-            </button>
-          </div>
-        </div>
+            ))}
+            <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap' }}>
+              <select value={addTradePick} onChange={e=>setAddTradePick(e.target.value)} style={{ ...inputStyle, flex:1, minWidth:180 }}>
+                <option value="">+ Add a trade section...</option>
+                {availableTrades.map(t => <option key={t} value={t} style={{ background:inputBg, color:text }}>{t}</option>)}
+              </select>
+              <button onClick={addTradeSection} disabled={!addTradePick} style={{ padding:'0 16px', borderRadius:8, border:`1px solid ${border}`, background:cardBg, color: addTradePick?'#0099cc':textMuted, fontSize:13, fontWeight:600, cursor: addTradePick?'pointer':'default', whiteSpace:'nowrap' }}>
+                <i className="ti ti-plus" style={{ fontSize:13, verticalAlign:'-2px', marginRight:3 }}/> Add
+              </button>
+            </div>
+          </>
+        )}
 
         <div style={{ display:'flex', gap:12, flexWrap:'wrap', marginBottom:14 }}>
           <div style={{ flex:1, minWidth:230, display:'flex', flexDirection:'column', gap:10 }}>
@@ -651,6 +854,14 @@ export default function Quotations() {
           <button onClick={()=>saveQuote(false)} disabled={saving} style={{ flex:1, minWidth:100, padding:'11px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}>{saving?'Saving...':(editId?'Update':'Save draft')}</button>
           <button onClick={()=>saveQuote(true)} disabled={saving} style={{ flex:1, minWidth:100, padding:'11px', borderRadius:9, border:'none', background:'#0099cc', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer' }}><i className="ti ti-send" style={{ fontSize:14, verticalAlign:'-2px', marginRight:4 }}/> {saving?'...':'Send'}</button>
         </div>
+
+        <UpgradeLockModal
+          open={lockModal}
+          featureName="BOQ Mode"
+          currentPlan={planName}
+          onClose={() => setLockModal(false)}
+          onUpgrade={() => { setLockModal(false); window.location.hash = 'plans' }}
+        />
       </div>
     )
   }
