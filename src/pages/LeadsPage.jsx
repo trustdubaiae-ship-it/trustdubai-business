@@ -82,7 +82,7 @@ export default function LeadsPage() {
   const [view, setView] = useState('board')
   const [search, setSearch] = useState('')
   const [fSource, setFSource] = useState('all')
-  const [quickFilter, setQuickFilter] = useState('')   // '' | due | overdue | hot
+  const [quickFilter, setQuickFilter] = useState('')
   const [mobileStage, setMobileStage] = useState('new')
   const [dragId, setDragId] = useState(null)
 
@@ -202,21 +202,30 @@ export default function LeadsPage() {
 
   async function applyStageToDB(lead, newStage) {
     if (lead.distId) {
-      await supabase.from('lead_distributions').update({ status: PAGE_TO_DIST[newStage] || 'assigned', status_updated_at: new Date().toISOString() }).eq('id', lead.distId)
+      const { error } = await supabase.from('lead_distributions')
+        .update({ status: PAGE_TO_DIST[newStage] || 'assigned', status_updated_at: new Date().toISOString() })
+        .eq('id', lead.distId)
+      if (error) { console.error('Dist update failed:', error); toast.error('Update failed: ' + error.message); return false }
       setDistLeads(prev => prev.map(d => d.id === lead.distId ? { ...d, status: PAGE_TO_DIST[newStage] || 'assigned' } : d))
     } else {
-      await supabase.from('lead_submissions').update({ status: newStage, status_updated_at: new Date().toISOString() }).eq('id', lead.subId)
+      const { error } = await supabase.from('lead_submissions')
+        .update({ status: newStage, status_updated_at: new Date().toISOString() })
+        .eq('id', lead.subId)
+      if (error) { console.error('Sub update failed:', error); toast.error('Update failed: ' + error.message); return false }
       setSubmissions(prev => prev.map(s => s.id === lead.subId ? { ...s, status: newStage } : s))
     }
+    return true
   }
   async function updateLeadStage(lead, newStage) {
     if (newStage === lead.status) return
     setUpdatingStatus(lead.key)
-    await applyStageToDB(lead, newStage)
-    supabase.from('lead_activity').insert({
-      lead_id: lead.subId || null, distribution_id: lead.distId || null, company_id: company.id,
-      actor_name: company.name, kind: 'stage_change', old_stage: lead.status, new_stage: newStage,
-    })
+    const ok = await applyStageToDB(lead, newStage)
+    if (ok) {
+      await supabase.from('lead_activity').insert({
+        lead_id: lead.subId || null, distribution_id: lead.distId || null, company_id: company.id,
+        actor_name: company.name, kind: 'stage_change', old_stage: lead.status, new_stage: newStage,
+      })
+    }
     setUpdatingStatus(null)
   }
 
@@ -244,19 +253,23 @@ export default function LeadsPage() {
     setSavingLog(true)
     const lead = openLead
     const stageChanged = logStage !== lead.status
+    let err = null
     if (lead.distId) {
-      await supabase.from('lead_distributions').update({
+      const res = await supabase.from('lead_distributions').update({
         follow_up_date: logNext || null, notes: logNote || lead.notes, temperature: logTemp,
         ...(stageChanged ? { status: PAGE_TO_DIST[logStage] || 'assigned', status_updated_at: new Date().toISOString() } : {})
       }).eq('id', lead.distId)
-      setDistLeads(prev => prev.map(d => d.id === lead.distId ? { ...d, follow_up_date: logNext || null, notes: logNote || d.notes, temperature: logTemp, ...(stageChanged ? { status: PAGE_TO_DIST[logStage] } : {}) } : d))
+      err = res.error
+      if (!err) setDistLeads(prev => prev.map(d => d.id === lead.distId ? { ...d, follow_up_date: logNext || null, notes: logNote || d.notes, temperature: logTemp, ...(stageChanged ? { status: PAGE_TO_DIST[logStage] } : {}) } : d))
     } else {
-      await supabase.from('lead_submissions').update({
+      const res = await supabase.from('lead_submissions').update({
         follow_up_date: logNext || null, notes: logNote || lead.notes, temperature: logTemp,
         ...(stageChanged ? { status: logStage, status_updated_at: new Date().toISOString() } : {})
       }).eq('id', lead.subId)
-      setSubmissions(prev => prev.map(s => s.id === lead.subId ? { ...s, follow_up_date: logNext || null, notes: logNote || s.notes, temperature: logTemp, ...(stageChanged ? { status: logStage } : {}) } : s))
+      err = res.error
+      if (!err) setSubmissions(prev => prev.map(s => s.id === lead.subId ? { ...s, follow_up_date: logNext || null, notes: logNote || s.notes, temperature: logTemp, ...(stageChanged ? { status: logStage } : {}) } : s))
     }
+    if (err) { console.error('Save log failed:', err); toast.error('Save failed: ' + err.message); setSavingLog(false); return }
     await supabase.from('lead_activity').insert({
       lead_id: lead.subId || null, distribution_id: lead.distId || null, company_id: company.id,
       actor_name: company.name, kind: stageChanged ? 'stage_change' : 'follow_up',
