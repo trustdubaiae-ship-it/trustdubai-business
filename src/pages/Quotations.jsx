@@ -19,23 +19,24 @@ const STATUS_FLOW = ['draft', 'sent', 'approved', 'rejected']
 const UNITS = ['Lump Sum', 'Nos', 'm²', 'm', 'L/s', 'Set', 'Hour', 'Day']
 const blankItem = () => ({ desc:'', unit:'Nos', qty:1, rate:0 })
 
+const DEFAULT_TERMS = 'Quotation valid for 7 days. Prices in AED. Work commences after advance payment & design approval. All as per approved drawing and engineer\'s instruction.'
+const DEFAULT_PAYMENT = '50% Advance · 40% On 60% completion · 10% On handover'
+
 export default function Quotations() {
   const { company } = useAuth()
   const toast = useToast()
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
 
   const [, forceUpdate] = useState(0)
-  const [view, setView]       = useState('list')
+  const [view, setView]       = useState('list')   // list | builder | detail | preview
   const [quotes, setQuotes]   = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch]   = useState('')
   const [filter, setFilter]   = useState('all')
 
-  // detail
   const [activeQuote, setActiveQuote] = useState(null)
   const [statusBusy, setStatusBusy]   = useState(false)
 
-  // builder
   const [tpl, setTpl]         = useState(null)
   const [saving, setSaving]   = useState(false)
   const [editId, setEditId]   = useState(null)
@@ -81,6 +82,7 @@ export default function Quotations() {
   function pickClient(c) { setClient(c); setClientSearch(c.name); setShowSug(false) }
 
   function openDetail(q) { setActiveQuote(q); setView('detail') }
+  function openPreview(q) { setActiveQuote(q); setView('preview') }
 
   async function changeStatus(newStatus) {
     if (!activeQuote || newStatus === activeQuote.status) return
@@ -94,13 +96,17 @@ export default function Quotations() {
     toast.success('Status updated')
   }
 
-  async function deleteQuote() {
-    if (!activeQuote) return
-    if (!window.confirm('Delete this quotation? This cannot be undone.')) return
-    const { error } = await supabase.from('quotations').delete().eq('id', activeQuote.id)
+  async function doDelete(id) {
+    const { error } = await supabase.from('quotations').delete().eq('id', id)
     if (error) { toast.error('Delete failed'); return }
     toast.success('Quotation deleted')
-    setActiveQuote(null); setView('list'); fetchQuotes()
+    if (activeQuote?.id === id) { setActiveQuote(null); setView('list') }
+    fetchQuotes()
+  }
+  function deleteQuote() {
+    if (!activeQuote) return
+    if (!window.confirm('Delete this quotation? This cannot be undone.')) return
+    doDelete(activeQuote.id)
   }
 
   function openBuilder() {
@@ -143,23 +149,14 @@ export default function Quotations() {
     setSaving(true)
     try {
       const payload = {
-        client_id: client.id,
-        client_uid: client.uid,
-        source_uid: client.uid,
-        client_name: client.name,
-        client_phone: client.phone || null,
-        client_email: client.email || null,
-        project_title: projectTitle.trim() || null,
-        mode: 'simple',
+        client_id: client.id, client_uid: client.uid, source_uid: client.uid,
+        client_name: client.name, client_phone: client.phone || null, client_email: client.email || null,
+        project_title: projectTitle.trim() || null, mode: 'simple',
         items: validItems.map(it => ({ desc:it.desc.trim(), unit:it.unit||'Nos', qty:Number(it.qty)||0, rate:Number(it.rate)||0 })),
-        subtotal,
-        vat_amount: vatAmount,
-        total: grandTotal,
-        payment_terms: tpl?.payment_schedule || null,
-        why_choose_us: tpl?.why_choose_us || null,
+        subtotal, vat_amount: vatAmount, total: grandTotal,
+        payment_terms: tpl?.payment_schedule || null, why_choose_us: tpl?.why_choose_us || null,
         status: sendNow ? 'sent' : 'draft',
       }
-
       if (editId) {
         const { error } = await supabase.from('quotations').update(payload).eq('id', editId)
         if (error) throw error
@@ -199,6 +196,186 @@ export default function Quotations() {
   const inputStyle = { padding:'9px 11px', border:`1px solid ${border}`, borderRadius:8, fontSize:13, background:inputBg, color:text, outline:'none', width:'100%' }
   const initials = nm => nm ? nm.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase() : '?'
 
+  // ---------- PRINT ----------
+  function printQuote(q) {
+    const cName = company?.name || 'Company'
+    const cPhone = company?.phone || ''
+    const cLogo = company?.logo_url || ''
+    const trn = tpl?.trn_number || ''
+    const terms = tpl?.default_terms || DEFAULT_TERMS
+    const payment = (Array.isArray(tpl?.payment_schedule) ? tpl.payment_schedule.join(' · ') : tpl?.payment_schedule) || DEFAULT_PAYMENT
+    const qItems = Array.isArray(q.items) ? q.items : []
+    const rows = qItems.map((it,i)=>`<tr>
+      <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;color:#6b6b6b;">${i+1}</td>
+      <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;">${it.desc||''}</td>
+      <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;text-align:center;color:#6b6b6b;">${it.unit||''}</td>
+      <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;text-align:center;color:#6b6b6b;">${it.qty||0}</td>
+      <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;text-align:right;color:#6b6b6b;">${Number(it.rate||0).toLocaleString('en-AE')}</td>
+      <td style="padding:8px;border-bottom:0.5px solid #e5e5e5;font-size:11px;text-align:right;">${Math.round((Number(it.qty)||0)*(Number(it.rate)||0)).toLocaleString('en-AE')}</td>
+    </tr>`).join('')
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${q.quote_number}</title></head>
+    <body style="font-family:Arial,sans-serif;color:#1a1a1a;max-width:720px;margin:0 auto;padding:30px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #c9952a;padding-bottom:14px;margin-bottom:16px;">
+        <div style="display:flex;gap:11px;align-items:center;">
+          ${cLogo?`<img src="${cLogo}" style="width:46px;height:46px;border-radius:9px;object-fit:cover;">`:`<div style="width:46px;height:46px;border-radius:9px;background:#c9952a;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;color:#fff;">${cName[0]||'C'}</div>`}
+          <div>
+            <div style="font-size:15px;font-weight:700;">${cName}</div>
+            <div style="font-size:10px;color:#6b6b6b;">Dubai, UAE</div>
+            <div style="font-size:10px;color:#6b6b6b;">${cPhone}${trn?' · TRN '+trn:''}</div>
+          </div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:17px;font-weight:700;color:#c9952a;">QUOTATION</div>
+          <div style="font-size:10px;color:#6b6b6b;margin-top:3px;font-family:monospace;">Ref: ${q.quote_number}</div>
+          ${q.client_uid?`<div style="font-size:10px;color:#6b6b6b;font-family:monospace;">UID: ${q.client_uid}</div>`:''}
+          <div style="font-size:10px;color:#6b6b6b;">Date: ${new Date(q.created_at||Date.now()).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:16px;">
+        <div>
+          <div style="font-size:9px;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Bill To</div>
+          <div style="font-size:12px;font-weight:700;">${q.client_name||''}</div>
+          <div style="font-size:11px;color:#6b6b6b;">${q.client_phone||''}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:9px;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Project</div>
+          <div style="font-size:12px;font-weight:700;">${q.project_title||'—'}</div>
+        </div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:14px;">
+        <thead><tr style="background:#1a1a1a;color:#fff;">
+          <th style="padding:7px 8px;text-align:left;font-size:10px;">#</th>
+          <th style="padding:7px 8px;text-align:left;font-size:10px;">Description</th>
+          <th style="padding:7px 8px;text-align:center;font-size:10px;">Unit</th>
+          <th style="padding:7px 8px;text-align:center;font-size:10px;">Qty</th>
+          <th style="padding:7px 8px;text-align:right;font-size:10px;">Rate</th>
+          <th style="padding:7px 8px;text-align:right;font-size:10px;">Total</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+        <div style="width:240px;">
+          <div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0;color:#6b6b6b;"><span>Subtotal</span><span>AED ${Number(q.subtotal||0).toLocaleString('en-AE')}</span></div>
+          ${q.vat_amount>0?`<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0;color:#6b6b6b;"><span>VAT 5%</span><span>AED ${Number(q.vat_amount).toLocaleString('en-AE')}</span></div>`:''}
+          <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding:6px 0 0;border-top:1.5px solid #1a1a1a;margin-top:4px;"><span>Grand Total</span><span style="color:#c9952a;">AED ${Number(q.total||0).toLocaleString('en-AE')}</span></div>
+        </div>
+      </div>
+      <div style="background:#faf8f3;border-radius:5px;padding:11px 13px;margin-bottom:14px;">
+        <div style="font-size:9px;color:#c9952a;text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:5px;">Payment Schedule</div>
+        <div style="font-size:10.5px;color:#555;">${payment}</div>
+        <div style="font-size:9px;color:#c9952a;text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin:9px 0 5px;">Terms</div>
+        <div style="font-size:10px;color:#777;line-height:1.6;">${terms}</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;padding-top:14px;">
+        <div style="font-size:9.5px;color:#999;">Thank you for choosing ${cName}.</div>
+        <div style="text-align:center;"><div style="width:120px;border-bottom:1px solid #1a1a1a;margin-bottom:4px;height:30px;"></div><div style="font-size:9.5px;color:#6b6b6b;">Authorized Signature &amp; Stamp</div></div>
+      </div>
+    </body></html>`
+
+    const w = window.open('', '_blank')
+    if (!w) { toast.error('Allow pop-ups to print/preview'); return }
+    w.document.write(html); w.document.close()
+    setTimeout(()=>{ w.focus(); w.print() }, 400)
+  }
+
+  function whatsappQuote(q) {
+    const phone = (q.client_phone||'').replace(/[^0-9]/g,'')
+    const msg = `Dear ${q.client_name||'Client'},\n\nPlease find your quotation ${q.quote_number} from ${company?.name||''}.\nProject: ${q.project_title||'—'}\nTotal: AED ${Number(q.total||0).toLocaleString('en-AE')}\n\nThank you.`
+    window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(msg), '_blank')
+  }
+
+  // ============ PREVIEW ============
+  if (view === 'preview' && activeQuote) {
+    const q = activeQuote
+    const cName = company?.name || 'Company'
+    const cLogo = company?.logo_url || ''
+    const trn = tpl?.trn_number || ''
+    const terms = tpl?.default_terms || DEFAULT_TERMS
+    const payment = (Array.isArray(tpl?.payment_schedule) ? tpl.payment_schedule.join(' · ') : tpl?.payment_schedule) || DEFAULT_PAYMENT
+    const qItems = Array.isArray(q.items) ? q.items : []
+    return (
+      <div>
+        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
+          <button onClick={() => setView('detail')} style={{ width:34, height:34, borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:textSub, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <i className="ti ti-arrow-left" style={{ fontSize:16 }}/>
+          </button>
+          <div style={{ flex:1 }}><h1 style={{ fontSize:18, fontWeight:700, color:text, margin:0 }}>Preview · {q.quote_number}</h1></div>
+        </div>
+
+        {/* Paper */}
+        <div style={{ background:'#fff', borderRadius:8, padding:'26px 28px', maxWidth:620, margin:'0 auto', boxShadow:'0 2px 12px rgba(0,0,0,0.1)', color:'#1a1a1a' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', borderBottom:'2px solid #c9952a', paddingBottom:14, marginBottom:16 }}>
+            <div style={{ display:'flex', gap:11, alignItems:'center' }}>
+              {cLogo ? <img src={cLogo} style={{ width:46, height:46, borderRadius:9, objectFit:'cover' }}/> : <div style={{ width:46, height:46, borderRadius:9, background:'#c9952a', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:18, color:'#fff' }}>{cName[0]||'C'}</div>}
+              <div>
+                <div style={{ fontSize:15, fontWeight:700 }}>{cName}</div>
+                <div style={{ fontSize:10, color:'#6b6b6b' }}>Dubai, UAE</div>
+                <div style={{ fontSize:10, color:'#6b6b6b' }}>{company?.phone||''}{trn?' · TRN '+trn:''}</div>
+              </div>
+            </div>
+            <div style={{ textAlign:'right' }}>
+              <div style={{ fontSize:17, fontWeight:700, color:'#c9952a' }}>QUOTATION</div>
+              <div style={{ fontSize:10, color:'#6b6b6b', marginTop:3, fontFamily:'monospace' }}>Ref: {q.quote_number}</div>
+              {q.client_uid && <div style={{ fontSize:10, color:'#6b6b6b', fontFamily:'monospace' }}>UID: {q.client_uid}</div>}
+              <div style={{ fontSize:10, color:'#6b6b6b' }}>Date: {new Date(q.created_at||Date.now()).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</div>
+            </div>
+          </div>
+          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:16 }}>
+            <div><div style={{ fontSize:9, color:'#999', textTransform:'uppercase', letterSpacing:'.5px', marginBottom:3 }}>Bill To</div>
+              <div style={{ fontSize:12, fontWeight:700 }}>{q.client_name}</div>
+              <div style={{ fontSize:11, color:'#6b6b6b' }}>{q.client_phone||''}</div></div>
+            <div style={{ textAlign:'right' }}><div style={{ fontSize:9, color:'#999', textTransform:'uppercase', letterSpacing:'.5px', marginBottom:3 }}>Project</div>
+              <div style={{ fontSize:12, fontWeight:700 }}>{q.project_title||'—'}</div></div>
+          </div>
+          <table style={{ width:'100%', borderCollapse:'collapse', marginBottom:14 }}>
+            <thead><tr style={{ background:'#1a1a1a', color:'#fff' }}>
+              <th style={{ padding:'7px 8px', textAlign:'left', fontSize:10 }}>#</th>
+              <th style={{ padding:'7px 8px', textAlign:'left', fontSize:10 }}>Description</th>
+              <th style={{ padding:'7px 8px', textAlign:'center', fontSize:10 }}>Unit</th>
+              <th style={{ padding:'7px 8px', textAlign:'center', fontSize:10 }}>Qty</th>
+              <th style={{ padding:'7px 8px', textAlign:'right', fontSize:10 }}>Rate</th>
+              <th style={{ padding:'7px 8px', textAlign:'right', fontSize:10 }}>Total</th>
+            </tr></thead>
+            <tbody>{qItems.map((it,i)=>(
+              <tr key={i}>
+                <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11, color:'#6b6b6b' }}>{i+1}</td>
+                <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11 }}>{it.desc}</td>
+                <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11, textAlign:'center', color:'#6b6b6b' }}>{it.unit||''}</td>
+                <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11, textAlign:'center', color:'#6b6b6b' }}>{it.qty}</td>
+                <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11, textAlign:'right', color:'#6b6b6b' }}>{Number(it.rate||0).toLocaleString('en-AE')}</td>
+                <td style={{ padding:8, borderBottom:'0.5px solid #e5e5e5', fontSize:11, textAlign:'right' }}>{Math.round((Number(it.qty)||0)*(Number(it.rate)||0)).toLocaleString('en-AE')}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+          <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:16 }}>
+            <div style={{ width:240 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, padding:'3px 0', color:'#6b6b6b' }}><span>Subtotal</span><span>AED {Number(q.subtotal||0).toLocaleString('en-AE')}</span></div>
+              {q.vat_amount>0 && <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, padding:'3px 0', color:'#6b6b6b' }}><span>VAT 5%</span><span>AED {Number(q.vat_amount).toLocaleString('en-AE')}</span></div>}
+              <div style={{ display:'flex', justifyContent:'space-between', fontSize:13, fontWeight:700, padding:'6px 0 0', borderTop:'1.5px solid #1a1a1a', marginTop:4 }}><span>Grand Total</span><span style={{ color:'#c9952a' }}>AED {Number(q.total||0).toLocaleString('en-AE')}</span></div>
+            </div>
+          </div>
+          <div style={{ background:'#faf8f3', borderRadius:5, padding:'11px 13px', marginBottom:14 }}>
+            <div style={{ fontSize:9, color:'#c9952a', textTransform:'uppercase', letterSpacing:'.5px', fontWeight:700, marginBottom:5 }}>Payment Schedule</div>
+            <div style={{ fontSize:10.5, color:'#555' }}>{payment}</div>
+            <div style={{ fontSize:9, color:'#c9952a', textTransform:'uppercase', letterSpacing:'.5px', fontWeight:700, margin:'9px 0 5px' }}>Terms</div>
+            <div style={{ fontSize:10, color:'#777', lineHeight:1.6 }}>{terms}</div>
+          </div>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', paddingTop:14 }}>
+            <div style={{ fontSize:9.5, color:'#999' }}>Thank you for choosing {cName}.</div>
+            <div style={{ textAlign:'center' }}><div style={{ width:120, borderBottom:'1px solid #1a1a1a', marginBottom:4, height:30 }}/><div style={{ fontSize:9.5, color:'#6b6b6b' }}>Authorized Signature &amp; Stamp</div></div>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div style={{ display:'flex', gap:8, justifyContent:'center', marginTop:16, flexWrap:'wrap' }}>
+          <button onClick={()=>printQuote(q)} style={{ padding:'10px 18px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}><i className="ti ti-printer" style={{ fontSize:14, verticalAlign:'-2px', marginRight:5 }}/> Print / PDF</button>
+          <button onClick={()=>whatsappQuote(q)} style={{ padding:'10px 18px', borderRadius:9, border:'none', background:'#22c55e', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer' }}><i className="ti ti-brand-whatsapp" style={{ fontSize:14, verticalAlign:'-2px', marginRight:5 }}/> Send via WhatsApp</button>
+        </div>
+      </div>
+    )
+  }
+
   // ============ DETAIL ============
   if (view === 'detail' && activeQuote) {
     const q = activeQuote
@@ -235,9 +412,7 @@ export default function Quotations() {
           </div>
           {qItems.map((it, i) => (
             <div key={i} style={{ display:'grid', gridTemplateColumns:'1fr 70px 44px 70px 80px', gap:8, padding:'9px 13px', borderTop:`1px solid ${border}`, fontSize:13, color:text }}>
-              <span>{it.desc}</span>
-              <span style={{ color:textSub, fontSize:12 }}>{it.unit||'—'}</span>
-              <span style={{ color:textSub }}>{it.qty}</span>
+              <span>{it.desc}</span><span style={{ color:textSub, fontSize:12 }}>{it.unit||'—'}</span><span style={{ color:textSub }}>{it.qty}</span>
               <span style={{ color:textSub }}>{Number(it.rate).toLocaleString('en-AE')}</span>
               <span style={{ textAlign:'right' }}>{Math.round((Number(it.qty)||0)*(Number(it.rate)||0)).toLocaleString('en-AE')}</span>
             </div>
@@ -261,22 +436,20 @@ export default function Quotations() {
               return (
                 <button key={s} onClick={()=>changeStatus(s)} disabled={statusBusy}
                   style={{ fontSize:12, padding:'6px 13px', borderRadius:99, cursor:'pointer', fontWeight: active?600:400, textTransform:'capitalize',
-                    border:`1px solid ${active?ss.color:border}`,
-                    background: active?(isDark?ss.color+'22':ss.bg):'transparent',
-                    color: active?ss.color:textSub }}>{ss.label}</button>
+                    border:`1px solid ${active?ss.color:border}`, background: active?(isDark?ss.color+'22':ss.bg):'transparent', color: active?ss.color:textSub }}>{ss.label}</button>
               )
             })}
           </div>
         </div>
 
         <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-          <button onClick={()=>editQuote(q)} style={{ flex:1, minWidth:90, padding:'10px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+          <button onClick={()=>editQuote(q)} style={{ flex:1, minWidth:80, padding:'10px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}>
             <i className="ti ti-edit" style={{ fontSize:14, verticalAlign:'-2px', marginRight:4 }}/> Edit
           </button>
-          <button onClick={()=>toast.info('PDF / preview comes in the next step')} style={{ flex:1, minWidth:90, padding:'10px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}>
-            <i className="ti ti-file-text" style={{ fontSize:14, verticalAlign:'-2px', marginRight:4 }}/> Preview / PDF
+          <button onClick={()=>openPreview(q)} style={{ flex:1, minWidth:80, padding:'10px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+            <i className="ti ti-eye" style={{ fontSize:14, verticalAlign:'-2px', marginRight:4 }}/> View
           </button>
-          <button onClick={deleteQuote} style={{ flex:1, minWidth:90, padding:'10px', borderRadius:9, border:`1px solid #fca5a5`, background:cardBg, color:'#dc2626', fontSize:13, fontWeight:600, cursor:'pointer' }}>
+          <button onClick={deleteQuote} style={{ flex:1, minWidth:80, padding:'10px', borderRadius:9, border:`1px solid #fca5a5`, background:cardBg, color:'#dc2626', fontSize:13, fontWeight:600, cursor:'pointer' }}>
             <i className="ti ti-trash" style={{ fontSize:14, verticalAlign:'-2px', marginRight:4 }}/> Delete
           </button>
         </div>
@@ -345,7 +518,6 @@ export default function Quotations() {
 
         <input value={projectTitle} onChange={e=>setProjectTitle(e.target.value)} placeholder="Project title (e.g. Interior Fit-Out)" style={{ ...inputStyle, marginBottom:14 }}/>
 
-        {/* Items with UNIT */}
         <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, overflow:'hidden', marginBottom:14 }}>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 78px 52px 78px 80px 28px', gap:6, padding:'9px 11px', background:subBg, fontSize:11, color:textSub, textTransform:'uppercase', letterSpacing:'.3px' }}>
             <span>Description</span><span>Unit</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span><span/>
@@ -380,9 +552,7 @@ export default function Quotations() {
                 {[['None',null],['%','percent'],['AED','flat']].map(([lbl,val]) => (
                   <button key={lbl} onClick={()=>{ setDiscountType(val); if(!val) setDiscountValue(0) }}
                     style={{ flex:1, fontSize:12, padding:'6px 0', borderRadius:7, cursor:'pointer', fontWeight: discountType===val?600:400,
-                      border:`1px solid ${discountType===val?'#0099cc':border}`,
-                      background: discountType===val?(isDark?'rgba(3,193,245,0.12)':'#e0f9ff'):'transparent',
-                      color: discountType===val?'#0099cc':textSub }}>{lbl}</button>
+                      border:`1px solid ${discountType===val?'#0099cc':border}`, background: discountType===val?(isDark?'rgba(3,193,245,0.12)':'#e0f9ff'):'transparent', color: discountType===val?'#0099cc':textSub }}>{lbl}</button>
                 ))}
               </div>
               {discountType && <input type="number" value={discountValue} onChange={e=>setDiscountValue(e.target.value)} placeholder={discountType==='percent'?'Discount %':'Discount AED'} style={inputStyle}/>}
@@ -467,9 +637,15 @@ export default function Quotations() {
           {list.map(q => {
             const st = STATUS_STYLE[q.status||'draft']||STATUS_STYLE.draft
             const md = MODE_STYLE[q.mode||'simple']||MODE_STYLE.simple
+            const iconBtn = (icon, color, onClick, title) => (
+              <button title={title} onClick={(e)=>{ e.stopPropagation(); onClick() }}
+                style={{ width:30, height:30, borderRadius:7, border:`1px solid ${border}`, background:cardBg, color, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <i className={`ti ${icon}`} style={{ fontSize:15 }}/>
+              </button>
+            )
             return (
               <div key={q.id} onClick={()=>openDetail(q)}
-                style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:14, padding:'14px 16px', display:'flex', alignItems:'center', gap:14, cursor:'pointer', transition:'all .15s' }}
+                style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:14, padding:'14px 16px', display:'flex', alignItems:'center', gap:12, cursor:'pointer', transition:'all .15s' }}
                 onMouseEnter={e=>{ e.currentTarget.style.transform='translateY(-1px)'; e.currentTarget.style.boxShadow=isDark?'0 4px 16px rgba(0,0,0,0.3)':'0 2px 12px rgba(0,0,0,0.06)' }}
                 onMouseLeave={e=>{ e.currentTarget.style.transform='none'; e.currentTarget.style.boxShadow='none' }}>
                 <div style={{ width:42, height:42, borderRadius:10, background:subBg, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><i className="ti ti-file-text" style={{ fontSize:19, color:textSub }}/></div>
@@ -486,6 +662,11 @@ export default function Quotations() {
                 <div style={{ textAlign:'right', flexShrink:0 }}>
                   <div style={{ fontSize:14, fontWeight:600, color:text }}>{fmt(q.total||0)}</div>
                   <span style={{ fontSize:11, color:st.color, background:isDark?st.color+'22':st.bg, padding:'2px 9px', borderRadius:99 }}>{st.label}</span>
+                </div>
+                <div style={{ display:'flex', gap:5, flexShrink:0 }} onClick={e=>e.stopPropagation()}>
+                  {iconBtn('ti-eye', '#0099cc', ()=>openPreview(q), 'View')}
+                  {iconBtn('ti-edit', textSub, ()=>editQuote(q), 'Edit')}
+                  {iconBtn('ti-trash', '#dc2626', ()=>{ if(window.confirm('Delete this quotation? This cannot be undone.')) doDelete(q.id) }, 'Delete')}
                 </div>
               </div>
             )
