@@ -17,6 +17,7 @@ const MODE_STYLE = {
 }
 const FILTERS = ['all', 'draft', 'sent', 'approved']
 const STATUS_FLOW = ['draft', 'sent', 'approved', 'rejected']
+const VO_STATUS_FLOW = ['draft', 'sent', 'approved', 'rejected']
 const UNITS = ['Lump Sum', 'Nos', 'm²', 'm', 'L/s', 'Set', 'Hour', 'Day']
 const TRADE_FALLBACK = ['Civil', 'MEP', 'False Ceiling', 'Flooring', 'Painting', 'Joinery', 'Sanitary', 'Misc']
 const PLAN_RANK = { free:0, silver:1, gold:2, platinum:3 }
@@ -125,6 +126,18 @@ export default function Quotations() {
   const [clientEmail, setClientEmail] = useState('')
   const [previewDraft, setPreviewDraft] = useState(null)
 
+  // ---- VO state ----
+  const [vos, setVos]             = useState([])
+  const [voLoading, setVoLoading] = useState(false)
+  const [voEditId, setVoEditId]   = useState(null)
+  const [voDescription, setVoDescription] = useState('')
+  const [voItems, setVoItems]     = useState([blankItem()])
+  const [voMode, setVoMode]       = useState('simple')
+  const [voVat, setVoVat]         = useState(true)
+  const [voAddTrade, setVoAddTrade] = useState('')
+  const [voSaving, setVoSaving]   = useState(false)
+  const [voPreview, setVoPreview] = useState(null) // VO object being previewed
+
   const tradeList = (Array.isArray(tpl?.default_trades) && tpl.default_trades.length)
     ? tpl.default_trades : TRADE_FALLBACK
 
@@ -158,6 +171,12 @@ export default function Quotations() {
       .eq('company_id', company.id).maybeSingle()
     setTpl(data || null)
   }
+  async function fetchVos(quotationId) {
+    setVoLoading(true)
+    const { data } = await supabase.from('quotation_variations').select('*')
+      .eq('quotation_id', quotationId).order('vo_number', { ascending: true })
+    setVos(data || []); setVoLoading(false)
+  }
 
   async function searchClients(q) {
     setClientSearch(q); setClient(null)
@@ -173,7 +192,7 @@ export default function Quotations() {
     if (c.email) setClientEmail(c.email)
   }
 
-  function openDetail(q) { setActiveQuote(q); setView('detail') }
+  function openDetail(q) { setActiveQuote(q); setVos([]); fetchVos(q.id); setView('detail') }
   function openPreview(q) { setPreviewDraft(null); setActiveQuote(q); setView('preview') }
 
   async function changeStatus(newStatus) {
@@ -337,8 +356,90 @@ export default function Quotations() {
     } finally { setSaving(false) }
   }
 
-  // ============ PDF HTML GENERATOR (shared by Preview + Print) ============
-  function buildQuoteHTML(q) {
+  // ============ VO logic ============
+  const voSubtotal = voItems.reduce((s,it)=> s + (Number(it.qty)||0)*(Number(it.rate)||0), 0)
+  const voVatAmount = voVat ? Math.round(voSubtotal*0.05) : 0
+  const voTotal = voSubtotal + voVatAmount
+
+  const approvedVoTotal = vos.filter(v => (v.status||'draft')==='approved').reduce((s,v)=> s + Number(v.total||0), 0)
+  const revisedTotal = Number(activeQuote?.total||0) + approvedVoTotal
+
+  function openVoBuilder() {
+    setVoEditId(null)
+    setVoDescription('')
+    setVoMode(activeQuote?.mode === 'boq' && canBoq ? 'boq' : 'simple')
+    setVoItems(activeQuote?.mode === 'boq' && canBoq ? [blankItemT(tradeList[0]||'Misc')] : [blankItem()])
+    setVoVat(true); setVoAddTrade('')
+    setView('voBuilder')
+  }
+  function editVo(v) {
+    setVoEditId(v.id)
+    setVoDescription(v.description || '')
+    const m = v.items && v.items.some(it => it.trade) ? 'boq' : 'simple'
+    setVoMode(m === 'boq' && canBoq ? 'boq' : 'simple')
+    setVoItems(Array.isArray(v.items) && v.items.length
+      ? v.items.map(it => ({ desc:it.desc||'', unit:it.unit||'Nos', qty:it.qty??1, rate:it.rate??0, trade: it.trade || '' }))
+      : [blankItem()])
+    setVoVat(!!v.vat_amount); setVoAddTrade('')
+    setView('voBuilder')
+  }
+  function updateVoItem(idx, field, val) { setVoItems(prev => prev.map((it,i)=> i===idx?{...it,[field]:val}:it)) }
+  function addVoItem() { setVoItems(prev => [...prev, voMode==='boq'?blankItemT(tradeList[0]||'Misc'):blankItem()]) }
+  function removeVoItem(idx) { setVoItems(prev => prev.length===1?prev:prev.filter((_,i)=>i!==idx)) }
+  function addVoItemToTrade(trade) { setVoItems(prev => [...prev, blankItemT(trade)]) }
+  function removeVoItemBoq(idx) { setVoItems(prev => prev.filter((_,i)=>i!==idx)) }
+
+  async function saveVo(sendNow) {
+    const validItems = voItems.filter(it => it.desc.trim())
+    if (!voDescription.trim()) { toast.error('Add a variation description'); return }
+    if (validItems.length === 0) { toast.error('Add at least one line item'); return }
+    setVoSaving(true)
+    try {
+      const payload = {
+        quotation_id: activeQuote.id, company_id: company.id,
+        description: voDescription.trim(),
+        items: validItems.map(it => ({
+          desc:it.desc.trim(), unit:it.unit||'Nos', qty:Number(it.qty)||0, rate:Number(it.rate)||0,
+          ...(voMode === 'boq' ? { trade: it.trade || 'Misc' } : {}),
+        })),
+        subtotal: voSubtotal, vat_enabled: voVat, vat_amount: voVatAmount, total: voTotal,
+        status: sendNow ? 'sent' : 'draft',
+      }
+      if (voEditId) {
+        const { error } = await supabase.from('quotation_variations').update(payload).eq('id', voEditId)
+        if (error) throw error
+        toast.success('Variation updated ✓')
+      } else {
+        const nextVo = (vos.reduce((m,v)=> Math.max(m, Number(v.vo_number)||0), 0)) + 1
+        payload.vo_number = nextVo
+        const { error } = await supabase.from('quotation_variations').insert(payload)
+        if (error) throw error
+        toast.success(sendNow ? 'Variation sent ✓' : 'Variation saved ✓')
+      }
+      await fetchVos(activeQuote.id)
+      setView('detail')
+    } catch (e) {
+      toast.error('Save failed: ' + (e.message || 'unknown'))
+    } finally { setVoSaving(false) }
+  }
+
+  async function changeVoStatus(v, newStatus) {
+    if ((v.status||'draft') === newStatus) return
+    const { error } = await supabase.from('quotation_variations').update({ status: newStatus }).eq('id', v.id)
+    if (error) { toast.error('Status update failed'); return }
+    await fetchVos(activeQuote.id)
+    toast.success('VO status updated')
+  }
+  async function deleteVo(v) {
+    if (!window.confirm(`Delete VO-${String(v.vo_number).padStart(2,'0')}? This cannot be undone.`)) return
+    const { error } = await supabase.from('quotation_variations').delete().eq('id', v.id)
+    if (error) { toast.error('Delete failed'); return }
+    await fetchVos(activeQuote.id)
+    toast.success('Variation deleted')
+  }
+
+  // ============ PDF HTML GENERATOR (quotes + VO) ============
+  function buildQuoteHTML(q, voMeta) {
     const cName  = escapeHtml(tpl?.company_legal_name || company?.name || 'Company')
     const cLogo  = company?.logo_url || ''
     const tagline= escapeHtml(tpl?.tagline || 'Dubai, UAE')
@@ -350,6 +451,9 @@ export default function Quotations() {
     const wantSign   = q.show_signature ?? true
     const qItems = Array.isArray(q.items) ? q.items : []
     const isBoq  = (q.mode === 'boq')
+    const isVo   = !!voMeta
+    const docLabel = isVo ? 'VARIATION ORDER' : 'QUOTATION'
+    const refLabel = isVo ? escapeHtml(voMeta.voNumber) : escapeHtml(q.quote_number||'')
     const dateStr = new Date(q.created_at || Date.now()).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })
 
     const sub = Number(q.subtotal||0), vat = Number(q.vat_amount||0), tot = Number(q.total||0)
@@ -391,9 +495,17 @@ export default function Quotations() {
       ? `<img src="${escapeHtml(cLogo)}" style="width:54px;height:54px;border-radius:11px;object-fit:cover;">`
       : `<div style="width:54px;height:54px;border-radius:11px;background:#1a1a1a;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:22px;color:#c9952a;">${cName[0]||'C'}</div>`
 
+    const voDescBlock = isVo && voMeta.description ? `
+      <div style="padding:0 30px 12px;">
+        <div style="background:#faf6ec;border:0.5px solid #e8d9b5;border-radius:5px;padding:9px 12px;">
+          <div style="font-size:8.5px;color:#b08f3f;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:3px;">Variation Description</div>
+          <div style="font-size:11px;color:#444;line-height:1.5;">${escapeHtml(voMeta.description)}</div>
+        </div>
+      </div>` : ''
+
     // ----- PREMIUM (Gold+) -----
     if (canPremium) {
-      const paymentCards = payments.length ? `
+      const paymentCards = (!isVo && payments.length) ? `
         <div style="padding:18px 30px 0;">
           <div style="font-size:10px;color:#c9952a;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:10px;">— Payment Schedule</div>
           <div style="display:flex;gap:8px;">
@@ -405,7 +517,7 @@ export default function Quotations() {
           </div>
         </div>` : ''
 
-      const whyBlock = whys.length ? `
+      const whyBlock = (!isVo && whys.length) ? `
         <div style="padding:18px 30px 0;">
           <div style="font-size:10px;color:#c9952a;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:10px;">— Why Choose ${cName.split(' ').slice(0,2).join(' ')}</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px 16px;">
@@ -435,10 +547,10 @@ export default function Quotations() {
               </div>
             </div>
             <div style="text-align:right;">
-              <div style="font-size:20px;font-weight:700;color:#c9952a;letter-spacing:2px;">QUOTATION</div>
+              <div style="font-size:${isVo?'17px':'20px'};font-weight:700;color:#c9952a;letter-spacing:${isVo?'1px':'2px'};">${docLabel}</div>
               <div style="display:inline-block;margin-top:6px;background:#faf6ec;border:0.5px solid #e8d9b5;border-radius:5px;padding:5px 9px;text-align:left;">
-                <div style="font-size:9px;color:#6b6b6b;font-family:monospace;">Ref · ${escapeHtml(q.quote_number||'')}</div>
-                ${q.client_uid?`<div style="font-size:9px;color:#6b6b6b;font-family:monospace;">UID · ${escapeHtml(q.client_uid)}</div>`:''}
+                <div style="font-size:9px;color:#6b6b6b;font-family:monospace;">${isVo?'VO':'Ref'} · ${refLabel}</div>
+                ${isVo?`<div style="font-size:9px;color:#6b6b6b;font-family:monospace;">Against · ${escapeHtml(q.quote_number||'')}</div>`:(q.client_uid?`<div style="font-size:9px;color:#6b6b6b;font-family:monospace;">UID · ${escapeHtml(q.client_uid)}</div>`:'')}
                 <div style="font-size:9px;color:#6b6b6b;">Date · ${dateStr}</div>
               </div>
             </div>
@@ -458,6 +570,7 @@ export default function Quotations() {
             </div>
           </div>
         </div>
+        ${voDescBlock}
         <div style="padding:0 30px;">
           <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
             ${colgroup}
@@ -477,14 +590,14 @@ export default function Quotations() {
             <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:3px 0;color:#6b6b6b;"><span>${disc>0?'Gross Total':'Subtotal'}</span><span>AED ${n(sub)}</span></div>
             ${disc>0?`<div style="display:flex;justify-content:space-between;font-size:10.5px;padding:3px 0;color:#0f6e56;"><span>Discount</span><span>− ${n(disc)}</span></div>`:''}
             ${vat>0?`<div style="display:flex;justify-content:space-between;font-size:10.5px;padding:3px 0;color:#6b6b6b;"><span>VAT 5%</span><span>${n(vat)}</span></div>`:''}
-            <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding:7px 10px;margin-top:5px;background:#1a1a1a;color:#fff;border-radius:4px;"><span>Grand Total</span><span style="color:#c9952a;">AED ${n(tot)}</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding:7px 10px;margin-top:5px;background:#1a1a1a;color:#fff;border-radius:4px;"><span>${isVo?'VO Total':'Grand Total'}</span><span style="color:#c9952a;">AED ${n(tot)}</span></div>
           </div>
         </div>
-        ${wantFooter ? paymentCards + whyBlock + `
+        ${wantFooter ? paymentCards + whyBlock + (!isVo ? `
           <div style="padding:18px 30px 0;">
             <div style="font-size:10px;color:#c9952a;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:7px;">— Terms & Conditions</div>
             <div style="font-size:8.5px;color:#888;line-height:1.7;white-space:pre-line;">${terms}</div>
-          </div>` : ''}
+          </div>` : '') : ''}
         ${signBlock}
         <div style="background:#1a1a1a;color:#9a9a9a;font-size:8.5px;text-align:center;padding:9px;margin-top:18px;">${cName} &nbsp;·&nbsp; ${cPhone}${cEmail?' &nbsp;·&nbsp; '+cEmail:''} &nbsp;·&nbsp; ${tagline}</div>
       </div>`
@@ -494,7 +607,7 @@ export default function Quotations() {
     const paymentStr = payments.length
       ? payments.map(p => p.label ? `${p.percent}% ${p.label}` : `${p.percent}%`).join(' · ')
       : '50% Advance · 40% On completion · 10% On handover'
-    const footerHtml = wantFooter ? `<div style="background:#faf8f3;border-radius:5px;padding:11px 13px;margin-bottom:14px;">
+    const footerHtml = (wantFooter && !isVo) ? `<div style="background:#faf8f3;border-radius:5px;padding:11px 13px;margin-bottom:14px;">
         <div style="font-size:9px;color:#c9952a;text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:5px;">Payment Schedule</div>
         <div style="font-size:10.5px;color:#555;">${escapeHtml(paymentStr)}</div>
         <div style="font-size:9px;color:#c9952a;text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin:9px 0 5px;">Terms</div>
@@ -513,12 +626,13 @@ export default function Quotations() {
           </div>
         </div>
         <div style="text-align:right;">
-          <div style="font-size:17px;font-weight:700;color:#c9952a;">QUOTATION</div>
-          <div style="font-size:10px;color:#6b6b6b;margin-top:3px;font-family:monospace;">Ref: ${escapeHtml(q.quote_number||'')}</div>
-          ${q.client_uid?`<div style="font-size:10px;color:#6b6b6b;font-family:monospace;">UID: ${escapeHtml(q.client_uid)}</div>`:''}
+          <div style="font-size:17px;font-weight:700;color:#c9952a;">${docLabel}</div>
+          <div style="font-size:10px;color:#6b6b6b;margin-top:3px;font-family:monospace;">${isVo?'VO':'Ref'}: ${refLabel}</div>
+          ${isVo?`<div style="font-size:10px;color:#6b6b6b;font-family:monospace;">Against: ${escapeHtml(q.quote_number||'')}</div>`:(q.client_uid?`<div style="font-size:10px;color:#6b6b6b;font-family:monospace;">UID: ${escapeHtml(q.client_uid)}</div>`:'')}
           <div style="font-size:10px;color:#6b6b6b;">Date: ${dateStr}</div>
         </div>
       </div>
+      ${isVo && voMeta.description ? `<div style="background:#faf8f3;border-radius:5px;padding:9px 12px;margin-bottom:14px;"><div style="font-size:9px;color:#c9952a;text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:3px;">Variation Description</div><div style="font-size:10.5px;color:#555;">${escapeHtml(voMeta.description)}</div></div>` : ''}
       <div style="display:flex;justify-content:space-between;margin-bottom:16px;gap:14px;">
         <div style="min-width:0;"><div style="font-size:9px;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Bill To</div>
           <div style="font-size:12px;font-weight:700;word-break:break-word;">${escapeHtml(q.client_name||'')}</div>
@@ -546,7 +660,7 @@ export default function Quotations() {
           <div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0;color:#6b6b6b;"><span>${disc>0?'Gross Total':'Subtotal'}</span><span>AED ${n(sub)}</span></div>
           ${disc>0?`<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0;color:#0f6e56;"><span>Discount</span><span>− ${n(disc)}</span></div>`:''}
           ${vat>0?`<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0;color:#6b6b6b;"><span>VAT 5%</span><span>${n(vat)}</span></div>`:''}
-          <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding:6px 0 0;border-top:1.5px solid #1a1a1a;margin-top:4px;"><span>Grand Total</span><span style="color:#c9952a;">AED ${n(tot)}</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding:6px 0 0;border-top:1.5px solid #1a1a1a;margin-top:4px;"><span>${isVo?'VO Total':'Grand Total'}</span><span style="color:#c9952a;">AED ${n(tot)}</span></div>
         </div>
       </div>
       ${footerHtml}
@@ -557,13 +671,22 @@ export default function Quotations() {
     </div>`
   }
 
-  function printQuote(q) {
-    const pageHtml = buildQuoteHTML(q)
+  function printDoc(html, title) {
     const w = window.open('', '_blank')
     if (!w) { toast.error('Allow pop-ups to print/preview'); return }
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(q.quote_number||'Quote')}</title></head><body style="margin:0;background:#fff;">${pageHtml}</body></html>`)
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title||'Document')}</title></head><body style="margin:0;background:#fff;">${html}</body></html>`)
     w.document.close()
     setTimeout(()=>{ w.focus(); w.print() }, 400)
+  }
+  function printQuote(q) { printDoc(buildQuoteHTML(q), q.quote_number) }
+  function printVo(v) {
+    const voNum = 'VO-' + String(v.vo_number).padStart(2,'0')
+    const renderObj = {
+      ...activeQuote, items: v.items, subtotal: v.subtotal, vat_amount: v.vat_amount, total: v.total,
+      mode: (v.items && v.items.some(it=>it.trade)) ? 'boq' : 'simple',
+      created_at: v.created_at, show_footer: true, show_signature: true,
+    }
+    printDoc(buildQuoteHTML(renderObj, { voNumber: voNum, description: v.description }), voNum)
   }
 
   function whatsappQuote(q) {
@@ -616,6 +739,155 @@ export default function Quotations() {
     )
   }
 
+  // ============ VO PREVIEW ============
+  if (view === 'voPreview' && voPreview && activeQuote) {
+    const v = voPreview
+    const voNum = 'VO-' + String(v.vo_number).padStart(2,'0')
+    const renderObj = {
+      ...activeQuote, items: v.items, subtotal: v.subtotal, vat_amount: v.vat_amount, total: v.total,
+      mode: (v.items && v.items.some(it=>it.trade)) ? 'boq' : 'simple',
+      created_at: v.created_at, show_footer: true, show_signature: true,
+    }
+    const pageHtml = buildQuoteHTML(renderObj, { voNumber: voNum, description: v.description })
+    return (
+      <div>
+        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
+          <button onClick={() => setView('detail')} style={{ width:34, height:34, borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:textSub, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <i className="ti ti-arrow-left" style={{ fontSize:16 }}/>
+          </button>
+          <div style={{ flex:1 }}>
+            <h1 style={{ fontSize:18, fontWeight:700, color:text, margin:0 }}>Preview · {voNum}</h1>
+            <div style={{ fontSize:11, color:'#d97706', fontWeight:600 }}>Variation Order · against {activeQuote.quote_number}</div>
+          </div>
+        </div>
+        <div style={{ maxWidth:720, margin:'0 auto', boxShadow:'0 2px 16px rgba(0,0,0,0.12)', overflowX:'auto', background:'#fff' }}
+          dangerouslySetInnerHTML={{ __html: pageHtml }} />
+        <div style={{ display:'flex', gap:8, justifyContent:'center', marginTop:16, flexWrap:'wrap' }}>
+          <button onClick={()=>printVo(v)} style={{ padding:'10px 18px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}><i className="ti ti-printer" style={{ fontSize:14, verticalAlign:'-2px', marginRight:5 }}/> Print / PDF</button>
+        </div>
+      </div>
+    )
+  }
+
+  // ============ VO BUILDER ============
+  if (view === 'voBuilder' && activeQuote) {
+    const voGroups = voMode === 'boq' ? groupByTradeIdx(voItems, tradeList) : null
+    const voAvailTrades = tradeList.filter(t => !(voGroups||[]).some(g => g.trade === t))
+    return (
+      <div>
+        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14 }}>
+          <button onClick={() => setView('detail')} style={{ width:34, height:34, borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:textSub, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <i className="ti ti-arrow-left" style={{ fontSize:16 }}/>
+          </button>
+          <div style={{ flex:1 }}>
+            <h1 style={{ fontSize:19, fontWeight:700, color:text, margin:0 }}>{voEditId ? 'Edit Variation' : 'New Variation Order'}</h1>
+            <div style={{ fontSize:12, color:textMuted }}>Against {activeQuote.quote_number} · {activeQuote.client_name}</div>
+          </div>
+        </div>
+
+        <label style={{ fontSize:12, color:textSub, display:'block', marginBottom:5 }}>Variation description <span style={{ color:'#dc2626' }}>*</span></label>
+        <input value={voDescription} onChange={e=>setVoDescription(e.target.value)} placeholder="e.g. Added bidet + extra wall niche in Bathroom 2" style={{ ...inputStyle, marginBottom:14 }}/>
+
+        {canBoq && (
+          <div style={{ display:'inline-flex', background:pillBg, border:`1px solid ${border}`, borderRadius:10, padding:3, marginBottom:14 }}>
+            <button onClick={()=>{ setVoMode('simple') }} style={{ fontSize:13, fontWeight: voMode==='simple'?600:400, padding:'6px 16px', borderRadius:7, border:'none', cursor:'pointer', background: voMode==='simple'?(isDark?'rgba(3,193,245,0.15)':'#e0f9ff'):'transparent', color: voMode==='simple'?'#0099cc':textSub }}>Simple</button>
+            <button onClick={()=>{ setVoMode('boq'); setVoItems(prev=>prev.map(it=> it.trade?it:{...it,trade:tradeList[0]||'Misc'})) }} style={{ fontSize:13, fontWeight: voMode==='boq'?600:400, padding:'6px 16px', borderRadius:7, border:'none', cursor:'pointer', background: voMode==='boq'?(isDark?'rgba(3,193,245,0.15)':'#e0f9ff'):'transparent', color: voMode==='boq'?'#0099cc':textSub }}>BOQ</button>
+          </div>
+        )}
+
+        {voMode === 'simple' && (
+          <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, overflow:'hidden', marginBottom:14 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 78px 52px 78px 80px 28px', gap:6, padding:'9px 11px', background:subBg, fontSize:11, color:textSub, textTransform:'uppercase', letterSpacing:'.3px' }}>
+              <span>Description</span><span>Unit</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span><span/>
+            </div>
+            {voItems.map((it, idx) => {
+              const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
+              return (
+                <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 78px 52px 78px 80px 28px', gap:6, padding:'8px 11px', alignItems:'center', borderTop:`1px solid ${border}` }}>
+                  <input value={it.desc} onChange={e=>updateVoItem(idx,'desc',e.target.value)} placeholder="Item description" style={{ ...inputStyle, padding:'7px 8px', fontSize:12.5 }}/>
+                  <select value={it.unit} onChange={e=>updateVoItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 5px', fontSize:11.5 }}>
+                    {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
+                  </select>
+                  <input type="number" value={it.qty} onChange={e=>updateVoItem(idx,'qty',e.target.value)} style={{ ...inputStyle, padding:'7px 6px', fontSize:12.5 }}/>
+                  <input type="number" value={it.rate} onChange={e=>updateVoItem(idx,'rate',e.target.value)} style={{ ...inputStyle, padding:'7px 8px', fontSize:12.5 }}/>
+                  <span style={{ textAlign:'right', fontSize:12.5, color:text }}>{Math.round(lt).toLocaleString('en-AE')}</span>
+                  <button onClick={()=>removeVoItem(idx)} style={{ background:'none', border:'none', cursor:'pointer', color:textMuted, display:'flex', justifyContent:'center' }}><i className="ti ti-x" style={{ fontSize:15 }}/></button>
+                </div>
+              )
+            })}
+            <div style={{ padding:'9px 11px', borderTop:`1px solid ${border}` }}>
+              <button onClick={addVoItem} style={{ fontSize:12, padding:'6px 12px', border:`1px solid ${border}`, borderRadius:7, background:'none', color:'#0099cc', cursor:'pointer', fontWeight:600 }}>
+                <i className="ti ti-plus" style={{ fontSize:13, verticalAlign:'-2px', marginRight:3 }}/> Add line item
+              </button>
+            </div>
+          </div>
+        )}
+
+        {voMode === 'boq' && (
+          <>
+            {voGroups.map((g) => (
+              <div key={g.trade} style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, overflow:'hidden', marginBottom:10 }}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'9px 13px', background:subBg }}>
+                  <span style={{ fontSize:13, fontWeight:600, color:text, display:'flex', alignItems:'center', gap:7 }}><i className="ti ti-tools" style={{ fontSize:15, color:'#0099cc' }}/> {g.trade}</span>
+                  <span style={{ fontSize:12, color:textSub }}>Subtotal: <span style={{ fontWeight:600, color:text }}>{fmt(g.subtotal)}</span></span>
+                </div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 70px 48px 70px 72px 26px', gap:6, padding:'7px 11px', fontSize:10.5, color:textMuted, textTransform:'uppercase', letterSpacing:'.3px' }}>
+                  <span>Description</span><span>Unit</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span><span/>
+                </div>
+                {g.rows.map(({ it, idx }) => {
+                  const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
+                  return (
+                    <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 70px 48px 70px 72px 26px', gap:6, padding:'6px 11px', alignItems:'center', borderTop:`1px solid ${border}` }}>
+                      <input value={it.desc} onChange={e=>updateVoItem(idx,'desc',e.target.value)} placeholder="Item description" style={{ ...inputStyle, padding:'7px 8px', fontSize:12 }}/>
+                      <select value={it.unit} onChange={e=>updateVoItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 4px', fontSize:11 }}>
+                        {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
+                      </select>
+                      <input type="number" value={it.qty} onChange={e=>updateVoItem(idx,'qty',e.target.value)} style={{ ...inputStyle, padding:'7px 4px', fontSize:12 }}/>
+                      <input type="number" value={it.rate} onChange={e=>updateVoItem(idx,'rate',e.target.value)} style={{ ...inputStyle, padding:'7px 6px', fontSize:12 }}/>
+                      <span style={{ textAlign:'right', fontSize:12, color:text }}>{Math.round(lt).toLocaleString('en-AE')}</span>
+                      <button onClick={()=>removeVoItemBoq(idx)} style={{ background:'none', border:'none', cursor:'pointer', color:textMuted, display:'flex', justifyContent:'center' }}><i className="ti ti-x" style={{ fontSize:14 }}/></button>
+                    </div>
+                  )
+                })}
+                <div style={{ padding:'8px 11px', borderTop:`1px solid ${border}` }}>
+                  <button onClick={()=>addVoItemToTrade(g.trade)} style={{ fontSize:12, padding:'5px 11px', border:`1px solid ${border}`, borderRadius:7, background:'none', color:'#0099cc', cursor:'pointer', fontWeight:600 }}>
+                    <i className="ti ti-plus" style={{ fontSize:12, verticalAlign:'-2px', marginRight:3 }}/> Add item to {g.trade}
+                  </button>
+                </div>
+              </div>
+            ))}
+            <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap' }}>
+              <select value={voAddTrade} onChange={e=>setVoAddTrade(e.target.value)} style={{ ...inputStyle, flex:1, minWidth:180 }}>
+                <option value="">+ Add a trade section...</option>
+                {voAvailTrades.map(t => <option key={t} value={t} style={{ background:inputBg, color:text }}>{t}</option>)}
+              </select>
+              <button onClick={()=>{ if(voAddTrade){ addVoItemToTrade(voAddTrade); setVoAddTrade('') } }} disabled={!voAddTrade} style={{ padding:'0 16px', borderRadius:8, border:`1px solid ${border}`, background:cardBg, color: voAddTrade?'#0099cc':textMuted, fontSize:13, fontWeight:600, cursor: voAddTrade?'pointer':'default', whiteSpace:'nowrap' }}>
+                <i className="ti ti-plus" style={{ fontSize:13, verticalAlign:'-2px', marginRight:3 }}/> Add
+              </button>
+            </div>
+          </>
+        )}
+
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:10, marginBottom:14 }}>
+          <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, color:textSub, cursor:'pointer' }}>
+            <input type="checkbox" checked={voVat} onChange={e=>setVoVat(e.target.checked)} style={{ width:'auto' }}/> Apply 5% VAT
+          </label>
+          <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, padding:'10px 14px', minWidth:200 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', fontSize:13, color:textSub, padding:'2px 0' }}><span>Subtotal</span><span>{fmt(voSubtotal)}</span></div>
+            {voVat && <div style={{ display:'flex', justifyContent:'space-between', fontSize:13, color:textSub, padding:'2px 0' }}><span>VAT 5%</span><span>{fmt(voVatAmount)}</span></div>}
+            <div style={{ display:'flex', justifyContent:'space-between', fontSize:15, fontWeight:700, color:text, padding:'5px 0 0', borderTop:`1px solid ${border}`, marginTop:3 }}><span>VO Total</span><span>{fmt(voTotal)}</span></div>
+          </div>
+        </div>
+
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+          <button onClick={()=>setView('detail')} disabled={voSaving} style={{ flex:1, minWidth:100, padding:'11px', borderRadius:9, border:`1px solid ${border}`, background:'transparent', color:textSub, fontSize:13, cursor:'pointer' }}>Cancel</button>
+          <button onClick={()=>saveVo(false)} disabled={voSaving} style={{ flex:1, minWidth:100, padding:'11px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}>{voSaving?'Saving...':(voEditId?'Update':'Save draft')}</button>
+          <button onClick={()=>saveVo(true)} disabled={voSaving} style={{ flex:1, minWidth:100, padding:'11px', borderRadius:9, border:'none', background:'#0099cc', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer' }}><i className="ti ti-send" style={{ fontSize:14, verticalAlign:'-2px', marginRight:4 }}/> {voSaving?'...':'Send'}</button>
+        </div>
+      </div>
+    )
+  }
+
   // ============ DETAIL ============
   if (view === 'detail' && activeQuote) {
     const q = activeQuote
@@ -624,6 +896,7 @@ export default function Quotations() {
     const qItems = Array.isArray(q.items) ? q.items : []
     const isBoq = (q.mode === 'boq')
     const groups = isBoq ? groupByTrade(qItems, tradeList) : null
+    const isApproved = (q.status||'draft') === 'approved'
     return (
       <div>
         <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
@@ -700,7 +973,7 @@ export default function Quotations() {
           </div>
         </div>
 
-        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:18 }}>
           <button onClick={()=>editQuote(q)} style={{ flex:1, minWidth:80, padding:'10px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}>
             <i className="ti ti-edit" style={{ fontSize:14, verticalAlign:'-2px', marginRight:4 }}/> Edit
           </button>
@@ -710,6 +983,91 @@ export default function Quotations() {
           <button onClick={deleteQuote} style={{ flex:1, minWidth:80, padding:'10px', borderRadius:9, border:`1px solid #fca5a5`, background:cardBg, color:'#dc2626', fontSize:13, fontWeight:600, cursor:'pointer' }}>
             <i className="ti ti-trash" style={{ fontSize:14, verticalAlign:'-2px', marginRight:4 }}/> Delete
           </button>
+        </div>
+
+        {/* ===== Variation Orders ===== */}
+        <div style={{ borderTop:`1px solid ${border}`, paddingTop:16 }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12, flexWrap:'wrap', gap:8 }}>
+            <div style={{ fontSize:14, fontWeight:700, color:text, display:'flex', alignItems:'center', gap:8 }}>
+              <i className="ti ti-git-branch" style={{ fontSize:17, color:'#0099cc' }}/> Variation Orders
+            </div>
+            {isApproved && (
+              <button onClick={openVoBuilder} style={{ fontSize:12, padding:'6px 13px', background:'#0099cc', color:'#fff', border:'none', borderRadius:8, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:5 }}>
+                <i className="ti ti-plus" style={{ fontSize:13 }}/> New VO
+              </button>
+            )}
+          </div>
+
+          {!isApproved ? (
+            <div style={{ background:subBg, border:`1px dashed ${border}`, borderRadius:10, padding:'18px 16px', textAlign:'center' }}>
+              <i className="ti ti-lock" style={{ fontSize:22, color:textMuted }}/>
+              <div style={{ fontSize:13, color:textSub, marginTop:6 }}>Approve this quote first to add variations.</div>
+              <div style={{ fontSize:11, color:textMuted, marginTop:2 }}>Variation orders apply to confirmed (approved) quotes only.</div>
+            </div>
+          ) : voLoading ? (
+            <div style={{ textAlign:'center', padding:20, color:textMuted, fontSize:13 }}>Loading variations...</div>
+          ) : (
+            <>
+              {vos.length === 0 ? (
+                <div style={{ background:subBg, borderRadius:10, padding:'16px', textAlign:'center', fontSize:13, color:textSub, marginBottom:12 }}>
+                  No variations yet. Click <span style={{ fontWeight:600 }}>New VO</span> to add scope changes.
+                </div>
+              ) : (
+                <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:12 }}>
+                  {vos.map(v => {
+                    const vst = STATUS_STYLE[v.status||'draft']||STATUS_STYLE.draft
+                    return (
+                      <div key={v.id} style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, padding:'11px 13px' }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:11 }}>
+                          <div style={{ background:isDark?'rgba(3,193,245,0.12)':'#e0f9ff', color:'#0077a3', fontSize:11, fontWeight:600, padding:'4px 9px', borderRadius:6, fontFamily:'monospace', flexShrink:0 }}>VO-{String(v.vo_number).padStart(2,'0')}</div>
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ fontSize:13, fontWeight:600, color:text, wordBreak:'break-word' }}>{v.description}</div>
+                            <div style={{ fontSize:11, color:textSub }}>{(v.items?.length||0)} item{(v.items?.length||0)!==1?'s':''} · {new Date(v.created_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</div>
+                          </div>
+                          <div style={{ textAlign:'right', flexShrink:0 }}>
+                            <div style={{ fontSize:13, fontWeight:600, color:text }}>+ {fmt(v.total||0)}</div>
+                            <span style={{ fontSize:10, color:vst.color, background:isDark?vst.color+'22':vst.bg, padding:'2px 8px', borderRadius:99 }}>{vst.label}</span>
+                          </div>
+                        </div>
+                        <div style={{ display:'flex', gap:6, marginTop:10, flexWrap:'wrap', alignItems:'center' }}>
+                          {VO_STATUS_FLOW.map(s => {
+                            const active = (v.status||'draft') === s
+                            const ss = STATUS_STYLE[s]
+                            return (
+                              <button key={s} onClick={()=>changeVoStatus(v, s)}
+                                style={{ fontSize:11, padding:'4px 10px', borderRadius:99, cursor:'pointer', fontWeight: active?600:400, textTransform:'capitalize',
+                                  border:`1px solid ${active?ss.color:border}`, background: active?(isDark?ss.color+'22':ss.bg):'transparent', color: active?ss.color:textSub }}>{ss.label}</button>
+                            )
+                          })}
+                          <div style={{ flex:1 }}/>
+                          <button onClick={()=>{ setVoPreview(v); setView('voPreview') }} title="Preview" style={{ width:28, height:28, borderRadius:7, border:`1px solid ${border}`, background:cardBg, color:'#0099cc', cursor:'pointer' }}><i className="ti ti-eye" style={{ fontSize:14 }}/></button>
+                          <button onClick={()=>editVo(v)} title="Edit" style={{ width:28, height:28, borderRadius:7, border:`1px solid ${border}`, background:cardBg, color:textSub, cursor:'pointer' }}><i className="ti ti-edit" style={{ fontSize:14 }}/></button>
+                          <button onClick={()=>deleteVo(v)} title="Delete" style={{ width:28, height:28, borderRadius:7, border:`1px solid #fca5a5`, background:cardBg, color:'#dc2626', cursor:'pointer' }}><i className="ti ti-trash" style={{ fontSize:14 }}/></button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {vos.length > 0 && (
+                <div style={{ background:subBg, borderRadius:10, padding:'13px 15px' }}>
+                  <div style={{ fontSize:11, color:textMuted, textTransform:'uppercase', letterSpacing:'.4px', marginBottom:9 }}>Revised Contract Value</div>
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:13, color:textSub, padding:'3px 0' }}><span>Original quote</span><span>{fmt(q.total||0)}</span></div>
+                  {vos.map(v => {
+                    const appr = (v.status||'draft')==='approved'
+                    return (
+                      <div key={v.id} style={{ display:'flex', justifyContent:'space-between', fontSize:13, color: appr?textSub:textMuted, padding:'3px 0' }}>
+                        <span>VO-{String(v.vo_number).padStart(2,'0')} {appr?'(approved)':`(${v.status||'draft'} · not counted)`}</span>
+                        <span>+ {fmt(v.total||0)}</span>
+                      </div>
+                    )
+                  })}
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:16, fontWeight:700, color:text, padding:'8px 0 2px', borderTop:`1px solid ${border}`, marginTop:5 }}><span>Revised total</span><span style={{ color:'#0099cc' }}>{fmt(revisedTotal)}</span></div>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
     )
