@@ -37,12 +37,15 @@ const STATUS_MAP = {
 const DIST_TO_PAGE = { assigned:'new', viewed:'qualified', contacted:'in_conversation', quoted:'proposal_given', won:'won', lost:'lost', transferred:'lost' }
 const PAGE_TO_DIST = { new:'assigned', qualified:'viewed', in_conversation:'contacted', proposal_given:'quoted', won:'won', lost:'lost' }
 
-// My Leads source cards (no platform here — platform is its own tab)
 const SOURCE_CARDS = [
   { key:'meta',     label:'Meta',     icon:'ti-brand-meta',     color:'#3b82f6' },
   { key:'whatsapp', label:'WhatsApp', icon:'ti-brand-whatsapp', color:'#22c55e' },
   { key:'own',      label:'Manual',   icon:'ti-user-plus',      color:'#8b5cf6' },
 ]
+
+const LEAD_SOURCES = ['Meta Ads','WhatsApp','Instagram','Referral','Walk-in','Website','Direct Call','Holiday Home Operator','Other']
+
+const PROJECT_TYPES = ['Villa Renovation','Apartment Renovation','Office Fit-out','Retail Fit-out','Holiday Home Beautification','Bathroom Renovation','Kitchen Renovation','False Ceiling','Flooring & Tiling','Painting & Wallpaper','Full Interior Design','MEP Works','Swimming Pool Area','Landscape & Outdoor','Commercial Renovation','Showroom Fit-out','Restaurant Fit-out','Hotel Room Renovation','TV Wall Panel','Other']
 
 const TEMP = {
   hot:  { label:'Hot',  color:'#ef4444', bg:'rgba(239,68,68,0.14)' },
@@ -63,7 +66,7 @@ export default function LeadsPage() {
   const { company } = useAuth()
   const toast = useToast()
   const fileRef = useRef(null)
-  const [mainTab, setMainTab] = useState('trustdubai')   // trustdubai | mine | forms
+  const [mainTab, setMainTab] = useState('trustdubai')
   const [forms, setForms] = useState([])
   const [editingForm, setEditingForm] = useState(null)
   const [questions, setQuestions] = useState([])
@@ -95,6 +98,13 @@ export default function LeadsPage() {
   const [showNewTpl, setShowNewTpl] = useState(false)
   const [tplName, setTplName] = useState('')
   const [tplBody, setTplBody] = useState('')
+
+  // Add Lead modal
+  const [showAdd, setShowAdd] = useState(false)
+  const [addMore, setAddMore] = useState(false)
+  const [savingAdd, setSavingAdd] = useState(false)
+  const blankAdd = { name:'', phone:'', source:'Meta Ads', projectType:'', email:'', whatsapp:'', location:'', budget:'', followUp:'', status:'new', temp:'warm', notes:'' }
+  const [addF, setAddF] = useState(blankAdd)
 
   const [vw, setVw] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200)
   useEffect(() => {
@@ -161,6 +171,34 @@ export default function LeadsPage() {
     const toInsert = questions.map((q, i) => ({ form_id: editingForm.id, question: q.question, type: q.type, options: q.options || [], required: q.required, order_num: i }))
     if (toInsert.length > 0) await supabase.from('lead_form_questions').insert(toInsert)
     await fetchAll(); setSaving(false); toast.success('Form saved!')
+  }
+
+  // ===== ADD LEAD =====
+  function openAdd() { setAddF(blankAdd); setAddMore(false); setShowAdd(true) }
+  function closeAdd() { setShowAdd(false) }
+  function setA(k, v) { setAddF(p => ({ ...p, [k]: v })) }
+  async function saveAddLead() {
+    if (!addF.name.trim()) { toast.error('Client name is required'); return }
+    if (!addF.phone.trim()) { toast.error('Phone is required'); return }
+    setSavingAdd(true)
+    const answers = {}
+    answers['Source'] = addF.source
+    if (addF.projectType) answers['Project Type'] = addF.projectType
+    if (addF.location) answers['Location'] = addF.location
+    if (addF.budget) answers['Budget (AED)'] = addF.budget
+    if (addF.whatsapp) answers['WhatsApp'] = addF.whatsapp
+    if (addF.notes) answers['Notes'] = addF.notes
+    const { error } = await supabase.from('lead_submissions').insert({
+      company_id: company.id, name: addF.name.trim(), phone: addF.phone.trim(), email: addF.email.trim() || null,
+      status: addF.status, status_updated_at: new Date().toISOString(),
+      follow_up_date: addF.followUp || null, temperature: addF.temp, notes: addF.notes || null, answers,
+    })
+    setSavingAdd(false)
+    if (error) { toast.error('Could not save lead'); console.error(error); return }
+    await fetchAll()
+    setShowAdd(false)
+    setMainTab('mine')
+    toast.success('Lead added!')
   }
 
   async function applyStageToDB(lead, newStage) {
@@ -347,7 +385,6 @@ export default function LeadsPage() {
     return { label: 'Manual', color: '#8b5cf6', bg: 'rgba(139,92,246,0.14)' }
   }
 
-  // current tab lead set
   const isTD = mainTab === 'trustdubai'
   const baseLeads = isTD ? tdLeads : myLeads
 
@@ -417,6 +454,93 @@ export default function LeadsPage() {
             </button>}
           </div>
         )}
+      </div>
+    )
+  }
+
+  function AddLeadModal() {
+    if (!showAdd) return null
+    const lbl = { fontSize: 11, color: 'var(--text2)', display: 'block', marginBottom: 5 }
+    const lblSm = { fontSize: 10, color: 'var(--text3)', display: 'block', marginBottom: 4 }
+    return (
+      <div onClick={closeAdd} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 210, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: mobile ? 0 : '24px 16px', overflowY: 'auto' }}>
+        <div onClick={e => e.stopPropagation()} style={{ width: mobile ? '100%' : 480, minHeight: mobile ? '100%' : 'auto', background: 'var(--card)', borderRadius: mobile ? 0 : 14, padding: 18, border: '0.5px solid var(--border)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+            <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)' }}>Add new lead</div>
+            <button onClick={closeAdd} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 20 }}><i className="ti ti-x" /></button>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 16 }}>Just name & phone is enough — add details anytime later</div>
+
+          <div style={{ marginBottom: 12 }}>
+            <label style={lbl}>Client name <span style={{ color: '#ef4444' }}>*</span></label>
+            <input value={addF.name} onChange={e => setA('name', e.target.value)} placeholder="e.g. Mr Ankit Sharma" style={{ width: '100%', padding: '9px 11px', ...inputStyle, fontSize: 13 }} />
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label style={lbl}>Phone (Primary) <span style={{ color: '#ef4444' }}>*</span></label>
+            <input value={addF.phone} onChange={e => setA('phone', e.target.value)} placeholder="+971 50 XXX XXXX" style={{ width: '100%', padding: '9px 11px', ...inputStyle, fontSize: 13 }} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+            <div>
+              <label style={lbl}>Lead source <span style={{ color: '#ef4444' }}>*</span></label>
+              <select value={addF.source} onChange={e => setA('source', e.target.value)} style={{ width: '100%', padding: '9px 11px', ...inputStyle, fontSize: 13 }}>
+                {LEAD_SOURCES.map(s => <option key={s} value={s} style={optStyle}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={lbl}>Project type</label>
+              <select value={addF.projectType} onChange={e => setA('projectType', e.target.value)} style={{ width: '100%', padding: '9px 11px', ...inputStyle, fontSize: 13 }}>
+                <option value="" style={optStyle}>Select</option>
+                {PROJECT_TYPES.map(p => <option key={p} value={p} style={optStyle}>{p}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div onClick={() => setAddMore(v => !v)} style={{ borderTop: '0.5px dashed var(--border)', paddingTop: 12, marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#0099cc' }}><i className={'ti ' + (addMore ? 'ti-minus' : 'ti-plus')} style={{ fontSize: 13 }} /> More details (optional)</span>
+            <i className={'ti ' + (addMore ? 'ti-chevron-up' : 'ti-chevron-down')} style={{ fontSize: 15, color: '#0099cc' }} />
+          </div>
+
+          {addMore && (
+            <div style={{ background: 'var(--bg2)', borderRadius: 10, padding: 13, marginBottom: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 11 }}>
+                <div><label style={lblSm}>Email</label><input value={addF.email} onChange={e => setA('email', e.target.value)} placeholder="name@email.com" style={{ width: '100%', padding: '7px 9px', ...inputStyle, fontSize: 12 }} /></div>
+                <div><label style={lblSm}>WhatsApp (if different)</label><input value={addF.whatsapp} onChange={e => setA('whatsapp', e.target.value)} placeholder="+971 ..." style={{ width: '100%', padding: '7px 9px', ...inputStyle, fontSize: 12 }} /></div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 11 }}>
+                <div><label style={lblSm}>Location</label><input value={addF.location} onChange={e => setA('location', e.target.value)} placeholder="e.g. Business Bay" style={{ width: '100%', padding: '7px 9px', ...inputStyle, fontSize: 12 }} /></div>
+                <div><label style={lblSm}>Budget (AED)</label><input value={addF.budget} onChange={e => setA('budget', e.target.value)} placeholder="e.g. 50,000" style={{ width: '100%', padding: '7px 9px', ...inputStyle, fontSize: 12 }} /></div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 11 }}>
+                <div><label style={lblSm}>Next follow-up</label><input type="date" value={addF.followUp} onChange={e => setA('followUp', e.target.value)} style={{ width: '100%', padding: '7px 9px', ...inputStyle, fontSize: 12 }} /></div>
+                <div><label style={lblSm}>Status</label>
+                  <select value={addF.status} onChange={e => setA('status', e.target.value)} style={{ width: '100%', padding: '7px 9px', ...inputStyle, fontSize: 12 }}>
+                    {LEAD_STATUSES.map(s => <option key={s.value} value={s.value} style={optStyle}>{s.label}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div style={{ marginBottom: 11 }}>
+                <label style={lblSm}>Priority</label>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {Object.entries(TEMP).map(([k, v]) => (
+                    <button key={k} onClick={() => setA('temp', k)}
+                      style={{ flex: 1, fontSize: 11, padding: '6px', borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit',
+                        border: '0.5px solid ' + (addF.temp === k ? v.color : 'var(--border)'),
+                        background: addF.temp === k ? v.bg : 'var(--card)', color: addF.temp === k ? v.color : 'var(--text2)' }}>{v.label}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label style={lblSm}>Requirements / notes</label>
+                <textarea value={addF.notes} onChange={e => setA('notes', e.target.value)} placeholder="What does the client need…" style={{ width: '100%', minHeight: 44, padding: '7px 9px', ...inputStyle, fontSize: 12, resize: 'vertical' }} />
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={saveAddLead} disabled={savingAdd} style={{ flex: 1, padding: 10, borderRadius: 8, background: '#0099cc', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>{savingAdd ? 'Saving...' : 'Save lead'}</button>
+            <button onClick={closeAdd} style={{ padding: '10px 18px', borderRadius: 8, border: '0.5px solid var(--border)', background: 'transparent', color: 'var(--text2)', cursor: 'pointer', fontSize: 12 }}>Cancel</button>
+          </div>
+        </div>
       </div>
     )
   }
@@ -604,9 +728,12 @@ export default function LeadsPage() {
           <div style={{ fontSize: 48, marginBottom: 16 }}>{isTD ? '🎯' : '📭'}</div>
           <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 8, color: 'var(--text)' }}>{isTD ? 'No TrustDubai leads yet' : 'No leads yet'}</h3>
           <p style={{ fontSize: 14, color: 'var(--text2)', marginBottom: 20 }}>
-            {isTD ? 'Verified leads from the TrustDubai platform will appear here automatically.' : 'Add leads manually, import a CSV, or connect your Meta ad account.'}
+            {isTD ? 'Verified leads from the TrustDubai platform will appear here automatically.' : 'Add a lead manually, import a CSV, or connect your Meta ad account.'}
           </p>
-          {!isTD && <button className="btn btn-secondary" onClick={() => fileRef.current?.click()}>⬆ Import CSV</button>}
+          {!isTD && <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+            <button className="btn btn-primary" onClick={openAdd}>+ Add Lead</button>
+            <button className="btn btn-secondary" onClick={() => fileRef.current?.click()}>⬆ Import CSV</button>
+          </div>}
         </div>
       )
     }
@@ -655,7 +782,6 @@ export default function LeadsPage() {
         </div>
       )
     }
-    // list
     return (
       <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
@@ -754,6 +880,7 @@ export default function LeadsPage() {
                 </button>
               ))}
             </div>
+            {!isTD && <button className="btn btn-primary btn-sm" onClick={openAdd}>+ Add Lead</button>}
             {!isTD && <button className="btn btn-secondary btn-sm" disabled={importing} onClick={() => fileRef.current?.click()}>{importing ? 'Importing...' : '⬆ Import'}</button>}
           </div>
         )}
@@ -766,6 +893,7 @@ export default function LeadsPage() {
   return (
     <div className="page-content animate-in" style={{ color: 'var(--text)' }}>
       <Modal />
+      <AddLeadModal />
       <input ref={fileRef} type="file" accept=".csv" onChange={handleCSV} style={{ display: 'none' }} />
 
       <div style={{ marginBottom: 18 }}>
@@ -773,7 +901,6 @@ export default function LeadsPage() {
         <p style={{ fontSize: 13, color: 'var(--text2)' }}>Capture, track and close — every lead in one place</p>
       </div>
 
-      {/* MAIN TABS */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 18, borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
         {[
           { id: 'trustdubai', label: 'TrustDubai Leads', count: tdLeads.length, icon: 'ti-shield-check' },
@@ -791,7 +918,6 @@ export default function LeadsPage() {
         ))}
       </div>
 
-      {/* TRUSTDUBAI LEADS */}
       {mainTab === 'trustdubai' && (
         <div>
           <div style={{ background: 'rgba(8,145,178,0.07)', border: '0.5px solid rgba(8,145,178,0.25)', borderRadius: 10, padding: '10px 14px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 9 }}>
@@ -803,7 +929,6 @@ export default function LeadsPage() {
         </div>
       )}
 
-      {/* MY LEADS */}
       {mainTab === 'mine' && (
         <div>
           <div style={{ background: 'rgba(139,92,246,0.07)', border: '0.5px solid rgba(139,92,246,0.25)', borderRadius: 10, padding: '10px 14px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 9 }}>
@@ -815,7 +940,6 @@ export default function LeadsPage() {
         </div>
       )}
 
-      {/* FORMS */}
       {mainTab === 'forms' && (
         <div>
           {!editingForm ? (
