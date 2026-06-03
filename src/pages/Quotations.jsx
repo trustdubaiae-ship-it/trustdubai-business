@@ -15,6 +15,7 @@ const MODE_STYLE = {
   boq:      { label:'BOQ',       color:'#0077a3', bg:'#e0f9ff' },
 }
 const FILTERS = ['all', 'draft', 'sent', 'approved']
+const STATUS_FLOW = ['draft', 'sent', 'approved', 'rejected']
 const blankItem = () => ({ desc:'', qty:1, rate:0 })
 
 export default function Quotations() {
@@ -23,15 +24,20 @@ export default function Quotations() {
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
 
   const [, forceUpdate] = useState(0)
-  const [view, setView]       = useState('list')
+  const [view, setView]       = useState('list')   // 'list' | 'builder' | 'detail'
   const [quotes, setQuotes]   = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch]   = useState('')
   const [filter, setFilter]   = useState('all')
 
+  // detail
+  const [activeQuote, setActiveQuote] = useState(null)
+  const [statusBusy, setStatusBusy]   = useState(false)
+
   // builder
   const [tpl, setTpl]         = useState(null)
   const [saving, setSaving]   = useState(false)
+  const [editId, setEditId]   = useState(null)        // if editing existing quote
   const [client, setClient]   = useState(null)
   const [clientSearch, setClientSearch] = useState('')
   const [suggestions, setSuggestions] = useState([])
@@ -64,24 +70,59 @@ export default function Quotations() {
 
   // ---------- client search ----------
   async function searchClients(q) {
-    setClientSearch(q)
-    setClient(null)
+    setClientSearch(q); setClient(null)
     if (!q.trim()) { setSuggestions([]); setShowSug(false); return }
     const term = q.trim()
     const { data } = await supabase.from('clients').select('*')
       .or(`name.ilike.%${term}%,phone.ilike.%${term}%,uid.ilike.%${term}%`)
       .order('name').limit(8)
-    setSuggestions(data || [])
-    setShowSug(true)
+    setSuggestions(data || []); setShowSug(true)
   }
   function pickClient(c) { setClient(c); setClientSearch(c.name); setShowSug(false) }
 
+  // ---------- detail ----------
+  function openDetail(q) { setActiveQuote(q); setView('detail') }
+
+  async function changeStatus(newStatus) {
+    if (!activeQuote || newStatus === activeQuote.status) return
+    setStatusBusy(true)
+    const { error } = await supabase.from('quotations').update({ status: newStatus }).eq('id', activeQuote.id)
+    if (error) { toast.error('Status update failed'); setStatusBusy(false); return }
+    const updated = { ...activeQuote, status: newStatus }
+    setActiveQuote(updated)
+    setQuotes(prev => prev.map(x => x.id === updated.id ? updated : x))
+    setStatusBusy(false)
+    toast.success('Status updated')
+  }
+
+  async function deleteQuote() {
+    if (!activeQuote) return
+    if (!window.confirm('Delete this quotation? This cannot be undone.')) return
+    const { error } = await supabase.from('quotations').delete().eq('id', activeQuote.id)
+    if (error) { toast.error('Delete failed'); return }
+    toast.success('Quotation deleted')
+    setActiveQuote(null); setView('list'); fetchQuotes()
+  }
+
   // ---------- builder ----------
   function openBuilder() {
+    setEditId(null)
     setClient(null); setClientSearch(''); setSuggestions([]); setShowSug(false)
     setProjectTitle('')
     setItems([blankItem()]); setNotes('')
     setVatEnabled(tpl?.default_vat_enabled ?? true)
+    setDiscountType(null); setDiscountValue(0)
+    setView('builder')
+  }
+  function editQuote(q) {
+    setEditId(q.id)
+    setClient(q.client_id ? { id:q.client_id, uid:q.client_uid, name:q.client_name, phone:q.client_phone, email:q.client_email } : null)
+    setClientSearch(q.client_name || '')
+    setSuggestions([]); setShowSug(false)
+    setProjectTitle(q.project_title || '')
+    setItems(Array.isArray(q.items) && q.items.length ? q.items.map(it => ({ desc:it.desc||'', qty:it.qty??1, rate:it.rate??0 })) : [blankItem()])
+    setNotes('')
+    setVatEnabled(!!q.vat_amount || (tpl?.default_vat_enabled ?? true))
     setDiscountType(null); setDiscountValue(0)
     setView('builder')
   }
@@ -103,14 +144,7 @@ export default function Quotations() {
     if (validItems.length === 0) { toast.error('Add at least one line item'); return }
     setSaving(true)
     try {
-      const { data: seq, error: seqErr } = await supabase.rpc('fn_next_quote_seq', { p_company_id: company.id })
-      if (seqErr) throw seqErr
-      const prefix = tpl?.quote_prefix || 'QTN'
-      const quoteNumber = `${prefix}-${String(seq).padStart(3,'0')}`
-
-      const { error: qErr } = await supabase.from('quotations').insert({
-        company_id: company.id,
-        quote_number: quoteNumber,
+      const payload = {
         client_id: client.id,
         client_uid: client.uid,
         source_uid: client.uid,
@@ -126,10 +160,22 @@ export default function Quotations() {
         payment_terms: tpl?.payment_schedule || null,
         why_choose_us: tpl?.why_choose_us || null,
         status: sendNow ? 'sent' : 'draft',
-      })
-      if (qErr) throw qErr
+      }
 
-      toast.success(sendNow ? 'Quotation sent ✓' : 'Draft saved ✓')
+      if (editId) {
+        const { error } = await supabase.from('quotations').update(payload).eq('id', editId)
+        if (error) throw error
+        toast.success('Quotation updated ✓')
+      } else {
+        const { data: seq, error: seqErr } = await supabase.rpc('fn_next_quote_seq', { p_company_id: company.id })
+        if (seqErr) throw seqErr
+        const prefix = tpl?.quote_prefix || 'QTN'
+        payload.company_id = company.id
+        payload.quote_number = `${prefix}-${String(seq).padStart(3,'0')}`
+        const { error } = await supabase.from('quotations').insert(payload)
+        if (error) throw error
+        toast.success(sendNow ? 'Quotation sent ✓' : 'Draft saved ✓')
+      }
       setView('list'); fetchQuotes()
     } catch (e) {
       toast.error('Save failed: ' + (e.message || 'unknown'))
@@ -157,6 +203,95 @@ export default function Quotations() {
   const inputStyle = { padding:'9px 11px', border:`1px solid ${border}`, borderRadius:8, fontSize:13, background:inputBg, color:text, outline:'none', width:'100%' }
   const initials = nm => nm ? nm.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase() : '?'
 
+  // ============ DETAIL ============
+  if (view === 'detail' && activeQuote) {
+    const q = activeQuote
+    const md = MODE_STYLE[q.mode||'simple']||MODE_STYLE.simple
+    const st = STATUS_STYLE[q.status||'draft']||STATUS_STYLE.draft
+    const qItems = Array.isArray(q.items) ? q.items : []
+    return (
+      <div>
+        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
+          <button onClick={() => { setView('list'); setActiveQuote(null) }} style={{ width:34, height:34, borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:textSub, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <i className="ti ti-arrow-left" style={{ fontSize:16 }}/>
+          </button>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:18, fontWeight:700, color:text, display:'flex', alignItems:'center', gap:8 }}>
+              {q.quote_number}
+              <span style={{ fontSize:11, color:md.color, background:isDark?md.color+'22':md.bg, padding:'2px 8px', borderRadius:99 }}>{md.label}</span>
+            </div>
+            {q.client_uid && <div style={{ fontSize:12, color:textMuted, fontFamily:'monospace' }}>UID {q.client_uid}</div>}
+          </div>
+          <span style={{ fontSize:11, color:st.color, background:isDark?st.color+'22':st.bg, padding:'4px 11px', borderRadius:99, fontWeight:600 }}>{st.label}</span>
+        </div>
+
+        {/* Client */}
+        <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, padding:'12px 14px', marginBottom:12, display:'flex', alignItems:'center', gap:11 }}>
+          <div style={{ width:36, height:36, borderRadius:8, background:isDark?'rgba(3,193,245,0.12)':'#e0f9ff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:600, color:'#0077a3' }}>{initials(q.client_name)}</div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:14, fontWeight:600, color:text }}>{q.client_name}</div>
+            <div style={{ fontSize:12, color:textSub }}>{q.client_phone||'—'}{q.project_title?' · '+q.project_title:''}</div>
+          </div>
+        </div>
+
+        {/* Items */}
+        <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, overflow:'hidden', marginBottom:12 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 50px 80px 90px', gap:8, padding:'9px 13px', background:subBg, fontSize:11, color:textSub, textTransform:'uppercase', letterSpacing:'.3px' }}>
+            <span>Description</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span>
+          </div>
+          {qItems.map((it, i) => (
+            <div key={i} style={{ display:'grid', gridTemplateColumns:'1fr 50px 80px 90px', gap:8, padding:'9px 13px', borderTop:`1px solid ${border}`, fontSize:13, color:text }}>
+              <span>{it.desc}</span>
+              <span style={{ color:textSub }}>{it.qty}</span>
+              <span style={{ color:textSub }}>{Number(it.rate).toLocaleString('en-AE')}</span>
+              <span style={{ textAlign:'right' }}>{Math.round((Number(it.qty)||0)*(Number(it.rate)||0)).toLocaleString('en-AE')}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Totals */}
+        <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:14 }}>
+          <div style={{ width:230 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', fontSize:13, color:textSub, padding:'3px 0' }}><span>Subtotal</span><span>{fmt(q.subtotal||0)}</span></div>
+            {q.vat_amount>0 && <div style={{ display:'flex', justifyContent:'space-between', fontSize:13, color:textSub, padding:'3px 0' }}><span>VAT 5%</span><span>{fmt(q.vat_amount)}</span></div>}
+            <div style={{ display:'flex', justifyContent:'space-between', fontSize:15, fontWeight:700, color:text, padding:'6px 0 2px', borderTop:`1px solid ${border}`, marginTop:3 }}><span>Total</span><span>{fmt(q.total||0)}</span></div>
+          </div>
+        </div>
+
+        {/* Status changer */}
+        <div style={{ borderTop:`1px dashed ${border}`, paddingTop:13, marginBottom:13 }}>
+          <div style={{ fontSize:11, color:textMuted, textTransform:'uppercase', letterSpacing:'.4px', marginBottom:8 }}>Status</div>
+          <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+            {STATUS_FLOW.map(s => {
+              const active = (q.status||'draft') === s
+              const ss = STATUS_STYLE[s]
+              return (
+                <button key={s} onClick={()=>changeStatus(s)} disabled={statusBusy}
+                  style={{ fontSize:12, padding:'6px 13px', borderRadius:99, cursor:'pointer', fontWeight: active?600:400, textTransform:'capitalize',
+                    border:`1px solid ${active?ss.color:border}`,
+                    background: active?(isDark?ss.color+'22':ss.bg):'transparent',
+                    color: active?ss.color:textSub }}>{ss.label}</button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+          <button onClick={()=>editQuote(q)} style={{ flex:1, minWidth:90, padding:'10px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+            <i className="ti ti-edit" style={{ fontSize:14, verticalAlign:'-2px', marginRight:4 }}/> Edit
+          </button>
+          <button onClick={()=>toast.info('PDF / preview comes in the next step')} style={{ flex:1, minWidth:90, padding:'10px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+            <i className="ti ti-file-text" style={{ fontSize:14, verticalAlign:'-2px', marginRight:4 }}/> Preview / PDF
+          </button>
+          <button onClick={deleteQuote} style={{ flex:1, minWidth:90, padding:'10px', borderRadius:9, border:`1px solid #fca5a5`, background:cardBg, color:'#dc2626', fontSize:13, fontWeight:600, cursor:'pointer' }}>
+            <i className="ti ti-trash" style={{ fontSize:14, verticalAlign:'-2px', marginRight:4 }}/> Delete
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   // ============ BUILDER ============
   if (view === 'builder') {
     return (
@@ -166,7 +301,7 @@ export default function Quotations() {
             <i className="ti ti-arrow-left" style={{ fontSize:16 }}/>
           </button>
           <div style={{ flex:1 }}>
-            <h1 style={{ fontSize:19, fontWeight:700, color:text, margin:0 }}>New Quotation</h1>
+            <h1 style={{ fontSize:19, fontWeight:700, color:text, margin:0 }}>{editId ? 'Edit Quotation' : 'New Quotation'}</h1>
             <div style={{ fontSize:12, color:textMuted }}>Simple mode</div>
           </div>
           <span style={{ fontSize:11, color:'#0077a3', background:isDark?'rgba(3,193,245,0.15)':'#e0f9ff', padding:'4px 11px', borderRadius:99, fontWeight:600 }}>Simple</span>
@@ -182,7 +317,7 @@ export default function Quotations() {
                 <div style={{ fontSize:13, fontWeight:600, color:text }}>{client.name}</div>
                 <div style={{ fontSize:11, color:textSub }}>{client.phone||'—'}{client.email?' · '+client.email:''}</div>
               </div>
-              <span style={{ fontSize:10, color:'#0077a3', fontFamily:'monospace' }}>{client.uid}</span>
+              {client.uid && <span style={{ fontSize:10, color:'#0077a3', fontFamily:'monospace' }}>{client.uid}</span>}
               <button onClick={()=>{ setClient(null); setClientSearch('') }} style={{ background:'none', border:'none', cursor:'pointer', color:textMuted }}><i className="ti ti-x" style={{ fontSize:15 }}/></button>
             </div>
           ) : (
@@ -276,7 +411,7 @@ export default function Quotations() {
 
         <div style={{ display:'flex', gap:8, marginTop:16, flexWrap:'wrap' }}>
           <button onClick={()=>setView('list')} disabled={saving} style={{ flex:1, minWidth:100, padding:'11px', borderRadius:9, border:`1px solid ${border}`, background:'transparent', color:textSub, fontSize:13, cursor:'pointer' }}>Cancel</button>
-          <button onClick={()=>saveQuote(false)} disabled={saving} style={{ flex:1, minWidth:100, padding:'11px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}>{saving?'Saving...':'Save draft'}</button>
+          <button onClick={()=>saveQuote(false)} disabled={saving} style={{ flex:1, minWidth:100, padding:'11px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}>{saving?'Saving...':(editId?'Update':'Save draft')}</button>
           <button onClick={()=>saveQuote(true)} disabled={saving} style={{ flex:1, minWidth:100, padding:'11px', borderRadius:9, border:'none', background:'#0099cc', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer' }}><i className="ti ti-send" style={{ fontSize:14, verticalAlign:'-2px', marginRight:4 }}/> {saving?'...':'Send'}</button>
         </div>
       </div>
@@ -340,7 +475,7 @@ export default function Quotations() {
             const st = STATUS_STYLE[q.status||'draft']||STATUS_STYLE.draft
             const md = MODE_STYLE[q.mode||'simple']||MODE_STYLE.simple
             return (
-              <div key={q.id} onClick={()=>toast.info('Quote detail/edit opens in the next step')}
+              <div key={q.id} onClick={()=>openDetail(q)}
                 style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:14, padding:'14px 16px', display:'flex', alignItems:'center', gap:14, cursor:'pointer', transition:'all .15s' }}
                 onMouseEnter={e=>{ e.currentTarget.style.transform='translateY(-1px)'; e.currentTarget.style.boxShadow=isDark?'0 4px 16px rgba(0,0,0,0.3)':'0 2px 12px rgba(0,0,0,0.06)' }}
                 onMouseLeave={e=>{ e.currentTarget.style.transform='none'; e.currentTarget.style.boxShadow='none' }}>
