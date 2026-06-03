@@ -1,4 +1,3 @@
-// trustdubai-business/src/components/Sidebar.jsx
 import { useState } from 'react'
 import { useAuth } from '../lib/auth'
 import { can } from '../lib/permissions'
@@ -22,6 +21,9 @@ const MENU = [
   { id:'trust',      icon:'ti-shield-check',     label:'Trust Score',        perm:'view_dashboard' },
   { id:'reviews',    icon:'ti-star',             label:'Reviews',            perm:'view_reviews',  featureKey:'reply_reviews' },
   { id:'leads',      icon:'ti-message-circle',   label:'Leads',              perm:'view_leads',    featureKey:'lead_email' },
+
+  { section: 'SALES HUB' },
+  { id:'quotations', icon:'ti-file-invoice',     label:'Quotations',         perm:'view_leads' },
 
   { section: 'GROWTH' },
   { id:'analytics',  icon:'ti-chart-bar',        label:'Analytics',          perm:'view_analytics', featureKey:'analytics' },
