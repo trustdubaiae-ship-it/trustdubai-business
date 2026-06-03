@@ -193,11 +193,38 @@ export default function LeadsPage() {
       follow_up_date: addF.followUp || null, temperature: addF.temp, notes: addF.notes || null, answers,
     })
     setSavingAdd(false)
-    if (error) { toast.error('Could not save lead'); console.error(error); return }
+    async function saveAddLead() {
+    if (!addF.name.trim()) { toast.error('Client name is required'); return }
+    if (!addF.phone.trim()) { toast.error('Phone is required'); return }
+    setSavingAdd(true)
+    const answers = {}
+    answers['Source'] = addF.source
+    if (addF.projectType) answers['Project Type'] = addF.projectType
+    if (addF.location) answers['Location'] = addF.location
+    if (addF.budget) answers['Budget (AED)'] = addF.budget
+    if (addF.whatsapp) answers['WhatsApp'] = addF.whatsapp
+    if (addF.notes) answers['Notes'] = addF.notes
+    const { error } = await supabase.from('lead_submissions').insert({
+      company_id: company.id, name: addF.name.trim(), phone: addF.phone.trim(), email: addF.email.trim() || null,
+      status: addF.status, status_updated_at: new Date().toISOString(),
+      follow_up_date: addF.followUp || null, temperature: addF.temp, notes: addF.notes || null, answers,
+    })
+    if (error) { setSavingAdd(false); toast.error('Could not save lead'); console.error(error); return }
+
+    // Also create central client record (with UID)
+    await supabase.from('clients').insert({
+      name: addF.name.trim(),
+      phone: addF.phone.trim(),
+      email: addF.email.trim() || null,
+      source: addF.source || 'manual',
+    })
+
+    setSavingAdd(false)
     await fetchAll()
     setShowAdd(false)
     setMainTab('mine')
     toast.success('Lead added!')
+  }
   }
 
   async function applyStageToDB(lead, newStage) {
