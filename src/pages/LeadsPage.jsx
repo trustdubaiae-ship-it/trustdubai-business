@@ -10,7 +10,6 @@ const QUESTION_TYPES = [
   { value: 'select', label: 'Dropdown' },
 ]
 
-// soft colors — dark mode mein neon nahi chubhega
 const LEAD_STATUSES = [
   { value: 'new',            label: 'New',             color: '#64748b', bg: 'rgba(100,116,139,0.14)' },
   { value: 'qualified',      label: 'Qualified',       color: '#8b5cf6', bg: 'rgba(139,92,246,0.14)' },
@@ -27,6 +26,18 @@ const STATUS_MAP = {
   'won':'won', 'lost':'lost',
 }
 
+// distribution status <-> page status
+const DIST_TO_PAGE = { assigned:'new', viewed:'qualified', contacted:'in_conversation', quoted:'proposal_given', won:'won', lost:'lost', transferred:'lost' }
+const PAGE_TO_DIST = { new:'assigned', qualified:'viewed', in_conversation:'contacted', proposal_given:'quoted', won:'won', lost:'lost' }
+
+// source cards (clickable filter) — admin se aligned
+const SOURCE_CARDS = [
+  { key:'trustdubai', label:'Platform', icon:'ti-world',          color:'#0891b2' },
+  { key:'meta',       label:'Meta',     icon:'ti-brand-meta',     color:'#3b82f6' },
+  { key:'whatsapp',   label:'WhatsApp', icon:'ti-brand-whatsapp', color:'#22c55e' },
+  { key:'own',        label:'Own',      icon:'ti-user-plus',      color:'#8b5cf6' },
+]
+
 export default function LeadsPage() {
   const { company } = useAuth()
   const toast = useToast()
@@ -35,7 +46,8 @@ export default function LeadsPage() {
   const [forms, setForms] = useState([])
   const [editingForm, setEditingForm] = useState(null)
   const [questions, setQuestions] = useState([])
-  const [submissions, setSubmissions] = useState([])
+  const [submissions, setSubmissions] = useState([])   // own leads
+  const [distLeads, setDistLeads] = useState([])        // distributed platform leads (raw rows)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [importing, setImporting] = useState(false)
@@ -55,9 +67,19 @@ export default function LeadsPage() {
     const { data: formsData } = await supabase
       .from('lead_forms').select('*').eq('company_id', company.id).order('created_at', { ascending: false })
     setForms(formsData || [])
+
     const { data: subData } = await supabase
       .from('lead_submissions').select('*').eq('company_id', company.id).order('created_at', { ascending: false })
     setSubmissions(subData || [])
+
+    // distributed platform leads for this company
+    const { data: distData } = await supabase
+      .from('lead_distributions')
+      .select('id, rank, status, assigned_at, lead_id, lead_submissions(id, name, phone, email, answers, created_at, source)')
+      .eq('company_id', company.id)
+      .order('assigned_at', { ascending: false })
+    setDistLeads(distData || [])
+
     setLoading(false)
   }
 
@@ -105,10 +127,16 @@ export default function LeadsPage() {
     await fetchAll(); setSaving(false); toast.success('Form saved!')
   }
 
-  async function updateLeadStatus(subId, status) {
-    setUpdatingStatus(subId)
-    await supabase.from('lead_submissions').update({ status, status_updated_at: new Date().toISOString() }).eq('id', subId)
-    setSubmissions(prev => prev.map(s => s.id === subId ? { ...s, status } : s))
+  // unified status update — distributed lead -> lead_distributions, own lead -> lead_submissions
+  async function updateLeadStatus(lead, status) {
+    setUpdatingStatus(lead.key)
+    if (lead.distId) {
+      await supabase.from('lead_distributions').update({ status: PAGE_TO_DIST[status] || 'assigned', status_updated_at: new Date().toISOString() }).eq('id', lead.distId)
+      setDistLeads(prev => prev.map(d => d.id === lead.distId ? { ...d, status: PAGE_TO_DIST[status] || 'assigned' } : d))
+    } else {
+      await supabase.from('lead_submissions').update({ status, status_updated_at: new Date().toISOString() }).eq('id', lead.subId)
+      setSubmissions(prev => prev.map(s => s.id === lead.subId ? { ...s, status } : s))
+    }
     setUpdatingStatus(null)
     toast.success('Status updated!')
   }
@@ -180,36 +208,62 @@ export default function LeadsPage() {
 
   const statusConfig = (s) => LEAD_STATUSES.find(x => x.value === s) || LEAD_STATUSES[0]
 
-  const sourceBadge = (sub) => {
-    const src = (sub.answers?.Source || '').toLowerCase()
+  // build unified lead list (distributed + own)
+  function unifyDist(d) {
+    const s = d.lead_submissions || {}
+    return {
+      key: 'dist-' + d.id, subId: s.id, distId: d.id, isPlatform: true, rank: d.rank,
+      name: s.name, phone: s.phone, email: s.email, answers: s.answers || {},
+      status: DIST_TO_PAGE[d.status] || 'new', created_at: d.assigned_at || s.created_at,
+    }
+  }
+  function unifyOwn(s) {
+    return {
+      key: 'own-' + s.id, subId: s.id, distId: null, isPlatform: false, rank: null,
+      name: s.name, phone: s.phone, email: s.email, answers: s.answers || {},
+      status: s.status || 'new', created_at: s.created_at,
+    }
+  }
+  const allLeads = [...distLeads.map(unifyDist), ...submissions.map(unifyOwn)]
+
+  const sourceBadge = (lead) => {
+    if (lead.isPlatform) return { key:'trustdubai', label: 'TrustDubai', color: '#0891b2', bg: 'rgba(8,145,178,0.14)' }
+    const src = (lead.answers?.Source || '').toLowerCase()
     if (src.includes('meta') || src.includes('facebook') || src.includes('instagram')) return { key:'meta', label: 'Meta Ads', color: '#3b82f6', bg: 'rgba(59,130,246,0.14)' }
     if (src.includes('whatsapp')) return { key:'whatsapp', label: 'WhatsApp', color: '#22c55e', bg: 'rgba(34,197,94,0.14)' }
     if (src.includes('referral')) return { key:'referral', label: 'Referral', color: '#8b5cf6', bg: 'rgba(139,92,246,0.14)' }
-    if (src) return { key:'other', label: sub.answers.Source, color: '#94a3b8', bg: 'var(--bg2)' }
-    return { key:'trustdubai', label: 'TrustDubai', color: '#0891b2', bg: 'rgba(8,145,178,0.14)' }
+    if (lead.answers?.Source) return { key:'other', label: lead.answers.Source, color: '#94a3b8', bg: 'var(--bg2)' }
+    return { key:'own', label: 'Own', color: '#8b5cf6', bg: 'rgba(139,92,246,0.14)' }
   }
 
-  const filtered = submissions.filter(s => {
+  // bucket for source CARD filter (platform/meta/whatsapp/own)
+  function srcBucket(lead) {
+    if (lead.isPlatform) return 'trustdubai'
+    const k = sourceBadge(lead).key
+    if (k === 'meta') return 'meta'
+    if (k === 'whatsapp') return 'whatsapp'
+    return 'own'
+  }
+
+  const filtered = allLeads.filter(l => {
     const q = search.trim().toLowerCase()
-    if (q && !(`${s.name || ''} ${s.phone || ''} ${s.email || ''}`.toLowerCase().includes(q))) return false
-    if (fStatus !== 'all' && (s.status || 'new') !== fStatus) return false
-    if (fSource !== 'all' && sourceBadge(s).key !== fSource) return false
+    if (q && !(`${l.name || ''} ${l.phone || ''} ${l.email || ''}`.toLowerCase().includes(q))) return false
+    if (fStatus !== 'all' && (l.status || 'new') !== fStatus) return false
+    if (fSource !== 'all' && srcBucket(l) !== fSource) return false
     return true
   })
 
-  const wonCount = submissions.filter(s => s.status === 'won').length
-  const lostCount = submissions.filter(s => s.status === 'lost').length
-  const activeCount = submissions.filter(s => !['won', 'lost'].includes(s.status)).length
+  const wonCount    = allLeads.filter(l => l.status === 'won').length
+  const lostCount   = allLeads.filter(l => l.status === 'lost').length
+  const activeCount = allLeads.filter(l => !['won', 'lost'].includes(l.status)).length
+  const srcCount    = (k) => allLeads.filter(l => srcBucket(l) === k).length
+
+  function toggleSource(k) { setFSource(prev => prev === k ? 'all' : k) }
 
   const card = { background: 'var(--card)', border: '0.5px solid var(--border)', borderRadius: 14, padding: 16 }
   const inputStyle = { border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--text)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }
-  const waMsg = (sub) => 'https://wa.me/' + (sub.phone || '').replace(/[^0-9]/g, '') + '?text=Hi ' + (sub.name || '') + ', I received your inquiry from TrustDubai. How can I help you?'
+  const waMsg = (l) => 'https://wa.me/' + (l.phone || '').replace(/[^0-9]/g, '') + '?text=Hi ' + (l.name || '') + ', I received your inquiry from TrustDubai. How can I help you?'
   const optStyle = { background: 'var(--card)', color: 'var(--text)' }
-
-  const SOURCES = [
-    { k:'all', l:'All Sources' }, { k:'trustdubai', l:'TrustDubai' }, { k:'whatsapp', l:'WhatsApp' },
-    { k:'meta', l:'Meta Ads' }, { k:'referral', l:'Referral' },
-  ]
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text3)' }}>Loading...</div>
 
@@ -240,7 +294,7 @@ export default function LeadsPage() {
         {[
           { id: 'forms',  label: 'All Forms (' + forms.length + ')' },
           { id: 'editor', label: editingForm ? 'Editing: ' + editingForm.title : 'Editor', disabled: !editingForm },
-          { id: 'leads',  label: 'Leads (' + submissions.length + ')' },
+          { id: 'leads',  label: 'Leads (' + allLeads.length + ')' },
         ].map(t => (
           <button key={t.id} onClick={() => !t.disabled && setTab(t.id)} style={{
             padding: '8px 16px', border: 'none', background: 'none', cursor: t.disabled ? 'not-allowed' : 'pointer',
@@ -362,8 +416,8 @@ export default function LeadsPage() {
 
       {tab === 'leads' && (
         <div>
-          {submissions.length > 0 && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 16 }}>
+          {allLeads.length > 0 && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 14 }}>
               {[
                 { label: 'Active Leads', value: activeCount, color: '#0891b2', glow: 'rgba(8,145,178,0.16)' },
                 { label: 'Won', value: wonCount, color: '#10b981', glow: 'rgba(16,185,129,0.16)' },
@@ -378,16 +432,35 @@ export default function LeadsPage() {
             </div>
           )}
 
+          {/* Source cards (clickable filter) */}
+          {allLeads.length > 0 && (
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+              {SOURCE_CARDS.map(s => {
+                const active = fSource === s.key
+                return (
+                  <div key={s.key} onClick={() => toggleSource(s.key)}
+                    style={{ flex: 1, minWidth: 130, ...card, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10,
+                      cursor: 'pointer', borderColor: active ? s.color : 'var(--border)', borderWidth: active ? 1.5 : 0.5, borderStyle: 'solid' }}>
+                    <div style={{ width: 34, height: 34, borderRadius: 9, background: 'var(--bg2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <i className={'ti ' + s.icon} style={{ fontSize: 17, color: s.color }} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', lineHeight: 1.1 }}>{srcCount(s.key)}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text2)' }}>{s.label}</div>
+                    </div>
+                    {active && <i className="ti ti-circle-check-filled" style={{ fontSize: 16, color: s.color }} />}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--card)', border: '0.5px solid var(--border)', borderRadius: 8, padding: '6px 12px', flex: '1 1 220px', minWidth: 180 }}>
               <i className="ti ti-search" style={{ fontSize: 14, color: 'var(--text3)' }} />
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, phone, email..."
                 style={{ border: 'none', background: 'none', outline: 'none', fontSize: 13, color: 'var(--text)', width: '100%', fontFamily: 'inherit' }} />
             </div>
-            <select value={fSource} onChange={e => setFSource(e.target.value)}
-              style={{ padding: '7px 10px', ...inputStyle, fontSize: 12.5, cursor: 'pointer' }}>
-              {SOURCES.map(s => <option key={s.k} value={s.k} style={optStyle}>{s.l}</option>)}
-            </select>
             <select value={fStatus} onChange={e => setFStatus(e.target.value)}
               style={{ padding: '7px 10px', ...inputStyle, fontSize: 12.5, cursor: 'pointer' }}>
               <option value="all" style={optStyle}>All Status</option>
@@ -407,11 +480,18 @@ export default function LeadsPage() {
             </button>
           </div>
 
-          {submissions.length === 0 ? (
+          {fSource !== 'all' && (
+            <div style={{ marginBottom: 12, fontSize: 12, color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>Showing <strong style={{ color: SOURCE_CARDS.find(s=>s.key===fSource)?.color }}>{SOURCE_CARDS.find(s=>s.key===fSource)?.label}</strong> leads</span>
+              <button onClick={() => setFSource('all')} style={{ fontSize: 11, color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Clear</button>
+            </div>
+          )}
+
+          {allLeads.length === 0 ? (
             <div style={{ ...card, textAlign: 'center', padding: '60px 20px' }}>
               <div style={{ fontSize: 48, marginBottom: 16 }}>📭</div>
               <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 8, color: 'var(--text)' }}>No leads yet</h3>
-              <p style={{ fontSize: 14, color: 'var(--text2)', marginBottom: 20 }}>Form se aaye leads yahan dikhenge — ya CSV import karo</p>
+              <p style={{ fontSize: 14, color: 'var(--text2)', marginBottom: 20 }}>Form se aaye leads, distributed leads ya CSV import yahan dikhenge</p>
               <button className="btn btn-secondary" onClick={() => fileRef.current?.click()}>⬆ Import CSV</button>
             </div>
           ) : filtered.length === 0 ? (
@@ -430,37 +510,38 @@ export default function LeadsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map(sub => {
-                      const sc = statusConfig(sub.status || 'new'); const sb = sourceBadge(sub)
-                      const isOpen = expanded === sub.id
+                    {filtered.map(lead => {
+                      const sc = statusConfig(lead.status || 'new'); const sb = sourceBadge(lead)
+                      const isOpen = expanded === lead.key
                       return (
                         <>
-                          <tr key={sub.id} onClick={() => setExpanded(isOpen ? null : sub.id)}
+                          <tr key={lead.key} onClick={() => setExpanded(isOpen ? null : lead.key)}
                             style={{ borderTop: '0.5px solid var(--border)', cursor: 'pointer' }}>
                             <td style={{ padding: '10px 14px' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                                <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--bg2)', color: 'var(--text2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{(sub.name || 'A')[0].toUpperCase()}</div>
-                                <span style={{ fontWeight: 600, color: 'var(--text)' }}>{sub.name || 'Anonymous'}</span>
+                                <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--bg2)', color: 'var(--text2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{(lead.name || 'A')[0].toUpperCase()}</div>
+                                <span style={{ fontWeight: 600, color: 'var(--text)' }}>{lead.name || 'Anonymous'}</span>
+                                {lead.isPlatform && lead.rank && <span style={{ fontSize: 10, fontWeight: 700, color: '#0891b2', background: 'rgba(8,145,178,0.12)', padding: '1px 6px', borderRadius: 99 }}>#{lead.rank}</span>}
                               </div>
                             </td>
-                            <td style={{ padding: '10px', color: 'var(--text2)', fontSize: 12 }}>{sub.phone || '—'}</td>
+                            <td style={{ padding: '10px', color: 'var(--text2)', fontSize: 12 }}>{lead.phone || '—'}</td>
                             <td style={{ padding: '10px' }}><span style={{ background: sb.bg, color: sb.color, fontSize: 10.5, fontWeight: 600, padding: '2px 8px', borderRadius: 99 }}>{sb.label}</span></td>
                             <td style={{ padding: '10px' }}>
-                              <select value={sub.status || 'new'} onClick={e => e.stopPropagation()} onChange={e => updateLeadStatus(sub.id, e.target.value)} disabled={updatingStatus === sub.id}
+                              <select value={lead.status || 'new'} onClick={e => e.stopPropagation()} onChange={e => updateLeadStatus(lead, e.target.value)} disabled={updatingStatus === lead.key}
                                 style={{ padding: '4px 8px', borderRadius: 20, border: '1px solid ' + sc.color, background: sc.bg, color: sc.color, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                                 {LEAD_STATUSES.map(s => <option key={s.value} value={s.value} style={optStyle}>{s.label}</option>)}
                               </select>
                             </td>
                             <td style={{ padding: '10px 14px', textAlign: 'right' }}>
-                              {sub.phone && <button onClick={e => { e.stopPropagation(); window.open(waMsg(sub), '_blank') }} style={{ padding: '5px 10px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: 16, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>WhatsApp</button>}
+                              {lead.phone && <button onClick={e => { e.stopPropagation(); window.open(waMsg(lead), '_blank') }} style={{ padding: '5px 10px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: 16, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>WhatsApp</button>}
                             </td>
                           </tr>
-                          {isOpen && (sub.answers && Object.keys(sub.answers).length > 0) && (
-                            <tr key={sub.id + '-x'}>
+                          {isOpen && (lead.answers && Object.keys(lead.answers).length > 0) && (
+                            <tr key={lead.key + '-x'}>
                               <td colSpan={5} style={{ padding: '0 14px 12px' }}>
                                 <div style={{ background: 'var(--bg2)', borderRadius: 8, padding: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 8 }}>
-                                  {Object.entries(sub.answers).map(([q, a]) => (
-                                    <div key={q} style={{ fontSize: 12 }}><span style={{ color: 'var(--text3)' }}>{q}: </span><span style={{ color: 'var(--text)', fontWeight: 500 }}>{a}</span></div>
+                                  {Object.entries(lead.answers).map(([q, a]) => (
+                                    <div key={q} style={{ fontSize: 12 }}><span style={{ color: 'var(--text3)' }}>{q}: </span><span style={{ color: 'var(--text)', fontWeight: 500 }}>{String(a)}</span></div>
                                   ))}
                                 </div>
                               </td>
@@ -475,49 +556,55 @@ export default function LeadsPage() {
             </div>
           ) : view === 'compact' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {filtered.map(sub => {
-                const sc = statusConfig(sub.status || 'new'); const sb = sourceBadge(sub)
+              {filtered.map(lead => {
+                const sc = statusConfig(lead.status || 'new'); const sb = sourceBadge(lead)
                 return (
-                  <div key={sub.id} style={{ ...card, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--bg2)', color: 'var(--text2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>{(sub.name || 'A')[0].toUpperCase()}</div>
+                  <div key={lead.key} style={{ ...card, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--bg2)', color: 'var(--text2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>{(lead.name || 'A')[0].toUpperCase()}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 13.5, color: 'var(--text)' }}>{sub.name || 'Anonymous'}</div>
-                      <div style={{ fontSize: 11.5, color: 'var(--text3)' }}>{sub.phone || '—'}{sub.answers?.['Project Type'] ? ' · ' + sub.answers['Project Type'] : ''}</div>
+                      <div style={{ fontWeight: 600, fontSize: 13.5, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {lead.name || 'Anonymous'}
+                        {lead.isPlatform && lead.rank && <span style={{ fontSize: 9.5, fontWeight: 700, color: '#0891b2', background: 'rgba(8,145,178,0.12)', padding: '1px 6px', borderRadius: 99 }}>#{lead.rank}</span>}
+                      </div>
+                      <div style={{ fontSize: 11.5, color: 'var(--text3)' }}>{lead.phone || '—'}{lead.answers?.['Project Type'] ? ' · ' + lead.answers['Project Type'] : ''}</div>
                     </div>
                     <span style={{ background: sb.bg, color: sb.color, fontSize: 10.5, fontWeight: 600, padding: '2px 8px', borderRadius: 99 }}>{sb.label}</span>
-                    <select value={sub.status || 'new'} onChange={e => updateLeadStatus(sub.id, e.target.value)} disabled={updatingStatus === sub.id}
+                    <select value={lead.status || 'new'} onChange={e => updateLeadStatus(lead, e.target.value)} disabled={updatingStatus === lead.key}
                       style={{ padding: '4px 8px', borderRadius: 20, border: '1px solid ' + sc.color, background: sc.bg, color: sc.color, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                       {LEAD_STATUSES.map(s => <option key={s.value} value={s.value} style={optStyle}>{s.label}</option>)}
                     </select>
-                    {sub.phone && <button onClick={() => window.open(waMsg(sub), '_blank')} style={{ padding: '5px 10px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: 16, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>WhatsApp</button>}
+                    {lead.phone && <button onClick={() => window.open(waMsg(lead), '_blank')} style={{ padding: '5px 10px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: 16, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>WhatsApp</button>}
                   </div>
                 )
               })}
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(320px,1fr))', gap: 12 }}>
-              {filtered.map(sub => {
-                const sc = statusConfig(sub.status || 'new'); const sb = sourceBadge(sub)
+              {filtered.map(lead => {
+                const sc = statusConfig(lead.status || 'new'); const sb = sourceBadge(lead)
                 return (
-                  <div key={sub.id} style={card}>
+                  <div key={lead.key} style={card}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                        <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--bg2)', color: 'var(--text2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700 }}>{(sub.name || 'A')[0].toUpperCase()}</div>
+                        <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--bg2)', color: 'var(--text2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700 }}>{(lead.name || 'A')[0].toUpperCase()}</div>
                         <div>
-                          <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)' }}>{sub.name || 'Anonymous'}</div>
-                          <div style={{ fontSize: 11.5, color: 'var(--text3)' }}>{sub.phone || '—'}</div>
+                          <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            {lead.name || 'Anonymous'}
+                            {lead.isPlatform && lead.rank && <span style={{ fontSize: 9.5, fontWeight: 700, color: '#0891b2', background: 'rgba(8,145,178,0.12)', padding: '1px 6px', borderRadius: 99 }}>#{lead.rank}</span>}
+                          </div>
+                          <div style={{ fontSize: 11.5, color: 'var(--text3)' }}>{lead.phone || '—'}</div>
                         </div>
                       </div>
                       <span style={{ background: sb.bg, color: sb.color, fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 99 }}>{sb.label}</span>
                     </div>
-                    {sub.answers?.['Project Type'] && <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 4 }}>{sub.answers['Project Type']}{sub.answers['Budget (AED)'] ? ' · AED ' + sub.answers['Budget (AED)'] : ''}</div>}
-                    {sub.answers?.['Location'] && <div style={{ fontSize: 11.5, color: 'var(--text3)', marginBottom: 10 }}>📍 {sub.answers['Location']}</div>}
+                    {lead.answers?.['Project Type'] && <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 4 }}>{lead.answers['Project Type']}{lead.answers['Budget (AED)'] ? ' · AED ' + lead.answers['Budget (AED)'] : ''}</div>}
+                    {lead.answers?.['Location'] && <div style={{ fontSize: 11.5, color: 'var(--text3)', marginBottom: 10 }}>📍 {lead.answers['Location']}</div>}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderTop: '0.5px solid var(--border)', paddingTop: 10 }}>
-                      <select value={sub.status || 'new'} onChange={e => updateLeadStatus(sub.id, e.target.value)} disabled={updatingStatus === sub.id}
+                      <select value={lead.status || 'new'} onChange={e => updateLeadStatus(lead, e.target.value)} disabled={updatingStatus === lead.key}
                         style={{ padding: '4px 8px', borderRadius: 20, border: '1px solid ' + sc.color, background: sc.bg, color: sc.color, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flex: 1 }}>
                         {LEAD_STATUSES.map(s => <option key={s.value} value={s.value} style={optStyle}>{s.label}</option>)}
                       </select>
-                      {sub.phone && <button onClick={() => window.open(waMsg(sub), '_blank')} style={{ padding: '5px 12px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: 16, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>WhatsApp</button>}
+                      {lead.phone && <button onClick={() => window.open(waMsg(lead), '_blank')} style={{ padding: '5px 12px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: 16, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>WhatsApp</button>}
                     </div>
                   </div>
                 )
