@@ -52,6 +52,14 @@ const TEMP = {
 
 const OUTCOMES = ['Called','WhatsApp','Site visit','Meeting','Email','No answer','Voicemail','Interested','Not interested']
 
+// default message templates (hardcoded — every company gets these)
+const DEFAULT_TEMPLATES = [
+  { name: 'Gentle check-in', body: 'Hi {name}, just following up on your {req} inquiry. Would you like to schedule a quick call this week?' },
+  { name: 'Share quote',     body: 'Hi {name}, thank you for your interest. I have prepared a quote for your {req} — when is a good time to discuss?' },
+  { name: 'Site visit invite', body: 'Hi {name}, we would love to visit your site for an accurate assessment. What day works best for you?' },
+  { name: 'Thank you',       body: 'Hi {name}, thank you for choosing us. We look forward to working on your {req}.' },
+]
+
 export default function LeadsPage() {
   const { company } = useAuth()
   const toast = useToast()
@@ -62,6 +70,7 @@ export default function LeadsPage() {
   const [questions, setQuestions] = useState([])
   const [submissions, setSubmissions] = useState([])
   const [distLeads, setDistLeads] = useState([])
+  const [templates, setTemplates] = useState([])   // custom message templates
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [importing, setImporting] = useState(false)
@@ -74,7 +83,7 @@ export default function LeadsPage() {
   const [mobileStage, setMobileStage] = useState('new')
   const [dragId, setDragId] = useState(null)
 
-  // detail drawer
+  // detail modal
   const [openLead, setOpenLead] = useState(null)
   const [timeline, setTimeline] = useState([])
   const [tlLoading, setTlLoading] = useState(false)
@@ -84,6 +93,10 @@ export default function LeadsPage() {
   const [logStage, setLogStage] = useState('')
   const [logTemp, setLogTemp] = useState('warm')
   const [savingLog, setSavingLog] = useState(false)
+  const [msgText, setMsgText] = useState('')
+  const [showNewTpl, setShowNewTpl] = useState(false)
+  const [tplName, setTplName] = useState('')
+  const [tplBody, setTplBody] = useState('')
 
   const [vw, setVw] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200)
   useEffect(() => {
@@ -109,6 +122,9 @@ export default function LeadsPage() {
       .eq('company_id', company.id)
       .order('assigned_at', { ascending: false })
     setDistLeads(distData || [])
+    const { data: tplData } = await supabase
+      .from('message_templates').select('*').eq('company_id', company.id).order('sort_order', { ascending: true })
+    setTemplates(tplData || [])
     setLoading(false)
   }
 
@@ -157,7 +173,6 @@ export default function LeadsPage() {
       setSubmissions(prev => prev.map(s => s.id === lead.subId ? { ...s, status: newStage } : s))
     }
   }
-
   async function updateLeadStage(lead, newStage) {
     if (newStage === lead.status) return
     setUpdatingStatus(lead.key)
@@ -169,27 +184,31 @@ export default function LeadsPage() {
     setUpdatingStatus(null)
   }
 
-  // ===== drawer =====
-  async function openDrawer(lead) {
+  function leadReq(lead) {
+    return lead.answers?.['Project Type'] || lead.answers?.category || lead.answers?.['Notes'] || 'project'
+  }
+  function fillTemplate(body, lead) {
+    return (body || '').replace(/\{name\}/g, lead.name || '').replace(/\{req\}/g, leadReq(lead))
+  }
+
+  // ===== modal =====
+  async function openModal(lead) {
     setOpenLead(lead)
     setLogOutcome(''); setLogNote(''); setLogNext(lead.follow_up_date || ''); setLogStage(lead.status); setLogTemp(lead.temperature || 'warm')
+    setMsgText(''); setShowNewTpl(false); setTplName(''); setTplBody('')
     setTlLoading(true)
     const q = supabase.from('lead_activity').select('*').eq('company_id', company.id).order('created_at', { ascending: false })
-    const { data } = lead.distId
-      ? await q.eq('distribution_id', lead.distId)
-      : await q.eq('lead_id', lead.subId)
+    const { data } = lead.distId ? await q.eq('distribution_id', lead.distId) : await q.eq('lead_id', lead.subId)
     setTimeline(data || [])
     setTlLoading(false)
   }
-  function closeDrawer() { setOpenLead(null); setTimeline([]) }
+  function closeModal() { setOpenLead(null); setTimeline([]) }
 
   async function saveLog() {
     if (!openLead) return
     setSavingLog(true)
     const lead = openLead
     const stageChanged = logStage !== lead.status
-
-    // 1. update lead fields (follow-up, notes, temperature, stage)
     if (lead.distId) {
       await supabase.from('lead_distributions').update({
         follow_up_date: logNext || null, notes: logNote || lead.notes, temperature: logTemp,
@@ -203,23 +222,41 @@ export default function LeadsPage() {
       }).eq('id', lead.subId)
       setSubmissions(prev => prev.map(s => s.id === lead.subId ? { ...s, follow_up_date: logNext || null, notes: logNote || s.notes, temperature: logTemp, ...(stageChanged ? { status: logStage } : {}) } : s))
     }
-
-    // 2. activity log
     await supabase.from('lead_activity').insert({
       lead_id: lead.subId || null, distribution_id: lead.distId || null, company_id: company.id,
       actor_name: company.name, kind: stageChanged ? 'stage_change' : 'follow_up',
       outcome: logOutcome || null, note: logNote || null, next_follow_up: logNext || null,
       old_stage: stageChanged ? lead.status : null, new_stage: stageChanged ? logStage : null,
     })
-
-    // 3. refresh timeline + drawer state
-    const q = supabase.from('lead_activity').select('*').eq('company_id', company.id).order('created_at', { ascending: false })
-    const { data } = lead.distId ? await q.eq('distribution_id', lead.distId) : await q.eq('lead_id', lead.subId)
-    setTimeline(data || [])
-    setOpenLead({ ...lead, follow_up_date: logNext || null, notes: logNote || lead.notes, temperature: logTemp, status: logStage })
-    setLogOutcome(''); setLogNote('')
     setSavingLog(false)
     toast.success('Follow-up logged!')
+    closeModal()  // back to board
+  }
+
+  function sendWhatsApp() {
+    if (!openLead?.phone || !msgText.trim()) { toast.error('Enter a message first'); return }
+    const url = 'https://wa.me/' + openLead.phone.replace(/[^0-9]/g, '') + '?text=' + encodeURIComponent(msgText)
+    window.open(url, '_blank')
+    // log it
+    supabase.from('lead_activity').insert({
+      lead_id: openLead.subId || null, distribution_id: openLead.distId || null, company_id: company.id,
+      actor_name: company.name, kind: 'follow_up', outcome: 'WhatsApp', note: 'Message sent: ' + msgText.slice(0, 60),
+    })
+  }
+
+  async function saveTemplate() {
+    if (!tplName.trim() || !tplBody.trim()) { toast.error('Enter name and message'); return }
+    const { data, error } = await supabase.from('message_templates')
+      .insert({ company_id: company.id, name: tplName.trim(), body: tplBody.trim(), sort_order: templates.length })
+      .select().single()
+    if (error) { toast.error('Could not save template'); return }
+    setTemplates(prev => [...prev, data])
+    setShowNewTpl(false); setTplName(''); setTplBody('')
+    toast.success('Template saved!')
+  }
+  async function deleteTemplate(id) {
+    await supabase.from('message_templates').delete().eq('id', id)
+    setTemplates(prev => prev.filter(t => t.id !== id))
   }
 
   function addQuestion() { setQuestions(prev => [...prev, { id: 'new-' + Date.now(), question: '', type: 'text', options: [], required: true, order_num: prev.length }]) }
@@ -239,7 +276,6 @@ export default function LeadsPage() {
     if (cur.length || row.length) { row.push(cur); rows.push(row) }
     return rows.filter(r => r.some(c => c.trim()))
   }
-
   async function handleCSV(e) {
     const file = e.target.files?.[0]; if (!file) return
     setImporting(true)
@@ -353,9 +389,9 @@ export default function LeadsPage() {
     return (
       <div
         draggable={draggable}
-        onDragStart={draggable ? (e) => { setDragId(lead) } : undefined}
+        onDragStart={draggable ? () => setDragId(lead) : undefined}
         onDragEnd={draggable ? () => setDragId(null) : undefined}
-        onClick={() => openDrawer(lead)}
+        onClick={() => openModal(lead)}
         style={{ background: 'var(--bg2)', borderRadius: 9, padding: 10, marginBottom: 7, borderLeft: '3px solid ' + sb.color, cursor: 'pointer' }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
@@ -386,8 +422,8 @@ export default function LeadsPage() {
     )
   }
 
-  // ===== DETAIL DRAWER =====
-  function Drawer() {
+  // ===== CENTER MODAL =====
+  function Modal() {
     if (!openLead) return null
     const lead = openLead
     const sb = sourceBadge(lead)
@@ -397,15 +433,15 @@ export default function LeadsPage() {
     const budget = lead.answers?.['Budget (AED)'] || lead.answers?.budget || ''
     const loc = lead.answers?.['Location'] || lead.answers?.area || ''
     return (
-      <div onClick={closeDrawer} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200, display: 'flex', justifyContent: mobile ? 'center' : 'flex-end' }}>
-        <div onClick={e => e.stopPropagation()} style={{ width: mobile ? '100%' : 440, height: '100%', background: 'var(--card)', overflowY: 'auto', padding: 18, borderLeft: mobile ? 'none' : '0.5px solid var(--border)' }}>
+      <div onClick={closeModal} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: mobile ? 0 : '24px 16px', overflowY: 'auto' }}>
+        <div onClick={e => e.stopPropagation()} style={{ width: mobile ? '100%' : 560, minHeight: mobile ? '100%' : 'auto', background: 'var(--card)', borderRadius: mobile ? 0 : 14, padding: 18, border: '0.5px solid var(--border)' }}>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
             <div>
               <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)' }}>{lead.name || 'Anonymous'}</div>
               <div style={{ fontSize: 11, color: 'var(--text3)' }}>{sb.label}{lead.isPlatform && lead.rank ? ' · Rank #' + lead.rank : ''} · {new Date(lead.created_at).toLocaleDateString('en-AE')}</div>
             </div>
-            <button onClick={closeDrawer} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 20 }}><i className="ti ti-x" /></button>
+            <button onClick={closeModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 20 }}><i className="ti ti-x" /></button>
           </div>
 
           <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
@@ -414,14 +450,12 @@ export default function LeadsPage() {
             {isOverdue && <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 9px', borderRadius: 99, background: 'rgba(239,68,68,0.14)', color: '#ef4444' }}><i className="ti ti-clock" style={{ fontSize: 11 }} /> Overdue</span>}
           </div>
 
-          {/* quick actions */}
-          <div style={{ display: 'flex', gap: 7, marginBottom: 16 }}>
+          <div style={{ display: 'flex', gap: 7, marginBottom: 14 }}>
             {lead.phone && <a href={waMsg(lead)} target="_blank" rel="noreferrer" style={{ flex: 1, textAlign: 'center', fontSize: 11, padding: 8, borderRadius: 8, background: 'rgba(34,197,94,0.14)', color: '#0f7a52', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><i className="ti ti-brand-whatsapp" style={{ fontSize: 15 }} />WhatsApp</a>}
             {lead.phone && <a href={'tel:' + lead.phone} style={{ flex: 1, textAlign: 'center', fontSize: 11, padding: 8, borderRadius: 8, background: 'rgba(8,145,178,0.14)', color: '#0077a3', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><i className="ti ti-phone" style={{ fontSize: 15 }} />Call</a>}
             {lead.email && <a href={'mailto:' + lead.email} style={{ flex: 1, textAlign: 'center', fontSize: 11, padding: 8, borderRadius: 8, background: 'var(--bg2)', color: 'var(--text2)', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><i className="ti ti-mail" style={{ fontSize: 15 }} />Email</a>}
           </div>
 
-          {/* contacts + requirement */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
             <div style={{ background: 'var(--bg2)', borderRadius: 9, padding: 11 }}>
               <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 6 }}>Contacts</div>
@@ -435,7 +469,6 @@ export default function LeadsPage() {
             </div>
           </div>
 
-          {/* full answers */}
           {lead.answers && Object.keys(lead.answers).length > 0 && (
             <div style={{ background: 'var(--bg2)', borderRadius: 9, padding: 11, marginBottom: 14 }}>
               <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 6 }}>All answers</div>
@@ -448,7 +481,7 @@ export default function LeadsPage() {
           )}
 
           {/* LOG FOLLOW-UP */}
-          <div style={{ border: '0.5px solid var(--border)', borderRadius: 10, padding: 13, marginBottom: 14 }}>
+          <div style={{ border: '0.5px solid var(--border)', borderRadius: 10, padding: 13, marginBottom: 12 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 10 }}><i className="ti ti-pencil-plus" style={{ fontSize: 14, color: '#0099cc' }} /> Log follow-up</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 11 }}>
               {OUTCOMES.map(o => (
@@ -460,7 +493,7 @@ export default function LeadsPage() {
               ))}
             </div>
             <textarea value={logNote} onChange={e => setLogNote(e.target.value)} placeholder="Notes — what was discussed..."
-              style={{ width: '100%', minHeight: 56, padding: '8px 10px', ...inputStyle, fontSize: 12, resize: 'vertical', marginBottom: 9 }} />
+              style={{ width: '100%', minHeight: 50, padding: '8px 10px', ...inputStyle, fontSize: 12, resize: 'vertical', marginBottom: 9 }} />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 9 }}>
               <div>
                 <label style={{ fontSize: 10, color: 'var(--text3)', display: 'block', marginBottom: 3 }}>Next follow-up</label>
@@ -487,6 +520,54 @@ export default function LeadsPage() {
             <button onClick={saveLog} disabled={savingLog}
               style={{ width: '100%', padding: 9, borderRadius: 8, background: '#0099cc', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
               {savingLog ? 'Saving...' : 'Save log'}
+            </button>
+          </div>
+
+          {/* SEND MESSAGE */}
+          <div style={{ border: '0.5px solid var(--border)', borderRadius: 10, padding: 13, marginBottom: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 10 }}><i className="ti ti-message-2" style={{ fontSize: 14, color: '#0f7a52' }} /> Send follow-up message</div>
+
+            <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 6 }}>Quick templates</div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+              {DEFAULT_TEMPLATES.map(t => (
+                <button key={t.name} onClick={() => setMsgText(fillTemplate(t.body, lead))}
+                  style={{ fontSize: 10, padding: '5px 10px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', border: 'none', background: 'var(--bg2)', color: 'var(--text2)' }}>{t.name}</button>
+              ))}
+            </div>
+
+            <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 6 }}>My templates</div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+              {templates.map(t => (
+                <span key={t.id} style={{ fontSize: 10, padding: '5px 10px', borderRadius: 8, background: 'rgba(139,92,246,0.12)', color: '#7c3aed', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ cursor: 'pointer' }} onClick={() => setMsgText(fillTemplate(t.body, lead))}>{t.name}</span>
+                  <i className="ti ti-x" style={{ fontSize: 11, opacity: 0.6, cursor: 'pointer' }} onClick={() => deleteTemplate(t.id)} />
+                </span>
+              ))}
+              <button onClick={() => setShowNewTpl(v => !v)}
+                style={{ fontSize: 10, padding: '5px 10px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', border: '0.5px dashed var(--border)', background: 'transparent', color: 'var(--text2)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <i className="ti ti-plus" style={{ fontSize: 12 }} /> New template
+              </button>
+            </div>
+
+            {showNewTpl && (
+              <div style={{ background: 'var(--bg2)', borderRadius: 8, padding: 11, marginBottom: 10 }}>
+                <input value={tplName} onChange={e => setTplName(e.target.value)} placeholder='Template name — e.g. "Ramadan greeting"'
+                  style={{ width: '100%', padding: '7px 10px', ...inputStyle, fontSize: 12, marginBottom: 7 }} />
+                <textarea value={tplBody} onChange={e => setTplBody(e.target.value)} placeholder="Message text… use {name} for customer name, {req} for requirement"
+                  style={{ width: '100%', minHeight: 44, padding: '7px 10px', ...inputStyle, fontSize: 12, resize: 'vertical', marginBottom: 4 }} />
+                <div style={{ fontSize: 9, color: 'var(--text3)', marginBottom: 8 }}>Tip: {'{name}'} = customer name, {'{req}'} = requirement (auto-filled when sending)</div>
+                <div style={{ display: 'flex', gap: 7 }}>
+                  <button onClick={saveTemplate} style={{ flex: 1, padding: 8, borderRadius: 8, background: '#0099cc', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>Save template</button>
+                  <button onClick={() => { setShowNewTpl(false); setTplName(''); setTplBody('') }} style={{ padding: '8px 14px', borderRadius: 8, border: '0.5px solid var(--border)', background: 'transparent', color: 'var(--text2)', cursor: 'pointer', fontSize: 11 }}>Cancel</button>
+                </div>
+              </div>
+            )}
+
+            <textarea value={msgText} onChange={e => setMsgText(e.target.value)} placeholder="Tap a template above or write your message..."
+              style={{ width: '100%', minHeight: 50, padding: '8px 10px', ...inputStyle, fontSize: 12, resize: 'vertical', marginBottom: 9 }} />
+            <button onClick={sendWhatsApp} disabled={!lead.phone}
+              style={{ width: '100%', padding: 9, borderRadius: 8, background: '#22c55e', color: '#fff', border: 'none', cursor: lead.phone ? 'pointer' : 'not-allowed', fontSize: 12, fontWeight: 600, opacity: lead.phone ? 1 : 0.5 }}>
+              <i className="ti ti-brand-whatsapp" style={{ fontSize: 14 }} /> Send on WhatsApp
             </button>
           </div>
 
@@ -525,7 +606,7 @@ export default function LeadsPage() {
 
   return (
     <div className="page-content animate-in" style={{ color: 'var(--text)' }}>
-      <Drawer />
+      <Modal />
 
       <div style={{ marginBottom: 18, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
         <div>
@@ -782,7 +863,7 @@ export default function LeadsPage() {
                       const sc = LEAD_STATUSES.find(s => s.value === lead.status) || LEAD_STATUSES[0]
                       const sb = sourceBadge(lead)
                       return (
-                        <tr key={lead.key} onClick={() => openDrawer(lead)} style={{ borderTop: '0.5px solid var(--border)', cursor: 'pointer' }}>
+                        <tr key={lead.key} onClick={() => openModal(lead)} style={{ borderTop: '0.5px solid var(--border)', cursor: 'pointer' }}>
                           <td style={{ padding: '10px 14px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                               <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--bg2)', color: 'var(--text2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{(lead.name || 'A')[0].toUpperCase()}</div>
