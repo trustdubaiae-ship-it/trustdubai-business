@@ -1,4 +1,3 @@
-// trustdubai-business/src/App.jsx
 import { useState, useEffect } from 'react'
 import { AuthProvider, useAuth } from './lib/auth'
 import { ToastProvider } from './lib/toast'
@@ -15,6 +14,7 @@ import ReviewsPage from './pages/ReviewsPage'
 import PortfolioPage from './pages/PortfolioPage'
 import AnalyticsPage from './pages/AnalyticsPage'
 import LeadsPage from './pages/LeadsPage'
+import Quotations from './pages/Quotations'
 import SponsoredPage from './pages/SponsoredPage'
 import StaffManagement from './pages/StaffManagement'
 import TeamMembers from './pages/TeamMembers'
@@ -36,6 +36,7 @@ const PAGE_PERM = {
   portfolio:          'view_portfolio',
   analytics:          'view_analytics',
   leads:              'view_leads',
+  quotations:         'view_leads',
   sponsored:          'view_sponsored',
   staff:              'manage_staff',
   team:               'view_profile',
@@ -56,7 +57,7 @@ const LIMITED_PAGES = ['dashboard', 'inbox', 'profile', 'portfolio', 'faq', 'not
 // restores the same page instead of resetting to Dashboard. This also enables
 // deep-linking (notification click -> #documents) for the Inbox ecosystem.
 const VALID_PAGES = [
-  'dashboard', 'inbox', 'profile', 'reviews', 'portfolio', 'analytics', 'leads',
+  'dashboard', 'inbox', 'profile', 'reviews', 'portfolio', 'analytics', 'leads', 'quotations',
   'sponsored', 'staff', 'team', 'documents', 'faq', 'notifications', 'trust',
   'controlpanel', 'verification', 'verificationStatus', 'plans', 'settings',
 ]
@@ -117,6 +118,7 @@ function Portal() {
     portfolio:          <PortfolioPage />,
     analytics:          <AnalyticsPage onNavigate={navigate} />,
     leads:              <LeadsPage />,
+    quotations:         <Quotations />,
     sponsored:          <SponsoredPage onNavigate={navigate} />,
     staff:              <StaffManagement />,
     team:               <TeamMembers />,
@@ -133,7 +135,7 @@ function Portal() {
 
   const pageTitles = {
     dashboard:'Dashboard', inbox:'Inbox', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
-    analytics:'Analytics', leads:'Lead Form', sponsored:'Sponsored Placement', staff:'Staff & Access',
+    analytics:'Analytics', leads:'Lead Form', quotations:'Quotations', sponsored:'Sponsored Placement', staff:'Staff & Access',
     team:'Our Team', documents:'Document Verification', faq:'FAQ Management', notifications:'Notifications', trust:'Trust Score', controlpanel:'Control Panel',
     verification:'Control Panel', verificationStatus:'Control Panel', plans:'Control Panel', settings:'Control Panel',
   }
