@@ -120,6 +120,10 @@ export default function Quotations() {
   const [showFooter, setShowFooter] = useState(true)
   const [showSignature, setShowSignature] = useState(true)
   const [addTradePick, setAddTradePick] = useState('')
+  const [location, setLocation]       = useState('')
+  const [preparedBy, setPreparedBy]   = useState('')
+  const [clientEmail, setClientEmail] = useState('')
+  const [previewDraft, setPreviewDraft] = useState(null)
 
   const tradeList = (Array.isArray(tpl?.default_trades) && tpl.default_trades.length)
     ? tpl.default_trades : TRADE_FALLBACK
@@ -137,11 +141,11 @@ export default function Quotations() {
     const hasContent = client || projectTitle.trim() || items.some(it => it.desc.trim())
     if (!hasContent) return
     const t = setTimeout(() => {
-      saveDraft({ mode, client, clientSearch, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature })
+      saveDraft({ mode, client, clientSearch, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, location, preparedBy, clientEmail })
       setDraftExists(true)
     }, 500)
     return () => clearTimeout(t)
-  }, [view, editId, mode, client, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature])
+  }, [view, editId, mode, client, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, location, preparedBy, clientEmail])
 
   async function fetchQuotes() {
     setLoading(true)
@@ -164,10 +168,13 @@ export default function Quotations() {
       .order('name').limit(8)
     setSuggestions(data || []); setShowSug(true)
   }
-  function pickClient(c) { setClient(c); setClientSearch(c.name); setShowSug(false) }
+  function pickClient(c) {
+    setClient(c); setClientSearch(c.name); setShowSug(false)
+    if (c.email) setClientEmail(c.email)
+  }
 
   function openDetail(q) { setActiveQuote(q); setView('detail') }
-  function openPreview(q) { setActiveQuote(q); setView('preview') }
+  function openPreview(q) { setPreviewDraft(null); setActiveQuote(q); setView('preview') }
 
   async function changeStatus(newStatus) {
     if (!activeQuote || newStatus === activeQuote.status) return
@@ -201,6 +208,7 @@ export default function Quotations() {
     setVatEnabled(tpl?.default_vat_enabled ?? true)
     setDiscountType(null); setDiscountValue(0)
     setShowFooter(true); setShowSignature(true); setAddTradePick('')
+    setLocation(''); setPreparedBy(''); setClientEmail('')
     setView('builder')
   }
   function resumeDraft() {
@@ -215,6 +223,7 @@ export default function Quotations() {
     setVatEnabled(d.vatEnabled ?? true)
     setDiscountType(d.discountType ?? null); setDiscountValue(d.discountValue ?? 0)
     setNotes(d.notes || ''); setShowFooter(d.showFooter ?? true); setShowSignature(d.showSignature ?? true)
+    setLocation(d.location || ''); setPreparedBy(d.preparedBy || ''); setClientEmail(d.clientEmail || '')
     setAddTradePick(''); setView('builder')
   }
   function discardDraft() { clearDraft(); setDraftExists(false); toast.info('Draft discarded') }
@@ -232,6 +241,7 @@ export default function Quotations() {
     setVatEnabled(!!q.vat_amount || (tpl?.default_vat_enabled ?? true))
     setDiscountType(null); setDiscountValue(0)
     setShowFooter(q.show_footer ?? true); setShowSignature(q.show_signature ?? true)
+    setLocation(q.location || ''); setPreparedBy(q.prepared_by || ''); setClientEmail(q.client_email || '')
     setAddTradePick(''); setView('builder')
   }
 
@@ -260,6 +270,30 @@ export default function Quotations() {
   const grandTotal = afterDiscount + vatAmount
   const fmt = n => 'AED ' + Math.round(n).toLocaleString('en-AE')
 
+  function openBuilderPreview() {
+    if (!client) { toast.error('Select a client first'); return }
+    const validItems = items.filter(it => it.desc.trim())
+    if (validItems.length === 0) { toast.error('Add at least one line item'); return }
+    const tempQuote = {
+      id: '__preview__',
+      quote_number: editId ? (activeQuote?.quote_number || 'DRAFT') : 'DRAFT',
+      client_uid: client.uid, client_name: client.name, client_phone: client.phone || '',
+      client_email: clientEmail.trim() || client.email || '',
+      location: location.trim() || '', prepared_by: preparedBy.trim() || '',
+      project_title: projectTitle.trim() || '', mode,
+      items: validItems.map(it => ({
+        desc: it.desc.trim(), unit: it.unit || 'Nos', qty: Number(it.qty)||0, rate: Number(it.rate)||0,
+        ...(mode === 'boq' ? { trade: it.trade || 'Misc' } : {}),
+      })),
+      subtotal, vat_amount: vatAmount, total: grandTotal,
+      show_footer: showFooter, show_signature: showSignature,
+      created_at: new Date().toISOString(),
+    }
+    setPreviewDraft(tempQuote)
+    setActiveQuote(tempQuote)
+    setView('preview')
+  }
+
   async function saveQuote(sendNow) {
     if (!client) { toast.error('Select a client first'); return }
     const validItems = items.filter(it => it.desc.trim())
@@ -268,7 +302,10 @@ export default function Quotations() {
     try {
       const payload = {
         client_id: client.id, client_uid: client.uid, source_uid: client.uid,
-        client_name: client.name, client_phone: client.phone || null, client_email: client.email || null,
+        client_name: client.name, client_phone: client.phone || null,
+        client_email: (clientEmail.trim() || client.email || null),
+        location: location.trim() || null,
+        prepared_by: preparedBy.trim() || null,
         project_title: projectTitle.trim() || null, mode,
         items: validItems.map(it => ({
           desc:it.desc.trim(), unit:it.unit||'Nos', qty:Number(it.qty)||0, rate:Number(it.rate)||0,
@@ -326,7 +363,7 @@ export default function Quotations() {
     const td = 'padding:7px 8px;font-size:10.5px;border-bottom:0.5px solid #ededed;'
     const tdDesc = `${td}word-break:break-word;overflow-wrap:anywhere;`
 
-    const rowHtml = (it, i, premium) => `<tr>
+    const rowHtml = (it, i) => `<tr>
       <td style="${td}color:#999;">${i}</td>
       <td style="${tdDesc}">${escapeHtml(it.desc||'')}</td>
       <td style="${td}text-align:center;color:#777;">${escapeHtml(it.unit||'')}</td>
@@ -407,14 +444,17 @@ export default function Quotations() {
             </div>
           </div>
           <div style="display:flex;gap:14px;margin-bottom:16px;">
-            <div style="flex:1;background:#faf9f7;border-left:2.5px solid #c9952a;padding:9px 13px;">
-              <div style="font-size:8.5px;color:#b08f3f;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:3px;">Bill To</div>
+            <div style="flex:1;background:#faf9f7;border-left:2.5px solid #c9952a;padding:10px 13px;">
+              <div style="font-size:8.5px;color:#b08f3f;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:4px;">Bill To</div>
               <div style="font-size:12.5px;font-weight:700;word-break:break-word;">${escapeHtml(q.client_name||'')}</div>
-              <div style="font-size:10px;color:#6b6b6b;">${escapeHtml(q.client_phone||'')}</div>
+              ${q.location?`<div style="font-size:10px;color:#6b6b6b;margin-top:2px;">${escapeHtml(q.location)}</div>`:''}
+              ${q.client_phone?`<div style="font-size:10px;color:#6b6b6b;">${escapeHtml(q.client_phone)}</div>`:''}
             </div>
-            <div style="flex:1;background:#faf9f7;border-left:2.5px solid #c9952a;padding:9px 13px;">
-              <div style="font-size:8.5px;color:#b08f3f;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:3px;">Project</div>
+            <div style="flex:1;background:#faf9f7;border-left:2.5px solid #c9952a;padding:10px 13px;">
+              <div style="font-size:8.5px;color:#b08f3f;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:4px;">Project</div>
               <div style="font-size:12.5px;font-weight:700;word-break:break-word;">${escapeHtml(q.project_title||'—')}</div>
+              ${q.prepared_by?`<div style="font-size:10px;color:#6b6b6b;margin-top:2px;">Prepared by · ${escapeHtml(q.prepared_by)}</div>`:''}
+              ${q.client_email?`<div style="font-size:10px;color:#6b6b6b;word-break:break-word;">${escapeHtml(q.client_email)}</div>`:''}
             </div>
           </div>
         </div>
@@ -482,9 +522,12 @@ export default function Quotations() {
       <div style="display:flex;justify-content:space-between;margin-bottom:16px;gap:14px;">
         <div style="min-width:0;"><div style="font-size:9px;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Bill To</div>
           <div style="font-size:12px;font-weight:700;word-break:break-word;">${escapeHtml(q.client_name||'')}</div>
-          <div style="font-size:11px;color:#6b6b6b;">${escapeHtml(q.client_phone||'')}</div></div>
+          ${q.location?`<div style="font-size:11px;color:#6b6b6b;">${escapeHtml(q.location)}</div>`:''}
+          <div style="font-size:11px;color:#6b6b6b;">${escapeHtml(q.client_phone||'')}</div>
+          ${q.client_email?`<div style="font-size:11px;color:#6b6b6b;word-break:break-word;">${escapeHtml(q.client_email)}</div>`:''}</div>
         <div style="text-align:right;min-width:0;"><div style="font-size:9px;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Project</div>
-          <div style="font-size:12px;font-weight:700;word-break:break-word;">${escapeHtml(q.project_title||'—')}</div></div>
+          <div style="font-size:12px;font-weight:700;word-break:break-word;">${escapeHtml(q.project_title||'—')}</div>
+          ${q.prepared_by?`<div style="font-size:11px;color:#6b6b6b;">Prepared by · ${escapeHtml(q.prepared_by)}</div>`:''}</div>
       </div>
       <table style="width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:14px;">
         ${colgroup}
@@ -555,11 +598,11 @@ export default function Quotations() {
     return (
       <div>
         <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
-          <button onClick={() => setView('detail')} style={{ width:34, height:34, borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:textSub, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <button onClick={() => { if (previewDraft) { setPreviewDraft(null); setView('builder') } else { setView('detail') } }} style={{ width:34, height:34, borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:textSub, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
             <i className="ti ti-arrow-left" style={{ fontSize:16 }}/>
           </button>
           <div style={{ flex:1 }}>
-            <h1 style={{ fontSize:18, fontWeight:700, color:text, margin:0 }}>Preview · {q.quote_number}</h1>
+            <h1 style={{ fontSize:18, fontWeight:700, color:text, margin:0 }}>Preview · {q.quote_number}{previewDraft ? ' (unsaved)' : ''}</h1>
             {canPremium && <div style={{ fontSize:11, color:'#d97706', fontWeight:600 }}>Premium template</div>}
           </div>
         </div>
@@ -745,7 +788,22 @@ export default function Quotations() {
           )}
         </div>
 
-        <input value={projectTitle} onChange={e=>setProjectTitle(e.target.value)} placeholder="Project title (e.g. Interior Fit-Out)" style={{ ...inputStyle, marginBottom:14 }}/>
+        <input value={projectTitle} onChange={e=>setProjectTitle(e.target.value)} placeholder="Project title (e.g. Interior Fit-Out)" style={{ ...inputStyle, marginBottom:10 }}/>
+
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px,1fr))', gap:8, marginBottom:14 }}>
+          <div>
+            <label style={{ fontSize:11, color:textMuted, display:'block', marginBottom:3 }}>Location</label>
+            <input value={location} onChange={e=>setLocation(e.target.value)} placeholder="e.g. Dubai, UAE" style={{ ...inputStyle, fontSize:12.5 }}/>
+          </div>
+          <div>
+            <label style={{ fontSize:11, color:textMuted, display:'block', marginBottom:3 }}>Prepared by</label>
+            <input value={preparedBy} onChange={e=>setPreparedBy(e.target.value)} placeholder="Your name" style={{ ...inputStyle, fontSize:12.5 }}/>
+          </div>
+          <div>
+            <label style={{ fontSize:11, color:textMuted, display:'block', marginBottom:3 }}>Client email</label>
+            <input value={clientEmail} onChange={e=>setClientEmail(e.target.value)} placeholder="client@email.com" style={{ ...inputStyle, fontSize:12.5 }}/>
+          </div>
+        </div>
 
         {mode === 'simple' && (
           <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, overflow:'hidden', marginBottom:14 }}>
@@ -873,9 +931,10 @@ export default function Quotations() {
         </div>
 
         <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-          <button onClick={()=>{ if(!editId){clearDraft(); setDraftExists(false)} setView('list') }} disabled={saving} style={{ flex:1, minWidth:100, padding:'11px', borderRadius:9, border:`1px solid ${border}`, background:'transparent', color:textSub, fontSize:13, cursor:'pointer' }}>Cancel</button>
-          <button onClick={()=>saveQuote(false)} disabled={saving} style={{ flex:1, minWidth:100, padding:'11px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}>{saving?'Saving...':(editId?'Update':'Save draft')}</button>
-          <button onClick={()=>saveQuote(true)} disabled={saving} style={{ flex:1, minWidth:100, padding:'11px', borderRadius:9, border:'none', background:'#0099cc', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer' }}><i className="ti ti-send" style={{ fontSize:14, verticalAlign:'-2px', marginRight:4 }}/> {saving?'...':'Send'}</button>
+          <button onClick={()=>{ if(!editId){clearDraft(); setDraftExists(false)} setView('list') }} disabled={saving} style={{ flex:1, minWidth:90, padding:'11px', borderRadius:9, border:`1px solid ${border}`, background:'transparent', color:textSub, fontSize:13, cursor:'pointer' }}>Cancel</button>
+          <button onClick={openBuilderPreview} disabled={saving} style={{ flex:1, minWidth:90, padding:'11px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}><i className="ti ti-eye" style={{ fontSize:14, verticalAlign:'-2px', marginRight:4 }}/> Preview</button>
+          <button onClick={()=>saveQuote(false)} disabled={saving} style={{ flex:1, minWidth:90, padding:'11px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}>{saving?'Saving...':(editId?'Update':'Save draft')}</button>
+          <button onClick={()=>saveQuote(true)} disabled={saving} style={{ flex:1, minWidth:90, padding:'11px', borderRadius:9, border:'none', background:'#0099cc', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer' }}><i className="ti ti-send" style={{ fontSize:14, verticalAlign:'-2px', marginRight:4 }}/> {saving?'...':'Send'}</button>
         </div>
 
         <UpgradeLockModal
