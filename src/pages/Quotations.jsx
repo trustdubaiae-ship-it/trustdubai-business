@@ -83,7 +83,7 @@ const loadDraft  = () => { try { const r = localStorage.getItem(DRAFT_KEY); retu
 const saveDraft  = (d) => { try { localStorage.setItem(DRAFT_KEY, JSON.stringify(d)) } catch {} }
 const clearDraft = () => { try { localStorage.removeItem(DRAFT_KEY) } catch {} }
 
-export default function Quotations() {
+export default function Quotations({ subRoute = '', setSubRoute }) {
   const { company } = useAuth()
   const toast = useToast()
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
@@ -92,8 +92,10 @@ export default function Quotations() {
   const canBoq      = (PLAN_RANK[planName] || 0) >= 2
   const canPremium  = (PLAN_RANK[planName] || 0) >= 2
 
+  const setSub = (typeof setSubRoute === 'function') ? setSubRoute : () => {}
+
   const [, forceUpdate] = useState(0)
-  const [view, setView]       = useState('list')
+  const [view, setViewRaw]    = useState('list')
   const [quotes, setQuotes]   = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch]   = useState('')
@@ -136,10 +138,19 @@ export default function Quotations() {
   const [voVat, setVoVat]         = useState(true)
   const [voAddTrade, setVoAddTrade] = useState('')
   const [voSaving, setVoSaving]   = useState(false)
-  const [voPreview, setVoPreview] = useState(null) // VO object being previewed
+  const [voPreview, setVoPreview] = useState(null)
+
+  const [restoring, setRestoring] = useState(true)
 
   const tradeList = (Array.isArray(tpl?.default_trades) && tpl.default_trades.length)
     ? tpl.default_trades : TRADE_FALLBACK
+
+  // view setter that also writes the URL sub-route
+  function setView(v, sub) {
+    setViewRaw(v)
+    if (v === 'list') setSub('')
+    else if (sub !== undefined) setSub(sub)
+  }
 
   useEffect(() => {
     if (company?.id) { fetchQuotes(); fetchTemplate() }
@@ -149,16 +160,64 @@ export default function Quotations() {
     return () => observer.disconnect()
   }, [company?.id])
 
+  // Restore view from URL sub-route once quotes are loaded (refresh persistence)
   useEffect(() => {
-    if (view !== 'builder' || editId) return
-    const hasContent = client || projectTitle.trim() || items.some(it => it.desc.trim())
-    if (!hasContent) return
-    const t = setTimeout(() => {
-      saveDraft({ mode, client, clientSearch, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, location, preparedBy, clientEmail })
-      setDraftExists(true)
-    }, 500)
-    return () => clearTimeout(t)
-  }, [view, editId, mode, client, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, location, preparedBy, clientEmail])
+    if (loading) return
+    if (!restoring) return
+    const parts = (subRoute || '').split('/')
+    const v = parts[0] || ''
+    const id = parts[1] || ''
+    if (!v || v === 'list') { setViewRaw('list'); setRestoring(false); return }
+
+    if (v === 'builder') {
+      // resume builder: prefer saved draft
+      const d = loadDraft()
+      if (d) {
+        setEditId(null)
+        setMode(d.mode === 'boq' && canBoq ? 'boq' : 'simple')
+        setClient(d.client || null); setClientSearch(d.clientSearch || '')
+        setProjectTitle(d.projectTitle || '')
+        setItems(Array.isArray(d.items) && d.items.length ? d.items : [blankItem()])
+        setVatEnabled(d.vatEnabled ?? true)
+        setDiscountType(d.discountType ?? null); setDiscountValue(d.discountValue ?? 0)
+        setNotes(d.notes || ''); setShowFooter(d.showFooter ?? true); setShowSignature(d.showSignature ?? true)
+        setLocation(d.location || ''); setPreparedBy(d.preparedBy || ''); setClientEmail(d.clientEmail || '')
+      }
+      setViewRaw('builder')
+      setRestoring(false)
+      return
+    }
+
+    if ((v === 'detail' || v === 'preview') && id) {
+      const q = quotes.find(x => String(x.id) === String(id))
+      if (q) {
+        setActiveQuote(q)
+        if (v === 'detail') { setVos([]); fetchVos(q.id) }
+        setViewRaw(v)
+      } else {
+        setViewRaw('list'); setSub('')
+      }
+      setRestoring(false)
+      return
+    }
+
+    // voBuilder / voPreview need an active quote we can't reliably rebuild on refresh
+    if ((v === 'voBuilder' || v === 'voPreview') && id) {
+      const q = quotes.find(x => String(x.id) === String(id))
+      if (q) {
+        setActiveQuote(q); setVos([]); fetchVos(q.id)
+        setViewRaw('detail') // land on detail (VO section visible) instead of empty builder
+        setSub(`detail/${q.id}`)
+      } else {
+        setViewRaw('list'); setSub('')
+      }
+      setRestoring(false)
+      return
+    }
+
+    setViewRaw('list'); setSub('')
+    setRestoring(false)
+  }, [loading, subRoute, quotes])
 
   async function fetchQuotes() {
     setLoading(true)
@@ -192,8 +251,8 @@ export default function Quotations() {
     if (c.email) setClientEmail(c.email)
   }
 
-  function openDetail(q) { setActiveQuote(q); setVos([]); fetchVos(q.id); setView('detail') }
-  function openPreview(q) { setPreviewDraft(null); setActiveQuote(q); setView('preview') }
+  function openDetail(q) { setActiveQuote(q); setVos([]); fetchVos(q.id); setView('detail', `detail/${q.id}`) }
+  function openPreview(q) { setPreviewDraft(null); setActiveQuote(q); setView('preview', `preview/${q.id}`) }
 
   async function changeStatus(newStatus) {
     if (!activeQuote || newStatus === activeQuote.status) return
@@ -228,7 +287,7 @@ export default function Quotations() {
     setDiscountType(null); setDiscountValue(0)
     setShowFooter(true); setShowSignature(true); setAddTradePick('')
     setLocation(''); setPreparedBy(''); setClientEmail('')
-    setView('builder')
+    setView('builder', 'builder')
   }
   function resumeDraft() {
     const d = loadDraft()
@@ -243,7 +302,7 @@ export default function Quotations() {
     setDiscountType(d.discountType ?? null); setDiscountValue(d.discountValue ?? 0)
     setNotes(d.notes || ''); setShowFooter(d.showFooter ?? true); setShowSignature(d.showSignature ?? true)
     setLocation(d.location || ''); setPreparedBy(d.preparedBy || ''); setClientEmail(d.clientEmail || '')
-    setAddTradePick(''); setView('builder')
+    setAddTradePick(''); setView('builder', 'builder')
   }
   function discardDraft() { clearDraft(); setDraftExists(false); toast.info('Draft discarded') }
 
@@ -261,7 +320,7 @@ export default function Quotations() {
     setDiscountType(null); setDiscountValue(0)
     setShowFooter(q.show_footer ?? true); setShowSignature(q.show_signature ?? true)
     setLocation(q.location || ''); setPreparedBy(q.prepared_by || ''); setClientEmail(q.client_email || '')
-    setAddTradePick(''); setView('builder')
+    setAddTradePick(''); setView('builder', 'builder')
   }
 
   function switchMode(m) {
@@ -289,6 +348,18 @@ export default function Quotations() {
   const grandTotal = afterDiscount + vatAmount
   const fmt = n => 'AED ' + Math.round(n).toLocaleString('en-AE')
 
+  // autosave draft for new quotes
+  useEffect(() => {
+    if (view !== 'builder' || editId) return
+    const hasContent = client || projectTitle.trim() || items.some(it => it.desc.trim())
+    if (!hasContent) return
+    const t = setTimeout(() => {
+      saveDraft({ mode, client, clientSearch, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, location, preparedBy, clientEmail })
+      setDraftExists(true)
+    }, 500)
+    return () => clearTimeout(t)
+  }, [view, editId, mode, client, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, location, preparedBy, clientEmail])
+
   function openBuilderPreview() {
     if (!client) { toast.error('Select a client first'); return }
     const validItems = items.filter(it => it.desc.trim())
@@ -310,7 +381,7 @@ export default function Quotations() {
     }
     setPreviewDraft(tempQuote)
     setActiveQuote(tempQuote)
-    setView('preview')
+    setView('preview', 'preview')
   }
 
   async function saveQuote(sendNow) {
@@ -370,7 +441,7 @@ export default function Quotations() {
     setVoMode(activeQuote?.mode === 'boq' && canBoq ? 'boq' : 'simple')
     setVoItems(activeQuote?.mode === 'boq' && canBoq ? [blankItemT(tradeList[0]||'Misc')] : [blankItem()])
     setVoVat(true); setVoAddTrade('')
-    setView('voBuilder')
+    setView('voBuilder', `voBuilder/${activeQuote.id}`)
   }
   function editVo(v) {
     setVoEditId(v.id)
@@ -381,7 +452,7 @@ export default function Quotations() {
       ? v.items.map(it => ({ desc:it.desc||'', unit:it.unit||'Nos', qty:it.qty??1, rate:it.rate??0, trade: it.trade || '' }))
       : [blankItem()])
     setVoVat(!!v.vat_amount); setVoAddTrade('')
-    setView('voBuilder')
+    setView('voBuilder', `voBuilder/${activeQuote.id}`)
   }
   function updateVoItem(idx, field, val) { setVoItems(prev => prev.map((it,i)=> i===idx?{...it,[field]:val}:it)) }
   function addVoItem() { setVoItems(prev => [...prev, voMode==='boq'?blankItemT(tradeList[0]||'Misc'):blankItem()]) }
@@ -389,7 +460,7 @@ export default function Quotations() {
   function addVoItemToTrade(trade) { setVoItems(prev => [...prev, blankItemT(trade)]) }
   function removeVoItemBoq(idx) { setVoItems(prev => prev.filter((_,i)=>i!==idx)) }
 
-  async function saveVo(sendNow) {
+  async function saveVo() {
     const validItems = voItems.filter(it => it.desc.trim())
     if (!voDescription.trim()) { toast.error('Add a variation description'); return }
     if (validItems.length === 0) { toast.error('Add at least one line item'); return }
@@ -403,7 +474,7 @@ export default function Quotations() {
           ...(voMode === 'boq' ? { trade: it.trade || 'Misc' } : {}),
         })),
         subtotal: voSubtotal, vat_enabled: voVat, vat_amount: voVatAmount, total: voTotal,
-        status: sendNow ? 'sent' : 'draft',
+        status: 'draft',
       }
       if (voEditId) {
         const { error } = await supabase.from('quotation_variations').update(payload).eq('id', voEditId)
@@ -414,10 +485,10 @@ export default function Quotations() {
         payload.vo_number = nextVo
         const { error } = await supabase.from('quotation_variations').insert(payload)
         if (error) throw error
-        toast.success(sendNow ? 'Variation sent ✓' : 'Variation saved ✓')
+        toast.success('Variation saved ✓')
       }
       await fetchVos(activeQuote.id)
-      setView('detail')
+      setView('detail', `detail/${activeQuote.id}`)
     } catch (e) {
       toast.error('Save failed: ' + (e.message || 'unknown'))
     } finally { setVoSaving(false) }
@@ -503,7 +574,6 @@ export default function Quotations() {
         </div>
       </div>` : ''
 
-    // ----- PREMIUM (Gold+) -----
     if (canPremium) {
       const paymentCards = (!isVo && payments.length) ? `
         <div style="padding:18px 30px 0;">
@@ -603,7 +673,6 @@ export default function Quotations() {
       </div>`
     }
 
-    // ----- STANDARD (Free/Silver) -----
     const paymentStr = payments.length
       ? payments.map(p => p.label ? `${p.percent}% ${p.label}` : `${p.percent}%`).join(' · ')
       : '50% Advance · 40% On completion · 10% On handover'
@@ -721,7 +790,7 @@ export default function Quotations() {
     return (
       <div>
         <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
-          <button onClick={() => { if (previewDraft) { setPreviewDraft(null); setView('builder') } else { setView('detail') } }} style={{ width:34, height:34, borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:textSub, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <button onClick={() => { if (previewDraft) { setPreviewDraft(null); setView('builder', 'builder') } else { setView('detail', `detail/${q.id}`) } }} style={{ width:34, height:34, borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:textSub, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
             <i className="ti ti-arrow-left" style={{ fontSize:16 }}/>
           </button>
           <div style={{ flex:1 }}>
@@ -752,7 +821,7 @@ export default function Quotations() {
     return (
       <div>
         <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
-          <button onClick={() => setView('detail')} style={{ width:34, height:34, borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:textSub, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <button onClick={() => setView('detail', `detail/${activeQuote.id}`)} style={{ width:34, height:34, borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:textSub, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
             <i className="ti ti-arrow-left" style={{ fontSize:16 }}/>
           </button>
           <div style={{ flex:1 }}>
@@ -776,7 +845,7 @@ export default function Quotations() {
     return (
       <div>
         <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14 }}>
-          <button onClick={() => setView('detail')} style={{ width:34, height:34, borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:textSub, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <button onClick={() => setView('detail', `detail/${activeQuote.id}`)} style={{ width:34, height:34, borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:textSub, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
             <i className="ti ti-arrow-left" style={{ fontSize:16 }}/>
           </button>
           <div style={{ flex:1 }}>
@@ -880,8 +949,8 @@ export default function Quotations() {
         </div>
 
         <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-          <button onClick={()=>setView('detail')} disabled={voSaving} style={{ flex:1, minWidth:120, padding:'11px', borderRadius:9, border:`1px solid ${border}`, background:'transparent', color:textSub, fontSize:13, cursor:'pointer' }}>Cancel</button>
-          <button onClick={()=>saveVo(false)} disabled={voSaving} style={{ flex:2, minWidth:160, padding:'11px', borderRadius:9, border:'none', background:'#0099cc', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer' }}><i className="ti ti-check" style={{ fontSize:14, verticalAlign:'-2px', marginRight:4 }}/> {voSaving?'Saving...':(voEditId?'Update VO':'Save VO')}</button>
+          <button onClick={()=>setView('detail', `detail/${activeQuote.id}`)} disabled={voSaving} style={{ flex:1, minWidth:120, padding:'11px', borderRadius:9, border:`1px solid ${border}`, background:'transparent', color:textSub, fontSize:13, cursor:'pointer' }}>Cancel</button>
+          <button onClick={saveVo} disabled={voSaving} style={{ flex:2, minWidth:160, padding:'11px', borderRadius:9, border:'none', background:'#0099cc', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer' }}><i className="ti ti-check" style={{ fontSize:14, verticalAlign:'-2px', marginRight:4 }}/> {voSaving?'Saving...':(voEditId?'Update VO':'Save VO')}</button>
         </div>
       </div>
     )
@@ -1039,7 +1108,7 @@ export default function Quotations() {
                             )
                           })}
                           <div style={{ flex:1 }}/>
-                          <button onClick={()=>{ setVoPreview(v); setView('voPreview') }} title="Preview" style={{ width:28, height:28, borderRadius:7, border:`1px solid ${border}`, background:cardBg, color:'#0099cc', cursor:'pointer' }}><i className="ti ti-eye" style={{ fontSize:14 }}/></button>
+                          <button onClick={()=>{ setVoPreview(v); setView('voPreview', `voPreview/${activeQuote.id}`) }} title="Preview" style={{ width:28, height:28, borderRadius:7, border:`1px solid ${border}`, background:cardBg, color:'#0099cc', cursor:'pointer' }}><i className="ti ti-eye" style={{ fontSize:14 }}/></button>
                           <button onClick={()=>editVo(v)} title="Edit" style={{ width:28, height:28, borderRadius:7, border:`1px solid ${border}`, background:cardBg, color:textSub, cursor:'pointer' }}><i className="ti ti-edit" style={{ fontSize:14 }}/></button>
                           <button onClick={()=>deleteVo(v)} title="Delete" style={{ width:28, height:28, borderRadius:7, border:`1px solid #fca5a5`, background:cardBg, color:'#dc2626', cursor:'pointer' }}><i className="ti ti-trash" style={{ fontSize:14 }}/></button>
                         </div>
