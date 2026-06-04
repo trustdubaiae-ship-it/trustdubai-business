@@ -353,3 +353,47 @@ html, body { max-width: 100%; overflow-x: hidden; }
 /* ---------- Universal media safety: images/tables never overflow ---------- */
 img, video, canvas, svg { max-width: 100%; }
 table { max-width: 100%; }
+
+/* ============================================================
+   PWA SAFE-AREA  (iOS/Android notch + status bar)
+   When installed as a PWA (standalone), the app fills the whole
+   screen INCLUDING under the status bar / notch. These rules push
+   the top bar and sidebar below the status bar so nothing overlaps.
+   `env(safe-area-inset-*)` is 0 on normal browsers, so this is safe
+   everywhere and only adds space where the device actually needs it.
+   ============================================================ */
+
+/* allow the page background to extend into the safe areas */
+html { background: var(--bg); }
+
+/* Topbar: add the status-bar height on top so the header sits below it.
+   Sticky offset also accounts for the inset so it stays pinned correctly. */
+.topbar {
+  padding-top: env(safe-area-inset-top);
+  padding-left: max(24px, env(safe-area-inset-left));
+  padding-right: max(24px, env(safe-area-inset-right));
+  height: calc(52px + env(safe-area-inset-top));
+  top: 0;
+}
+
+/* Sidebar: push its content below the status bar, and respect left inset */
+.sidebar {
+  padding-top: env(safe-area-inset-top);
+  padding-left: env(safe-area-inset-left);
+}
+
+/* Sidebar overlay should cover the full screen including insets (already inset:0) */
+
+/* Page content: small bottom inset so content isn't hidden behind the
+   iOS home indicator when scrolled to the very end */
+.page-content {
+  padding-bottom: calc(20px + env(safe-area-inset-bottom));
+}
+
+/* On phones the topbar uses 12px side padding — keep that but honor insets */
+@media (max-width: 768px) {
+  .topbar {
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+  }
+}
