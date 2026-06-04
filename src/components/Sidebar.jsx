@@ -24,6 +24,7 @@ const MENU = [
   { id:'leadengine', icon:'ti-bolt',             label:'Lead Engine',        perm:'view_leads' },
 
   { section: 'SALES HUB' },
+  { id:'revenueengine', icon:'ti-gauge',         label:'Revenue Engine',     perm:'view_leads' },
   { id:'quotations',    icon:'ti-file-invoice',  label:'Quotations',         perm:'view_leads' },
   { id:'quoteSettings', icon:'ti-settings',      label:'Quote Settings',     perm:'view_profile' },
 
@@ -191,13 +192,13 @@ export default function Sidebar({ activePage, onNavigate, limitedMode = false, l
           style={{ position:'fixed', inset:0, zIndex:60, background:'rgba(0,0,0,0.45)',
             display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
           <div onClick={(e) => e.stopPropagation()}
-            style={{ background:'#fff', borderRadius:16, width:'100%', maxWidth:380, padding:24, textAlign:'center' }}>
-            <div style={{ width:52, height:52, borderRadius:'50%', background:'#fef2f2',
+            style={{ background:'var(--card)', border:'0.5px solid var(--border)', borderRadius:16, width:'100%', maxWidth:380, padding:24, textAlign:'center' }}>
+            <div style={{ width:52, height:52, borderRadius:'50%', background:'rgba(220,38,38,0.1)',
               display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 14px' }}>
               <i className="ti ti-lock" style={{ fontSize:24, color:'#dc2626' }}/>
             </div>
-            <h4 style={{ margin:'0 0 8px', fontSize:16, fontWeight:700, color:'#0f172a' }}>Access Restricted</h4>
-            <p style={{ margin:'0 0 18px', fontSize:13, color:'#64748b', lineHeight:1.6 }}>
+            <h4 style={{ margin:'0 0 8px', fontSize:16, fontWeight:700, color:'var(--text)' }}>Access Restricted</h4>
+            <p style={{ margin:'0 0 18px', fontSize:13, color:'var(--text2)', lineHeight:1.6 }}>
               Restricted. Please contact {company?.name || 'your company'} admin.
             </p>
             <button
