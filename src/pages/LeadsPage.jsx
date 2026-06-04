@@ -498,10 +498,10 @@ export default function LeadsPage() {
         style={{ background: 'var(--bg2)', borderRadius: 9, padding: 10, marginBottom: 7, borderLeft: '3px solid ' + accent, cursor: 'pointer' }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
-          <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>{lead.name || 'Anonymous'}</div>
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)', minWidth: 0, wordBreak: 'break-word' }}>{lead.name || 'Anonymous'}</div>
           <span style={{ fontSize: 8.5, fontWeight: 600, padding: '1px 6px', borderRadius: 99, background: temp.bg, color: temp.color, flexShrink: 0 }}>{temp.label}</span>
         </div>
-        {(proj || budget) && <div style={{ fontSize: 10, color: 'var(--text3)', margin: '3px 0' }}>{proj}{budget ? ' · ' + budget : ''}</div>}
+        {(proj || budget) && <div style={{ fontSize: 10, color: 'var(--text3)', margin: '3px 0', wordBreak: 'break-word' }}>{proj}{budget ? ' · ' + budget : ''}</div>}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
           {lead.isPlatform
             ? <span style={{ fontSize: 8.5, padding: '1px 6px', borderRadius: 99, background: 'rgba(8,145,178,0.14)', color: '#0891b2' }}>Rank #{lead.rank}</span>
@@ -567,22 +567,22 @@ export default function LeadsPage() {
           <div style={{ padding: 18 }}>
           <div style={{ marginBottom: 12 }}>
             <label style={lbl}>Client name <span style={{ color: '#ef4444' }}>*</span></label>
-            <input value={addF.name} onChange={e => setA('name', e.target.value)} placeholder="e.g. Mr Ankit Sharma" style={{ width: '100%', padding: '9px 11px', ...inputStyle, fontSize: 13 }} />
+            <input value={addF.name} onChange={e => setA('name', e.target.value)} placeholder="e.g. Mr Ankit Sharma" style={{ width: '100%', padding: '9px 11px', ...inputStyle, fontSize: 13, boxSizing: 'border-box' }} />
           </div>
           <div style={{ marginBottom: 12 }}>
             <label style={lbl}>Phone (Primary) <span style={{ color: '#ef4444' }}>*</span></label>
-            <input value={addF.phone} onChange={e => setA('phone', e.target.value)} placeholder="+971 50 XXX XXXX" style={{ width: '100%', padding: '9px 11px', ...inputStyle, fontSize: 13 }} />
+            <input value={addF.phone} onChange={e => setA('phone', e.target.value)} placeholder="+971 50 XXX XXXX" style={{ width: '100%', padding: '9px 11px', ...inputStyle, fontSize: 13, boxSizing: 'border-box' }} />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <label style={lbl}>Lead source <span style={{ color: '#ef4444' }}>*</span></label>
-              <select value={addF.source} onChange={e => setA('source', e.target.value)} style={{ width: '100%', padding: '9px 11px', ...selectStyle, fontSize: 13 }}>
+              <select value={addF.source} onChange={e => setA('source', e.target.value)} style={{ width: '100%', padding: '9px 11px', ...selectStyle, fontSize: 13, boxSizing: 'border-box', minWidth: 0 }}>
                 {LEAD_SOURCES.map(s => <option key={s} value={s} style={optStyle}>{s}</option>)}
               </select>
             </div>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <label style={lbl}>Project type</label>
-              <select value={addF.projectType} onChange={e => setA('projectType', e.target.value)} style={{ width: '100%', padding: '9px 11px', ...selectStyle, fontSize: 13 }}>
+              <select value={addF.projectType} onChange={e => setA('projectType', e.target.value)} style={{ width: '100%', padding: '9px 11px', ...selectStyle, fontSize: 13, boxSizing: 'border-box', minWidth: 0 }}>
                 <option value="" style={optStyle}>Select</option>
                 {PROJECT_TYPES.map(p => <option key={p} value={p} style={optStyle}>{p}</option>)}
               </select>
@@ -597,17 +597,17 @@ export default function LeadsPage() {
           {addMore && (
             <div style={{ background: 'var(--bg2)', borderRadius: 10, padding: 13, marginBottom: 14 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 11 }}>
-                <div><label style={lblSm}>Email</label><input value={addF.email} onChange={e => setA('email', e.target.value)} placeholder="name@email.com" style={{ width: '100%', padding: '7px 9px', ...inputStyle, fontSize: 12 }} /></div>
-                <div><label style={lblSm}>WhatsApp (if different)</label><input value={addF.whatsapp} onChange={e => setA('whatsapp', e.target.value)} placeholder="+971 ..." style={{ width: '100%', padding: '7px 9px', ...inputStyle, fontSize: 12 }} /></div>
+                <div style={{ minWidth: 0 }}><label style={lblSm}>Email</label><input value={addF.email} onChange={e => setA('email', e.target.value)} placeholder="name@email.com" style={{ width: '100%', padding: '7px 9px', ...inputStyle, fontSize: 12, boxSizing: 'border-box' }} /></div>
+                <div style={{ minWidth: 0 }}><label style={lblSm}>WhatsApp (if different)</label><input value={addF.whatsapp} onChange={e => setA('whatsapp', e.target.value)} placeholder="+971 ..." style={{ width: '100%', padding: '7px 9px', ...inputStyle, fontSize: 12, boxSizing: 'border-box' }} /></div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 11 }}>
-                <div><label style={lblSm}>Location</label><input value={addF.location} onChange={e => setA('location', e.target.value)} placeholder="e.g. Business Bay" style={{ width: '100%', padding: '7px 9px', ...inputStyle, fontSize: 12 }} /></div>
-                <div><label style={lblSm}>Budget (AED)</label><input value={addF.budget} onChange={e => setA('budget', e.target.value)} placeholder="e.g. 50,000" style={{ width: '100%', padding: '7px 9px', ...inputStyle, fontSize: 12 }} /></div>
+                <div style={{ minWidth: 0 }}><label style={lblSm}>Location</label><input value={addF.location} onChange={e => setA('location', e.target.value)} placeholder="e.g. Business Bay" style={{ width: '100%', padding: '7px 9px', ...inputStyle, fontSize: 12, boxSizing: 'border-box' }} /></div>
+                <div style={{ minWidth: 0 }}><label style={lblSm}>Budget (AED)</label><input value={addF.budget} onChange={e => setA('budget', e.target.value)} placeholder="e.g. 50,000" style={{ width: '100%', padding: '7px 9px', ...inputStyle, fontSize: 12, boxSizing: 'border-box' }} /></div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 11 }}>
-                <div><label style={lblSm}>Next follow-up</label><input type="date" value={addF.followUp} onChange={e => setA('followUp', e.target.value)} style={{ width: '100%', padding: '7px 9px', ...inputStyle, fontSize: 12 }} /></div>
-                <div><label style={lblSm}>Status</label>
-                  <select value={addF.status} onChange={e => setA('status', e.target.value)} style={{ width: '100%', padding: '7px 9px', ...selectStyle, fontSize: 12 }}>
+                <div style={{ minWidth: 0 }}><label style={lblSm}>Next follow-up</label><input type="date" value={addF.followUp} onChange={e => setA('followUp', e.target.value)} style={{ width: '100%', padding: '7px 9px', ...inputStyle, fontSize: 12, boxSizing: 'border-box', minWidth: 0 }} /></div>
+                <div style={{ minWidth: 0 }}><label style={lblSm}>Status</label>
+                  <select value={addF.status} onChange={e => setA('status', e.target.value)} style={{ width: '100%', padding: '7px 9px', ...selectStyle, fontSize: 12, boxSizing: 'border-box', minWidth: 0 }}>
                     {LEAD_STATUSES.map(s => <option key={s.value} value={s.value} style={optStyle}>{s.label}</option>)}
                   </select>
                 </div>
@@ -625,7 +625,7 @@ export default function LeadsPage() {
               </div>
               <div>
                 <label style={lblSm}>Requirements / notes</label>
-                <textarea value={addF.notes} onChange={e => setA('notes', e.target.value)} placeholder="What does the client need…" style={{ width: '100%', minHeight: 44, padding: '7px 9px', ...inputStyle, fontSize: 12, resize: 'vertical' }} />
+                <textarea value={addF.notes} onChange={e => setA('notes', e.target.value)} placeholder="What does the client need…" style={{ width: '100%', minHeight: 44, padding: '7px 9px', ...inputStyle, fontSize: 12, resize: 'vertical', boxSizing: 'border-box' }} />
               </div>
             </div>
           )}
@@ -676,14 +676,14 @@ export default function LeadsPage() {
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
-            <div style={{ background: 'var(--bg2)', borderRadius: 9, padding: 11 }}>
+            <div style={{ background: 'var(--bg2)', borderRadius: 9, padding: 11, minWidth: 0 }}>
               <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 6 }}>Contacts</div>
               <div style={{ fontSize: 11, color: 'var(--text)' }}>{lead.phone || '—'}</div>
               <div style={{ fontSize: 11, color: 'var(--text2)', wordBreak: 'break-all' }}>{lead.email || '—'}</div>
             </div>
-            <div style={{ background: 'var(--bg2)', borderRadius: 9, padding: 11 }}>
+            <div style={{ background: 'var(--bg2)', borderRadius: 9, padding: 11, minWidth: 0 }}>
               <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 6 }}>Requirement</div>
-              <div style={{ fontSize: 11, color: 'var(--text)' }}>{proj || '—'}</div>
+              <div style={{ fontSize: 11, color: 'var(--text)', wordBreak: 'break-word' }}>{proj || '—'}</div>
               <div style={{ fontSize: 11, color: 'var(--text2)' }}>{[budget, loc].filter(Boolean).join(' · ') || '—'}</div>
             </div>
           </div>
@@ -711,15 +711,15 @@ export default function LeadsPage() {
               ))}
             </div>
             <textarea value={logNote} onChange={e => setLogNote(e.target.value)} placeholder="Notes — what was discussed..."
-              style={{ width: '100%', minHeight: 50, padding: '8px 10px', ...inputStyle, fontSize: 12, resize: 'vertical', marginBottom: 9 }} />
+              style={{ width: '100%', minHeight: 50, padding: '8px 10px', ...inputStyle, fontSize: 12, resize: 'vertical', marginBottom: 9, boxSizing: 'border-box' }} />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 9 }}>
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <label style={{ fontSize: 10, color: 'var(--text3)', display: 'block', marginBottom: 3 }}>Next follow-up</label>
-                <input type="date" value={logNext} onChange={e => setLogNext(e.target.value)} style={{ width: '100%', padding: '7px 9px', ...inputStyle, fontSize: 12 }} />
+                <input type="date" value={logNext} onChange={e => setLogNext(e.target.value)} style={{ width: '100%', padding: '7px 9px', ...inputStyle, fontSize: 12, boxSizing: 'border-box', minWidth: 0 }} />
               </div>
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <label style={{ fontSize: 10, color: 'var(--text3)', display: 'block', marginBottom: 3 }}>Move to stage</label>
-                <select value={logStage} onChange={e => setLogStage(e.target.value)} style={{ width: '100%', padding: '7px 9px', ...selectStyle, fontSize: 12 }}>
+                <select value={logStage} onChange={e => setLogStage(e.target.value)} style={{ width: '100%', padding: '7px 9px', ...selectStyle, fontSize: 12, boxSizing: 'border-box', minWidth: 0 }}>
                   {LEAD_STATUSES.map(s => <option key={s.value} value={s.value} style={optStyle}>{s.label}</option>)}
                 </select>
               </div>
@@ -766,9 +766,9 @@ export default function LeadsPage() {
             {showNewTpl && (
               <div style={{ background: 'var(--bg2)', borderRadius: 8, padding: 11, marginBottom: 10 }}>
                 <input value={tplName} onChange={e => setTplName(e.target.value)} placeholder='Template name — e.g. "Ramadan greeting"'
-                  style={{ width: '100%', padding: '7px 10px', ...inputStyle, fontSize: 12, marginBottom: 7 }} />
+                  style={{ width: '100%', padding: '7px 10px', ...inputStyle, fontSize: 12, marginBottom: 7, boxSizing: 'border-box' }} />
                 <textarea value={tplBody} onChange={e => setTplBody(e.target.value)} placeholder="Message text… use {name} for customer name, {req} for requirement"
-                  style={{ width: '100%', minHeight: 44, padding: '7px 10px', ...inputStyle, fontSize: 12, resize: 'vertical', marginBottom: 4 }} />
+                  style={{ width: '100%', minHeight: 44, padding: '7px 10px', ...inputStyle, fontSize: 12, resize: 'vertical', marginBottom: 4, boxSizing: 'border-box' }} />
                 <div style={{ fontSize: 9, color: 'var(--text3)', marginBottom: 8 }}>Tip: {'{name}'} = customer name, {'{req}'} = requirement (auto-filled when sending)</div>
                 <div style={{ display: 'flex', gap: 7 }}>
                   <button onClick={saveTemplate} style={{ flex: 1, padding: 8, borderRadius: 8, background: '#0099cc', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>Save template</button>
@@ -777,7 +777,7 @@ export default function LeadsPage() {
               </div>
             )}
             <textarea value={msgText} onChange={e => setMsgText(e.target.value)} placeholder="Tap a template above or write your message..."
-              style={{ width: '100%', minHeight: 50, padding: '8px 10px', ...inputStyle, fontSize: 12, resize: 'vertical', marginBottom: 9 }} />
+              style={{ width: '100%', minHeight: 50, padding: '8px 10px', ...inputStyle, fontSize: 12, resize: 'vertical', marginBottom: 9, boxSizing: 'border-box' }} />
             <button onClick={sendWhatsApp} disabled={!lead.phone}
               style={{ width: '100%', padding: 9, borderRadius: 8, background: '#22c55e', color: '#fff', border: 'none', cursor: lead.phone ? 'pointer' : 'not-allowed', fontSize: 12, fontWeight: 600, opacity: lead.phone ? 1 : 0.5 }}>
               <i className="ti ti-brand-whatsapp" style={{ fontSize: 14 }} /> Send on WhatsApp
@@ -863,20 +863,24 @@ export default function LeadsPage() {
     }
     if (view === 'board') {
       return (
-        <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start' }}>
-          {[...PIPELINE, LOST].map(col => {
-            const colLeads = filtered.filter(l => l.status === col.stage)
-            const isLost = col.stage === 'lost'
-            return (
-              <div key={col.stage} onDragOver={e => e.preventDefault()} onDrop={() => { if (dragId && dragId.status !== col.stage) updateLeadStage(dragId, col.stage); setDragId(null) }}
-                style={{ flex: 1, minWidth: 0, ...card, padding: 9, minHeight: 120, borderStyle: isLost ? 'dashed' : 'solid' }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: col.color, marginBottom: 9, display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid ' + col.color, paddingBottom: 6 }}>
-                  <span>{col.label}</span><span>{colLeads.length}</span>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 6 }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', minWidth: 'min-content' }}>
+            {[...PIPELINE, LOST].map(col => {
+              const colLeads = filtered.filter(l => l.status === col.stage)
+              const isLost = col.stage === 'lost'
+              return (
+                <div key={col.stage} onDragOver={e => e.preventDefault()} onDrop={() => { if (dragId && dragId.status !== col.stage) updateLeadStage(dragId, col.stage); setDragId(null) }}
+                  style={{ width: 230, flexShrink: 0, ...card, padding: 10, minHeight: 120, borderStyle: isLost ? 'dashed' : 'solid' }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: col.color, marginBottom: 10, display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid ' + col.color, paddingBottom: 7 }}>
+                    <span>{col.label}</span><span>{colLeads.length}</span>
+                  </div>
+                  {colLeads.length === 0
+                    ? <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'center', padding: '14px 0' }}>—</div>
+                    : colLeads.map(lead => <LeadCard key={lead.key} lead={lead} draggable={true} />)}
                 </div>
-                {colLeads.map(lead => <LeadCard key={lead.key} lead={lead} draggable={true} />)}
-              </div>
-            )
-          })}
+              )
+            })}
+          </div>
         </div>
       )
     }
@@ -1012,20 +1016,20 @@ export default function LeadsPage() {
       <AddLeadModal />
       <input ref={fileRef} type="file" accept=".csv" onChange={handleCSV} style={{ display: 'none' }} />
 
-      <div style={{ marginBottom: 18 }}>
+      <div style={{ marginBottom: 14 }}>
         <h1 className="font-syne fw-700" style={{ fontSize: 23, marginBottom: 4, color: 'var(--text)' }}>Lead Hub</h1>
         <p style={{ fontSize: 13, color: 'var(--text2)' }}>Capture, track and close — every lead in one place</p>
       </div>
 
-      <div style={{ display: 'flex', gap: 4, marginBottom: 18, borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: mobile ? 2 : 4, marginBottom: 18, borderBottom: '1px solid var(--border)', flexWrap: 'nowrap', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
         {[
-          { id: 'trustdubai', label: 'TrustDubai Leads', count: tdLeads.length, icon: 'ti-shield-check' },
-          { id: 'mine',       label: 'My Leads',         count: myLeads.length, icon: 'ti-building-store' },
-          { id: 'forms',      label: 'Forms',            count: forms.length,   icon: 'ti-forms' },
+          { id: 'trustdubai', label: mobile ? 'TrustDubai' : 'TrustDubai Leads', count: tdLeads.length, icon: 'ti-shield-check' },
+          { id: 'mine',       label: 'My Leads', count: myLeads.length, icon: 'ti-building-store' },
+          { id: 'forms',      label: 'Forms',    count: forms.length,   icon: 'ti-forms' },
         ].map(t => (
           <button key={t.id} onClick={() => { setMainTab(t.id); setFSource('all'); setSearch(''); setQuickFilter(''); closeEditor() }} style={{
-            padding: '9px 16px', border: 'none', background: 'none', cursor: 'pointer',
-            fontSize: 13.5, fontWeight: 600, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6,
+            padding: mobile ? '9px 9px' : '9px 16px', border: 'none', background: 'none', cursor: 'pointer',
+            fontSize: mobile ? 12.5 : 13.5, fontWeight: 600, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap', flexShrink: 0,
             color: mainTab === t.id ? 'var(--primary)' : 'var(--text2)',
             borderBottom: mainTab === t.id ? '2px solid var(--primary)' : '2px solid transparent', marginBottom: -1
           }}>
@@ -1070,7 +1074,7 @@ export default function LeadsPage() {
                   <div className="card-title" style={{ marginBottom: 12 }}>New Form</div>
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                     <input value={newFormTitle} onChange={e => setNewFormTitle(e.target.value)} placeholder="Form title e.g. Interior Design Inquiry"
-                      style={{ flex: '1 1 200px', padding: '10px 14px', ...inputStyle }} onKeyDown={e => e.key === 'Enter' && createForm()} />
+                      style={{ flex: '1 1 200px', padding: '10px 14px', ...inputStyle, boxSizing: 'border-box' }} onKeyDown={e => e.key === 'Enter' && createForm()} />
                     <button className="btn btn-primary btn-sm" onClick={createForm}>Create</button>
                     <button className="btn btn-secondary btn-sm" onClick={() => setShowNewForm(false)}>Cancel</button>
                   </div>
@@ -1116,7 +1120,7 @@ export default function LeadsPage() {
                 <div>
                   <div style={{ ...card, marginBottom: 16 }}>
                     <div className="card-title" style={{ marginBottom: 12 }}>Form Title</div>
-                    <input value={editingForm.title} onChange={e => setEditingForm(prev => ({ ...prev, title: e.target.value }))} style={{ width: '100%', padding: '10px 14px', ...inputStyle }} />
+                    <input value={editingForm.title} onChange={e => setEditingForm(prev => ({ ...prev, title: e.target.value }))} style={{ width: '100%', padding: '10px 14px', ...inputStyle, boxSizing: 'border-box' }} />
                   </div>
                   <div style={card}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -1128,7 +1132,7 @@ export default function LeadsPage() {
                       {questions.map((q, i) => (
                         <div key={q.id} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 14, background: 'var(--bg2)' }}>
                           <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
-                            <input value={q.question} onChange={e => updateQuestion(q.id, 'question', e.target.value)} placeholder={'Question ' + (i + 1)} style={{ flex: 1, padding: '8px 12px', ...inputStyle, fontSize: 13 }} />
+                            <input value={q.question} onChange={e => updateQuestion(q.id, 'question', e.target.value)} placeholder={'Question ' + (i + 1)} style={{ flex: 1, padding: '8px 12px', ...inputStyle, fontSize: 13, boxSizing: 'border-box' }} />
                             <select value={q.type} onChange={e => updateQuestion(q.id, 'type', e.target.value)} style={{ padding: '8px 26px 8px 10px', ...selectStyle, fontSize: 12 }}>
                               {QUESTION_TYPES.map(t => <option key={t.value} value={t.value} style={optStyle}>{t.label}</option>)}
                             </select>
@@ -1138,7 +1142,7 @@ export default function LeadsPage() {
                             <div style={{ paddingLeft: 8 }}>
                               {(q.options || []).map((opt, oi) => (
                                 <div key={oi} style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
-                                  <input value={opt} onChange={e => updateOption(q.id, oi, e.target.value)} placeholder={'Option ' + (oi + 1)} style={{ flex: 1, padding: '6px 10px', ...inputStyle, fontSize: 12 }} />
+                                  <input value={opt} onChange={e => updateOption(q.id, oi, e.target.value)} placeholder={'Option ' + (oi + 1)} style={{ flex: 1, padding: '6px 10px', ...inputStyle, fontSize: 12, boxSizing: 'border-box' }} />
                                   <button onClick={() => removeOption(q.id, oi)} style={{ padding: '6px 8px', border: 'none', background: 'rgba(239,68,68,0.14)', borderRadius: 6, cursor: 'pointer', color: '#ef4444', fontSize: 12 }}>✕</button>
                                 </div>
                               ))}
@@ -1170,8 +1174,8 @@ export default function LeadsPage() {
                             <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--text2)', display: 'block', marginBottom: 4 }}>
                               {q.question || 'Question ' + (i + 1)}{q.required && <span style={{ color: '#ef4444', marginLeft: 2 }}>*</span>}
                             </label>
-                            {q.type === 'text' && <input disabled placeholder="Customer answer..." style={{ width: '100%', padding: '8px 10px', ...inputStyle, fontSize: 12 }} />}
-                            {q.type === 'select' && <select disabled style={{ width: '100%', padding: '8px 10px', ...inputStyle, fontSize: 12 }}><option style={optStyle}>Select an option</option>{(q.options || []).map((o, i) => <option key={i} style={optStyle}>{o}</option>)}</select>}
+                            {q.type === 'text' && <input disabled placeholder="Customer answer..." style={{ width: '100%', padding: '8px 10px', ...inputStyle, fontSize: 12, boxSizing: 'border-box' }} />}
+                            {q.type === 'select' && <select disabled style={{ width: '100%', padding: '8px 10px', ...inputStyle, fontSize: 12, boxSizing: 'border-box' }}><option style={optStyle}>Select an option</option>{(q.options || []).map((o, i) => <option key={i} style={optStyle}>{o}</option>)}</select>}
                             {q.type === 'radio' && <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>{(q.options || []).map((o, i) => <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text2)' }}><input type="radio" disabled /> {o || 'Option ' + (i + 1)}</label>)}</div>}
                           </div>
                         ))}
