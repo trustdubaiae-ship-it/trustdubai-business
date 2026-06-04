@@ -139,8 +139,8 @@ function Portal() {
   const isRejected = status === 'rejected'
 
   const allPages = {
-    dashboard:          <DashboardPage onNavigate={navigate} />,
-    revenueengine:      <RevenueEngine onNavigate={navigate} />,
+    dashboard:          <DashboardPage onNavigate={navigate} theme={theme} />,
+    revenueengine:      <RevenueEngine onNavigate={navigate} theme={theme} />,
     inbox:              <InboxPage />,
     profile:            <ProfilePage />,
     reviews:            <ReviewsPage />,
@@ -165,7 +165,7 @@ function Portal() {
   }
 
   const pageTitles = {
-    dashboard:'Dashboard', revenueengine:'Revenue Engine', inbox:'Inbox', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
+    dashboard:'Command Center', revenueengine:'Revenue Engine', inbox:'Inbox', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
     analytics:'Analytics', leads:'Lead Form', leadengine:'Lead Engine', quotations:'Quotations', quoteSettings:'Quote Settings', sponsored:'Sponsored Placement', staff:'Staff & Access',
     team:'Our Team', documents:'Document Verification', faq:'FAQ Management', notifications:'Notifications', trust:'Trust Score', controlpanel:'Control Panel',
     verification:'Control Panel', verificationStatus:'Control Panel', plans:'Control Panel', settings:'Control Panel',
