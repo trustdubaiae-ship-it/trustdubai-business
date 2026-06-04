@@ -9,6 +9,7 @@ import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import NoCompanyPage from './pages/NoCompanyPage'
 import DashboardPage from './pages/DashboardPage'
+import RevenueEngine from './pages/RevenueEngine'
 import ProfilePage from './pages/ProfilePage'
 import ReviewsPage from './pages/ReviewsPage'
 import PortfolioPage from './pages/PortfolioPage'
@@ -31,6 +32,7 @@ const ROLE_LABEL = { owner:'Owner', manager:'Manager', sales:'Sales', engineer:'
 
 const PAGE_PERM = {
   dashboard:          'view_dashboard',
+  revenueengine:      'view_leads',
   inbox:              'view_dashboard',
   notifications:      'view_dashboard',
   profile:            'view_profile',
@@ -62,7 +64,7 @@ const LIMITED_PAGES = ['dashboard', 'inbox', 'profile', 'portfolio', 'faq', 'not
 // views (list/builder/detail) can also persist a sub-route, e.g. #quotations/builder,
 // so a refresh keeps them on the same view instead of resetting to the list.
 const VALID_PAGES = [
-  'dashboard', 'inbox', 'profile', 'reviews', 'portfolio', 'analytics', 'leads', 'leadengine', 'quotations', 'quoteSettings',
+  'dashboard', 'revenueengine', 'inbox', 'profile', 'reviews', 'portfolio', 'analytics', 'leads', 'leadengine', 'quotations', 'quoteSettings',
   'sponsored', 'staff', 'team', 'documents', 'faq', 'notifications', 'trust',
   'controlpanel', 'verification', 'verificationStatus', 'plans', 'settings',
 ]
@@ -138,6 +140,7 @@ function Portal() {
 
   const allPages = {
     dashboard:          <DashboardPage onNavigate={navigate} />,
+    revenueengine:      <RevenueEngine onNavigate={navigate} />,
     inbox:              <InboxPage />,
     profile:            <ProfilePage />,
     reviews:            <ReviewsPage />,
@@ -162,7 +165,7 @@ function Portal() {
   }
 
   const pageTitles = {
-    dashboard:'Dashboard', inbox:'Inbox', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
+    dashboard:'Dashboard', revenueengine:'Revenue Engine', inbox:'Inbox', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
     analytics:'Analytics', leads:'Lead Form', leadengine:'Lead Engine', quotations:'Quotations', quoteSettings:'Quote Settings', sponsored:'Sponsored Placement', staff:'Staff & Access',
     team:'Our Team', documents:'Document Verification', faq:'FAQ Management', notifications:'Notifications', trust:'Trust Score', controlpanel:'Control Panel',
     verification:'Control Panel', verificationStatus:'Control Panel', plans:'Control Panel', settings:'Control Panel',
@@ -205,10 +208,10 @@ function Portal() {
 
   const LockedScreen = (
     <div style={{ padding:40, display:'flex', justifyContent:'center' }}>
-      <div style={{ background:'#fff', borderRadius:16, padding:32, maxWidth:440, textAlign:'center', boxShadow:'0 4px 20px rgba(0,0,0,0.06)' }}>
+      <div style={{ background:'var(--card)', borderRadius:16, padding:32, maxWidth:440, textAlign:'center', boxShadow:'0 4px 20px rgba(0,0,0,0.06)', border:'0.5px solid var(--border)' }}>
         <div style={{ fontSize:38, marginBottom:10 }}>🔒</div>
-        <h3 style={{ margin:'0 0 6px', color:'#0f172a' }}>Available after approval</h3>
-        <p style={{ fontSize:13, color:'#64748b', margin:'0 0 18px', lineHeight:1.5 }}>
+        <h3 style={{ margin:'0 0 6px', color:'var(--text)' }}>Available after approval</h3>
+        <p style={{ fontSize:13, color:'var(--text2)', margin:'0 0 18px', lineHeight:1.5 }}>
           This section unlocks once your business is approved. For now, you can complete your profile, logo, portfolio and FAQ so you're ready to go live.
         </p>
         <button onClick={() => navigate('profile')}
@@ -221,10 +224,10 @@ function Portal() {
 
   const AccessDenied = (
     <div style={{ padding:40, display:'flex', justifyContent:'center' }}>
-      <div style={{ background:'#fff', borderRadius:16, padding:32, maxWidth:420, textAlign:'center', boxShadow:'0 4px 20px rgba(0,0,0,0.06)' }}>
+      <div style={{ background:'var(--card)', borderRadius:16, padding:32, maxWidth:420, textAlign:'center', boxShadow:'0 4px 20px rgba(0,0,0,0.06)', border:'0.5px solid var(--border)' }}>
         <div style={{ fontSize:34, marginBottom:8 }}>🔒</div>
-        <h3 style={{ margin:'0 0 6px', color:'#0f172a' }}>Access Restricted</h3>
-        <p style={{ fontSize:13, color:'#64748b', margin:'0 0 16px' }}>
+        <h3 style={{ margin:'0 0 6px', color:'var(--text)' }}>Access Restricted</h3>
+        <p style={{ fontSize:13, color:'var(--text2)', margin:'0 0 16px' }}>
           Restricted. Please contact {company?.name || 'your company'} admin.
         </p>
         <button onClick={() => navigate('dashboard')}
@@ -311,21 +314,21 @@ function Portal() {
               {showProfile && (
                 <>
                   <div onClick={() => setShowProfile(false)} style={{ position:'fixed', inset:0, zIndex:40 }}/>
-                  <div style={{ position:'absolute', right:0, top:42, zIndex:50, width:240, background:'#fff', borderRadius:12, boxShadow:'0 10px 30px rgba(0,0,0,0.15)', border:'1px solid #eef2f6', overflow:'hidden' }}>
-                    <div style={{ padding:14, display:'flex', alignItems:'center', gap:10, borderBottom:'1px solid #f1f5f9' }}>
+                  <div style={{ position:'absolute', right:0, top:42, zIndex:50, width:240, background:'var(--card)', borderRadius:12, boxShadow:'0 10px 30px rgba(0,0,0,0.15)', border:'1px solid var(--border)', overflow:'hidden' }}>
+                    <div style={{ padding:14, display:'flex', alignItems:'center', gap:10, borderBottom:'1px solid var(--border)' }}>
                       <div style={{ width:40, height:40, borderRadius:'50%', background:'#0099cc', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700 }}>{avatarLetter}</div>
                       <div style={{ minWidth:0 }}>
-                        <div style={{ fontSize:13, fontWeight:700, color:'#0f172a', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{displayName}</div>
-                        <div style={{ fontSize:11, color:'#64748b', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{displayEmail}</div>
+                        <div style={{ fontSize:13, fontWeight:700, color:'var(--text)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{displayName}</div>
+                        <div style={{ fontSize:11, color:'var(--text2)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{displayEmail}</div>
                       </div>
                     </div>
-                    <div style={{ padding:'10px 14px', fontSize:12, color:'#475569', display:'flex', flexDirection:'column', gap:8 }}>
-                      <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ color:'#94a3b8' }}>Company</span><span style={{ fontWeight:600, color:'#0f172a' }}>{company?.name}</span></div>
-                      <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ color:'#94a3b8' }}>Role</span><span style={{ fontWeight:600, color:'#0099cc' }}>{roleLabel}</span></div>
-                      <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ color:'#94a3b8' }}>Status</span><span style={{ fontWeight:600, color: isApproved?'#1e9e63':(isRejected?'#dc2626':'#0077a3'), textTransform:'capitalize' }}>{isApproved?'Approved':(isRejected?'Rejected':'Under Review')}</span></div>
-                      <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ color:'#94a3b8' }}>Plan</span><span style={{ fontWeight:600, color: planColors[planName], textTransform:'capitalize' }}>{planName}</span></div>
+                    <div style={{ padding:'10px 14px', fontSize:12, color:'var(--text2)', display:'flex', flexDirection:'column', gap:8 }}>
+                      <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ color:'var(--text3)' }}>Company</span><span style={{ fontWeight:600, color:'var(--text)' }}>{company?.name}</span></div>
+                      <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ color:'var(--text3)' }}>Role</span><span style={{ fontWeight:600, color:'#0099cc' }}>{roleLabel}</span></div>
+                      <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ color:'var(--text3)' }}>Status</span><span style={{ fontWeight:600, color: isApproved?'#1e9e63':(isRejected?'#dc2626':'#0077a3'), textTransform:'capitalize' }}>{isApproved?'Approved':(isRejected?'Rejected':'Under Review')}</span></div>
+                      <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ color:'var(--text3)' }}>Plan</span><span style={{ fontWeight:600, color: planColors[planName], textTransform:'capitalize' }}>{planName}</span></div>
                     </div>
-                    <div style={{ borderTop:'1px solid #f1f5f9', padding:8 }}>
+                    <div style={{ borderTop:'1px solid var(--border)', padding:8 }}>
                       <button onClick={() => { setShowProfile(false); signOut() }} style={{ width:'100%', textAlign:'left', padding:'9px 10px', fontSize:13, color:'#dc2626', background:'none', border:'none', borderRadius:8, cursor:'pointer', display:'flex', alignItems:'center', gap:8 }}>
                         <i className="ti ti-logout"/> Sign Out
                       </button>
