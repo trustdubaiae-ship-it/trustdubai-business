@@ -302,6 +302,10 @@ export default function DashboardPage({ onNavigate, theme }) {
             <i className="ti ti-calendar" style={{ fontSize:13, color:C.green }}/>
             <Clock isDark={isDark}/>
           </div>
+          <button onClick={() => onNavigate && onNavigate('controlwall')} title="Open the full-screen Control Wall"
+            style={{ display:'flex', alignItems:'center', gap:6, background:'transparent', color:C.text, border:`1px solid ${C.border}`, borderRadius:10, padding:'9px 16px', fontSize:13, fontWeight:600, cursor:'pointer' }}>
+            <i className="ti ti-layout-grid" style={{ fontSize:14, color:C.green }}/> Control Wall
+          </button>
           <button onClick={fetchAll} style={{ display:'flex', alignItems:'center', gap:6, background:C.green, color:'#fff', border:'none', borderRadius:10, padding:'9px 16px', fontSize:13, fontWeight:600, cursor:'pointer' }}>
             <i className="ti ti-refresh" style={{ fontSize:14 }}/> Refresh
           </button>
