@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { useToast } from '../lib/toast'
+import MetaConnect from './MetaConnect'
+import MetaAds from './MetaAds'
+import MetaAdBuilder from './MetaAdBuilder'
 
 const SOURCES = [
   { key:'trustdubai', icon:'ti-shield-check',   name:'TrustDubai Leads', sub:'Platform verified leads',
@@ -24,6 +27,10 @@ export default function LeadEngine() {
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
   const [, forceUpdate] = useState(0)
 
+  // sub-view: home | meta-connect | meta-ads | meta-builder
+  const [view, setView] = useState('home')
+  const [metaConnected, setMetaConnected] = useState(false)
+
   const [minValue, setMinValue] = useState('')
   const [savedMin, setSavedMin] = useState('')
   const [saving, setSaving]     = useState(false)
@@ -40,7 +47,10 @@ export default function LeadEngine() {
     setLoading(true)
     const { data } = await supabase.from('companies').select('min_job_value').eq('id', company.id).maybeSingle()
     const v = data?.min_job_value ? String(data.min_job_value) : ''
-    setMinValue(v); setSavedMin(v); setLoading(false)
+    setMinValue(v); setSavedMin(v)
+    const { data: conn } = await supabase.from('meta_connections').select('connected').eq('company_id', company.id).maybeSingle()
+    setMetaConnected(!!conn?.connected)
+    setLoading(false)
   }
 
   async function saveMin() {
@@ -54,17 +64,42 @@ export default function LeadEngine() {
   }
 
   function handleSource(s) {
+    if (s.key === 'meta') {
+      setView(metaConnected ? 'meta-ads' : 'meta-connect')
+      return
+    }
     if (s.status === 'soon') { toast.info(s.name + ' is coming soon'); return }
-    if (s.key === 'meta')    { toast.info('Meta connection is coming soon — UI ready'); return }
     if (s.key === 'manual')  { toast.info('Use Leads → Add Lead / Import CSV'); return }
     if (s.key === 'trustdubai') { toast.info('TrustDubai leads are already active'); return }
   }
+
+  // ===== Meta sub-views =====
+  if (view === 'meta-connect') return (
+    <MetaConnect
+      onBack={() => { setView('home'); load() }}
+      onConnected={() => { setMetaConnected(true); setView('meta-ads') }}
+    />
+  )
+  if (view === 'meta-ads') return (
+    <MetaAds
+      onBack={() => { setView('home'); load() }}
+      onNewAd={() => setView('meta-builder')}
+      onManageConnection={() => setView('meta-connect')}
+    />
+  )
+  if (view === 'meta-builder') return (
+    <MetaAdBuilder
+      onBack={() => setView('meta-ads')}
+      onDone={() => setView('meta-ads')}
+    />
+  )
 
   const text=isDark?'#f1f5f9':'#0f172a', textSub=isDark?'#94a3b8':'#64748b', textMuted=isDark?'#475569':'#94a3b8'
   const border=isDark?'rgba(255,255,255,0.08)':'#e2e8f0', cardBg=isDark?'#1e293b':'#ffffff'
   const subBg=isDark?'rgba(255,255,255,0.04)':'#f8fafc'
 
-  const statusPill = (st) => {
+  const statusPill = (st, key) => {
+    if (key === 'meta' && metaConnected) return <span style={{ fontSize:10, fontWeight:700, color:'#0f6e56', background:isDark?'rgba(34,197,94,0.15)':'#e1f5ee', padding:'3px 9px', borderRadius:99 }}>CONNECTED</span>
     const map = {
       active:  { t:'Active',        c:'#0f6e56', b:isDark?'rgba(34,197,94,0.15)':'#e1f5ee' },
       connect: { t:'Not connected', c:textSub,   b:subBg },
@@ -75,6 +110,14 @@ export default function LeadEngine() {
   }
 
   const dirty = minValue !== savedMin
+  const activeCount = 2 + (metaConnected ? 1 : 0)
+
+  if (loading) return (
+    <div style={{ textAlign:'center', padding:50 }}>
+      <div style={{ width:34, height:34, border:'3px solid #0099cc', borderTopColor:'transparent', borderRadius:'50%', animation:'spin 0.8s linear infinite', margin:'0 auto' }}/>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  )
 
   return (
     <div>
@@ -86,7 +129,7 @@ export default function LeadEngine() {
         </div>
         <div style={{ display:'flex', gap:8, alignItems:'center', background:subBg, padding:'7px 12px', borderRadius:8 }}>
           <i className="ti ti-bolt" style={{ fontSize:16, color:'#d97706' }}/>
-          <span style={{ fontSize:12, color:textSub }}>2 active sources</span>
+          <span style={{ fontSize:12, color:textSub }}>{activeCount} active sources</span>
         </div>
       </div>
 
@@ -95,6 +138,7 @@ export default function LeadEngine() {
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(250px,1fr))', gap:12, marginBottom:22 }}>
         {SOURCES.map(s => {
           const highlight = s.key === 'meta'
+          const metaOn = s.key === 'meta' && metaConnected
           return (
             <div key={s.key} style={{ background:cardBg, border:`${highlight?2:1}px solid ${highlight?'#0099cc':border}`, borderRadius:14, padding:16 }}>
               <div style={{ display:'flex', alignItems:'center', gap:11, marginBottom:10 }}>
@@ -105,7 +149,7 @@ export default function LeadEngine() {
                   <div style={{ fontSize:14, fontWeight:600, color:text }}>{s.name}</div>
                   <div style={{ fontSize:11, color:textMuted }}>{s.sub}</div>
                 </div>
-                {statusPill(s.status)}
+                {statusPill(s.status, s.key)}
               </div>
               <div style={{ fontSize:12, color:textSub, lineHeight:1.6, marginBottom:12, minHeight:38 }}>{s.desc}</div>
               <button onClick={()=>handleSource(s)} disabled={s.status==='soon'}
@@ -114,8 +158,8 @@ export default function LeadEngine() {
                   background: highlight?'#0099cc': s.status==='soon'?subBg:cardBg,
                   color: highlight?'#fff': s.status==='soon'?textMuted:text,
                   opacity: s.status==='soon'?0.7:1 }}>
-                {highlight && <i className="ti ti-plug" style={{ fontSize:14, verticalAlign:'-2px', marginRight:5 }}/>}
-                {s.action}
+                {highlight && <i className={`ti ${metaOn?'ti-settings':'ti-plug'}`} style={{ fontSize:14, verticalAlign:'-2px', marginRight:5 }}/>}
+                {metaOn ? 'Open Ads Manager' : s.action}
               </button>
             </div>
           )
@@ -150,21 +194,23 @@ export default function LeadEngine() {
         </div>
       </div>
 
-      {/* Smart Ad Builder teaser */}
-      <div style={{ background:subBg, borderRadius:14, padding:18 }}>
-        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
-          <i className="ti ti-wand" style={{ fontSize:18, color:'#0099cc' }}/>
-          <span style={{ fontSize:14, fontWeight:600, color:text }}>Coming with Meta: Smart Ad Builder</span>
+      {/* Smart Ad Builder teaser (only when Meta not connected) */}
+      {!metaConnected && (
+        <div style={{ background:subBg, borderRadius:14, padding:18 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
+            <i className="ti ti-wand" style={{ fontSize:18, color:'#0099cc' }}/>
+            <span style={{ fontSize:14, fontWeight:600, color:text }}>Connect Meta: Smart Ad Builder</span>
+          </div>
+          <div style={{ fontSize:12, color:textSub, lineHeight:1.7, marginBottom:12 }}>
+            Once Meta is connected, design a high-converting lead ad in guided steps — audience, budget, creative &amp; lead form. Enable/disable any ad, watch live CPL, and let auto-rules pause weak ads &amp; scale winners.
+          </div>
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+            {['Guided ad builder','Enable / disable ads','Live CPL analytics','Auto-optimize rules'].map(t => (
+              <span key={t} style={{ fontSize:11, background:cardBg, border:`1px solid ${border}`, padding:'5px 11px', borderRadius:99, color:textSub }}>{t}</span>
+            ))}
+          </div>
         </div>
-        <div style={{ fontSize:12, color:textSub, lineHeight:1.7, marginBottom:12 }}>
-          Once Meta is connected, design a high-converting lead ad in guided steps — audience, budget, creative &amp; lead form. Enable/disable any ad, watch live CPL, and let auto-rules pause weak ads &amp; scale winners.
-        </div>
-        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-          {['Guided ad builder','Enable / disable ads','Live CPL analytics','Auto-optimize rules'].map(t => (
-            <span key={t} style={{ fontSize:11, background:cardBg, border:`1px solid ${border}`, padding:'5px 11px', borderRadius:99, color:textSub }}>{t}</span>
-          ))}
-        </div>
-      </div>
+      )}
     </div>
   )
 }
