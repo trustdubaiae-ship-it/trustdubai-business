@@ -62,10 +62,8 @@ const DEFAULT_TEMPLATES = [
   { name: 'Thank you',       body: 'Hi {name}, thank you for choosing us. We look forward to working on your {req}.' },
 ]
 
-// Safe-area top inset for full-screen mobile modals (PWA notch / status bar)
 const SAFE_TOP = 'env(safe-area-inset-top)'
 
-// Custom dropdown chevron (data-URI) so the native arrow never overlaps the text
 const SELECT_CHEVRON =
   "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>\")"
 
@@ -202,7 +200,6 @@ export default function LeadsPage() {
     })
     if (error) { setSavingAdd(false); toast.error('Could not save lead'); console.error(error); return }
 
-    // Also create central client record (with UID)
     await supabase.from('clients').insert({
       name: addF.name.trim(),
       phone: addF.phone.trim(),
@@ -380,7 +377,6 @@ export default function LeadsPage() {
         if (!error) ok += chunk.length
       }
 
-      // Also create central client records (with UID) for each imported lead
       const clientRows = records.map(r => ({
         name: r.name,
         phone: r.phone || null,
@@ -464,7 +460,6 @@ export default function LeadsPage() {
 
   const card = { background: 'var(--card)', border: '0.5px solid var(--border)', borderRadius: 14, padding: 16 }
   const inputStyle = { border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--text)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }
-  // select boxes: hide native arrow + add our own chevron with safe right padding (no overlap)
   const selectStyle = {
     ...inputStyle,
     appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
@@ -474,7 +469,6 @@ export default function LeadsPage() {
   const waMsg = (l) => 'https://wa.me/' + (l.phone || '').replace(/[^0-9]/g, '') + '?text=Hi ' + (l.name || '') + ', regarding your inquiry. How can I help you?'
   const optStyle = { background: 'var(--card)', color: 'var(--text)' }
 
-  // WhatsApp number: prefer separate WhatsApp answer, else phone
   function waNumber(lead) {
     const wa = lead.answers?.['WhatsApp'] || lead.answers?.whatsapp || ''
     const num = (wa || lead.phone || '').replace(/[^0-9]/g, '')
@@ -516,7 +510,6 @@ export default function LeadsPage() {
           {!isOverdue && isDueToday && <span style={{ fontSize: 9, color: '#f59e0b' }}><i className="ti ti-clock" style={{ fontSize: 10 }} /> Today</span>}
         </div>
 
-        {/* 3 equal action buttons — Move | Call | WhatsApp */}
         <div style={{ display: 'flex', gap: 6, marginTop: 9 }} onClick={e => e.stopPropagation()}>
           <button
             onClick={() => canMove && updateLeadStage(lead, nextStage(lead.status))}
@@ -563,7 +556,6 @@ export default function LeadsPage() {
       <div onClick={closeAdd} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 210, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: mobile ? 0 : '24px 16px', overflowY: 'auto' }}>
         <div onClick={e => e.stopPropagation()} style={{ width: mobile ? '100%' : 480, minHeight: mobile ? '100%' : 'auto', background: 'var(--card)', borderRadius: mobile ? 0 : 14, border: '0.5px solid var(--border)' }}>
 
-          {/* Sticky header (stays under status bar while scrolling) */}
           <div style={{ position: 'sticky', top: 0, zIndex: 5, background: 'var(--card)', padding: '14px 18px', paddingTop: mobile ? `calc(14px + ${SAFE_TOP})` : 14, borderBottom: '0.5px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: mobile ? 0 : '14px 14px 0 0' }}>
             <div>
               <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)' }}>Add new lead</div>
@@ -661,7 +653,6 @@ export default function LeadsPage() {
       <div onClick={closeModal} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: mobile ? 0 : '24px 16px', overflowY: 'auto' }}>
         <div onClick={e => e.stopPropagation()} style={{ width: mobile ? '100%' : 560, minHeight: mobile ? '100%' : 'auto', background: 'var(--card)', borderRadius: mobile ? 0 : 14, border: '0.5px solid var(--border)' }}>
 
-          {/* Sticky header — stays pinned under the status bar while the modal scrolls */}
           <div style={{ position: 'sticky', top: 0, zIndex: 5, background: 'var(--card)', padding: '14px 18px', paddingTop: mobile ? `calc(14px + ${SAFE_TOP})` : 14, borderBottom: '0.5px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderRadius: mobile ? 0 : '14px 14px 0 0' }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lead.name || 'Anonymous'}</div>
@@ -908,10 +899,6 @@ export default function LeadsPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(lead => {
-                const sc = LEAD_STATUSES.find(s => s.value === lead.status) || LEAD_STATUSES[0]
-
-        <tbody>
               {filtered.map(lead => {
                 const sc = LEAD_STATUSES.find(s => s.value === lead.status) || LEAD_STATUSES[0]
                 return (
@@ -1207,5 +1194,4 @@ export default function LeadsPage() {
       )}
     </div>
   )
-}return (
-                  <tr key={lead.key} onCl
+}
