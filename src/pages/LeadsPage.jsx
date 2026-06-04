@@ -527,9 +527,9 @@ export default function LeadsPage() {
           </button>
 
           <button
-            onClick={() => waNo && window.open('https://wa.me/' + waNo + '?text=' + encodeURIComponent('Hi ' + (lead.name || '') + ', regarding your inquiry. How can I help you?'), '_blank')}
+            onClick={() => waNo && openModal(lead)}
             disabled={!waNo}
-            title={waNo ? 'WhatsApp' : 'No WhatsApp number'}
+            title={waNo ? 'Open templates & send WhatsApp' : 'No WhatsApp number'}
             style={{ flex: 1, fontSize: 11, fontWeight: 600, padding: '7px 4px', borderRadius: 8, border: 'none',
               background: waNo ? 'rgba(34,197,94,0.14)' : 'var(--bg)', color: waNo ? '#0f7a52' : 'var(--text3)',
               cursor: waNo ? 'pointer' : 'not-allowed', opacity: waNo ? 1 : 0.55,
