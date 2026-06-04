@@ -573,16 +573,16 @@ export default function LeadsPage() {
             <label style={lbl}>Phone (Primary) <span style={{ color: '#ef4444' }}>*</span></label>
             <input value={addF.phone} onChange={e => setA('phone', e.target.value)} placeholder="+971 50 XXX XXXX" style={{ width: '100%', padding: '9px 11px', ...inputStyle, fontSize: 13, boxSizing: 'border-box' }} />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : '1fr 1fr', gap: 10, marginBottom: 14 }}>
             <div style={{ minWidth: 0 }}>
               <label style={lbl}>Lead source <span style={{ color: '#ef4444' }}>*</span></label>
-              <select value={addF.source} onChange={e => setA('source', e.target.value)} style={{ width: '100%', padding: '9px 11px', ...selectStyle, fontSize: 13, boxSizing: 'border-box', minWidth: 0 }}>
+              <select value={addF.source} onChange={e => setA('source', e.target.value)} style={{ display: 'block', width: '100%', padding: '9px 11px', ...selectStyle, fontSize: 13, boxSizing: 'border-box', minWidth: 0 }}>
                 {LEAD_SOURCES.map(s => <option key={s} value={s} style={optStyle}>{s}</option>)}
               </select>
             </div>
             <div style={{ minWidth: 0 }}>
               <label style={lbl}>Project type</label>
-              <select value={addF.projectType} onChange={e => setA('projectType', e.target.value)} style={{ width: '100%', padding: '9px 11px', ...selectStyle, fontSize: 13, boxSizing: 'border-box', minWidth: 0 }}>
+              <select value={addF.projectType} onChange={e => setA('projectType', e.target.value)} style={{ display: 'block', width: '100%', padding: '9px 11px', ...selectStyle, fontSize: 13, boxSizing: 'border-box', minWidth: 0 }}>
                 <option value="" style={optStyle}>Select</option>
                 {PROJECT_TYPES.map(p => <option key={p} value={p} style={optStyle}>{p}</option>)}
               </select>
@@ -596,18 +596,18 @@ export default function LeadsPage() {
 
           {addMore && (
             <div style={{ background: 'var(--bg2)', borderRadius: 10, padding: 13, marginBottom: 14 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 11 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : '1fr 1fr', gap: 10, marginBottom: 11 }}>
                 <div style={{ minWidth: 0 }}><label style={lblSm}>Email</label><input value={addF.email} onChange={e => setA('email', e.target.value)} placeholder="name@email.com" style={{ width: '100%', padding: '7px 9px', ...inputStyle, fontSize: 12, boxSizing: 'border-box' }} /></div>
                 <div style={{ minWidth: 0 }}><label style={lblSm}>WhatsApp (if different)</label><input value={addF.whatsapp} onChange={e => setA('whatsapp', e.target.value)} placeholder="+971 ..." style={{ width: '100%', padding: '7px 9px', ...inputStyle, fontSize: 12, boxSizing: 'border-box' }} /></div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 11 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : '1fr 1fr', gap: 10, marginBottom: 11 }}>
                 <div style={{ minWidth: 0 }}><label style={lblSm}>Location</label><input value={addF.location} onChange={e => setA('location', e.target.value)} placeholder="e.g. Business Bay" style={{ width: '100%', padding: '7px 9px', ...inputStyle, fontSize: 12, boxSizing: 'border-box' }} /></div>
                 <div style={{ minWidth: 0 }}><label style={lblSm}>Budget (AED)</label><input value={addF.budget} onChange={e => setA('budget', e.target.value)} placeholder="e.g. 50,000" style={{ width: '100%', padding: '7px 9px', ...inputStyle, fontSize: 12, boxSizing: 'border-box' }} /></div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 11 }}>
-                <div style={{ minWidth: 0 }}><label style={lblSm}>Next follow-up</label><input type="date" value={addF.followUp} onChange={e => setA('followUp', e.target.value)} style={{ width: '100%', padding: '7px 9px', ...inputStyle, fontSize: 12, boxSizing: 'border-box', minWidth: 0 }} /></div>
+              <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : '1fr 1fr', gap: 10, marginBottom: 11 }}>
+                <div style={{ minWidth: 0 }}><label style={lblSm}>Next follow-up</label><input type="date" value={addF.followUp} onChange={e => setA('followUp', e.target.value)} style={{ display: 'block', width: '100%', padding: '8px 9px', ...inputStyle, fontSize: 12, boxSizing: 'border-box', minWidth: 0, WebkitAppearance: 'none', appearance: 'none' }} /></div>
                 <div style={{ minWidth: 0 }}><label style={lblSm}>Status</label>
-                  <select value={addF.status} onChange={e => setA('status', e.target.value)} style={{ width: '100%', padding: '7px 9px', ...selectStyle, fontSize: 12, boxSizing: 'border-box', minWidth: 0 }}>
+                  <select value={addF.status} onChange={e => setA('status', e.target.value)} style={{ display: 'block', width: '100%', padding: '8px 9px', ...selectStyle, fontSize: 12, boxSizing: 'border-box', minWidth: 0 }}>
                     {LEAD_STATUSES.map(s => <option key={s.value} value={s.value} style={optStyle}>{s.label}</option>)}
                   </select>
                 </div>
@@ -712,14 +712,14 @@ export default function LeadsPage() {
             </div>
             <textarea value={logNote} onChange={e => setLogNote(e.target.value)} placeholder="Notes — what was discussed..."
               style={{ width: '100%', minHeight: 50, padding: '8px 10px', ...inputStyle, fontSize: 12, resize: 'vertical', marginBottom: 9, boxSizing: 'border-box' }} />
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 9 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : '1fr 1fr', gap: 9, marginBottom: 9 }}>
               <div style={{ minWidth: 0 }}>
                 <label style={{ fontSize: 10, color: 'var(--text3)', display: 'block', marginBottom: 3 }}>Next follow-up</label>
-                <input type="date" value={logNext} onChange={e => setLogNext(e.target.value)} style={{ width: '100%', padding: '7px 9px', ...inputStyle, fontSize: 12, boxSizing: 'border-box', minWidth: 0 }} />
+                <input type="date" value={logNext} onChange={e => setLogNext(e.target.value)} style={{ ...inputStyle, display: 'block', width: '100%', padding: '8px 9px', fontSize: 12, boxSizing: 'border-box', minWidth: 0, WebkitAppearance: 'none', appearance: 'none' }} />
               </div>
               <div style={{ minWidth: 0 }}>
                 <label style={{ fontSize: 10, color: 'var(--text3)', display: 'block', marginBottom: 3 }}>Move to stage</label>
-                <select value={logStage} onChange={e => setLogStage(e.target.value)} style={{ width: '100%', padding: '7px 9px', ...selectStyle, fontSize: 12, boxSizing: 'border-box', minWidth: 0 }}>
+                <select value={logStage} onChange={e => setLogStage(e.target.value)} style={{ ...selectStyle, display: 'block', width: '100%', padding: '8px 9px', fontSize: 12, boxSizing: 'border-box', minWidth: 0 }}>
                   {LEAD_STATUSES.map(s => <option key={s.value} value={s.value} style={optStyle}>{s.label}</option>)}
                 </select>
               </div>
