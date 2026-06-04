@@ -21,6 +21,7 @@ const MENU = [
   { id:'trust',      icon:'ti-shield-check',     label:'Trust Score',        perm:'view_dashboard' },
   { id:'reviews',    icon:'ti-star',             label:'Reviews',            perm:'view_reviews',  featureKey:'reply_reviews' },
   { id:'leads',      icon:'ti-message-circle',   label:'Leads',              perm:'view_leads',    featureKey:'lead_email' },
+  { id:'leadengine', icon:'ti-bolt',             label:'Lead Engine',        perm:'view_leads' },
 
   { section: 'SALES HUB' },
   { id:'quotations',    icon:'ti-file-invoice',  label:'Quotations',         perm:'view_leads' },
