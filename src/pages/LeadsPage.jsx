@@ -320,6 +320,75 @@ export default function LeadsPage() {
     setTemplates(prev => prev.filter(t => t.id !== id))
   }
 
+  // ---- Create Quote from a lead ----
+  const [creatingQuote, setCreatingQuote] = useState(false)
+  async function createQuoteFromLead(lead) {
+    if (!lead) return
+    setCreatingQuote(true)
+    try {
+      const phoneDigits = (lead.phone || '').replace(/[^0-9]/g, '')
+      let clientRow = null
+
+      // 1) Try to find an existing client by phone (most reliable), else by exact name
+      if (phoneDigits) {
+        const { data } = await supabase.from('clients').select('*').ilike('phone', `%${phoneDigits.slice(-9)}%`).limit(1)
+        if (data && data.length) clientRow = data[0]
+      }
+      if (!clientRow && lead.name) {
+        const { data } = await supabase.from('clients').select('*').eq('name', lead.name).limit(1)
+        if (data && data.length) clientRow = data[0]
+      }
+
+      // 2) If not found, create one
+      if (!clientRow) {
+        const { data, error } = await supabase.from('clients').insert({
+          name: lead.name || 'Client',
+          phone: lead.phone || null,
+          email: lead.email || null,
+          source: lead.answers?.['Source'] || (lead.isPlatform ? 'trustdubai' : 'lead'),
+        }).select('*').single()
+        if (error) throw error
+        clientRow = data
+      }
+
+      // 3) Build a quote draft pre-filled with this client, then open the builder
+      const projType = lead.answers?.['Project Type'] || lead.answers?.category || ''
+      const loc = lead.answers?.['Location'] || lead.answers?.area || ''
+      const draft = {
+        mode: 'simple',
+        client: {
+          id: clientRow.id,
+          uid: clientRow.uid || '',
+          name: clientRow.name || lead.name || '',
+          phone: clientRow.phone || lead.phone || '',
+          email: clientRow.email || lead.email || '',
+        },
+        clientSearch: clientRow.name || lead.name || '',
+        projectTitle: projType,
+        items: [{ desc: '', unit: 'Nos', qty: 1, rate: 0 }],
+        vatEnabled: true,
+        discountType: null,
+        discountValue: 0,
+        notes: lead.answers?.['Notes'] || '',
+        showFooter: true,
+        showSignature: true,
+        location: loc,
+        preparedBy: '',
+        clientEmail: clientRow.email || lead.email || '',
+      }
+      try { localStorage.setItem('td_quote_draft_v1', JSON.stringify(draft)) } catch {}
+
+      closeModal()
+      toast.success('Opening quote builder...')
+      window.location.hash = 'quotations/builder'
+    } catch (e) {
+      console.error('Create quote failed:', e)
+      toast.error('Could not start quote: ' + (e.message || 'unknown'))
+    } finally {
+      setCreatingQuote(false)
+    }
+  }
+
   function addQuestion() { setQuestions(prev => [...prev, { id: 'new-' + Date.now(), question: '', type: 'text', options: [], required: true, order_num: prev.length }]) }
   function updateQuestion(id, field, value) { setQuestions(prev => prev.map(q => q.id === id ? { ...q, [field]: value } : q)) }
   function deleteQuestion(id) { setQuestions(prev => prev.filter(q => q.id !== id)) }
@@ -674,6 +743,11 @@ export default function LeadsPage() {
             {lead.phone && <a href={'tel:' + lead.phone} style={{ flex: 1, textAlign: 'center', fontSize: 11, padding: 8, borderRadius: 8, background: 'rgba(8,145,178,0.14)', color: '#0077a3', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><i className="ti ti-phone" style={{ fontSize: 15 }} />Call</a>}
             {lead.email && <a href={'mailto:' + lead.email} style={{ flex: 1, textAlign: 'center', fontSize: 11, padding: 8, borderRadius: 8, background: 'var(--bg2)', color: 'var(--text2)', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><i className="ti ti-mail" style={{ fontSize: 15 }} />Email</a>}
           </div>
+
+          <button onClick={() => createQuoteFromLead(lead)} disabled={creatingQuote}
+            style={{ width: '100%', padding: '11px', borderRadius: 9, background: '#0099cc', color: '#fff', border: 'none', cursor: creatingQuote ? 'default' : 'pointer', fontSize: 13, fontWeight: 600, marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, opacity: creatingQuote ? 0.7 : 1 }}>
+            <i className="ti ti-file-invoice" style={{ fontSize: 16 }} /> {creatingQuote ? 'Preparing...' : 'Create Quotation for this lead'}
+          </button>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
             <div style={{ background: 'var(--bg2)', borderRadius: 9, padding: 11, minWidth: 0 }}>
