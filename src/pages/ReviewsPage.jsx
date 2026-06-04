@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../lib/auth'
 import { useToast } from '../lib/toast'
 import { supabase } from '../lib/supabase'
-import { MessageCircle, Send, Clock, Lock } from 'lucide-react'
+import { MessageCircle, Send, Clock, Lock, Star } from 'lucide-react'
 
 export default function ReviewsPage() {
   const { company } = useAuth()
@@ -14,11 +14,18 @@ export default function ReviewsPage() {
   const [replyText, setReplyText] = useState('')
   const [sendingReply, setSendingReply] = useState(false)
   const [showUpgradePopup, setShowUpgradePopup] = useState(false)
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth <= 768)
 
   const currentPlan = company?.plan || 'free'
   const canReply = currentPlan !== 'free'
 
   useEffect(() => { if (company) fetchReviews() }, [company])
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= 768)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
   async function fetchReviews() {
     setLoading(true)
@@ -81,40 +88,67 @@ export default function ReviewsPage() {
     count: reviews.filter(r => r.rating === n).length
   }))
 
+  const repliedCount = reviews.filter(r => r.owner_reply).length
+  const needsReplyCount = reviews.filter(r => !r.owner_reply).length
+
   return (
     <div className="page-content animate-in">
-      <div style={{ marginBottom: 24, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+      {/* Header */}
+      <div style={{ marginBottom: 20, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>
-          <h1 className="font-syne fw-700" style={{ fontSize: 24, marginBottom: 4 }}>Reviews & Comments</h1>
+          <h1 className="font-syne fw-700" style={{ fontSize: 24, marginBottom: 4 }}>Reviews &amp; Comments</h1>
           <p className="text-secondary" style={{ fontSize: 14 }}>Manage your customer reviews and responses</p>
         </div>
         {!canReply && (
           <div style={{ background: '#fef9ed', border: '1px solid #fcd34d', borderRadius: 8, padding: '8px 14px', fontSize: 12, color: '#92400e', display: 'flex', alignItems: 'center', gap: 6 }}>
             <Lock size={12} />
-            Reply feature requires Silver plan or above
+            Reply needs Silver plan or above
           </div>
         )}
       </div>
 
-      {/* Rating overview */}
-      <div className="card" style={{ marginBottom: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
-          <div style={{ textAlign: 'center', flexShrink: 0 }}>
+      {/* ===== Rating overview ===== */}
+      <div className="card" style={{ marginBottom: 20, padding: isMobile ? 16 : 20 }}>
+        <div style={{
+          display: 'flex',
+          flexDirection: isMobile ? 'column' : 'row',
+          alignItems: isMobile ? 'stretch' : 'center',
+          gap: isMobile ? 18 : 28,
+        }}>
+          {/* Big score */}
+          <div style={{
+            display: 'flex', flexDirection: isMobile ? 'row' : 'column',
+            alignItems: 'center', justifyContent: 'center',
+            gap: isMobile ? 14 : 0,
+            flexShrink: 0,
+            paddingBottom: isMobile ? 16 : 0,
+            borderBottom: isMobile ? '1px solid var(--card-border)' : 'none',
+            minWidth: isMobile ? 'auto' : 130,
+          }}>
             <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 52, color: 'var(--text-primary)', lineHeight: 1 }}>{avgRating}</div>
-            <div className="stars" style={{ justifyContent: 'center', margin: '6px 0' }}>
-              {[1,2,3,4,5].map(s => (
-                <span key={s} className={'star ' + (s <= Math.round(avgRating) ? '' : 'empty')} style={{ fontSize: 18 }}>★</span>
-              ))}
+            <div style={{ textAlign: isMobile ? 'left' : 'center' }}>
+              <div className="stars" style={{ justifyContent: isMobile ? 'flex-start' : 'center', margin: isMobile ? '0 0 3px' : '8px 0 4px' }}>
+                {[1,2,3,4,5].map(s => (
+                  <span key={s} className={'star ' + (s <= Math.round(avgRating) ? '' : 'empty')} style={{ fontSize: 18 }}>★</span>
+                ))}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{reviews.length} review{reviews.length !== 1 ? 's' : ''}</div>
             </div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{reviews.length} reviews</div>
           </div>
 
-          <div style={{ flex: 1, borderLeft: '1px solid var(--card-border)', paddingLeft: 32 }}>
+          {/* Breakdown bars */}
+          <div style={{
+            flex: 1,
+            borderLeft: isMobile ? 'none' : '1px solid var(--card-border)',
+            paddingLeft: isMobile ? 0 : 28,
+            minWidth: 0,
+            width: '100%',
+          }}>
             {ratingCounts.map(({ star, count }) => (
-              <div key={star} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                <span style={{ fontSize: 12, color: 'var(--text-secondary)', width: 12 }}>{star}</span>
-                <span className="star" style={{ fontSize: 12 }}>★</span>
-                <div style={{ flex: 1, height: 6, background: 'var(--bg)', borderRadius: 99, overflow: 'hidden' }}>
+              <div key={star} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 7 }}>
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)', width: 10, flexShrink: 0, textAlign: 'right' }}>{star}</span>
+                <span className="star" style={{ fontSize: 12, flexShrink: 0 }}>★</span>
+                <div style={{ flex: 1, height: 7, background: 'var(--bg)', borderRadius: 99, overflow: 'hidden', minWidth: 0 }}>
                   <div style={{
                     width: reviews.length > 0 ? (count / reviews.length * 100) + '%' : '0%',
                     height: '100%',
@@ -122,17 +156,24 @@ export default function ReviewsPage() {
                     borderRadius: 99, transition: 'width 0.5s ease'
                   }} />
                 </div>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)', width: 20, textAlign: 'right' }}>{count}</span>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)', width: 18, flexShrink: 0, textAlign: 'right' }}>{count}</span>
               </div>
             ))}
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0 }}>
+          {/* Replied / Needs reply */}
+          <div style={{
+            display: 'flex',
+            flexDirection: 'row',
+            gap: 10,
+            flexShrink: 0,
+            width: isMobile ? '100%' : 'auto',
+          }}>
             {[
-              { label: 'Replied', value: reviews.filter(r => r.owner_reply).length, color: 'var(--green)' },
-              { label: 'Needs Reply', value: reviews.filter(r => !r.owner_reply).length, color: 'var(--amber)' },
+              { label: 'Replied', value: repliedCount, color: 'var(--green)' },
+              { label: 'Needs Reply', value: needsReplyCount, color: 'var(--amber)' },
             ].map(({ label, value, color }) => (
-              <div key={label} style={{ padding: '12px 16px', background: 'var(--bg)', borderRadius: 8, textAlign: 'center' }}>
+              <div key={label} style={{ flex: isMobile ? 1 : 'none', minWidth: isMobile ? 0 : 96, padding: '12px 16px', background: 'var(--bg)', borderRadius: 10, textAlign: 'center' }}>
                 <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 22, color }}>{value}</div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{label}</div>
               </div>
@@ -142,10 +183,10 @@ export default function ReviewsPage() {
       </div>
 
       {/* Filters */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
         {[
           { key: 'all',      label: 'All (' + reviews.length + ')' },
-          { key: 'unreplied',label: 'Needs Reply (' + reviews.filter(r => !r.owner_reply).length + ')' },
+          { key: 'unreplied',label: 'Needs Reply (' + needsReplyCount + ')' },
           { key: '5',        label: '5 Stars' },
           { key: 'low',      label: '1-3 Stars' },
         ].map(({ key, label }) => (
@@ -168,25 +209,27 @@ export default function ReviewsPage() {
           <p>Reviews matching this filter will appear here</p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {filtered.map(review => {
             const reviewText = review.review_text || review.comment || ''
+            const indent = isMobile ? 0 : 44
             return (
-              <div key={review.id} className="review-card">
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 10 }}>
-                  <div className="review-avatar">
+              <div key={review.id} className="card" style={{ padding: isMobile ? 14 : 16 }}>
+                {/* Header row: avatar + name + badges + stars + date */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: reviewText ? 10 : 8 }}>
+                  <div className="review-avatar" style={{ flexShrink: 0 }}>
                     {(review.reviewer_name || 'A')[0].toUpperCase()}
                   </div>
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <span style={{ fontWeight: 600, fontSize: 14 }}>{review.reviewer_name || 'Anonymous'}</span>
                       {review.is_verified && <span className="badge badge-green" style={{ fontSize: 10 }}>✓ Verified</span>}
-                      {!review.owner_reply && <span className="badge badge-gold" style={{ fontSize: 10 }}>Needs Reply</span>}
+                      {!review.owner_reply && <span className="badge badge-gold" style={{ fontSize: 10, background: 'var(--gold-light)', color: 'var(--gold-dark)', border: '1px solid var(--gold-border)' }}>Needs Reply</span>}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
-                      <div className="stars">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 5, flexWrap: 'wrap' }}>
+                      <div className="stars" style={{ flexShrink: 0 }}>
                         {[1,2,3,4,5].map(s => (
-                          <span key={s} className={'star ' + (s <= review.rating ? '' : 'empty')}>★</span>
+                          <span key={s} className={'star ' + (s <= review.rating ? '' : 'empty')} style={{ fontSize: 14 }}>★</span>
                         ))}
                       </div>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 3 }}>
@@ -198,14 +241,14 @@ export default function ReviewsPage() {
                 </div>
 
                 {reviewText && (
-                  <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: 12, paddingLeft: 44 }}>
+                  <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.65, marginBottom: 12, paddingLeft: indent }}>
                     {reviewText}
                   </p>
                 )}
 
                 {review.owner_reply && (
-                  <div style={{ background: 'var(--gold-light)', border: '1px solid var(--gold-border)', borderRadius: 8, padding: 12, marginBottom: 10, marginLeft: 44 }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--gold-dark)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <div style={{ background: 'var(--gold-light)', border: '1px solid var(--gold-border)', borderRadius: 10, padding: 12, marginBottom: 10, marginLeft: indent }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gold-dark)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4, letterSpacing: '.3px' }}>
                       <MessageCircle size={11} />
                       YOUR REPLY
                       {review.replied_at && (
@@ -218,7 +261,7 @@ export default function ReviewsPage() {
                   </div>
                 )}
 
-                <div style={{ display: 'flex', gap: 8, paddingLeft: 44 }}>
+                <div style={{ display: 'flex', gap: 8, paddingLeft: indent }}>
                   {replyingTo === review.id ? (
                     <div style={{ flex: 1 }}>
                       <textarea
@@ -251,8 +294,8 @@ export default function ReviewsPage() {
 
       {/* Upgrade Popup */}
       {showUpgradePopup && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}>
-          <div style={{ background: 'var(--card-bg)', borderRadius: 16, padding: 32, width: 400, textAlign: 'center' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 16 }}>
+          <div style={{ background: 'var(--card-bg)', borderRadius: 16, padding: 32, width: '100%', maxWidth: 400, textAlign: 'center' }}>
             <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
             <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Reply to Reviews</h3>
             <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 20, lineHeight: 1.6 }}>
