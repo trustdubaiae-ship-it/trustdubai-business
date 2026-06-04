@@ -12,8 +12,9 @@ function hasAccess(userPlan, requiredPlan) {
 const CONTROL_PANEL_PAGES = ['controlpanel','verification','verificationStatus','plans','settings']
 
 const MENU = [
-  { section: 'OVERVIEW' },
-  { id:'dashboard',     icon:'ti-layout-dashboard', label:'Dashboard',          perm:'view_dashboard' },
+  { section: 'MAIN' },
+  { id:'dashboard',     icon:'ti-layout-dashboard', label:'Command Center',     perm:'view_dashboard' },
+  { id:'revenueengine', icon:'ti-gauge',            label:'Revenue Engine',     perm:'view_leads' },
   { id:'inbox',         icon:'ti-mail',             label:'Inbox',              perm:'view_dashboard' },
   { id:'notifications', icon:'ti-bell',             label:'Notifications',      perm:'view_dashboard' },
 
@@ -24,7 +25,6 @@ const MENU = [
   { id:'leadengine', icon:'ti-bolt',             label:'Lead Engine',        perm:'view_leads' },
 
   { section: 'SALES HUB' },
-  { id:'revenueengine', icon:'ti-gauge',         label:'Revenue Engine',     perm:'view_leads' },
   { id:'quotations',    icon:'ti-file-invoice',  label:'Quotations',         perm:'view_leads' },
   { id:'quoteSettings', icon:'ti-settings',      label:'Quote Settings',     perm:'view_profile' },
 
