@@ -10,6 +10,7 @@ import RegisterPage from './pages/RegisterPage'
 import NoCompanyPage from './pages/NoCompanyPage'
 import DashboardPage from './pages/DashboardPage'
 import RevenueEngine from './pages/RevenueEngine'
+import ControlWall from './pages/ControlWall'
 import ProfilePage from './pages/ProfilePage'
 import ReviewsPage from './pages/ReviewsPage'
 import PortfolioPage from './pages/PortfolioPage'
@@ -33,6 +34,7 @@ const ROLE_LABEL = { owner:'Owner', manager:'Manager', sales:'Sales', engineer:'
 const PAGE_PERM = {
   dashboard:          'view_dashboard',
   revenueengine:      'view_leads',
+  controlwall:        'view_dashboard',
   inbox:              'view_dashboard',
   notifications:      'view_dashboard',
   profile:            'view_profile',
@@ -64,7 +66,7 @@ const LIMITED_PAGES = ['dashboard', 'inbox', 'profile', 'portfolio', 'faq', 'not
 // views (list/builder/detail) can also persist a sub-route, e.g. #quotations/builder,
 // so a refresh keeps them on the same view instead of resetting to the list.
 const VALID_PAGES = [
-  'dashboard', 'revenueengine', 'inbox', 'profile', 'reviews', 'portfolio', 'analytics', 'leads', 'leadengine', 'quotations', 'quoteSettings',
+  'dashboard', 'controlwall', 'revenueengine', 'inbox', 'profile', 'reviews', 'portfolio', 'analytics', 'leads', 'leadengine', 'quotations', 'quoteSettings',
   'sponsored', 'staff', 'team', 'documents', 'faq', 'notifications', 'trust',
   'controlpanel', 'verification', 'verificationStatus', 'plans', 'settings',
 ]
@@ -140,7 +142,7 @@ function Portal() {
 
   const allPages = {
     dashboard:          <DashboardPage onNavigate={navigate} theme={theme} />,
-    revenueengine:      <RevenueEngine onNavigate={navigate} theme={theme} />,
+    revenueengine:      <RevenueEngine onNavigate={navigate} />,
     inbox:              <InboxPage />,
     profile:            <ProfilePage />,
     reviews:            <ReviewsPage />,
@@ -165,7 +167,7 @@ function Portal() {
   }
 
   const pageTitles = {
-    dashboard:'Command Center', revenueengine:'Revenue Engine', inbox:'Inbox', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
+    dashboard:'Dashboard', revenueengine:'Revenue Engine', inbox:'Inbox', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
     analytics:'Analytics', leads:'Lead Form', leadengine:'Lead Engine', quotations:'Quotations', quoteSettings:'Quote Settings', sponsored:'Sponsored Placement', staff:'Staff & Access',
     team:'Our Team', documents:'Document Verification', faq:'FAQ Management', notifications:'Notifications', trust:'Trust Score', controlpanel:'Control Panel',
     verification:'Control Panel', verificationStatus:'Control Panel', plans:'Control Panel', settings:'Control Panel',
@@ -237,6 +239,11 @@ function Portal() {
       </div>
     </div>
   )
+
+  // Control Wall = full-screen standalone page (no sidebar/topbar)
+  if (activePage === 'controlwall' && permAllowed && !limitedBlocked) {
+    return <ControlWall onNavigate={navigate} theme={theme} />
+  }
 
   let mainContent
   if (!permAllowed) mainContent = AccessDenied
