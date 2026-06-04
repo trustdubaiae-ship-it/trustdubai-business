@@ -145,7 +145,6 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
   const tradeList = (Array.isArray(tpl?.default_trades) && tpl.default_trades.length)
     ? tpl.default_trades : TRADE_FALLBACK
 
-  // view setter that also writes the URL sub-route
   function setView(v, sub) {
     setViewRaw(v)
     if (v === 'list') setSub('')
@@ -160,7 +159,6 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
     return () => observer.disconnect()
   }, [company?.id])
 
-  // Restore view from URL sub-route once quotes are loaded (refresh persistence)
   useEffect(() => {
     if (loading) return
     if (!restoring) return
@@ -170,7 +168,6 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
     if (!v || v === 'list') { setViewRaw('list'); setRestoring(false); return }
 
     if (v === 'builder') {
-      // resume builder: prefer saved draft
       const d = loadDraft()
       if (d) {
         setEditId(null)
@@ -201,12 +198,11 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
       return
     }
 
-    // voBuilder / voPreview need an active quote we can't reliably rebuild on refresh
     if ((v === 'voBuilder' || v === 'voPreview') && id) {
       const q = quotes.find(x => String(x.id) === String(id))
       if (q) {
         setActiveQuote(q); setVos([]); fetchVos(q.id)
-        setViewRaw('detail') // land on detail (VO section visible) instead of empty builder
+        setViewRaw('detail')
         setSub(`detail/${q.id}`)
       } else {
         setViewRaw('list'); setSub('')
@@ -348,7 +344,6 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
   const grandTotal = afterDiscount + vatAmount
   const fmt = n => 'AED ' + Math.round(n).toLocaleString('en-AE')
 
-  // autosave draft for new quotes
   useEffect(() => {
     if (view !== 'builder' || editId) return
     const hasContent = client || projectTitle.trim() || items.some(it => it.desc.trim())
@@ -743,9 +738,29 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
   function printDoc(html, title) {
     const w = window.open('', '_blank')
     if (!w) { toast.error('Allow pop-ups to print/preview'); return }
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title||'Document')}</title></head><body style="margin:0;background:#fff;">${html}</body></html>`)
+    const safeTitle = escapeHtml(title || 'Document')
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${safeTitle}</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        @media print { .__toolbar { display:none !important; } body { padding-top:0 !important; background:#fff !important; } }
+        .__toolbar { position:fixed; top:0; left:0; right:0; height:52px; z-index:9999; background:#0f1623; color:#fff; display:flex; align-items:center; justify-content:space-between; padding:0 16px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; box-shadow:0 2px 10px rgba(0,0,0,0.25); }
+        .__toolbar .__t { font-size:14px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .__toolbar .__btns { display:flex; gap:8px; flex-shrink:0; }
+        .__toolbar button { font-size:13px; font-weight:600; padding:8px 16px; border-radius:8px; border:none; cursor:pointer; font-family:inherit; }
+        .__btn-print { background:#0099cc; color:#fff; }
+        .__btn-close { background:rgba(255,255,255,0.12); color:#fff; }
+      </style>
+    </head><body style="margin:0;background:#eef2f6;padding-top:52px;">
+      <div class="__toolbar">
+        <span class="__t">${safeTitle}</span>
+        <span class="__btns">
+          <button class="__btn-print" onclick="window.print()">Print / Save PDF</button>
+          <button class="__btn-close" onclick="window.close()">✕ Close</button>
+        </span>
+      </div>
+      ${html}
+    </body></html>`)
     w.document.close()
-    setTimeout(()=>{ w.focus(); w.print() }, 400)
   }
   function printQuote(q) { printDoc(buildQuoteHTML(q), q.quote_number) }
   function printVo(v) {
@@ -780,7 +795,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
   const text=isDark?'#f1f5f9':'#0f172a', textSub=isDark?'#94a3b8':'#64748b', textMuted=isDark?'#475569':'#94a3b8'
   const border=isDark?'rgba(255,255,255,0.08)':'#e2e8f0', cardBg=isDark?'#1e293b':'#ffffff'
   const subBg=isDark?'rgba(255,255,255,0.04)':'#f8fafc', pillBg=isDark?'rgba(255,255,255,0.05)':'#fff', inputBg=isDark?'#0f172a':'#fff'
-  const inputStyle = { padding:'9px 11px', border:`1px solid ${border}`, borderRadius:8, fontSize:13, background:inputBg, color:text, outline:'none', width:'100%' }
+  const inputStyle = { padding:'9px 11px', border:`1px solid ${border}`, borderRadius:8, fontSize:13, background:inputBg, color:text, outline:'none', width:'100%', boxSizing:'border-box' }
   const initials = nm => nm ? nm.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase() : '?'
 
   // ============ PREVIEW ============
@@ -866,24 +881,28 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
 
         {voMode === 'simple' && (
           <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, overflow:'hidden', marginBottom:14 }}>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 78px 52px 78px 80px 28px', gap:6, padding:'9px 11px', background:subBg, fontSize:11, color:textSub, textTransform:'uppercase', letterSpacing:'.3px' }}>
-              <span>Description</span><span>Unit</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span><span/>
-            </div>
-            {voItems.map((it, idx) => {
-              const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
-              return (
-                <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 78px 52px 78px 80px 28px', gap:6, padding:'8px 11px', alignItems:'center', borderTop:`1px solid ${border}` }}>
-                  <input value={it.desc} onChange={e=>updateVoItem(idx,'desc',e.target.value)} placeholder="Item description" style={{ ...inputStyle, padding:'7px 8px', fontSize:12.5 }}/>
-                  <select value={it.unit} onChange={e=>updateVoItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 5px', fontSize:11.5 }}>
-                    {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
-                  </select>
-                  <input type="number" value={it.qty} onChange={e=>updateVoItem(idx,'qty',e.target.value)} style={{ ...inputStyle, padding:'7px 6px', fontSize:12.5 }}/>
-                  <input type="number" value={it.rate} onChange={e=>updateVoItem(idx,'rate',e.target.value)} style={{ ...inputStyle, padding:'7px 8px', fontSize:12.5 }}/>
-                  <span style={{ textAlign:'right', fontSize:12.5, color:text }}>{Math.round(lt).toLocaleString('en-AE')}</span>
-                  <button onClick={()=>removeVoItem(idx)} style={{ background:'none', border:'none', cursor:'pointer', color:textMuted, display:'flex', justifyContent:'center' }}><i className="ti ti-x" style={{ fontSize:15 }}/></button>
+            <div style={{ overflowX:'auto', WebkitOverflowScrolling:'touch' }}>
+              <div style={{ minWidth:440 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 50px 40px 58px 78px 26px', gap:7, padding:'9px 12px', background:subBg, fontSize:11, color:textSub, textTransform:'uppercase', letterSpacing:'.3px' }}>
+                  <span>Description</span><span>Unit</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span><span/>
                 </div>
-              )
-            })}
+                {voItems.map((it, idx) => {
+                  const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
+                  return (
+                    <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 50px 40px 58px 78px 26px', gap:7, padding:'8px 12px', alignItems:'center', borderTop:`1px solid ${border}` }}>
+                      <input value={it.desc} onChange={e=>updateVoItem(idx,'desc',e.target.value)} placeholder="Item description" style={{ ...inputStyle, padding:'7px 8px', fontSize:12.5 }}/>
+                      <select value={it.unit} onChange={e=>updateVoItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 4px', fontSize:11 }}>
+                        {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
+                      </select>
+                      <input type="number" value={it.qty} onChange={e=>updateVoItem(idx,'qty',e.target.value)} style={{ ...inputStyle, padding:'7px 4px', fontSize:12.5, textAlign:'center' }}/>
+                      <input type="number" value={it.rate} onChange={e=>updateVoItem(idx,'rate',e.target.value)} style={{ ...inputStyle, padding:'7px 6px', fontSize:12.5, textAlign:'right' }}/>
+                      <span style={{ textAlign:'right', fontSize:12.5, color:text, alignSelf:'center' }}>{Math.round(lt).toLocaleString('en-AE')}</span>
+                      <button onClick={()=>removeVoItem(idx)} style={{ background:'none', border:'none', cursor:'pointer', color:textMuted, display:'flex', justifyContent:'center', alignItems:'center' }}><i className="ti ti-x" style={{ fontSize:15 }}/></button>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
             <div style={{ padding:'9px 11px', borderTop:`1px solid ${border}` }}>
               <button onClick={addVoItem} style={{ fontSize:12, padding:'6px 12px', border:`1px solid ${border}`, borderRadius:7, background:'none', color:'#0099cc', cursor:'pointer', fontWeight:600 }}>
                 <i className="ti ti-plus" style={{ fontSize:13, verticalAlign:'-2px', marginRight:3 }}/> Add line item
@@ -900,24 +919,28 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
                   <span style={{ fontSize:13, fontWeight:600, color:text, display:'flex', alignItems:'center', gap:7 }}><i className="ti ti-tools" style={{ fontSize:15, color:'#0099cc' }}/> {g.trade}</span>
                   <span style={{ fontSize:12, color:textSub }}>Subtotal: <span style={{ fontWeight:600, color:text }}>{fmt(g.subtotal)}</span></span>
                 </div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 70px 48px 70px 72px 26px', gap:6, padding:'7px 11px', fontSize:10.5, color:textMuted, textTransform:'uppercase', letterSpacing:'.3px' }}>
-                  <span>Description</span><span>Unit</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span><span/>
-                </div>
-                {g.rows.map(({ it, idx }) => {
-                  const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
-                  return (
-                    <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 70px 48px 70px 72px 26px', gap:6, padding:'6px 11px', alignItems:'center', borderTop:`1px solid ${border}` }}>
-                      <input value={it.desc} onChange={e=>updateVoItem(idx,'desc',e.target.value)} placeholder="Item description" style={{ ...inputStyle, padding:'7px 8px', fontSize:12 }}/>
-                      <select value={it.unit} onChange={e=>updateVoItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 4px', fontSize:11 }}>
-                        {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
-                      </select>
-                      <input type="number" value={it.qty} onChange={e=>updateVoItem(idx,'qty',e.target.value)} style={{ ...inputStyle, padding:'7px 4px', fontSize:12 }}/>
-                      <input type="number" value={it.rate} onChange={e=>updateVoItem(idx,'rate',e.target.value)} style={{ ...inputStyle, padding:'7px 6px', fontSize:12 }}/>
-                      <span style={{ textAlign:'right', fontSize:12, color:text }}>{Math.round(lt).toLocaleString('en-AE')}</span>
-                      <button onClick={()=>removeVoItemBoq(idx)} style={{ background:'none', border:'none', cursor:'pointer', color:textMuted, display:'flex', justifyContent:'center' }}><i className="ti ti-x" style={{ fontSize:14 }}/></button>
+                <div style={{ overflowX:'auto', WebkitOverflowScrolling:'touch' }}>
+                  <div style={{ minWidth:430 }}>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 48px 38px 56px 76px 24px', gap:7, padding:'7px 12px', fontSize:10.5, color:textMuted, textTransform:'uppercase', letterSpacing:'.3px' }}>
+                      <span>Description</span><span>Unit</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span><span/>
                     </div>
-                  )
-                })}
+                    {g.rows.map(({ it, idx }) => {
+                      const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
+                      return (
+                        <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 48px 38px 56px 76px 24px', gap:7, padding:'6px 12px', alignItems:'center', borderTop:`1px solid ${border}` }}>
+                          <input value={it.desc} onChange={e=>updateVoItem(idx,'desc',e.target.value)} placeholder="Item description" style={{ ...inputStyle, padding:'7px 8px', fontSize:12 }}/>
+                          <select value={it.unit} onChange={e=>updateVoItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 3px', fontSize:10.5 }}>
+                            {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
+                          </select>
+                          <input type="number" value={it.qty} onChange={e=>updateVoItem(idx,'qty',e.target.value)} style={{ ...inputStyle, padding:'7px 3px', fontSize:12, textAlign:'center' }}/>
+                          <input type="number" value={it.rate} onChange={e=>updateVoItem(idx,'rate',e.target.value)} style={{ ...inputStyle, padding:'7px 5px', fontSize:12, textAlign:'right' }}/>
+                          <span style={{ textAlign:'right', fontSize:12, color:text, alignSelf:'center' }}>{Math.round(lt).toLocaleString('en-AE')}</span>
+                          <button onClick={()=>removeVoItemBoq(idx)} style={{ background:'none', border:'none', cursor:'pointer', color:textMuted, display:'flex', justifyContent:'center', alignItems:'center' }}><i className="ti ti-x" style={{ fontSize:14 }}/></button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
                 <div style={{ padding:'8px 11px', borderTop:`1px solid ${border}` }}>
                   <button onClick={()=>addVoItemToTrade(g.trade)} style={{ fontSize:12, padding:'5px 11px', border:`1px solid ${border}`, borderRadius:7, background:'none', color:'#0099cc', cursor:'pointer', fontWeight:600 }}>
                     <i className="ti ti-plus" style={{ fontSize:12, verticalAlign:'-2px', marginRight:3 }}/> Add item to {g.trade}
@@ -995,26 +1018,34 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
               <span style={{ fontSize:13, fontWeight:600, color:text }}>{g.trade}</span>
               <span style={{ fontSize:12, color:textSub }}>Subtotal: <span style={{ fontWeight:600, color:text }}>{fmt(g.subtotal)}</span></span>
             </div>
-            {g.items.map((it,i)=>(
-              <div key={i} style={{ display:'grid', gridTemplateColumns:'1fr 70px 44px 70px 80px', gap:8, padding:'9px 13px', borderTop:`1px solid ${border}`, fontSize:13, color:text }}>
-                <span style={{ wordBreak:'break-word' }}>{it.desc}</span><span style={{ color:textSub, fontSize:12 }}>{it.unit||'—'}</span><span style={{ color:textSub }}>{it.qty}</span>
-                <span style={{ color:textSub }}>{Number(it.rate).toLocaleString('en-AE')}</span>
-                <span style={{ textAlign:'right' }}>{Math.round((Number(it.qty)||0)*(Number(it.rate)||0)).toLocaleString('en-AE')}</span>
+            <div style={{ overflowX:'auto', WebkitOverflowScrolling:'touch' }}>
+              <div style={{ minWidth:430 }}>
+                {g.items.map((it,i)=>(
+                  <div key={i} style={{ display:'grid', gridTemplateColumns:'1fr 50px 40px 64px 80px', gap:7, padding:'9px 13px', borderTop:`1px solid ${border}`, fontSize:13, color:text }}>
+                    <span style={{ wordBreak:'break-word' }}>{it.desc}</span><span style={{ color:textSub, fontSize:12 }}>{it.unit||'—'}</span><span style={{ color:textSub, textAlign:'center' }}>{it.qty}</span>
+                    <span style={{ color:textSub, textAlign:'right' }}>{Number(it.rate).toLocaleString('en-AE')}</span>
+                    <span style={{ textAlign:'right' }}>{Math.round((Number(it.qty)||0)*(Number(it.rate)||0)).toLocaleString('en-AE')}</span>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
         )) : (
           <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, overflow:'hidden', marginBottom:12 }}>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 70px 44px 70px 80px', gap:8, padding:'9px 13px', background:subBg, fontSize:11, color:textSub, textTransform:'uppercase', letterSpacing:'.3px' }}>
-              <span>Description</span><span>Unit</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span>
-            </div>
-            {qItems.map((it, i) => (
-              <div key={i} style={{ display:'grid', gridTemplateColumns:'1fr 70px 44px 70px 80px', gap:8, padding:'9px 13px', borderTop:`1px solid ${border}`, fontSize:13, color:text }}>
-                <span style={{ wordBreak:'break-word' }}>{it.desc}</span><span style={{ color:textSub, fontSize:12 }}>{it.unit||'—'}</span><span style={{ color:textSub }}>{it.qty}</span>
-                <span style={{ color:textSub }}>{Number(it.rate).toLocaleString('en-AE')}</span>
-                <span style={{ textAlign:'right' }}>{Math.round((Number(it.qty)||0)*(Number(it.rate)||0)).toLocaleString('en-AE')}</span>
+            <div style={{ overflowX:'auto', WebkitOverflowScrolling:'touch' }}>
+              <div style={{ minWidth:430 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 50px 40px 64px 80px', gap:7, padding:'9px 13px', background:subBg, fontSize:11, color:textSub, textTransform:'uppercase', letterSpacing:'.3px' }}>
+                  <span>Description</span><span>Unit</span><span style={{ textAlign:'center' }}>Qty</span><span style={{ textAlign:'right' }}>Rate</span><span style={{ textAlign:'right' }}>Total</span>
+                </div>
+                {qItems.map((it, i) => (
+                  <div key={i} style={{ display:'grid', gridTemplateColumns:'1fr 50px 40px 64px 80px', gap:7, padding:'9px 13px', borderTop:`1px solid ${border}`, fontSize:13, color:text }}>
+                    <span style={{ wordBreak:'break-word' }}>{it.desc}</span><span style={{ color:textSub, fontSize:12 }}>{it.unit||'—'}</span><span style={{ color:textSub, textAlign:'center' }}>{it.qty}</span>
+                    <span style={{ color:textSub, textAlign:'right' }}>{Number(it.rate).toLocaleString('en-AE')}</span>
+                    <span style={{ textAlign:'right' }}>{Math.round((Number(it.qty)||0)*(Number(it.rate)||0)).toLocaleString('en-AE')}</span>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
         )}
 
@@ -1217,15 +1248,15 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
         <input value={projectTitle} onChange={e=>setProjectTitle(e.target.value)} placeholder="Project title (e.g. Interior Fit-Out)" style={{ ...inputStyle, marginBottom:10 }}/>
 
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px,1fr))', gap:8, marginBottom:14 }}>
-          <div>
+          <div style={{ minWidth:0 }}>
             <label style={{ fontSize:11, color:textMuted, display:'block', marginBottom:3 }}>Location</label>
             <input value={location} onChange={e=>setLocation(e.target.value)} placeholder="e.g. Dubai, UAE" style={{ ...inputStyle, fontSize:12.5 }}/>
           </div>
-          <div>
+          <div style={{ minWidth:0 }}>
             <label style={{ fontSize:11, color:textMuted, display:'block', marginBottom:3 }}>Prepared by</label>
             <input value={preparedBy} onChange={e=>setPreparedBy(e.target.value)} placeholder="Your name" style={{ ...inputStyle, fontSize:12.5 }}/>
           </div>
-          <div>
+          <div style={{ minWidth:0 }}>
             <label style={{ fontSize:11, color:textMuted, display:'block', marginBottom:3 }}>Client email</label>
             <input value={clientEmail} onChange={e=>setClientEmail(e.target.value)} placeholder="client@email.com" style={{ ...inputStyle, fontSize:12.5 }}/>
           </div>
@@ -1233,24 +1264,28 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
 
         {mode === 'simple' && (
           <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, overflow:'hidden', marginBottom:14 }}>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 78px 52px 78px 80px 28px', gap:6, padding:'9px 11px', background:subBg, fontSize:11, color:textSub, textTransform:'uppercase', letterSpacing:'.3px' }}>
-              <span>Description</span><span>Unit</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span><span/>
-            </div>
-            {items.map((it, idx) => {
-              const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
-              return (
-                <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 78px 52px 78px 80px 28px', gap:6, padding:'8px 11px', alignItems:'center', borderTop:`1px solid ${border}` }}>
-                  <input value={it.desc} onChange={e=>updateItem(idx,'desc',e.target.value)} placeholder="Item description" style={{ ...inputStyle, padding:'7px 8px', fontSize:12.5 }}/>
-                  <select value={it.unit} onChange={e=>updateItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 5px', fontSize:11.5 }}>
-                    {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
-                  </select>
-                  <input type="number" value={it.qty} onChange={e=>updateItem(idx,'qty',e.target.value)} style={{ ...inputStyle, padding:'7px 6px', fontSize:12.5 }}/>
-                  <input type="number" value={it.rate} onChange={e=>updateItem(idx,'rate',e.target.value)} style={{ ...inputStyle, padding:'7px 8px', fontSize:12.5 }}/>
-                  <span style={{ textAlign:'right', fontSize:12.5, color:text }}>{Math.round(lt).toLocaleString('en-AE')}</span>
-                  <button onClick={()=>removeItem(idx)} style={{ background:'none', border:'none', cursor:'pointer', color:textMuted, display:'flex', justifyContent:'center' }}><i className="ti ti-x" style={{ fontSize:15 }}/></button>
+            <div style={{ overflowX:'auto', WebkitOverflowScrolling:'touch' }}>
+              <div style={{ minWidth:440 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 50px 40px 58px 78px 26px', gap:7, padding:'9px 12px', background:subBg, fontSize:11, color:textSub, textTransform:'uppercase', letterSpacing:'.3px' }}>
+                  <span>Description</span><span>Unit</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span><span/>
                 </div>
-              )
-            })}
+                {items.map((it, idx) => {
+                  const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
+                  return (
+                    <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 50px 40px 58px 78px 26px', gap:7, padding:'8px 12px', alignItems:'center', borderTop:`1px solid ${border}` }}>
+                      <input value={it.desc} onChange={e=>updateItem(idx,'desc',e.target.value)} placeholder="Item description" style={{ ...inputStyle, padding:'7px 8px', fontSize:12.5 }}/>
+                      <select value={it.unit} onChange={e=>updateItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 4px', fontSize:11 }}>
+                        {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
+                      </select>
+                      <input type="number" value={it.qty} onChange={e=>updateItem(idx,'qty',e.target.value)} style={{ ...inputStyle, padding:'7px 4px', fontSize:12.5, textAlign:'center' }}/>
+                      <input type="number" value={it.rate} onChange={e=>updateItem(idx,'rate',e.target.value)} style={{ ...inputStyle, padding:'7px 6px', fontSize:12.5, textAlign:'right' }}/>
+                      <span style={{ textAlign:'right', fontSize:12.5, color:text, alignSelf:'center' }}>{Math.round(lt).toLocaleString('en-AE')}</span>
+                      <button onClick={()=>removeItem(idx)} style={{ background:'none', border:'none', cursor:'pointer', color:textMuted, display:'flex', justifyContent:'center', alignItems:'center' }}><i className="ti ti-x" style={{ fontSize:15 }}/></button>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
             <div style={{ padding:'9px 11px', borderTop:`1px solid ${border}` }}>
               <button onClick={addItem} style={{ fontSize:12, padding:'6px 12px', border:`1px solid ${border}`, borderRadius:7, background:'none', color:'#0099cc', cursor:'pointer', fontWeight:600 }}>
                 <i className="ti ti-plus" style={{ fontSize:13, verticalAlign:'-2px', marginRight:3 }}/> Add line item
@@ -1269,24 +1304,28 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
                   </span>
                   <span style={{ fontSize:12, color:textSub }}>Subtotal: <span style={{ fontWeight:600, color:text }}>{fmt(g.subtotal)}</span></span>
                 </div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 70px 48px 70px 72px 26px', gap:6, padding:'7px 11px', fontSize:10.5, color:textMuted, textTransform:'uppercase', letterSpacing:'.3px' }}>
-                  <span>Description</span><span>Unit</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span><span/>
-                </div>
-                {g.rows.map(({ it, idx }) => {
-                  const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
-                  return (
-                    <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 70px 48px 70px 72px 26px', gap:6, padding:'6px 11px', alignItems:'center', borderTop:`1px solid ${border}` }}>
-                      <input value={it.desc} onChange={e=>updateItem(idx,'desc',e.target.value)} placeholder="Item description" style={{ ...inputStyle, padding:'7px 8px', fontSize:12 }}/>
-                      <select value={it.unit} onChange={e=>updateItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 4px', fontSize:11 }}>
-                        {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
-                      </select>
-                      <input type="number" value={it.qty} onChange={e=>updateItem(idx,'qty',e.target.value)} style={{ ...inputStyle, padding:'7px 4px', fontSize:12 }}/>
-                      <input type="number" value={it.rate} onChange={e=>updateItem(idx,'rate',e.target.value)} style={{ ...inputStyle, padding:'7px 6px', fontSize:12 }}/>
-                      <span style={{ textAlign:'right', fontSize:12, color:text }}>{Math.round(lt).toLocaleString('en-AE')}</span>
-                      <button onClick={()=>removeItemBoq(idx)} style={{ background:'none', border:'none', cursor:'pointer', color:textMuted, display:'flex', justifyContent:'center' }}><i className="ti ti-x" style={{ fontSize:14 }}/></button>
+                <div style={{ overflowX:'auto', WebkitOverflowScrolling:'touch' }}>
+                  <div style={{ minWidth:430 }}>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 48px 38px 56px 76px 24px', gap:7, padding:'7px 12px', fontSize:10.5, color:textMuted, textTransform:'uppercase', letterSpacing:'.3px' }}>
+                      <span>Description</span><span>Unit</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span><span/>
                     </div>
-                  )
-                })}
+                    {g.rows.map(({ it, idx }) => {
+                      const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
+                      return (
+                        <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 48px 38px 56px 76px 24px', gap:7, padding:'6px 12px', alignItems:'center', borderTop:`1px solid ${border}` }}>
+                          <input value={it.desc} onChange={e=>updateItem(idx,'desc',e.target.value)} placeholder="Item description" style={{ ...inputStyle, padding:'7px 8px', fontSize:12 }}/>
+                          <select value={it.unit} onChange={e=>updateItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 3px', fontSize:10.5 }}>
+                            {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
+                          </select>
+                          <input type="number" value={it.qty} onChange={e=>updateItem(idx,'qty',e.target.value)} style={{ ...inputStyle, padding:'7px 3px', fontSize:12, textAlign:'center' }}/>
+                          <input type="number" value={it.rate} onChange={e=>updateItem(idx,'rate',e.target.value)} style={{ ...inputStyle, padding:'7px 5px', fontSize:12, textAlign:'right' }}/>
+                          <span style={{ textAlign:'right', fontSize:12, color:text, alignSelf:'center' }}>{Math.round(lt).toLocaleString('en-AE')}</span>
+                          <button onClick={()=>removeItemBoq(idx)} style={{ background:'none', border:'none', cursor:'pointer', color:textMuted, display:'flex', justifyContent:'center', alignItems:'center' }}><i className="ti ti-x" style={{ fontSize:14 }}/></button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
                 <div style={{ padding:'8px 11px', borderTop:`1px solid ${border}` }}>
                   <button onClick={()=>addItemToTrade(g.trade)} style={{ fontSize:12, padding:'5px 11px', border:`1px solid ${border}`, borderRadius:7, background:'none', color:'#0099cc', cursor:'pointer', fontWeight:600 }}>
                     <i className="ti ti-plus" style={{ fontSize:12, verticalAlign:'-2px', marginRight:3 }}/> Add item to {g.trade}
@@ -1395,7 +1434,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
 
       {draftExists && (
         <div style={{ display:'flex', alignItems:'center', gap:10, background:isDark?'rgba(232,184,75,0.1)':'#fffbeb', border:`1px solid ${isDark?'rgba(232,184,75,0.25)':'#fcd34d'}`, borderRadius:10, padding:'11px 14px', marginBottom:14 }}>
-          <i className="ti ti-device-floppy" style={{ fontSize:18, color:'#d97706' }}/>
+          <i className="ti ti-device-floppy" style={{ fontSize:18, color:'#d97706' }} />
           <div style={{ flex:1 }}>
             <div style={{ fontSize:13, fontWeight:600, color:text }}>You have an unsaved quotation draft</div>
             <div style={{ fontSize:11, color:textSub }}>Continue where you left off, or discard it.</div>
@@ -1416,7 +1455,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
 
       <div style={{ display:'flex', gap:8, marginBottom:16, flexWrap:'wrap', alignItems:'center' }}>
         <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search quote, client, UID..."
-          style={{ flex:1, minWidth:200, padding:'9px 12px', border:`1px solid ${border}`, borderRadius:9, fontSize:13, background:cardBg, color:text, outline:'none' }} />
+          style={{ flex:1, minWidth:200, padding:'9px 12px', border:`1px solid ${border}`, borderRadius:9, fontSize:13, background:cardBg, color:text, outline:'none', boxSizing:'border-box' }} />
         <div style={{ display:'inline-flex', background:pillBg, border:`1px solid ${border}`, borderRadius:99, padding:3 }}>
           {FILTERS.map(f => (
             <button key={f} onClick={()=>setFilter(f)} style={{ fontSize:12, fontWeight: filter===f?600:400, padding:'5px 13px', borderRadius:99, border:'none', cursor:'pointer', background: filter===f?(isDark?'rgba(3,193,245,0.15)':'#e0f9ff'):'transparent', color: filter===f?'#0099cc':textMuted, textTransform:'capitalize' }}>{f}</button>
