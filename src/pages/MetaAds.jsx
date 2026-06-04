@@ -81,7 +81,8 @@ export default function MetaAds({ onBack, onNewAd, onManageConnection }) {
 
   const text=isDark?'#f1f5f9':'#0f172a', textSub=isDark?'#94a3b8':'#64748b', textMuted=isDark?'#475569':'#94a3b8'
   const border=isDark?'rgba(255,255,255,0.08)':'#e2e8f0', cardBg=isDark?'#1e293b':'#ffffff'
-  const subBg=isDark?'rgba(255,255,255,0.04)':'#f8fafc'
+  const subBg=isDark?'rgba(255,255,255,0.05)':'#f1f5f9'
+  const subBorder=isDark?'rgba(255,255,255,0.07)':'#e2e8f0'
   const green='#0f6e56', greenBg=isDark?'rgba(34,197,94,0.15)':'#e1f5ee'
   const amber='#d97706', amberBg=isDark?'rgba(245,158,11,0.15)':'#fef9ed'
   const red='#dc2626',   redBg=isDark?'rgba(220,38,38,0.15)':'#fee2e2'
@@ -140,11 +141,11 @@ export default function MetaAds({ onBack, onNewAd, onManageConnection }) {
       </div>
 
       {/* Stats */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10, marginBottom:14 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:10, marginBottom:14 }}>
         {[['Spend (30d)','AED '+totalSpend.toLocaleString('en-AE')],['Leads',totalLeads],['Avg CPL', avgCpl?'AED '+avgCpl:'—'],['Active', activeAds.length+' / '+ads.length]].map(([k,v])=>(
-          <div key={k} style={{ background:subBg, borderRadius:10, padding:'11px 13px' }}>
+          <div key={k} style={{ background:subBg, border:`1px solid ${subBorder}`, borderRadius:10, padding:'12px 14px' }}>
             <div style={{ fontSize:11, color:textSub }}>{k}</div>
-            <div style={{ fontSize:19, fontWeight:700, color:text, marginTop:2 }}>{v}</div>
+            <div style={{ fontSize:19, fontWeight:700, color:text, marginTop:3 }}>{v}</div>
           </div>
         ))}
       </div>
@@ -210,11 +211,11 @@ export default function MetaAds({ onBack, onNewAd, onManageConnection }) {
                 </div>
 
                 {!paused && (
-                  <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:6, marginBottom:11 }}>
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(90px, 1fr))', gap:8, marginBottom:11 }}>
                     {[['Spend',ad.spend.toLocaleString('en-AE')],['Leads',ad.leads],['CPL',c?'AED '+c:'—'],['CTR',ad.impressions>0?((ad.clicks/ad.impressions)*100).toFixed(1)+'%':'—'],['Conv',ad.conversions]].map(([k,val],i)=>(
-                      <div key={k}>
+                      <div key={k} style={{ background:subBg, border:`1px solid ${subBorder}`, borderRadius:8, padding:'8px 10px' }}>
                         <div style={{ fontSize:10, color:textMuted }}>{k}</div>
-                        <div style={{ fontSize:13, fontWeight:600, color: k==='CPL'?v.c:text }}>{val}</div>
+                        <div style={{ fontSize:13, fontWeight:600, color: k==='CPL'?v.c:text, marginTop:2 }}>{val}</div>
                       </div>
                     ))}
                   </div>
