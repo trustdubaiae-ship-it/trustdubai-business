@@ -281,3 +281,75 @@ html, body {
   /* 4. Utility: wrap any table block in this class to make it scroll */
   .mobile-scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 }
+
+/* ============================================================
+   GLOBAL RESPONSIVE SYSTEM  (all screen sizes — added once)
+   Breakpoints:
+     Phone    : <= 768px   (handled in blocks above)
+     Tablet   : 769px – 1024px  (iPad)
+     Desktop  : 1025px – 1536px (normal)
+     Large PC : > 1536px        (center + max-width)
+   These blocks ADD to the rules above without changing them.
+   ============================================================ */
+
+/* ---------- Universal safety: never let any page overflow sideways ---------- */
+html, body { max-width: 100%; overflow-x: hidden; }
+.main { min-width: 0; }            /* allow flex child to shrink, no squeeze */
+.page-content { min-width: 0; }
+
+/* ---------- TABLET / iPad : 769px – 1024px ---------- */
+@media (min-width: 769px) and (max-width: 1024px) {
+
+  /* slimmer sidebar so content has room */
+  .sidebar { width: 200px; }
+  .main { margin-left: 200px; }
+
+  /* comfortable page padding */
+  .page-content { padding: 18px 20px; }
+
+  /* stat cards: 2 across on tablet (4-up is too tight) */
+  .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+
+  /* any inline 4-column grid -> 2 columns on tablet */
+  .page-content div[style*="repeat(4,1fr)"],
+  .page-content div[style*="repeat(4, 1fr)"] {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  /* any inline 5/6-column grid -> 3 columns on tablet */
+  .page-content div[style*="repeat(5,1fr)"],
+  .page-content div[style*="repeat(5, 1fr)"],
+  .page-content div[style*="repeat(6,1fr)"],
+  .page-content div[style*="repeat(6, 1fr)"] {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+
+  /* two-column inline layouts collapse to one for breathing room */
+  .grid-2 { grid-template-columns: 1fr; }
+}
+
+/* ---------- LARGE DESKTOP / big PC : > 1536px ---------- */
+@media (min-width: 1537px) {
+
+  /* center the page content and cap its width so it doesn't stretch
+     edge-to-edge on a big monitor */
+  .page-content {
+    max-width: 1500px;
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+    padding: 24px 32px;
+  }
+}
+
+/* ---------- EXTRA-WIDE / 4K : > 1920px ---------- */
+@media (min-width: 1921px) {
+  .page-content {
+    max-width: 1700px;
+    padding: 28px 40px;
+  }
+}
+
+/* ---------- Universal media safety: images/tables never overflow ---------- */
+img, video, canvas, svg { max-width: 100%; }
+table { max-width: 100%; }
