@@ -65,6 +65,10 @@ const DEFAULT_TEMPLATES = [
 // Safe-area top inset for full-screen mobile modals (PWA notch / status bar)
 const SAFE_TOP = 'env(safe-area-inset-top)'
 
+// Custom dropdown chevron (data-URI) so the native arrow never overlaps the text
+const SELECT_CHEVRON =
+  "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>\")"
+
 export default function LeadsPage() {
   const { company } = useAuth()
   const toast = useToast()
@@ -460,6 +464,13 @@ export default function LeadsPage() {
 
   const card = { background: 'var(--card)', border: '0.5px solid var(--border)', borderRadius: 14, padding: 16 }
   const inputStyle = { border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--text)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }
+  // select boxes: hide native arrow + add our own chevron with safe right padding (no overlap)
+  const selectStyle = {
+    ...inputStyle,
+    appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
+    backgroundImage: SELECT_CHEVRON, backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'right 10px center', paddingRight: 30,
+  }
   const waMsg = (l) => 'https://wa.me/' + (l.phone || '').replace(/[^0-9]/g, '') + '?text=Hi ' + (l.name || '') + ', regarding your inquiry. How can I help you?'
   const optStyle = { background: 'var(--card)', color: 'var(--text)' }
 
@@ -550,13 +561,18 @@ export default function LeadsPage() {
     const lblSm = { fontSize: 10, color: 'var(--text3)', display: 'block', marginBottom: 4 }
     return (
       <div onClick={closeAdd} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 210, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: mobile ? 0 : '24px 16px', overflowY: 'auto' }}>
-        <div onClick={e => e.stopPropagation()} style={{ width: mobile ? '100%' : 480, minHeight: mobile ? '100%' : 'auto', background: 'var(--card)', borderRadius: mobile ? 0 : 14, padding: 18, paddingTop: mobile ? `calc(18px + ${SAFE_TOP})` : 18, border: '0.5px solid var(--border)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
-            <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)' }}>Add new lead</div>
+        <div onClick={e => e.stopPropagation()} style={{ width: mobile ? '100%' : 480, minHeight: mobile ? '100%' : 'auto', background: 'var(--card)', borderRadius: mobile ? 0 : 14, border: '0.5px solid var(--border)' }}>
+
+          {/* Sticky header (stays under status bar while scrolling) */}
+          <div style={{ position: 'sticky', top: 0, zIndex: 5, background: 'var(--card)', padding: '14px 18px', paddingTop: mobile ? `calc(14px + ${SAFE_TOP})` : 14, borderBottom: '0.5px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: mobile ? 0 : '14px 14px 0 0' }}>
+            <div>
+              <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)' }}>Add new lead</div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>Just name & phone is enough</div>
+            </div>
             <button onClick={closeAdd} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 20 }}><i className="ti ti-x" /></button>
           </div>
-          <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 16 }}>Just name & phone is enough — add details anytime later</div>
 
+          <div style={{ padding: 18 }}>
           <div style={{ marginBottom: 12 }}>
             <label style={lbl}>Client name <span style={{ color: '#ef4444' }}>*</span></label>
             <input value={addF.name} onChange={e => setA('name', e.target.value)} placeholder="e.g. Mr Ankit Sharma" style={{ width: '100%', padding: '9px 11px', ...inputStyle, fontSize: 13 }} />
@@ -568,13 +584,13 @@ export default function LeadsPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
             <div>
               <label style={lbl}>Lead source <span style={{ color: '#ef4444' }}>*</span></label>
-              <select value={addF.source} onChange={e => setA('source', e.target.value)} style={{ width: '100%', padding: '9px 11px', ...inputStyle, fontSize: 13 }}>
+              <select value={addF.source} onChange={e => setA('source', e.target.value)} style={{ width: '100%', padding: '9px 11px', ...selectStyle, fontSize: 13 }}>
                 {LEAD_SOURCES.map(s => <option key={s} value={s} style={optStyle}>{s}</option>)}
               </select>
             </div>
             <div>
               <label style={lbl}>Project type</label>
-              <select value={addF.projectType} onChange={e => setA('projectType', e.target.value)} style={{ width: '100%', padding: '9px 11px', ...inputStyle, fontSize: 13 }}>
+              <select value={addF.projectType} onChange={e => setA('projectType', e.target.value)} style={{ width: '100%', padding: '9px 11px', ...selectStyle, fontSize: 13 }}>
                 <option value="" style={optStyle}>Select</option>
                 {PROJECT_TYPES.map(p => <option key={p} value={p} style={optStyle}>{p}</option>)}
               </select>
@@ -599,7 +615,7 @@ export default function LeadsPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 11 }}>
                 <div><label style={lblSm}>Next follow-up</label><input type="date" value={addF.followUp} onChange={e => setA('followUp', e.target.value)} style={{ width: '100%', padding: '7px 9px', ...inputStyle, fontSize: 12 }} /></div>
                 <div><label style={lblSm}>Status</label>
-                  <select value={addF.status} onChange={e => setA('status', e.target.value)} style={{ width: '100%', padding: '7px 9px', ...inputStyle, fontSize: 12 }}>
+                  <select value={addF.status} onChange={e => setA('status', e.target.value)} style={{ width: '100%', padding: '7px 9px', ...selectStyle, fontSize: 12 }}>
                     {LEAD_STATUSES.map(s => <option key={s.value} value={s.value} style={optStyle}>{s.label}</option>)}
                   </select>
                 </div>
@@ -622,9 +638,10 @@ export default function LeadsPage() {
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, paddingBottom: mobile ? `calc(4px + env(safe-area-inset-bottom))` : 0 }}>
             <button onClick={saveAddLead} disabled={savingAdd} style={{ flex: 1, padding: 10, borderRadius: 8, background: '#0099cc', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>{savingAdd ? 'Saving...' : 'Save lead'}</button>
             <button onClick={closeAdd} style={{ padding: '10px 18px', borderRadius: 8, border: '0.5px solid var(--border)', background: 'transparent', color: 'var(--text2)', cursor: 'pointer', fontSize: 12 }}>Cancel</button>
+          </div>
           </div>
         </div>
       </div>
@@ -642,15 +659,18 @@ export default function LeadsPage() {
     const loc = lead.answers?.['Location'] || lead.answers?.area || ''
     return (
       <div onClick={closeModal} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: mobile ? 0 : '24px 16px', overflowY: 'auto' }}>
-        <div onClick={e => e.stopPropagation()} style={{ width: mobile ? '100%' : 560, minHeight: mobile ? '100%' : 'auto', background: 'var(--card)', borderRadius: mobile ? 0 : 14, padding: 18, paddingTop: mobile ? `calc(18px + ${SAFE_TOP})` : 18, border: '0.5px solid var(--border)' }}>
+        <div onClick={e => e.stopPropagation()} style={{ width: mobile ? '100%' : 560, minHeight: mobile ? '100%' : 'auto', background: 'var(--card)', borderRadius: mobile ? 0 : 14, border: '0.5px solid var(--border)' }}>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-            <div>
-              <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)' }}>{lead.name || 'Anonymous'}</div>
+          {/* Sticky header — stays pinned under the status bar while the modal scrolls */}
+          <div style={{ position: 'sticky', top: 0, zIndex: 5, background: 'var(--card)', padding: '14px 18px', paddingTop: mobile ? `calc(14px + ${SAFE_TOP})` : 14, borderBottom: '0.5px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderRadius: mobile ? 0 : '14px 14px 0 0' }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lead.name || 'Anonymous'}</div>
               <div style={{ fontSize: 11, color: 'var(--text3)' }}>{srcLabel} · {new Date(lead.created_at).toLocaleDateString('en-AE')}</div>
             </div>
-            <button onClick={closeModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 20 }}><i className="ti ti-x" /></button>
+            <button onClick={closeModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 20, flexShrink: 0, marginLeft: 10 }}><i className="ti ti-x" /></button>
           </div>
+
+          <div style={{ padding: 18 }}>
 
           <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 9px', borderRadius: 99, background: (TEMP[lead.temperature]||TEMP.warm).bg, color: (TEMP[lead.temperature]||TEMP.warm).color }}>{(TEMP[lead.temperature]||TEMP.warm).label}</span>
@@ -708,7 +728,7 @@ export default function LeadsPage() {
               </div>
               <div>
                 <label style={{ fontSize: 10, color: 'var(--text3)', display: 'block', marginBottom: 3 }}>Move to stage</label>
-                <select value={logStage} onChange={e => setLogStage(e.target.value)} style={{ width: '100%', padding: '7px 9px', ...inputStyle, fontSize: 12 }}>
+                <select value={logStage} onChange={e => setLogStage(e.target.value)} style={{ width: '100%', padding: '7px 9px', ...selectStyle, fontSize: 12 }}>
                   {LEAD_STATUSES.map(s => <option key={s.value} value={s.value} style={optStyle}>{s.label}</option>)}
                 </select>
               </div>
@@ -779,7 +799,7 @@ export default function LeadsPage() {
           ) : timeline.length === 0 ? (
             <div style={{ fontSize: 12, color: 'var(--text3)', padding: 10 }}>No activity yet — log your first follow-up.</div>
           ) : (
-            <div style={{ borderLeft: '2px solid var(--border)', paddingLeft: 12, marginLeft: 4 }}>
+            <div style={{ borderLeft: '2px solid var(--border)', paddingLeft: 12, marginLeft: 4, paddingBottom: mobile ? `calc(4px + env(safe-area-inset-bottom))` : 0 }}>
               {timeline.map(t => (
                 <div key={t.id} style={{ marginBottom: 11 }}>
                   <div style={{ fontSize: 10, color: 'var(--text3)' }}>{new Date(t.created_at).toLocaleDateString('en-AE', { day: 'numeric', month: 'short' })} · {new Date(t.created_at).toLocaleTimeString('en-AE', { hour: '2-digit', minute: '2-digit' })}</div>
@@ -798,6 +818,7 @@ export default function LeadsPage() {
             </div>
           )}
 
+          </div>
         </div>
       </div>
     )
@@ -889,6 +910,10 @@ export default function LeadsPage() {
             <tbody>
               {filtered.map(lead => {
                 const sc = LEAD_STATUSES.find(s => s.value === lead.status) || LEAD_STATUSES[0]
+
+        <tbody>
+              {filtered.map(lead => {
+                const sc = LEAD_STATUSES.find(s => s.value === lead.status) || LEAD_STATUSES[0]
                 return (
                   <tr key={lead.key} onClick={() => openModal(lead)} style={{ borderTop: '0.5px solid var(--border)', cursor: 'pointer' }}>
                     <td style={{ padding: '10px 14px' }}>
@@ -907,7 +932,7 @@ export default function LeadsPage() {
                     </td>
                     <td style={{ padding: '10px' }}>
                       <select value={lead.status} onClick={e => e.stopPropagation()} onChange={e => updateLeadStage(lead, e.target.value)} disabled={updatingStatus === lead.key}
-                        style={{ padding: '4px 8px', borderRadius: 20, border: '1px solid ' + sc.color, background: sc.bg, color: sc.color, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        style={{ padding: '4px 26px 4px 10px', borderRadius: 20, border: '1px solid ' + sc.color, background: sc.bg, color: sc.color, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none', backgroundImage: SELECT_CHEVRON, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center' }}>
                         {LEAD_STATUSES.map(s => <option key={s.value} value={s.value} style={optStyle}>{s.label}</option>)}
                       </select>
                     </td>
@@ -1123,7 +1148,7 @@ export default function LeadsPage() {
                         <div key={q.id} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 14, background: 'var(--bg2)' }}>
                           <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
                             <input value={q.question} onChange={e => updateQuestion(q.id, 'question', e.target.value)} placeholder={'Question ' + (i + 1)} style={{ flex: 1, padding: '8px 12px', ...inputStyle, fontSize: 13 }} />
-                            <select value={q.type} onChange={e => updateQuestion(q.id, 'type', e.target.value)} style={{ padding: '8px 10px', ...inputStyle, fontSize: 12 }}>
+                            <select value={q.type} onChange={e => updateQuestion(q.id, 'type', e.target.value)} style={{ padding: '8px 26px 8px 10px', ...selectStyle, fontSize: 12 }}>
                               {QUESTION_TYPES.map(t => <option key={t.value} value={t.value} style={optStyle}>{t.label}</option>)}
                             </select>
                             <button onClick={() => deleteQuestion(q.id)} style={{ padding: '8px', border: 'none', background: 'rgba(239,68,68,0.14)', borderRadius: 6, cursor: 'pointer', color: '#ef4444' }}><Trash2 size={14} /></button>
@@ -1182,4 +1207,5 @@ export default function LeadsPage() {
       )}
     </div>
   )
-}
+}return (
+                  <tr key={lead.key} onCl
