@@ -56,22 +56,29 @@ const LIMITED_PAGES = ['dashboard', 'inbox', 'profile', 'portfolio', 'faq', 'not
 
 // --- Refresh persistence (URL hash) ---
 // activePage is mirrored in the URL hash (e.g. #leads) so a page refresh
-// restores the same page instead of resetting to Dashboard. This also enables
-// deep-linking (notification click -> #documents) for the Inbox ecosystem.
+// restores the same page instead of resetting to Dashboard. Pages with internal
+// views (list/builder/detail) can also persist a sub-route, e.g. #quotations/builder,
+// so a refresh keeps them on the same view instead of resetting to the list.
 const VALID_PAGES = [
   'dashboard', 'inbox', 'profile', 'reviews', 'portfolio', 'analytics', 'leads', 'quotations', 'quoteSettings',
   'sponsored', 'staff', 'team', 'documents', 'faq', 'notifications', 'trust',
   'controlpanel', 'verification', 'verificationStatus', 'plans', 'settings',
 ]
 
-function getPageFromHash() {
+function parseHash() {
   const raw = (window.location.hash || '').replace(/^#/, '')
-  return VALID_PAGES.includes(raw) ? raw : 'dashboard'
+  const [page, ...rest] = raw.split('/')
+  const validPage = VALID_PAGES.includes(page) ? page : 'dashboard'
+  return { page: validPage, sub: rest.join('/') || '' }
+}
+function getPageFromHash() {
+  return parseHash().page
 }
 
 function Portal() {
   const { user, company, staff, role, loading, signOut } = useAuth()
   const [activePage,   setActivePage]   = useState(getPageFromHash)
+  const [subRoute,     setSubRoute]     = useState(() => parseHash().sub)
   const [showRegister, setShowRegister] = useState(false)
   const [showProfile,  setShowProfile]  = useState(false)
   const [theme,        setTheme]        = useState(getTheme)
@@ -79,19 +86,34 @@ function Portal() {
 
   useEffect(() => { initTheme() }, [])
 
-  // Keep activePage in sync when the URL hash changes (refresh, back/forward button)
+  // Keep activePage + subRoute in sync when the URL hash changes (refresh, back/forward button)
   useEffect(() => {
-    const onHash = () => setActivePage(getPageFromHash())
+    const onHash = () => {
+      const { page, sub } = parseHash()
+      setActivePage(page)
+      setSubRoute(sub)
+    }
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
 
   function navigate(page) {
     setActivePage(page)
+    setSubRoute('')
     setSidebarOpen(false)
     if (window.location.hash.replace(/^#/, '') !== page) {
       window.location.hash = page
     }
+  }
+
+  // Pages call this to persist their internal view in the URL (e.g. 'builder', 'detail/UID')
+  // so a refresh keeps them on the same view instead of resetting to the list.
+  function setPageSub(sub) {
+    const target = sub ? `${activePage}/${sub}` : activePage
+    if (window.location.hash.replace(/^#/, '') !== target) {
+      window.location.hash = target
+    }
+    setSubRoute(sub || '')
   }
 
   if (showRegister) return <RegisterPage onBack={() => setShowRegister(false)} />
@@ -120,7 +142,7 @@ function Portal() {
     portfolio:          <PortfolioPage />,
     analytics:          <AnalyticsPage onNavigate={navigate} />,
     leads:              <LeadsPage />,
-    quotations:         <Quotations />,
+    quotations:         <Quotations subRoute={subRoute} setSubRoute={setPageSub} />,
     quoteSettings:      <QuoteSettings />,
     sponsored:          <SponsoredPage onNavigate={navigate} />,
     staff:              <StaffManagement />,
