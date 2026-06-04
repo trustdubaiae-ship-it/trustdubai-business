@@ -14,6 +14,7 @@ import ReviewsPage from './pages/ReviewsPage'
 import PortfolioPage from './pages/PortfolioPage'
 import AnalyticsPage from './pages/AnalyticsPage'
 import LeadsPage from './pages/LeadsPage'
+import LeadEngine from './pages/LeadEngine'
 import Quotations from './pages/Quotations'
 import QuoteSettings from './pages/QuoteSettings'
 import SponsoredPage from './pages/SponsoredPage'
@@ -37,6 +38,7 @@ const PAGE_PERM = {
   portfolio:          'view_portfolio',
   analytics:          'view_analytics',
   leads:              'view_leads',
+  leadengine:         'view_leads',
   quotations:         'view_leads',
   quoteSettings:      'view_profile',
   sponsored:          'view_sponsored',
@@ -60,7 +62,7 @@ const LIMITED_PAGES = ['dashboard', 'inbox', 'profile', 'portfolio', 'faq', 'not
 // views (list/builder/detail) can also persist a sub-route, e.g. #quotations/builder,
 // so a refresh keeps them on the same view instead of resetting to the list.
 const VALID_PAGES = [
-  'dashboard', 'inbox', 'profile', 'reviews', 'portfolio', 'analytics', 'leads', 'quotations', 'quoteSettings',
+  'dashboard', 'inbox', 'profile', 'reviews', 'portfolio', 'analytics', 'leads', 'leadengine', 'quotations', 'quoteSettings',
   'sponsored', 'staff', 'team', 'documents', 'faq', 'notifications', 'trust',
   'controlpanel', 'verification', 'verificationStatus', 'plans', 'settings',
 ]
@@ -142,6 +144,7 @@ function Portal() {
     portfolio:          <PortfolioPage />,
     analytics:          <AnalyticsPage onNavigate={navigate} />,
     leads:              <LeadsPage />,
+    leadengine:         <LeadEngine />,
     quotations:         <Quotations subRoute={subRoute} setSubRoute={setPageSub} />,
     quoteSettings:      <QuoteSettings />,
     sponsored:          <SponsoredPage onNavigate={navigate} />,
@@ -160,7 +163,7 @@ function Portal() {
 
   const pageTitles = {
     dashboard:'Dashboard', inbox:'Inbox', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
-    analytics:'Analytics', leads:'Lead Form', quotations:'Quotations', quoteSettings:'Quote Settings', sponsored:'Sponsored Placement', staff:'Staff & Access',
+    analytics:'Analytics', leads:'Lead Form', leadengine:'Lead Engine', quotations:'Quotations', quoteSettings:'Quote Settings', sponsored:'Sponsored Placement', staff:'Staff & Access',
     team:'Our Team', documents:'Document Verification', faq:'FAQ Management', notifications:'Notifications', trust:'Trust Score', controlpanel:'Control Panel',
     verification:'Control Panel', verificationStatus:'Control Panel', plans:'Control Panel', settings:'Control Panel',
   }
