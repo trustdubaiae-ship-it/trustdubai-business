@@ -62,6 +62,9 @@ const DEFAULT_TEMPLATES = [
   { name: 'Thank you',       body: 'Hi {name}, thank you for choosing us. We look forward to working on your {req}.' },
 ]
 
+// Safe-area top inset for full-screen mobile modals (PWA notch / status bar)
+const SAFE_TOP = 'env(safe-area-inset-top)'
+
 export default function LeadsPage() {
   const { company } = useAuth()
   const toast = useToast()
@@ -547,7 +550,7 @@ export default function LeadsPage() {
     const lblSm = { fontSize: 10, color: 'var(--text3)', display: 'block', marginBottom: 4 }
     return (
       <div onClick={closeAdd} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 210, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: mobile ? 0 : '24px 16px', overflowY: 'auto' }}>
-        <div onClick={e => e.stopPropagation()} style={{ width: mobile ? '100%' : 480, minHeight: mobile ? '100%' : 'auto', background: 'var(--card)', borderRadius: mobile ? 0 : 14, padding: 18, border: '0.5px solid var(--border)' }}>
+        <div onClick={e => e.stopPropagation()} style={{ width: mobile ? '100%' : 480, minHeight: mobile ? '100%' : 'auto', background: 'var(--card)', borderRadius: mobile ? 0 : 14, padding: 18, paddingTop: mobile ? `calc(18px + ${SAFE_TOP})` : 18, border: '0.5px solid var(--border)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
             <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)' }}>Add new lead</div>
             <button onClick={closeAdd} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 20 }}><i className="ti ti-x" /></button>
@@ -639,7 +642,7 @@ export default function LeadsPage() {
     const loc = lead.answers?.['Location'] || lead.answers?.area || ''
     return (
       <div onClick={closeModal} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: mobile ? 0 : '24px 16px', overflowY: 'auto' }}>
-        <div onClick={e => e.stopPropagation()} style={{ width: mobile ? '100%' : 560, minHeight: mobile ? '100%' : 'auto', background: 'var(--card)', borderRadius: mobile ? 0 : 14, padding: 18, border: '0.5px solid var(--border)' }}>
+        <div onClick={e => e.stopPropagation()} style={{ width: mobile ? '100%' : 560, minHeight: mobile ? '100%' : 'auto', background: 'var(--card)', borderRadius: mobile ? 0 : 14, padding: 18, paddingTop: mobile ? `calc(18px + ${SAFE_TOP})` : 18, border: '0.5px solid var(--border)' }}>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
             <div>
