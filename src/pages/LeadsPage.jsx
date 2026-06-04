@@ -176,24 +176,8 @@ export default function LeadsPage() {
   function openAdd() { setAddF(blankAdd); setAddMore(false); setShowAdd(true) }
   function closeAdd() { setShowAdd(false) }
   function setA(k, v) { setAddF(p => ({ ...p, [k]: v })) }
+
   async function saveAddLead() {
-    if (!addF.name.trim()) { toast.error('Client name is required'); return }
-    if (!addF.phone.trim()) { toast.error('Phone is required'); return }
-    setSavingAdd(true)
-    const answers = {}
-    answers['Source'] = addF.source
-    if (addF.projectType) answers['Project Type'] = addF.projectType
-    if (addF.location) answers['Location'] = addF.location
-    if (addF.budget) answers['Budget (AED)'] = addF.budget
-    if (addF.whatsapp) answers['WhatsApp'] = addF.whatsapp
-    if (addF.notes) answers['Notes'] = addF.notes
-    const { error } = await supabase.from('lead_submissions').insert({
-      company_id: company.id, name: addF.name.trim(), phone: addF.phone.trim(), email: addF.email.trim() || null,
-      status: addF.status, status_updated_at: new Date().toISOString(),
-      follow_up_date: addF.followUp || null, temperature: addF.temp, notes: addF.notes || null, answers,
-    })
-    setSavingAdd(false)
-    async function saveAddLead() {
     if (!addF.name.trim()) { toast.error('Client name is required'); return }
     if (!addF.phone.trim()) { toast.error('Phone is required'); return }
     setSavingAdd(true)
@@ -224,7 +208,6 @@ export default function LeadsPage() {
     setShowAdd(false)
     setMainTab('mine')
     toast.success('Lead added!')
-  }
   }
 
   async function applyStageToDB(lead, newStage) {
@@ -477,6 +460,16 @@ export default function LeadsPage() {
   const waMsg = (l) => 'https://wa.me/' + (l.phone || '').replace(/[^0-9]/g, '') + '?text=Hi ' + (l.name || '') + ', regarding your inquiry. How can I help you?'
   const optStyle = { background: 'var(--card)', color: 'var(--text)' }
 
+  // WhatsApp number: prefer separate WhatsApp answer, else phone
+  function waNumber(lead) {
+    const wa = lead.answers?.['WhatsApp'] || lead.answers?.whatsapp || ''
+    const num = (wa || lead.phone || '').replace(/[^0-9]/g, '')
+    return num
+  }
+  function callNumber(lead) {
+    return (lead.phone || '').replace(/[^0-9+]/g, '')
+  }
+
   function LeadCard({ lead, draggable }) {
     const temp = TEMP[lead.temperature] || TEMP.warm
     const accent = lead.isPlatform ? '#0891b2' : mySourceBadge(lead).color
@@ -484,6 +477,10 @@ export default function LeadsPage() {
     const isDueToday = lead.follow_up_date === today
     const proj = lead.answers?.['Project Type'] || lead.answers?.category || ''
     const budget = lead.answers?.['Budget (AED)'] || lead.answers?.budget || ''
+    const isClosed = ['won','lost'].includes(lead.status)
+    const callNo = callNumber(lead)
+    const waNo = waNumber(lead)
+    const canMove = !isClosed
     return (
       <div
         draggable={draggable}
@@ -504,18 +501,42 @@ export default function LeadsPage() {
           {isOverdue && <span style={{ fontSize: 9, color: '#ef4444' }}><i className="ti ti-clock" style={{ fontSize: 10 }} /> Overdue</span>}
           {!isOverdue && isDueToday && <span style={{ fontSize: 9, color: '#f59e0b' }}><i className="ti ti-clock" style={{ fontSize: 10 }} /> Today</span>}
         </div>
-        {mobile && !['won','lost'].includes(lead.status) && (
-          <div style={{ display: 'flex', gap: 6, marginTop: 9 }} onClick={e => e.stopPropagation()}>
-            <button onClick={() => updateLeadStage(lead, nextStage(lead.status))} disabled={updatingStatus === lead.key}
-              style={{ flex: 1, fontSize: 11, padding: 7, borderRadius: 8, background: '#0099cc', color: '#fff', border: 'none', cursor: 'pointer' }}>
-              Move to next →
-            </button>
-            {lead.phone && <button onClick={() => window.open(waMsg(lead), '_blank')}
-              style={{ fontSize: 11, padding: '7px 10px', borderRadius: 8, background: 'rgba(34,197,94,0.14)', color: '#0f7a52', border: 'none', cursor: 'pointer' }}>
-              <i className="ti ti-brand-whatsapp" style={{ fontSize: 13 }} />
-            </button>}
-          </div>
-        )}
+
+        {/* 3 equal action buttons — Move | Call | WhatsApp */}
+        <div style={{ display: 'flex', gap: 6, marginTop: 9 }} onClick={e => e.stopPropagation()}>
+          <button
+            onClick={() => canMove && updateLeadStage(lead, nextStage(lead.status))}
+            disabled={!canMove || updatingStatus === lead.key}
+            title={canMove ? 'Move to next stage' : 'Lead is closed'}
+            style={{ flex: 1, fontSize: 11, fontWeight: 600, padding: '7px 4px', borderRadius: 8, border: 'none',
+              background: canMove ? '#0099cc' : 'var(--bg)', color: canMove ? '#fff' : 'var(--text3)',
+              cursor: canMove ? 'pointer' : 'not-allowed', opacity: canMove ? 1 : 0.55,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, whiteSpace: 'nowrap' }}>
+            <i className="ti ti-arrow-right" style={{ fontSize: 13 }} /> Move
+          </button>
+
+          <button
+            onClick={() => callNo && window.open('tel:' + callNo, '_self')}
+            disabled={!callNo}
+            title={callNo ? 'Call ' + lead.phone : 'No phone number'}
+            style={{ flex: 1, fontSize: 11, fontWeight: 600, padding: '7px 4px', borderRadius: 8, border: 'none',
+              background: callNo ? 'rgba(8,145,178,0.14)' : 'var(--bg)', color: callNo ? '#0077a3' : 'var(--text3)',
+              cursor: callNo ? 'pointer' : 'not-allowed', opacity: callNo ? 1 : 0.55,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
+            <i className="ti ti-phone" style={{ fontSize: 13 }} /> Call
+          </button>
+
+          <button
+            onClick={() => waNo && window.open('https://wa.me/' + waNo + '?text=' + encodeURIComponent('Hi ' + (lead.name || '') + ', regarding your inquiry. How can I help you?'), '_blank')}
+            disabled={!waNo}
+            title={waNo ? 'WhatsApp' : 'No WhatsApp number'}
+            style={{ flex: 1, fontSize: 11, fontWeight: 600, padding: '7px 4px', borderRadius: 8, border: 'none',
+              background: waNo ? 'rgba(34,197,94,0.14)' : 'var(--bg)', color: waNo ? '#0f7a52' : 'var(--text3)',
+              cursor: waNo ? 'pointer' : 'not-allowed', opacity: waNo ? 1 : 0.55,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
+            <i className="ti ti-brand-whatsapp" style={{ fontSize: 13 }} /> WA
+          </button>
+        </div>
       </div>
     )
   }
