@@ -861,7 +861,7 @@ export default function LeadsPage() {
         </div>
       )
     }
-   if (view === 'board') {
+    if (view === 'board') {
       return (
         <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start' }}>
           {[...PIPELINE, LOST].map(col => {
@@ -877,28 +877,6 @@ export default function LeadsPage() {
               </div>
             )
           })}
-        </div>
-      )
-    }
-          {PIPELINE.map(col => {
-            const colLeads = filtered.filter(l => l.status === col.stage)
-            return (
-              <div key={col.stage} onDragOver={e => e.preventDefault()} onDrop={() => { if (dragId && dragId.status !== col.stage) updateLeadStage(dragId, col.stage); setDragId(null) }}
-                style={{ flex: 1, ...card, padding: 9, minHeight: 120 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: col.color, marginBottom: 9, display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid ' + col.color, paddingBottom: 6 }}>
-                  <span>{col.label}</span><span>{colLeads.length}</span>
-                </div>
-                {colLeads.map(lead => <LeadCard key={lead.key} lead={lead} draggable={true} />)}
-              </div>
-            )
-          })}
-          <div onDragOver={e => e.preventDefault()} onDrop={() => { if (dragId && dragId.status !== 'lost') updateLeadStage(dragId, 'lost'); setDragId(null) }}
-            style={{ width: 90, ...card, padding: 9, minHeight: 120, borderStyle: 'dashed' }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: LOST.color, marginBottom: 9, display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid ' + LOST.color, paddingBottom: 6 }}>
-              <span>Lost</span><span>{filtered.filter(l => l.status === 'lost').length}</span>
-            </div>
-            {filtered.filter(l => l.status === 'lost').map(lead => <LeadCard key={lead.key} lead={lead} draggable={true} />)}
-          </div>
         </div>
       )
     }
