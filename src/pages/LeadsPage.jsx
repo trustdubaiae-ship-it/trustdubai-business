@@ -861,9 +861,25 @@ export default function LeadsPage() {
         </div>
       )
     }
-    if (view === 'board') {
+   if (view === 'board') {
       return (
         <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start' }}>
+          {[...PIPELINE, LOST].map(col => {
+            const colLeads = filtered.filter(l => l.status === col.stage)
+            const isLost = col.stage === 'lost'
+            return (
+              <div key={col.stage} onDragOver={e => e.preventDefault()} onDrop={() => { if (dragId && dragId.status !== col.stage) updateLeadStage(dragId, col.stage); setDragId(null) }}
+                style={{ flex: 1, minWidth: 0, ...card, padding: 9, minHeight: 120, borderStyle: isLost ? 'dashed' : 'solid' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: col.color, marginBottom: 9, display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid ' + col.color, paddingBottom: 6 }}>
+                  <span>{col.label}</span><span>{colLeads.length}</span>
+                </div>
+                {colLeads.map(lead => <LeadCard key={lead.key} lead={lead} draggable={true} />)}
+              </div>
+            )
+          })}
+        </div>
+      )
+    }
           {PIPELINE.map(col => {
             const colLeads = filtered.filter(l => l.status === col.stage)
             return (
