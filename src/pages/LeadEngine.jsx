@@ -1,0 +1,170 @@
+import { useState, useEffect } from 'react'
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../lib/auth'
+import { useToast } from '../lib/toast'
+
+const SOURCES = [
+  { key:'trustdubai', icon:'ti-shield-check',   name:'TrustDubai Leads', sub:'Platform verified leads',
+    desc:'Receive verified leads from TrustDubai distribution.', status:'active', action:'Active' },
+  { key:'meta',       icon:'ti-brand-meta',      name:'Meta Ads',         sub:'Facebook & Instagram',
+    desc:'Connect your Meta account to design, launch & auto-optimize lead ads — all from here.', status:'connect', action:'Connect Meta Account' },
+  { key:'whatsapp',   icon:'ti-brand-whatsapp',  name:'WhatsApp',         sub:'Direct enquiries',
+    desc:'Capture leads straight from your WhatsApp Business number.', status:'soon', action:'Coming soon' },
+  { key:'website',    icon:'ti-world-www',       name:'Website Form',     sub:'Embed on your site',
+    desc:'Get an embed code for your own website — leads flow here.', status:'soon', action:'Coming soon' },
+  { key:'google',     icon:'ti-brand-google',    name:'Google Ads',       sub:'Search & forms',
+    desc:'Run Google lead-form campaigns and import results here.', status:'soon', action:'Coming soon' },
+  { key:'manual',     icon:'ti-upload',          name:'Manual / CSV',     sub:'Add or import',
+    desc:'Add leads by hand or bulk import via CSV file.', status:'active', action:'Add in Lead Hub' },
+]
+
+export default function LeadEngine() {
+  const { company } = useAuth()
+  const toast = useToast()
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+  const [, forceUpdate] = useState(0)
+
+  const [minValue, setMinValue] = useState('')
+  const [savedMin, setSavedMin] = useState('')
+  const [saving, setSaving]     = useState(false)
+  const [loading, setLoading]   = useState(true)
+
+  useEffect(() => {
+    if (company?.id) load()
+    const ob = new MutationObserver(() => forceUpdate(n => n + 1))
+    ob.observe(document.documentElement, { attributes:true, attributeFilter:['data-theme'] })
+    return () => ob.disconnect()
+  }, [company?.id])
+
+  async function load() {
+    setLoading(true)
+    const { data } = await supabase.from('companies').select('min_job_value').eq('id', company.id).maybeSingle()
+    const v = data?.min_job_value ? String(data.min_job_value) : ''
+    setMinValue(v); setSavedMin(v); setLoading(false)
+  }
+
+  async function saveMin() {
+    setSaving(true)
+    const num = minValue === '' ? 0 : Number(minValue)
+    const { error } = await supabase.from('companies').update({ min_job_value: num }).eq('id', company.id)
+    setSaving(false)
+    if (error) { toast.error('Save failed'); return }
+    setSavedMin(minValue)
+    toast.success('Minimum job value saved ✓')
+  }
+
+  function handleSource(s) {
+    if (s.status === 'soon') { toast.info(s.name + ' is coming soon'); return }
+    if (s.key === 'meta')    { toast.info('Meta connection is coming soon — UI ready'); return }
+    if (s.key === 'manual')  { toast.info('Use Leads → Add Lead / Import CSV'); return }
+    if (s.key === 'trustdubai') { toast.info('TrustDubai leads are already active'); return }
+  }
+
+  const text=isDark?'#f1f5f9':'#0f172a', textSub=isDark?'#94a3b8':'#64748b', textMuted=isDark?'#475569':'#94a3b8'
+  const border=isDark?'rgba(255,255,255,0.08)':'#e2e8f0', cardBg=isDark?'#1e293b':'#ffffff'
+  const subBg=isDark?'rgba(255,255,255,0.04)':'#f8fafc'
+
+  const statusPill = (st) => {
+    const map = {
+      active:  { t:'Active',        c:'#0f6e56', b:isDark?'rgba(34,197,94,0.15)':'#e1f5ee' },
+      connect: { t:'Not connected', c:textSub,   b:subBg },
+      soon:    { t:'Soon',          c:textSub,   b:subBg },
+    }
+    const s = map[st] || map.soon
+    return <span style={{ fontSize:10, fontWeight:700, color:s.c, background:s.b, padding:'3px 9px', borderRadius:99 }}>{s.t.toUpperCase()}</span>
+  }
+
+  const dirty = minValue !== savedMin
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12, marginBottom:18, flexWrap:'wrap' }}>
+        <div>
+          <h1 style={{ fontSize:21, fontWeight:700, color:text, margin:0 }}>Lead Engine</h1>
+          <p style={{ fontSize:13, color:textSub, marginTop:3 }}>Connect &amp; run all your lead sources from one place</p>
+        </div>
+        <div style={{ display:'flex', gap:8, alignItems:'center', background:subBg, padding:'7px 12px', borderRadius:8 }}>
+          <i className="ti ti-bolt" style={{ fontSize:16, color:'#d97706' }}/>
+          <span style={{ fontSize:12, color:textSub }}>2 active sources</span>
+        </div>
+      </div>
+
+      {/* Source cards */}
+      <div style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'.5px', color:textMuted, marginBottom:10 }}>Lead sources</div>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(250px,1fr))', gap:12, marginBottom:22 }}>
+        {SOURCES.map(s => {
+          const highlight = s.key === 'meta'
+          return (
+            <div key={s.key} style={{ background:cardBg, border:`${highlight?2:1}px solid ${highlight?'#0099cc':border}`, borderRadius:14, padding:16 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:11, marginBottom:10 }}>
+                <div style={{ width:40, height:40, borderRadius:10, background:subBg, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                  <i className={`ti ${s.icon}`} style={{ fontSize:20, color: highlight?'#0099cc': s.status==='active'?'#0f6e56':textSub }}/>
+                </div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:14, fontWeight:600, color:text }}>{s.name}</div>
+                  <div style={{ fontSize:11, color:textMuted }}>{s.sub}</div>
+                </div>
+                {statusPill(s.status)}
+              </div>
+              <div style={{ fontSize:12, color:textSub, lineHeight:1.6, marginBottom:12, minHeight:38 }}>{s.desc}</div>
+              <button onClick={()=>handleSource(s)} disabled={s.status==='soon'}
+                style={{ width:'100%', padding:'9px', borderRadius:9, fontSize:13, fontWeight:600, cursor: s.status==='soon'?'not-allowed':'pointer',
+                  border: highlight?'none':`1px solid ${border}`,
+                  background: highlight?'#0099cc': s.status==='soon'?subBg:cardBg,
+                  color: highlight?'#fff': s.status==='soon'?textMuted:text,
+                  opacity: s.status==='soon'?0.7:1 }}>
+                {highlight && <i className="ti ti-plug" style={{ fontSize:14, verticalAlign:'-2px', marginRight:5 }}/>}
+                {s.action}
+              </button>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Minimum job value */}
+      <div style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'.5px', color:textMuted, marginBottom:10 }}>Lead intake settings</div>
+      <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:14, padding:16, marginBottom:22 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
+          <div style={{ width:40, height:40, borderRadius:10, background:isDark?'rgba(232,184,75,0.12)':'#fffbeb', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+            <i className="ti ti-coin" style={{ fontSize:20, color:'#d97706' }}/>
+          </div>
+          <div style={{ flex:1, minWidth:160 }}>
+            <div style={{ fontSize:14, fontWeight:600, color:text }}>Minimum job value</div>
+            <div style={{ fontSize:12, color:textSub }}>Don't receive leads below this budget. Set 0 to accept all.</div>
+          </div>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <span style={{ fontSize:13, color:textMuted }}>AED</span>
+            <input type="number" value={minValue} onChange={e=>setMinValue(e.target.value)} placeholder="0"
+              style={{ width:120, padding:'9px 11px', border:`1px solid ${border}`, borderRadius:8, fontSize:13, background:isDark?'#0f172a':'#fff', color:text, outline:'none' }}/>
+            <button onClick={saveMin} disabled={!dirty || saving}
+              style={{ padding:'9px 16px', borderRadius:8, border:'none', fontSize:13, fontWeight:600,
+                background: dirty?'#0099cc':subBg, color: dirty?'#fff':textMuted, cursor: dirty?'pointer':'default' }}>
+              {saving?'Saving...':'Save'}
+            </button>
+          </div>
+        </div>
+        <div style={{ fontSize:11, color:textMuted, marginTop:10, display:'flex', alignItems:'center', gap:5 }}>
+          <i className="ti ti-info-circle" style={{ fontSize:13 }}/>
+          Applies when the admin distribution rule for minimum value is enabled. Leads with unknown budget are not blocked.
+        </div>
+      </div>
+
+      {/* Smart Ad Builder teaser */}
+      <div style={{ background:subBg, borderRadius:14, padding:18 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
+          <i className="ti ti-wand" style={{ fontSize:18, color:'#0099cc' }}/>
+          <span style={{ fontSize:14, fontWeight:600, color:text }}>Coming with Meta: Smart Ad Builder</span>
+        </div>
+        <div style={{ fontSize:12, color:textSub, lineHeight:1.7, marginBottom:12 }}>
+          Once Meta is connected, design a high-converting lead ad in guided steps — audience, budget, creative &amp; lead form. Enable/disable any ad, watch live CPL, and let auto-rules pause weak ads &amp; scale winners.
+        </div>
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+          {['Guided ad builder','Enable / disable ads','Live CPL analytics','Auto-optimize rules'].map(t => (
+            <span key={t} style={{ fontSize:11, background:cardBg, border:`1px solid ${border}`, padding:'5px 11px', borderRadius:99, color:textSub }}>{t}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
