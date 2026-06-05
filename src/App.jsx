@@ -58,23 +58,25 @@ const PAGE_PERM = {
   settings:           'view_profile',
 }
 
-const LIMITED_PAGES = ['dashboard', 'inbox', 'profile', 'portfolio', 'faq', 'notifications', 'team', 'documents', 'quoteSettings']
+const LIMITED_PAGES = ['controlwall', 'dashboard', 'inbox', 'profile', 'portfolio', 'faq', 'notifications', 'team', 'documents', 'quoteSettings']
 
 // --- Refresh persistence (URL hash) ---
 // activePage is mirrored in the URL hash (e.g. #leads) so a page refresh
-// restores the same page instead of resetting to Dashboard. Pages with internal
+// restores the same page instead of resetting to Control Wall. Pages with internal
 // views (list/builder/detail) can also persist a sub-route, e.g. #quotations/builder,
 // so a refresh keeps them on the same view instead of resetting to the list.
 const VALID_PAGES = [
-  'dashboard', 'controlwall', 'revenueengine', 'inbox', 'profile', 'reviews', 'portfolio', 'analytics', 'leads', 'leadengine', 'quotations', 'quoteSettings',
+  'controlwall', 'dashboard', 'revenueengine', 'inbox', 'profile', 'reviews', 'portfolio', 'analytics', 'leads', 'leadengine', 'quotations', 'quoteSettings',
   'sponsored', 'staff', 'team', 'documents', 'faq', 'notifications', 'trust',
   'controlpanel', 'verification', 'verificationStatus', 'plans', 'settings',
 ]
 
+const DEFAULT_PAGE = 'controlwall'
+
 function parseHash() {
   const raw = (window.location.hash || '').replace(/^#/, '')
   const [page, ...rest] = raw.split('/')
-  const validPage = VALID_PAGES.includes(page) ? page : 'dashboard'
+  const validPage = VALID_PAGES.includes(page) ? page : DEFAULT_PAGE
   return { page: validPage, sub: rest.join('/') || '' }
 }
 function getPageFromHash() {
@@ -141,6 +143,7 @@ function Portal() {
   const isRejected = status === 'rejected'
 
   const allPages = {
+    controlwall:        <ControlWall onNavigate={navigate} theme={theme} embedded />,
     dashboard:          <DashboardPage onNavigate={navigate} theme={theme} />,
     revenueengine:      <RevenueEngine onNavigate={navigate} />,
     inbox:              <InboxPage />,
@@ -167,7 +170,7 @@ function Portal() {
   }
 
   const pageTitles = {
-    dashboard:'Dashboard', revenueengine:'Revenue Engine', inbox:'Inbox', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
+    controlwall:'Control Wall', dashboard:'Command Center', revenueengine:'Revenue Engine', inbox:'Inbox', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
     analytics:'Analytics', leads:'Lead Form', leadengine:'Lead Engine', quotations:'Quotations', quoteSettings:'Quote Settings', sponsored:'Sponsored Placement', staff:'Staff & Access',
     team:'Our Team', documents:'Document Verification', faq:'FAQ Management', notifications:'Notifications', trust:'Trust Score', controlpanel:'Control Panel',
     verification:'Control Panel', verificationStatus:'Control Panel', plans:'Control Panel', settings:'Control Panel',
@@ -232,23 +235,18 @@ function Portal() {
         <p style={{ fontSize:13, color:'var(--text2)', margin:'0 0 16px' }}>
           Restricted. Please contact {company?.name || 'your company'} admin.
         </p>
-        <button onClick={() => navigate('dashboard')}
+        <button onClick={() => navigate('controlwall')}
           style={{ padding:'10px 18px', borderRadius:9, border:'none', background:'#0099cc', color:'#fff', fontWeight:600, cursor:'pointer' }}>
-          Go to Dashboard
+          Go to Control Wall
         </button>
       </div>
     </div>
   )
 
-  // Control Wall = full-screen standalone page (no sidebar/topbar)
-  if (activePage === 'controlwall' && permAllowed && !limitedBlocked) {
-    return <ControlWall onNavigate={navigate} theme={theme} />
-  }
-
   let mainContent
   if (!permAllowed) mainContent = AccessDenied
   else if (limitedBlocked) mainContent = LockedScreen
-  else mainContent = (allPages[activePage] || allPages.dashboard)
+  else mainContent = (allPages[activePage] || allPages.controlwall)
 
   return (
     <div className="layout" style={{ background: pageBg }}>
