@@ -24,22 +24,22 @@ const MENU = [
   { id:'leadengine', icon:'ti-bolt',           label:'Lead Engine',      perm:'view_leads' },
   { id:'leads',      icon:'ti-message-circle', label:'Leads',            perm:'view_leads', featureKey:'lead_email' },
   { id:'leadform',   icon:'ti-forms',          label:'Lead Form',        perm:'view_leads', soon:true },
-  { id:'tdleads',    icon:'ti-discount-check', label:'TrustDubai Leads', perm:'view_leads', soon:true },
-  { id:'metaads',    icon:'ti-ad-2',           label:'Meta Ads',         perm:'view_leads', soon:true },
+  { id:'tdleads',    icon:'ti-discount-check', label:'TrustDubai Leads', perm:'view_leads', addon:'crm', soon:true },
+  { id:'metaads',    icon:'ti-ad-2',           label:'Meta Ads',         perm:'view_leads', addon:'crm', soon:true },
 
   { section: 'SALES & QUOTES' },
   { id:'quotations',    icon:'ti-file-invoice', label:'Quotations',      perm:'view_leads' },
   { id:'quoteSettings', icon:'ti-settings',     label:'Quote Settings',  perm:'view_profile' },
-  { id:'quoteapprovals',icon:'ti-checklist',    label:'Quote Approvals', perm:'view_leads',   soon:true },
-  { id:'aiquote',       icon:'ti-sparkles',     label:'AI Quote Builder',perm:'view_leads',   soon:true },
+  { id:'quoteapprovals',icon:'ti-checklist',    label:'Quote Approvals', perm:'view_leads', addon:'quotation', soon:true },
+  { id:'aiquote',       icon:'ti-sparkles',     label:'AI Quote Builder',perm:'view_leads', addon:'quotation', soon:true },
 
   { section: 'PROJECTS & OPS' },
-  { id:'projects',  icon:'ti-briefcase',     label:'Projects',          perm:'view_profile', soon:true },
-  { id:'materials', icon:'ti-package',       label:'Material Requests', perm:'view_profile', soon:true },
-  { id:'expenses',  icon:'ti-coin',          label:'Site Expenses',     perm:'view_profile', soon:true },
+  { id:'projects',  icon:'ti-briefcase',     label:'Projects',          perm:'view_profile', addon:'projects', soon:true },
+  { id:'materials', icon:'ti-package',       label:'Material Requests', perm:'view_profile', addon:'projects', soon:true },
+  { id:'expenses',  icon:'ti-coin',          label:'Site Expenses',     perm:'view_profile', addon:'projects', soon:true },
 
   { section: 'AI & CRM' },
-  { id:'aiassistant', icon:'ti-robot',          label:'AI Assistant',   perm:'view_dashboard', soon:true },
+  { id:'aiassistant', icon:'ti-robot',          label:'AI Assistant',   perm:'view_dashboard', addon:'ai', soon:true },
   { id:'organizer',   icon:'ti-calendar-event', label:'My Organizer',   perm:'view_dashboard', soon:true },
 
   { section: 'REPUTATION' },
@@ -64,8 +64,16 @@ const MENU = [
   { id:'controlpanel', icon:'ti-adjustments', label:'Control Panel', perm:'view_profile' },
 ]
 
+// add-on key → display name (for the upsell modal)
+const ADDON_NAMES = {
+  crm:       'CRM / Lead Engine',
+  quotation: 'Quotation Suite',
+  projects:  'Projects & Ops',
+  ai:        'AI Assistant',
+}
+
 export default function Sidebar({ activePage, onNavigate, limitedMode = false, limitedPages = [], open = false }) {
-  const { company, staff, role, signOut, hasFeature } = useAuth()
+  const { company, staff, role, signOut, hasFeature, hasAddon } = useAuth()
   const planName  = company?.plan || 'free'
   const planColor = planColors[planName] || planColors.free
   const perms     = staff?.permissions || null
@@ -78,11 +86,16 @@ export default function Sidebar({ activePage, onNavigate, limitedMode = false, l
 
   const [lockModal, setLockModal] = useState({ open:false, name:'' })
   const [restrictModal, setRestrictModal] = useState({ open:false, name:'' })
+  const [addonModal, setAddonModal] = useState({ open:false, name:'', addon:'' })
 
-  // priority: permission lock pehle (owner control), phir plan/feature lock.
-  // soon items always navigate (Coming Soon page) — koi lock nahi.
-  function handleNav(item, permLocked, featureLocked) {
-    if (permLocked)    { setRestrictModal({ open:true, name:item.label }); return }
+  // safe fallback if hasAddon not provided by older auth
+  const checkAddon = (k) => (typeof hasAddon === 'function' ? hasAddon(k) : false)
+
+  // priority: permission lock → add-on lock → plan/feature lock.
+  // soon items (with add-on enabled) navigate to Coming Soon page.
+  function handleNav(item, permLocked, featureLocked, addonLocked) {
+    if (permLocked)  { setRestrictModal({ open:true, name:item.label }); return }
+    if (addonLocked) { setAddonModal({ open:true, name:item.label, addon:item.addon }); return }
     if (!item.soon && featureLocked) { setLockModal({ open:true, name:item.label }); return }
     onNavigate(item.id)
   }
@@ -134,9 +147,13 @@ export default function Sidebar({ activePage, onNavigate, limitedMode = false, l
           )
 
           const permLocked   = item.permLocked
-          const limitLocked  = !permLocked && limitedMode && !item.soon && !limitedPages.includes(item.id)
-          const featureLocked= !permLocked && !limitLocked && !item.soon && item.featureKey ? !hasFeature(item.featureKey) : false
-          const locked       = permLocked || limitLocked || featureLocked
+          // add-on lock: item belongs to an add-on the company hasn't purchased
+          const addonLocked  = !permLocked && !!item.addon && !checkAddon(item.addon)
+          const limitLocked  = !permLocked && !addonLocked && limitedMode && !item.soon && !limitedPages.includes(item.id)
+          const featureLocked= !permLocked && !addonLocked && !limitLocked && !item.soon && item.featureKey ? !hasFeature(item.featureKey) : false
+          const locked       = permLocked || addonLocked || limitLocked || featureLocked
+          // a soon item is only "available" (shows SOON) if its add-on is owned (or it has no add-on)
+          const showSoon     = item.soon && !addonLocked
 
           const isActive = !permLocked && (item.id === 'controlpanel'
             ? CONTROL_PANEL_PAGES.includes(activePage)
@@ -144,19 +161,24 @@ export default function Sidebar({ activePage, onNavigate, limitedMode = false, l
 
           const titleText = permLocked
             ? 'Restricted — contact your company admin'
-            : (item.soon ? 'Coming soon'
-              : (featureLocked ? 'Upgrade plan to unlock'
-                : (limitLocked ? 'Available after approval' : '')))
+            : (addonLocked ? `${ADDON_NAMES[item.addon] || 'Add-on'} — add this service to unlock`
+              : (item.soon ? 'Coming soon'
+                : (featureLocked ? 'Upgrade plan to unlock'
+                  : (limitLocked ? 'Available after approval' : ''))))
 
           return (
             <button key={`${item.id}-${i}`}
               className={`nav-item${isActive?' active':''}`}
-              onClick={() => handleNav(item, permLocked, featureLocked)}
-              style={{ opacity: (locked && !item.soon) ? 0.5 : 1, cursor: permLocked ? 'not-allowed' : 'pointer' }}
+              onClick={() => handleNav(item, permLocked, featureLocked, addonLocked)}
+              style={{ opacity: (locked && !showSoon) ? 0.5 : 1, cursor: permLocked ? 'not-allowed' : 'pointer' }}
               title={titleText}>
               <i className={`ti ${item.icon}`}/>
               {item.label}
-              {item.soon ? (
+              {addonLocked ? (
+                <span style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:3, fontSize:8.5, fontWeight:700, letterSpacing:'.03em', color:'#0099cc', background:'rgba(0,153,204,0.12)', border:'0.5px solid rgba(0,153,204,0.25)', padding:'1px 6px', borderRadius:6 }}>
+                  <i className="ti ti-plus" style={{ fontSize:9 }}/> ADD-ON
+                </span>
+              ) : showSoon ? (
                 <span style={{ marginLeft:'auto', fontSize:8.5, fontWeight:700, letterSpacing:'.03em', color:'#d97706', background:'rgba(245,158,11,0.14)', border:'0.5px solid rgba(245,158,11,0.25)', padding:'1px 6px', borderRadius:6 }}>SOON</span>
               ) : (locked && (
                 <i className="ti ti-lock" style={{ marginLeft:'auto', fontSize:11, color:'#94a3b8' }}/>
@@ -224,6 +246,44 @@ export default function Sidebar({ activePage, onNavigate, limitedMode = false, l
                 fontWeight:600, fontSize:13, background:'#0099cc', cursor:'pointer' }}>
               OK
             </button>
+          </div>
+        </div>
+      )}
+
+      {addonModal.open && (
+        <div
+          onClick={() => setAddonModal({ open:false, name:'', addon:'' })}
+          style={{ position:'fixed', inset:0, zIndex:60, background:'rgba(0,0,0,0.45)',
+            display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ background:'var(--card)', border:'0.5px solid var(--border)', borderRadius:16, width:'100%', maxWidth:400, padding:24, textAlign:'center' }}>
+            <div style={{ width:52, height:52, borderRadius:'50%', background:'rgba(0,153,204,0.1)',
+              display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 14px' }}>
+              <i className="ti ti-puzzle" style={{ fontSize:24, color:'#0099cc' }}/>
+            </div>
+            <h4 style={{ margin:'0 0 8px', fontSize:16, fontWeight:700, color:'var(--text)' }}>
+              {ADDON_NAMES[addonModal.addon] || 'Add-on Service'}
+            </h4>
+            <p style={{ margin:'0 0 6px', fontSize:13, color:'var(--text2)', lineHeight:1.6 }}>
+              <b style={{ color:'var(--text)' }}>{addonModal.name}</b> is part of the {ADDON_NAMES[addonModal.addon] || 'add-on'} service.
+            </p>
+            <p style={{ margin:'0 0 18px', fontSize:12.5, color:'var(--text3)', lineHeight:1.6 }}>
+              This add-on isn't active on your account yet. Add it anytime to unlock these features — your current plan stays the same.
+            </p>
+            <div style={{ display:'flex', gap:9 }}>
+              <button
+                onClick={() => setAddonModal({ open:false, name:'', addon:'' })}
+                style={{ flex:1, padding:'11px', borderRadius:9, border:'0.5px solid var(--border)', color:'var(--text2)',
+                  fontWeight:600, fontSize:13, background:'transparent', cursor:'pointer' }}>
+                Maybe later
+              </button>
+              <button
+                onClick={() => { setAddonModal({ open:false, name:'', addon:'' }); onNavigate('plans') }}
+                style={{ flex:1, padding:'11px', borderRadius:9, border:'none', color:'#fff',
+                  fontWeight:600, fontSize:13, background:'#0099cc', cursor:'pointer' }}>
+                Add this service
+              </button>
+            </div>
           </div>
         </div>
       )}
