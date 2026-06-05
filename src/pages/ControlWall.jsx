@@ -125,9 +125,9 @@ function Ring({ value, color, size=78, C, sub, display }) {
 
 function RingStat({ value, color, display, label, C }) {
   return (
-    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:6, flex:1, minWidth:0 }}>
-      <Ring value={value} color={color} size={74} C={C} display={display}/>
-      <div style={{ fontSize:10, color:C.text2, fontWeight:600, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:'100%', textAlign:'center' }}>{label}</div>
+    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:8, flex:1, minWidth:0 }}>
+      <Ring value={value} color={color} size={72} C={C} display={display}/>
+      <div style={{ fontSize:10, color:C.text2, fontWeight:600, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:'100%', textAlign:'center', lineHeight:1.2 }}>{label}</div>
     </div>
   )
 }
@@ -489,13 +489,23 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme })
           </div>
           <div style={card}>
             <Title>Verification Status</Title>
-            <div style={{ flex:1, display:'flex', alignItems:'center', gap:14, minHeight:0, paddingLeft:4 }}>
-              <Ring value={d.verifPct} color={company?.is_verified?G.green:G.amber} size={86} C={C} sub="Verified"/>
-              <div style={{ flex:1, display:'flex', flexDirection:'column', gap:6, minWidth:0 }}>
-                <div style={{ fontSize:12.5, fontWeight:800, color:company?.is_verified?G.green:G.amber }}>{company?.is_verified?'Verified Business':'Not Verified'}</div>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:10.5 }}><span style={{ color:C.text2 }}>Trade License</span><span style={{ fontWeight:700, color:company?.is_verified?G.green:G.amber }}>{company?.is_verified?'Verified':'Pending'}</span></div>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:10.5 }}><span style={{ color:C.text2 }}>Plan</span><span style={{ fontWeight:700, color:C.text, textTransform:'capitalize' }}>{company?.plan||'Free'}</span></div>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:10.5 }}><span style={{ color:C.text2 }}>Tier</span><span style={{ fontWeight:700, color:C.text }}>{d.tierLabel}</span></div>
+            <div style={{ flex:1, display:'flex', alignItems:'center', gap:14, minHeight:0 }}>
+              <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:5, flexShrink:0 }}>
+                <Ring value={d.verifPct} color={company?.is_verified?G.green:G.amber} size={82} C={C} sub="Verified"/>
+                <span style={{ fontSize:11, fontWeight:800, color:company?.is_verified?G.green:G.amber, whiteSpace:'nowrap' }}>{company?.is_verified?'Verified':'Not Verified'}</span>
+              </div>
+              <div style={{ flex:1, display:'grid', gridTemplateColumns:'1fr 1fr', gap:7, minWidth:0 }}>
+                {[
+                  ['Trade License', company?.is_verified?'Verified':'Pending', company?.is_verified?G.green:G.amber],
+                  ['Doc Verify', `${Math.round(d.verifPct)}%`, G.blue],
+                  ['Plan', (company?.plan||'Free'), G.purple],
+                  ['Tier', d.tierLabel, C.text],
+                ].map(([lab,val,col],i)=>(
+                  <div key={i} style={{ background:C.card2, border:`1px solid ${C.border}`, borderRadius:9, padding:'7px 9px', minWidth:0 }}>
+                    <div style={{ fontSize:9, color:C.text3, fontWeight:600, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{lab}</div>
+                    <div style={{ fontSize:12.5, fontWeight:800, color:col, textTransform:'capitalize', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', marginTop:1 }}>{val}</div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
