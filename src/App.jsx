@@ -11,6 +11,7 @@ import NoCompanyPage from './pages/NoCompanyPage'
 import DashboardPage from './pages/DashboardPage'
 import RevenueEngine from './pages/RevenueEngine'
 import ControlWall from './pages/ControlWall'
+import ComingSoon from './pages/ComingSoon'
 import ProfilePage from './pages/ProfilePage'
 import ReviewsPage from './pages/ReviewsPage'
 import PortfolioPage from './pages/PortfolioPage'
@@ -35,6 +36,16 @@ const PAGE_PERM = {
   dashboard:          'view_dashboard',
   revenueengine:      'view_leads',
   controlwall:        'view_dashboard',
+  leadform:           'view_leads',
+  tdleads:            'view_leads',
+  metaads:            'view_leads',
+  quoteapprovals:     'view_leads',
+  aiquote:            'view_leads',
+  projects:           'view_profile',
+  materials:          'view_profile',
+  expenses:           'view_profile',
+  aiassistant:        'view_dashboard',
+  organizer:          'view_dashboard',
   inbox:              'view_dashboard',
   notifications:      'view_dashboard',
   profile:            'view_profile',
@@ -58,7 +69,7 @@ const PAGE_PERM = {
   settings:           'view_profile',
 }
 
-const LIMITED_PAGES = ['controlwall', 'dashboard', 'inbox', 'profile', 'portfolio', 'faq', 'notifications', 'team', 'documents', 'quoteSettings']
+const LIMITED_PAGES = ['controlwall', 'dashboard', 'inbox', 'profile', 'portfolio', 'faq', 'notifications', 'team', 'documents', 'quoteSettings', 'leadform', 'tdleads', 'metaads', 'quoteapprovals', 'aiquote', 'projects', 'materials', 'expenses', 'aiassistant', 'organizer']
 
 // --- Refresh persistence (URL hash) ---
 // activePage is mirrored in the URL hash (e.g. #leads) so a page refresh
@@ -66,7 +77,7 @@ const LIMITED_PAGES = ['controlwall', 'dashboard', 'inbox', 'profile', 'portfoli
 // views (list/builder/detail) can also persist a sub-route, e.g. #quotations/builder,
 // so a refresh keeps them on the same view instead of resetting to the list.
 const VALID_PAGES = [
-  'controlwall', 'dashboard', 'revenueengine', 'inbox', 'profile', 'reviews', 'portfolio', 'analytics', 'leads', 'leadengine', 'quotations', 'quoteSettings',
+  'controlwall', 'dashboard', 'revenueengine', 'inbox', 'profile', 'reviews', 'portfolio', 'analytics', 'leads', 'leadengine', 'leadform', 'tdleads', 'metaads', 'quotations', 'quoteSettings', 'quoteapprovals', 'aiquote', 'projects', 'materials', 'expenses', 'aiassistant', 'organizer',
   'sponsored', 'staff', 'team', 'documents', 'faq', 'notifications', 'trust',
   'controlpanel', 'verification', 'verificationStatus', 'plans', 'settings',
 ]
@@ -153,6 +164,16 @@ function Portal() {
     analytics:          <AnalyticsPage onNavigate={navigate} />,
     leads:              <LeadsPage />,
     leadengine:         <LeadEngine />,
+    leadform:           <ComingSoon feature="trustdubai_leads" title="Lead Form" onNavigate={navigate} />,
+    tdleads:            <ComingSoon feature="trustdubai_leads" onNavigate={navigate} />,
+    metaads:            <ComingSoon feature="meta_ads" onNavigate={navigate} />,
+    quoteapprovals:     <ComingSoon feature="quote_approvals" onNavigate={navigate} />,
+    aiquote:            <ComingSoon feature="ai_quote_builder" onNavigate={navigate} />,
+    projects:           <ComingSoon feature="projects" onNavigate={navigate} />,
+    materials:          <ComingSoon feature="material_requests" onNavigate={navigate} />,
+    expenses:           <ComingSoon feature="site_expenses" onNavigate={navigate} />,
+    aiassistant:        <ComingSoon feature="ai_assistant" onNavigate={navigate} />,
+    organizer:          <ComingSoon feature="my_organizer" onNavigate={navigate} />,
     quotations:         <Quotations subRoute={subRoute} setSubRoute={setPageSub} />,
     quoteSettings:      <QuoteSettings />,
     sponsored:          <SponsoredPage onNavigate={navigate} />,
@@ -170,7 +191,7 @@ function Portal() {
   }
 
   const pageTitles = {
-    controlwall:'Control Wall', dashboard:'Command Center', revenueengine:'Revenue Engine', inbox:'Inbox', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
+    controlwall:'Control Wall', dashboard:'Command Center', revenueengine:'Revenue Engine', leadform:'Lead Form', tdleads:'TrustDubai Leads', metaads:'Meta Ads', quoteapprovals:'Quote Approvals', aiquote:'AI Quote Builder', projects:'Projects', materials:'Material Requests', expenses:'Site Expenses', aiassistant:'AI Assistant', organizer:'My Organizer', inbox:'Inbox', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
     analytics:'Analytics', leads:'Lead Form', leadengine:'Lead Engine', quotations:'Quotations', quoteSettings:'Quote Settings', sponsored:'Sponsored Placement', staff:'Staff & Access',
     team:'Our Team', documents:'Document Verification', faq:'FAQ Management', notifications:'Notifications', trust:'Trust Score', controlpanel:'Control Panel',
     verification:'Control Panel', verificationStatus:'Control Panel', plans:'Control Panel', settings:'Control Panel',
