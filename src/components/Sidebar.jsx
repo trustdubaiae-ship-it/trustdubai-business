@@ -40,7 +40,7 @@ const MENU = [
 
   { section: 'AI & CRM' },
   { id:'aiassistant', icon:'ti-robot',          label:'AI Assistant',   perm:'view_dashboard', addon:'ai', soon:true },
-  { id:'organizer',   icon:'ti-calendar-event', label:'My Organizer',   perm:'view_dashboard', soon:true },
+  { id:'organizer',   icon:'ti-calendar-event', label:'My Organizer',   perm:'view_dashboard' },
 
   { section: 'REPUTATION' },
   { id:'trust',   icon:'ti-shield-check', label:'Trust Score', perm:'view_dashboard' },
