@@ -11,40 +11,57 @@ function hasAccess(userPlan, requiredPlan) {
 
 const CONTROL_PANEL_PAGES = ['controlpanel','verification','verificationStatus','plans','settings']
 
+// soon:true  → feature not built yet, opens a Coming Soon page (still navigable, shows "Soon" tag)
 const MENU = [
   { section: 'MAIN' },
-  { id:'controlwall',   icon:'ti-layout-grid',      label:'Control Wall',       perm:'view_dashboard' },
-  { id:'dashboard',     icon:'ti-layout-dashboard', label:'Command Center',     perm:'view_dashboard' },
-  { id:'revenueengine', icon:'ti-gauge',            label:'Revenue Engine',     perm:'view_leads' },
-  { id:'inbox',         icon:'ti-mail',             label:'Inbox',              perm:'view_dashboard' },
-  { id:'notifications', icon:'ti-bell',             label:'Notifications',      perm:'view_dashboard' },
+  { id:'controlwall',   icon:'ti-layout-grid',      label:'Control Wall',     perm:'view_dashboard' },
+  { id:'dashboard',     icon:'ti-layout-dashboard', label:'Command Center',   perm:'view_dashboard' },
+  { id:'revenueengine', icon:'ti-gauge',            label:'Revenue Engine',   perm:'view_leads' },
+  { id:'inbox',         icon:'ti-mail',             label:'Inbox',            perm:'view_dashboard' },
+  { id:'notifications', icon:'ti-bell',             label:'Notifications',    perm:'view_dashboard' },
+
+  { section: 'LEAD HUB' },
+  { id:'leadengine', icon:'ti-bolt',           label:'Lead Engine',      perm:'view_leads' },
+  { id:'leads',      icon:'ti-message-circle', label:'Leads',            perm:'view_leads', featureKey:'lead_email' },
+  { id:'leadform',   icon:'ti-forms',          label:'Lead Form',        perm:'view_leads', soon:true },
+  { id:'tdleads',    icon:'ti-discount-check', label:'TrustDubai Leads', perm:'view_leads', soon:true },
+  { id:'metaads',    icon:'ti-ad-2',           label:'Meta Ads',         perm:'view_leads', soon:true },
+
+  { section: 'SALES & QUOTES' },
+  { id:'quotations',    icon:'ti-file-invoice', label:'Quotations',      perm:'view_leads' },
+  { id:'quoteSettings', icon:'ti-settings',     label:'Quote Settings',  perm:'view_profile' },
+  { id:'quoteapprovals',icon:'ti-checklist',    label:'Quote Approvals', perm:'view_leads',   soon:true },
+  { id:'aiquote',       icon:'ti-sparkles',     label:'AI Quote Builder',perm:'view_leads',   soon:true },
+
+  { section: 'PROJECTS & OPS' },
+  { id:'projects',  icon:'ti-briefcase',     label:'Projects',          perm:'view_profile', soon:true },
+  { id:'materials', icon:'ti-package',       label:'Material Requests', perm:'view_profile', soon:true },
+  { id:'expenses',  icon:'ti-coin',          label:'Site Expenses',     perm:'view_profile', soon:true },
+
+  { section: 'AI & CRM' },
+  { id:'aiassistant', icon:'ti-robot',          label:'AI Assistant',   perm:'view_dashboard', soon:true },
+  { id:'organizer',   icon:'ti-calendar-event', label:'My Organizer',   perm:'view_dashboard', soon:true },
 
   { section: 'REPUTATION' },
-  { id:'trust',      icon:'ti-shield-check',     label:'Trust Score',        perm:'view_dashboard' },
-  { id:'reviews',    icon:'ti-star',             label:'Reviews',            perm:'view_reviews',  featureKey:'reply_reviews' },
-  { id:'leads',      icon:'ti-message-circle',   label:'Leads',              perm:'view_leads',    featureKey:'lead_email' },
-  { id:'leadengine', icon:'ti-bolt',             label:'Lead Engine',        perm:'view_leads' },
-
-  { section: 'SALES HUB' },
-  { id:'quotations',    icon:'ti-file-invoice',  label:'Quotations',         perm:'view_leads' },
-  { id:'quoteSettings', icon:'ti-settings',      label:'Quote Settings',     perm:'view_profile' },
-
-  { section: 'GROWTH' },
-  { id:'analytics',  icon:'ti-chart-bar',        label:'Analytics',          perm:'view_analytics', featureKey:'analytics' },
-  { id:'sponsored',  icon:'ti-ad-2',             label:'Sponsored Placement',perm:'view_sponsored', featureKey:'featured_homepage' },
+  { id:'trust',   icon:'ti-shield-check', label:'Trust Score', perm:'view_dashboard' },
+  { id:'reviews', icon:'ti-star',         label:'Reviews',     perm:'view_reviews', featureKey:'reply_reviews' },
 
   { section: 'MY PROFILE' },
-  { id:'profile',    icon:'ti-building-store',   label:'Business Profile',   perm:'view_profile' },
-  { id:'portfolio',  icon:'ti-photo',            label:'Portfolio',          perm:'view_portfolio' },
-  { id:'documents',  icon:'ti-file-certificate', label:'Verification',       perm:'view_profile' },
-  { id:'team',       icon:'ti-users-group',      label:'Our Team',           perm:'view_profile' },
-  { id:'faq',        icon:'ti-help-circle',      label:'FAQ',                perm:'view_profile' },
+  { id:'profile',    icon:'ti-building-store',   label:'Business Profile', perm:'view_profile' },
+  { id:'portfolio',  icon:'ti-photo',            label:'Portfolio',        perm:'view_portfolio' },
+  { id:'documents',  icon:'ti-file-certificate', label:'Verification',     perm:'view_profile' },
+  { id:'team',       icon:'ti-users-group',      label:'Our Team',         perm:'view_profile' },
+  { id:'faq',        icon:'ti-help-circle',      label:'FAQ',              perm:'view_profile' },
+
+  { section: 'GROWTH' },
+  { id:'analytics',  icon:'ti-chart-bar', label:'Analytics',           perm:'view_analytics', featureKey:'analytics' },
+  { id:'sponsored',  icon:'ti-ad-2',      label:'Sponsored Placement', perm:'view_sponsored', featureKey:'featured_homepage' },
 
   { section: 'TEAM & ACCESS' },
-  { id:'staff',      icon:'ti-key',              label:'Staff & Access',     perm:'manage_staff' },
+  { id:'staff', icon:'ti-key', label:'Staff & Access', perm:'manage_staff' },
 
   { section: 'SETTINGS' },
-  { id:'controlpanel', icon:'ti-adjustments',    label:'Control Panel',      perm:'view_profile' },
+  { id:'controlpanel', icon:'ti-adjustments', label:'Control Panel', perm:'view_profile' },
 ]
 
 export default function Sidebar({ activePage, onNavigate, limitedMode = false, limitedPages = [], open = false }) {
@@ -62,24 +79,21 @@ export default function Sidebar({ activePage, onNavigate, limitedMode = false, l
   const [lockModal, setLockModal] = useState({ open:false, name:'' })
   const [restrictModal, setRestrictModal] = useState({ open:false, name:'' })
 
-  // priority: permission lock pehle (owner control), phir plan/feature lock
+  // priority: permission lock pehle (owner control), phir plan/feature lock.
+  // soon items always navigate (Coming Soon page) — koi lock nahi.
   function handleNav(item, permLocked, featureLocked) {
     if (permLocked)    { setRestrictModal({ open:true, name:item.label }); return }
-    if (featureLocked) { setLockModal({ open:true, name:item.label }); return }
+    if (!item.soon && featureLocked) { setLockModal({ open:true, name:item.label }); return }
     onNavigate(item.id)
   }
 
   // Build menu WITHOUT hiding items on permission.
-  // Section dikhega agar usme koi child item hai (locked ya unlocked).
-  // Permission na ho to item dikhega lekin permLocked flag ke saath (greyed + inactive).
   const visibleMenu = []
   for (let i = 0; i < MENU.length; i++) {
     const item = MENU[i]
     if (item.section) {
       let hasChild = false
-      for (let j = i + 1; j < MENU.length && !MENU[j].section; j++) {
-        hasChild = true; break
-      }
+      for (let j = i + 1; j < MENU.length && !MENU[j].section; j++) { hasChild = true; break }
       if (hasChild) visibleMenu.push(item)
     } else {
       visibleMenu.push({ ...item, permLocked: !can(role, perms, item.perm) })
@@ -120,9 +134,8 @@ export default function Sidebar({ activePage, onNavigate, limitedMode = false, l
           )
 
           const permLocked   = item.permLocked
-          // plan/feature lock sirf tab dekho jab permission allowed ho
-          const limitLocked  = !permLocked && limitedMode && !limitedPages.includes(item.id)
-          const featureLocked= !permLocked && !limitLocked && item.featureKey ? !hasFeature(item.featureKey) : false
+          const limitLocked  = !permLocked && limitedMode && !item.soon && !limitedPages.includes(item.id)
+          const featureLocked= !permLocked && !limitLocked && !item.soon && item.featureKey ? !hasFeature(item.featureKey) : false
           const locked       = permLocked || limitLocked || featureLocked
 
           const isActive = !permLocked && (item.id === 'controlpanel'
@@ -131,20 +144,23 @@ export default function Sidebar({ activePage, onNavigate, limitedMode = false, l
 
           const titleText = permLocked
             ? 'Restricted — contact your company admin'
-            : (featureLocked ? 'Upgrade plan to unlock'
-              : (limitLocked ? 'Available after approval' : ''))
+            : (item.soon ? 'Coming soon'
+              : (featureLocked ? 'Upgrade plan to unlock'
+                : (limitLocked ? 'Available after approval' : '')))
 
           return (
             <button key={`${item.id}-${i}`}
               className={`nav-item${isActive?' active':''}`}
               onClick={() => handleNav(item, permLocked, featureLocked)}
-              style={{ opacity: locked ? 0.5 : 1, cursor: permLocked ? 'not-allowed' : 'pointer' }}
+              style={{ opacity: (locked && !item.soon) ? 0.5 : 1, cursor: permLocked ? 'not-allowed' : 'pointer' }}
               title={titleText}>
               <i className={`ti ${item.icon}`}/>
               {item.label}
-              {locked && (
+              {item.soon ? (
+                <span style={{ marginLeft:'auto', fontSize:8.5, fontWeight:700, letterSpacing:'.03em', color:'#d97706', background:'rgba(245,158,11,0.14)', border:'0.5px solid rgba(245,158,11,0.25)', padding:'1px 6px', borderRadius:6 }}>SOON</span>
+              ) : (locked && (
                 <i className="ti ti-lock" style={{ marginLeft:'auto', fontSize:11, color:'#94a3b8' }}/>
-              )}
+              ))}
             </button>
           )
         })}
