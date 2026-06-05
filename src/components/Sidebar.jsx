@@ -22,8 +22,7 @@ const MENU = [
 
   { section: 'LEAD HUB' },
   { id:'leadengine', icon:'ti-bolt',           label:'Lead Engine',      perm:'view_leads' },
-  { id:'leads',      icon:'ti-forms',          label:'Lead Form',        perm:'view_leads', featureKey:'lead_email' },
-  { id:'tdleads',    icon:'ti-discount-check', label:'TrustDubai Leads', perm:'view_leads', addon:'crm' },
+  { id:'leads',      icon:'ti-forms',          label:'Lead Hub',         perm:'view_leads', featureKey:'lead_email' },
   { id:'metaads',    icon:'ti-ad-2',           label:'Meta Ads',         perm:'view_leads', addon:'crm', soon:true },
 
   { section: 'SALES & QUOTES' },
