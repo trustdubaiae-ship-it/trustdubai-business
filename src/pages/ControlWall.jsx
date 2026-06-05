@@ -125,9 +125,9 @@ function Ring({ value, color, size=78, C, sub, display }) {
 
 function RingStat({ value, color, display, label, C }) {
   return (
-    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:8, flex:1, minWidth:0 }}>
-      <Ring value={value} color={color} size={72} C={C} display={display}/>
-      <div style={{ fontSize:10, color:C.text2, fontWeight:600, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:'100%', textAlign:'center', lineHeight:1.2 }}>{label}</div>
+    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:6, flex:1, minWidth:0 }}>
+      <Ring value={value} color={color} size={64} C={C} display={display}/>
+      <div style={{ fontSize:9.5, color:C.text2, fontWeight:600, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:'100%', textAlign:'center', lineHeight:1.2 }}>{label}</div>
     </div>
   )
 }
@@ -373,7 +373,7 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme })
         </div>
 
         {/* ROW 2 */}
-        <div style={{ flex:'1.55', display:'grid', gridTemplateColumns:'1.7fr 1.2fr 1.25fr 1.2fr 1.25fr 1fr', gap:9, minHeight:0 }}>
+        <div style={{ flex:'1.45', display:'grid', gridTemplateColumns:'1.7fr 1.2fr 1.25fr 1.2fr 1.25fr 1fr', gap:9, minHeight:0 }}>
           <div style={card}>
             <Title right={<span style={{ display:'flex', gap:9, fontSize:9.5 }}><span style={{ color:C.text2, display:'flex', alignItems:'center', gap:3 }}><span style={{ width:7, height:7, borderRadius:'50%', background:G.green }}/>Reviews</span><span style={{ color:C.text2, display:'flex', alignItems:'center', gap:3 }}><span style={{ width:7, height:7, borderRadius:'50%', background:G.purple }}/>Ratings</span></span>}>Reviews &amp; Ratings Overview</Title>
             <div style={{ flex:1, minHeight:0, display:'flex', alignItems:'center' }}><DualLine series={d.rTrend} c1={G.green} c2={G.purple} C={C} h={120}/></div>
@@ -475,35 +475,34 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme })
           </div>
         </div>
 
-        {/* ROW 4 — Profile & Trust Health (5 rings) + Verification */}
-        <div style={{ flex:'1.05', display:'grid', gridTemplateColumns:'1.7fr 1fr', gap:9, minHeight:0 }}>
+        {/* ROW 4 — Profile & Trust Health (7 rings) + Verification */}
+        <div style={{ flex:'1.45', display:'grid', gridTemplateColumns:'1.85fr 1fr', gap:9, minHeight:0 }}>
           <div style={card}>
             <Title right={<span style={{ fontSize:9.5, color:C.text2, fontWeight:600 }}>{d.tierLabel}</span>}>Profile &amp; Trust Health</Title>
-            <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'space-around', gap:8, minHeight:0 }}>
+            <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'space-between', gap:4, minHeight:0 }}>
               <RingStat value={d.stats.trust}   color={d.stats.trust>=70?G.green:d.stats.trust>=40?G.amber:G.red} display={Math.round(d.stats.trust)} label="Trust Score" C={C}/>
               <RingStat value={d.profilePct}    color={G.blue}   display={`${d.profilePct}%`} label="Profile" C={C}/>
               <RingStat value={d.verifPct}      color={company?.is_verified?G.green:G.amber} display={`${Math.round(d.verifPct)}%`} label="Verified" C={C}/>
               <RingStat value={(parseFloat(d.stats.avgRating)/5)*100} color={G.amber} display={d.stats.avgRating} label="Avg Rating" C={C}/>
               <RingStat value={Math.min(d.stats.totalReviews/10*100,100)} color={G.purple} display={d.stats.totalReviews} label="Reviews / 10" C={C}/>
+              <RingStat value={d.stats.conversion} color={d.stats.conversion>=30?G.green:d.stats.conversion>=10?G.amber:G.red} display={`${d.stats.conversion}%`} label="Conversion" C={C}/>
+              <RingStat value={d.avgScore} color={d.avgScore>=80?G.green:d.avgScore>=50?G.amber:G.cyan} display={d.avgScore} label="Lead Quality" C={C}/>
             </div>
           </div>
           <div style={card}>
-            <Title>Verification Status</Title>
-            <div style={{ flex:1, display:'flex', alignItems:'center', gap:14, minHeight:0 }}>
-              <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:5, flexShrink:0 }}>
-                <Ring value={d.verifPct} color={company?.is_verified?G.green:G.amber} size={82} C={C} sub="Verified"/>
-                <span style={{ fontSize:11, fontWeight:800, color:company?.is_verified?G.green:G.amber, whiteSpace:'nowrap' }}>{company?.is_verified?'Verified':'Not Verified'}</span>
-              </div>
-              <div style={{ flex:1, display:'grid', gridTemplateColumns:'1fr 1fr', gap:7, minWidth:0 }}>
+            <Title right={<span style={{ fontSize:9.5, fontWeight:700, color:company?.is_verified?G.green:G.amber }}>{company?.is_verified?'Verified':'Not Verified'}</span>}>Verification Status</Title>
+            <div style={{ flex:1, display:'flex', alignItems:'center', gap:12, minHeight:0 }}>
+              <Ring value={d.verifPct} color={company?.is_verified?G.green:G.amber} size={66} C={C} sub="Verified"/>
+              <div style={{ flex:1, display:'grid', gridTemplateColumns:'1fr 1fr', gap:6, minWidth:0 }}>
                 {[
                   ['Trade License', company?.is_verified?'Verified':'Pending', company?.is_verified?G.green:G.amber],
                   ['Doc Verify', `${Math.round(d.verifPct)}%`, G.blue],
                   ['Plan', (company?.plan||'Free'), G.purple],
                   ['Tier', d.tierLabel, C.text],
                 ].map(([lab,val,col],i)=>(
-                  <div key={i} style={{ background:C.card2, border:`1px solid ${C.border}`, borderRadius:9, padding:'7px 9px', minWidth:0 }}>
-                    <div style={{ fontSize:9, color:C.text3, fontWeight:600, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{lab}</div>
-                    <div style={{ fontSize:12.5, fontWeight:800, color:col, textTransform:'capitalize', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', marginTop:1 }}>{val}</div>
+                  <div key={i} style={{ background:C.card2, border:`1px solid ${C.border}`, borderRadius:8, padding:'5px 8px', minWidth:0 }}>
+                    <div style={{ fontSize:8.5, color:C.text3, fontWeight:600, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{lab}</div>
+                    <div style={{ fontSize:11.5, fontWeight:800, color:col, textTransform:'capitalize', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{val}</div>
                   </div>
                 ))}
               </div>
