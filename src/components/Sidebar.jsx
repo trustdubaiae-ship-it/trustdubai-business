@@ -39,7 +39,7 @@ const MENU = [
   { id:'expenses',  icon:'ti-coin',          label:'Site Expenses',     perm:'view_profile', addon:'projects', soon:true },
 
   { section: 'AI & CRM' },
-  { id:'aiassistant', icon:'ti-robot',          label:'AI Assistant',   perm:'view_dashboard', addon:'ai', soon:true },
+  { id:'aiassistant', icon:'ti-robot',          label:'AI Assistant',   perm:'view_dashboard', addon:'ai' },
   { id:'organizer',   icon:'ti-calendar-event', label:'My Organizer',   perm:'view_dashboard' },
 
   { section: 'REPUTATION' },
