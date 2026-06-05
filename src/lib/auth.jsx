@@ -2,9 +2,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from './supabase'
 import { hasFeature as _hasFeature, getLimit as _getLimit } from './permissions'
-
 const AuthContext = createContext(null)
-
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [company, setCompany] = useState(null)
@@ -12,7 +10,6 @@ export function AuthProvider({ children }) {
   const [role, setRole] = useState(null)
   const [planFeatures, setPlanFeatures] = useState(null) // { feature_key: {enabled, limit_value} }
   const [loading, setLoading] = useState(true)
-
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
@@ -26,7 +23,6 @@ export function AuthProvider({ children }) {
     })
     return () => subscription.unsubscribe()
   }, [])
-
   // company ke plan ke features load
   async function loadPlanFeatures(planName) {
     const plan = (planName || 'free').toLowerCase()
@@ -38,7 +34,6 @@ export function AuthProvider({ children }) {
     ;(data || []).forEach(r => { map[r.feature_key] = { enabled: r.enabled, limit_value: r.limit_value } })
     setPlanFeatures(map)
   }
-
   // owner pehle, phir staff
   async function resolveAccess(authUser) {
     setLoading(true)
@@ -87,7 +82,6 @@ export function AuthProvider({ children }) {
       setLoading(false)
     }
   }
-
   async function signInWithGoogle() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -95,26 +89,29 @@ export function AuthProvider({ children }) {
     })
     if (error) throw error
   }
-
   async function signOut() {
     await supabase.auth.signOut()
   }
-
   async function refreshCompany() {
     if (user) await resolveAccess(user)
   }
-
   // plan feature helpers (component se seedha use)
   function hasFeature(key) { return _hasFeature(planFeatures, key) }
   function getLimit(key)   { return _getLimit(planFeatures, key) }
-
+  // add-on helper — companies.addons jsonb se padhe (admin Subscription Manager set karta hai)
+  // e.g. company.addons = { crm:true, quotation:false, projects:false, ai:false }
+  function hasAddon(key) {
+    if (!key) return false
+    const a = company?.addons
+    if (!a || typeof a !== 'object') return false
+    return a[key] === true
+  }
   return (
-    <AuthContext.Provider value={{ user, company, staff, role, planFeatures, loading, signInWithGoogle, signOut, refreshCompany, hasFeature, getLimit }}>
+    <AuthContext.Provider value={{ user, company, staff, role, planFeatures, loading, signInWithGoogle, signOut, refreshCompany, hasFeature, getLimit, hasAddon }}>
       {children}
     </AuthContext.Provider>
   )
 }
-
 export function useAuth() {
   return useContext(AuthContext)
 }
