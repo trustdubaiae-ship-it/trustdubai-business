@@ -145,7 +145,7 @@ function Portal() {
   const allPages = {
     controlwall:        <ControlWall onNavigate={navigate} theme={theme} embedded />,
     dashboard:          <DashboardPage onNavigate={navigate} theme={theme} />,
-    revenueengine:      <RevenueEngine onNavigate={navigate} />,
+    revenueengine:      <RevenueEngine onNavigate={navigate} theme={theme} />,
     inbox:              <InboxPage />,
     profile:            <ProfilePage />,
     reviews:            <ReviewsPage />,
