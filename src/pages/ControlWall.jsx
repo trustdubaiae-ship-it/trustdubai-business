@@ -133,8 +133,9 @@ function RingStat({ value, color, display, label, C }) {
 }
 
 /* ============================== MAIN ==================================== */
-export default function ControlWall({ onBack, onNavigate, theme: initialTheme }) {
+export default function ControlWall({ onBack, onNavigate, theme: initialTheme, embedded = false }) {
   const { company } = useAuth()
+  const wrapRef = useRef(null)
 
   const [theme, setTheme] = useState(() => {
     try { return localStorage.getItem('td-wall-theme') || initialTheme || 'dark' } catch { return initialTheme || 'dark' }
@@ -142,11 +143,11 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme })
   const isDark = theme !== 'light'
   const toggleTheme = () => setTheme(t => { const n = t==='dark'?'light':'dark'; try{localStorage.setItem('td-wall-theme',n)}catch{} return n })
 
-  // Real browser fullscreen toggle (hides tab bar / address bar like F11)
+  // Real browser fullscreen toggle — fullscreens just the wall wrapper (sidebar hides)
   const [isFs, setIsFs] = useState(false)
   const toggleFullscreen = () => {
     try {
-      const el = document.documentElement
+      const el = wrapRef.current || document.documentElement
       if (!document.fullscreenElement) {
         (el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen)?.call(el)
       } else {
@@ -164,10 +165,22 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme })
     }
   }, [])
 
+  // Scale-to-fit based on the ACTUAL container size (works embedded + fullscreen)
   const [scale, setScale] = useState(1)
   useEffect(() => {
-    const fit = () => setScale(Math.min(window.innerWidth/BASE_W, window.innerHeight/BASE_H))
-    fit(); window.addEventListener('resize', fit); return () => window.removeEventListener('resize', fit)
+    const fit = () => {
+      const el = wrapRef.current
+      const w = el ? el.clientWidth : window.innerWidth
+      const h = el ? el.clientHeight : window.innerHeight
+      setScale(Math.min(w/BASE_W, h/BASE_H))
+    }
+    fit()
+    let ro
+    if (wrapRef.current && typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(fit); ro.observe(wrapRef.current)
+    }
+    window.addEventListener('resize', fit)
+    return () => { window.removeEventListener('resize', fit); if (ro) ro.disconnect() }
   }, [])
 
   const [d, setD] = useState(null)
@@ -309,11 +322,18 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme })
   const Title=({children,right})=>(<div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6, gap:6 }}><span style={{ fontSize:12, fontWeight:700, color:C.text, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{children}</span>{right}</div>)
   const delChip=v=>(<span style={{ fontSize:9.5, fontWeight:700, color:v>=0?G.green:G.red }}>{v>=0?'↑':'↓'} {Math.abs(v)}% <span style={{ color:C.text3, fontWeight:500 }}>30d</span></span>)
 
+  // outer container: embedded → fill page area (relative); standalone/fullscreen → fixed full screen
+  const outerStyle = (embedded && !isFs)
+    ? { position:'relative', width:'100%', height:'calc(100dvh - 132px)', minHeight:520, background:C.page, borderRadius:14, overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center' }
+    : { position:'fixed', inset:0, zIndex:200, background:C.page, overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center' }
+
   if (!d) return (
-    <div style={{ position:'fixed', inset:0, background:C.page, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:14 }}>
-      <div style={{ width:40, height:40, border:`3px solid ${G.green}`, borderTopColor:'transparent', borderRadius:'50%', animation:'spin .8s linear infinite' }}/>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-      <div style={{ fontSize:13, color:C.text3 }}>Loading Control Wall…</div>
+    <div ref={wrapRef} style={outerStyle}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:14 }}>
+        <div style={{ width:40, height:40, border:`3px solid ${G.green}`, borderTopColor:'transparent', borderRadius:'50%', animation:'spin .8s linear infinite' }}/>
+        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+        <div style={{ fontSize:13, color:C.text3 }}>Loading Control Wall…</div>
+      </div>
     </div>
   )
 
@@ -334,13 +354,17 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme })
   const heatColor=cnt=>{ if(cnt===0)return C.track; const r=cnt/d.heatMax; if(r>0.66)return G.red; if(r>0.33)return G.amber; return G.green }
 
   return (
-    <div style={{ position:'fixed', inset:0, background:C.page, overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center' }}>
+    <div ref={wrapRef} style={outerStyle}>
       <div style={{ width:BASE_W, height:BASE_H, transform:`scale(${scale})`, transformOrigin:'center center', display:'flex', flexDirection:'column', gap:9, padding:16, color:C.text, fontFamily:"'Inter',system-ui,sans-serif", boxSizing:'border-box' }}>
 
         {/* TOP BAR */}
         <div style={{ flex:'0 0 46px', display:'flex', alignItems:'center', justifyContent:'space-between', background:C.topbar, border:`1px solid ${C.border}`, borderRadius:12, padding:'0 14px' }}>
           <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-            <button onClick={goBack} title="Back" style={{ display:'flex', alignItems:'center', gap:6, background:C.card2, border:`1px solid ${C.border}`, color:C.text, borderRadius:9, padding:'6px 12px', fontSize:12, fontWeight:600, cursor:'pointer' }}><i className="ti ti-arrow-left" style={{ fontSize:15 }}/> Back</button>
+            {isFs ? (
+              <button onClick={toggleFullscreen} title="Exit fullscreen" style={{ display:'flex', alignItems:'center', gap:6, background:C.card2, border:`1px solid ${C.border}`, color:C.text, borderRadius:9, padding:'6px 12px', fontSize:12, fontWeight:600, cursor:'pointer' }}><i className="ti ti-arrow-left" style={{ fontSize:15 }}/> Exit Fullscreen</button>
+            ) : (!embedded && (
+              <button onClick={goBack} title="Back" style={{ display:'flex', alignItems:'center', gap:6, background:C.card2, border:`1px solid ${C.border}`, color:C.text, borderRadius:9, padding:'6px 12px', fontSize:12, fontWeight:600, cursor:'pointer' }}><i className="ti ti-arrow-left" style={{ fontSize:15 }}/> Back</button>
+            ))}
             <div style={{ display:'flex', alignItems:'center', gap:8 }}>
               <div style={{ width:28, height:28, borderRadius:8, background:`linear-gradient(135deg,${G.green},#15803d)`, display:'flex', alignItems:'center', justifyContent:'center', color:'#fff' }}><i className="ti ti-brain" style={{ fontSize:16 }}/></div>
               <div>
