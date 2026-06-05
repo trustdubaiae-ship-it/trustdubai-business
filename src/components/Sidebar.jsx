@@ -13,6 +13,7 @@ const CONTROL_PANEL_PAGES = ['controlpanel','verification','verificationStatus',
 
 const MENU = [
   { section: 'MAIN' },
+  { id:'controlwall',   icon:'ti-layout-grid',      label:'Control Wall',       perm:'view_dashboard' },
   { id:'dashboard',     icon:'ti-layout-dashboard', label:'Command Center',     perm:'view_dashboard' },
   { id:'revenueengine', icon:'ti-gauge',            label:'Revenue Engine',     perm:'view_leads' },
   { id:'inbox',         icon:'ti-mail',             label:'Inbox',              perm:'view_dashboard' },
