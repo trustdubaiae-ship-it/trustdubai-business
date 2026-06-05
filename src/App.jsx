@@ -14,6 +14,7 @@ import ControlWall from './pages/ControlWall'
 import ComingSoon from './pages/ComingSoon'
 import Organizer from './pages/Organizer'
 import AIAssistant from './pages/AIAssistant'
+import TrustDubaiLeads from './pages/TrustDubaiLeads'
 import ProfilePage from './pages/ProfilePage'
 import ReviewsPage from './pages/ReviewsPage'
 import PortfolioPage from './pages/PortfolioPage'
@@ -167,7 +168,7 @@ function Portal() {
     leads:              <LeadsPage />,
     leadengine:         <LeadEngine />,
     leadform:           <ComingSoon feature="trustdubai_leads" title="Lead Form" onNavigate={navigate} />,
-    tdleads:            <ComingSoon feature="trustdubai_leads" onNavigate={navigate} />,
+    tdleads:            <TrustDubaiLeads onNavigate={navigate} />,
     metaads:            <ComingSoon feature="meta_ads" onNavigate={navigate} />,
     quoteapprovals:     <ComingSoon feature="quote_approvals" onNavigate={navigate} />,
     aiquote:            <ComingSoon feature="ai_quote_builder" onNavigate={navigate} />,
