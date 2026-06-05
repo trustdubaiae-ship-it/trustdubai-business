@@ -113,14 +113,23 @@ function Gauge({ value, C }) {
   </svg>
 }
 
-function Ring({ value, color, size=78, C, sub }) {
+function Ring({ value, color, size=78, C, sub, display }) {
   const stroke=9, r=(size-stroke)/2, c=2*Math.PI*r, filled=(Math.max(0,Math.min(100,value))/100)*c
   return <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flexShrink:0 }}>
     <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={C.track} strokeWidth={stroke}/>
     <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={`${filled} ${c}`} strokeDashoffset={c*0.25} transform={`rotate(-90 ${size/2} ${size/2})`}/>
-    <text x="50%" y="48%" textAnchor="middle" style={{ fontSize:17, fontWeight:800, fill:C.text }}>{Math.round(value)}%</text>
+    <text x="50%" y="48%" textAnchor="middle" style={{ fontSize:size>=80?17:15, fontWeight:800, fill:C.text }}>{display!=null?display:`${Math.round(value)}%`}</text>
     {sub && <text x="50%" y="64%" textAnchor="middle" style={{ fontSize:8, fill:C.text3 }}>{sub}</text>}
   </svg>
+}
+
+function RingStat({ value, color, display, label, C }) {
+  return (
+    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:6, flex:1, minWidth:0 }}>
+      <Ring value={value} color={color} size={74} C={C} display={display}/>
+      <div style={{ fontSize:10, color:C.text2, fontWeight:600, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:'100%', textAlign:'center' }}>{label}</div>
+    </div>
+  )
 }
 
 /* ============================== MAIN ==================================== */
@@ -466,33 +475,27 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme })
           </div>
         </div>
 
-        {/* ROW 4 — Profile strength + Verification */}
-        <div style={{ flex:'1.05', display:'grid', gridTemplateColumns:'1.5fr 1fr', gap:9, minHeight:0 }}>
+        {/* ROW 4 — Profile & Trust Health (5 rings) + Verification */}
+        <div style={{ flex:'1.05', display:'grid', gridTemplateColumns:'1.7fr 1fr', gap:9, minHeight:0 }}>
           <div style={card}>
-            <Title>Profile &amp; Trust Health</Title>
-            <div style={{ flex:1, display:'flex', alignItems:'center', gap:16, minHeight:0, paddingLeft:6 }}>
-              <div style={{ textAlign:'center' }}>
-                <Ring value={d.stats.trust} color={d.stats.trust>=70?G.green:d.stats.trust>=40?G.amber:G.red} size={84} C={C} sub="Trust"/>
-                <div style={{ fontSize:9.5, color:C.text2, marginTop:4, fontWeight:600 }}>{d.tierLabel}</div>
-              </div>
-              <div style={{ textAlign:'center' }}>
-                <Ring value={d.profilePct} color={G.blue} size={84} C={C} sub="Profile"/>
-                <div style={{ fontSize:9.5, color:C.text2, marginTop:4, fontWeight:600 }}>Completion</div>
-              </div>
-              <div style={{ flex:1, display:'flex', flexDirection:'column', gap:7, minWidth:0 }}>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:11 }}><span style={{ color:C.text2 }}>Trade License</span><span style={{ fontWeight:700, color:company?.is_verified?G.green:G.amber }}>{company?.is_verified?'Verified ✓':'Pending'}</span></div>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:11 }}><span style={{ color:C.text2 }}>Plan</span><span style={{ fontWeight:700, color:C.text, textTransform:'capitalize' }}>{company?.plan||'Free'}</span></div>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:11 }}><span style={{ color:C.text2 }}>Reviews</span><span style={{ fontWeight:700, color:C.text }}>{d.stats.totalReviews} · {d.stats.avgRating}★</span></div>
-              </div>
+            <Title right={<span style={{ fontSize:9.5, color:C.text2, fontWeight:600 }}>{d.tierLabel}</span>}>Profile &amp; Trust Health</Title>
+            <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'space-around', gap:8, minHeight:0 }}>
+              <RingStat value={d.stats.trust}   color={d.stats.trust>=70?G.green:d.stats.trust>=40?G.amber:G.red} display={Math.round(d.stats.trust)} label="Trust Score" C={C}/>
+              <RingStat value={d.profilePct}    color={G.blue}   display={`${d.profilePct}%`} label="Profile" C={C}/>
+              <RingStat value={d.verifPct}      color={company?.is_verified?G.green:G.amber} display={`${Math.round(d.verifPct)}%`} label="Verified" C={C}/>
+              <RingStat value={(parseFloat(d.stats.avgRating)/5)*100} color={G.amber} display={d.stats.avgRating} label="Avg Rating" C={C}/>
+              <RingStat value={Math.min(d.stats.totalReviews/10*100,100)} color={G.purple} display={d.stats.totalReviews} label="Reviews / 10" C={C}/>
             </div>
           </div>
           <div style={card}>
             <Title>Verification Status</Title>
-            <div style={{ flex:1, display:'flex', alignItems:'center', gap:14, minHeight:0, paddingLeft:6 }}>
-              <Ring value={d.verifPct} color={company?.is_verified?G.green:G.amber} size={92} C={C} sub="Verified"/>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:13, fontWeight:800, color:company?.is_verified?G.green:G.amber, marginBottom:3 }}>{company?.is_verified?'Verified Business':'Not Verified'}</div>
-                <div style={{ fontSize:10, color:C.text2, lineHeight:1.5 }}>{company?.is_verified?'Your documents are verified and live on TrustDubai.':'Complete verification to boost trust & visibility.'}</div>
+            <div style={{ flex:1, display:'flex', alignItems:'center', gap:14, minHeight:0, paddingLeft:4 }}>
+              <Ring value={d.verifPct} color={company?.is_verified?G.green:G.amber} size={86} C={C} sub="Verified"/>
+              <div style={{ flex:1, display:'flex', flexDirection:'column', gap:6, minWidth:0 }}>
+                <div style={{ fontSize:12.5, fontWeight:800, color:company?.is_verified?G.green:G.amber }}>{company?.is_verified?'Verified Business':'Not Verified'}</div>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:10.5 }}><span style={{ color:C.text2 }}>Trade License</span><span style={{ fontWeight:700, color:company?.is_verified?G.green:G.amber }}>{company?.is_verified?'Verified':'Pending'}</span></div>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:10.5 }}><span style={{ color:C.text2 }}>Plan</span><span style={{ fontWeight:700, color:C.text, textTransform:'capitalize' }}>{company?.plan||'Free'}</span></div>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:10.5 }}><span style={{ color:C.text2 }}>Tier</span><span style={{ fontWeight:700, color:C.text }}>{d.tierLabel}</span></div>
               </div>
             </div>
           </div>
