@@ -125,7 +125,14 @@ export default function AIAssistant({ onNavigate }) {
       }
       const { data, error } = await supabase.functions.invoke('smart-function', { body: payload })
       if (error) throw error
-      if (data?.error) throw new Error(data.error)
+      if (data?.error) {
+        const code = data.code || ''
+        const msg = code === 'no_credit' ? 'AI needs credit. Add credit to your Anthropic account to enable AI replies.'
+          : code === 'bad_key'   ? 'AI key issue. Please re-check the API key in settings.'
+          : code === 'rate_limit'? 'Too many requests right now. Wait a moment and retry.'
+          : (data.detail || 'Could not generate. Please retry.')
+        const e = new Error(msg); e.handled = true; throw e
+      }
       setSuggestion(data.reply || '')
       setDraft(data.reply || '')
       if (data.score != null || data.temperature) {
@@ -133,9 +140,9 @@ export default function AIAssistant({ onNavigate }) {
       }
     } catch (e) {
       console.error('suggestReply', e)
-      const msg = (e?.message || '').includes('402') || (e?.message||'').toLowerCase().includes('credit')
-        ? 'AI needs API credit. Add credit in your Anthropic account, then retry.'
-        : 'Could not generate. Please retry.'
+      const msg = e?.handled ? e.message
+        : ((e?.message || '').toLowerCase().includes('credit') ? 'AI needs credit. Add credit to your Anthropic account to enable AI replies.'
+          : 'Could not generate. Please retry.')
       setAiError(msg)
     } finally { setAiLoading(false) }
   }
