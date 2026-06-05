@@ -12,6 +12,7 @@ import DashboardPage from './pages/DashboardPage'
 import RevenueEngine from './pages/RevenueEngine'
 import ControlWall from './pages/ControlWall'
 import ComingSoon from './pages/ComingSoon'
+import Organizer from './pages/Organizer'
 import ProfilePage from './pages/ProfilePage'
 import ReviewsPage from './pages/ReviewsPage'
 import PortfolioPage from './pages/PortfolioPage'
@@ -173,7 +174,7 @@ function Portal() {
     materials:          <ComingSoon feature="material_requests" onNavigate={navigate} />,
     expenses:           <ComingSoon feature="site_expenses" onNavigate={navigate} />,
     aiassistant:        <ComingSoon feature="ai_assistant" onNavigate={navigate} />,
-    organizer:          <ComingSoon feature="my_organizer" onNavigate={navigate} />,
+    organizer:          <Organizer onNavigate={navigate} />,
     quotations:         <Quotations subRoute={subRoute} setSubRoute={setPageSub} />,
     quoteSettings:      <QuoteSettings />,
     sponsored:          <SponsoredPage onNavigate={navigate} />,
