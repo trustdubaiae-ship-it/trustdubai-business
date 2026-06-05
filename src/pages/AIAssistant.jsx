@@ -31,6 +31,8 @@ export default function AIAssistant({ onNavigate }) {
   const [active, setActive] = useState(null)     // selected lead id
   const [ai, setAi] = useState({})               // { [leadId]: {reply, score, temperature, reason, loading, error, edited} }
   const [toast, setToast] = useState('')
+  const [search, setSearch] = useState('')
+  const [filter, setFilter] = useState('all')    // all | hot | warm | cold
 
   useEffect(() => { if (company?.id != null) load() }, [company?.id])
 
@@ -124,8 +126,44 @@ export default function AIAssistant({ onNavigate }) {
       ) : (
         <div style={{ display:'grid', gridTemplateColumns:'minmax(0,300px) minmax(0,1fr)', gap:16, alignItems:'start' }}>
           {/* lead list */}
-          <div style={{ display:'flex', flexDirection:'column', gap:6, maxHeight:'72vh', overflowY:'auto' }}>
-            {leads.map(l => {
+          <div style={{ display:'flex', flexDirection:'column', gap:8, maxHeight:'74vh' }}>
+            {/* search */}
+            <div style={{ display:'flex', alignItems:'center', gap:7, background:'var(--card)', border:'1px solid var(--border)', borderRadius:10, padding:'8px 11px' }}>
+              <i className="ti ti-search" style={{ fontSize:14, color:'var(--text3)' }}/>
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search leads…"
+                style={{ border:'none', background:'none', outline:'none', fontSize:13, width:'100%', color:'var(--text)' }}/>
+              {search && <i className="ti ti-x" onClick={() => setSearch('')} style={{ fontSize:14, color:'var(--text3)', cursor:'pointer' }}/>}
+            </div>
+            {/* filter chips */}
+            <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+              {[['all','All'],['hot','Hot'],['warm','Warm'],['cold','Cold']].map(([k,label]) => {
+                const on = filter === k
+                const c = TEMP[k]?.color || '#22c55e'
+                return (
+                  <button key={k} onClick={() => setFilter(k)}
+                    style={{ fontSize:11.5, fontWeight:600, padding:'5px 11px', borderRadius:8, cursor:'pointer',
+                      background: on ? (TEMP[k]?.bg || 'rgba(34,197,94,0.12)') : 'transparent',
+                      color: on ? c : 'var(--text2)', border: on ? `1px solid ${c}` : '1px solid var(--border)' }}>
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+            {/* list (scrolls) */}
+            <div style={{ display:'flex', flexDirection:'column', gap:6, overflowY:'auto', paddingRight:2 }}>
+            {leads
+              .filter(l => {
+                const q = search.trim().toLowerCase()
+                if (q) {
+                  const hay = `${field(l,['name'])} ${field(l,['message','enquiry','note','notes'])} ${field(l,['phone'])}`.toLowerCase()
+                  if (!hay.includes(q)) return false
+                }
+                if (filter !== 'all') {
+                  if (ai[l.id]?.temperature !== filter) return false
+                }
+                return true
+              })
+              .map(l => {
               const on = l.id === active
               const nm = field(l, ['name']) || 'Unknown'
               const msg = field(l, ['message','enquiry','note','notes'])
@@ -141,6 +179,7 @@ export default function AIAssistant({ onNavigate }) {
                 </div>
               )
             })}
+            </div>
           </div>
 
           {/* detail + AI */}
