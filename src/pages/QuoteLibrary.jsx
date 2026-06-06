@@ -7,10 +7,11 @@ import { supabase } from '../lib/supabase'
    DESCRIPTION LIBRARY — reusable BOQ line items.
    Save full descriptions once (trade + description + unit + default rate),
    then reuse them in quotations (autocomplete) instead of re-typing.
+   Trades: 10 defaults + add your own ("+ New trade" in the modal).
    Per-company, owner-only (RLS on quote_library). Responsive + light/dark.
    ========================================================================= */
 
-const TRADES = [
+const DEFAULT_TRADES = [
   'Civil', 'Electrical', 'Plumbing', 'HVAC / AC', 'False Ceiling',
   'Flooring', 'Painting', 'Joinery', 'Sanitary', 'Misc',
 ]
@@ -18,6 +19,14 @@ const TRADE_COLOR = {
   'Civil':'#a16207','Electrical':'#d97706','Plumbing':'#0891b2','HVAC / AC':'#0284c7',
   'False Ceiling':'#7c3aed','Flooring':'#c026d3','Painting':'#db2777','Joinery':'#b45309',
   'Sanitary':'#0d9488','Misc':'#64748b',
+}
+// stable color for custom trades
+const PALETTE = ['#2563eb','#16a34a','#dc2626','#9333ea','#ea580c','#0891b2','#7c3aed','#db2777','#0d9488','#a16207','#0284c7','#c026d3']
+function tradeColor(name) {
+  if (TRADE_COLOR[name]) return TRADE_COLOR[name]
+  let h = 0
+  for (const ch of (name || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0
+  return PALETTE[h % PALETTE.length]
 }
 const UNITS = ['nos','m²','m³','lm','sqft','set','ls','kg','point','panel','door','job']
 
@@ -61,7 +70,7 @@ export default function QuoteLibrary() {
       const row = {
         company_id: companyId,
         owner_email: ownerEmail,
-        trade_section: form.trade_section || 'Misc',
+        trade_section: (form.trade_section || 'Misc').trim(),
         label: form.label?.trim() || null,
         description: form.description.trim(),
         unit: form.unit || null,
@@ -104,7 +113,18 @@ export default function QuoteLibrary() {
   })
 
   // counts per trade for filter chips
-  const tradeCounts = items.reduce((acc, it) => { acc[it.trade_section] = (acc[it.trade_section]||0)+1; return acc }, {})
+  const tradeCounts = items.reduce((acc, it) => { const t = it.trade_section || 'Misc'; acc[t] = (acc[t]||0)+1; return acc }, {})
+  // chips: defaults that are used first, then custom trades (sorted)
+  const usedTrades = Object.keys(tradeCounts)
+  const chipTrades = [
+    ...DEFAULT_TRADES.filter(t => tradeCounts[t]),
+    ...usedTrades.filter(t => !DEFAULT_TRADES.includes(t)).sort(),
+  ]
+  // all known trades for the modal dropdown (defaults + any custom already in use)
+  const knownTrades = [
+    ...DEFAULT_TRADES,
+    ...usedTrades.filter(t => !DEFAULT_TRADES.includes(t)).sort(),
+  ]
 
   return (
     <div style={{ maxWidth: 1080, margin: '0 auto' }}>
@@ -121,7 +141,7 @@ export default function QuoteLibrary() {
         </button>
       </div>
 
-      {/* search + trade filter */}
+      {/* search */}
       <div style={{ display:'flex', gap:10, flexWrap:'wrap', alignItems:'center', marginBottom:14 }}>
         <div style={{ display:'flex', alignItems:'center', gap:7, background:'var(--card)', border:'1px solid var(--border)', borderRadius:10, padding:'8px 12px', flex:1, minWidth:200 }}>
           <i className="ti ti-search" style={{ fontSize:14, color:'var(--text3)' }}/>
@@ -130,10 +150,11 @@ export default function QuoteLibrary() {
           {search && <i className="ti ti-x" onClick={() => setSearch('')} style={{ fontSize:14, color:'var(--text3)', cursor:'pointer' }}/>}
         </div>
       </div>
+      {/* trade filter chips */}
       <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:16 }}>
         <Chip on={trade==='all'} onClick={() => setTrade('all')} color={ACCENT}>All <span style={{ opacity:.7 }}>{items.length}</span></Chip>
-        {TRADES.filter(t => tradeCounts[t]).map(t => (
-          <Chip key={t} on={trade===t} onClick={() => setTrade(t)} color={TRADE_COLOR[t]}>{t} <span style={{ opacity:.7 }}>{tradeCounts[t]}</span></Chip>
+        {chipTrades.map(t => (
+          <Chip key={t} on={trade===t} onClick={() => setTrade(t)} color={tradeColor(t)}>{t} <span style={{ opacity:.7 }}>{tradeCounts[t]}</span></Chip>
         ))}
       </div>
 
@@ -157,7 +178,7 @@ export default function QuoteLibrary() {
       ) : (
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:12 }}>
           {filtered.map(it => {
-            const c = TRADE_COLOR[it.trade_section] || '#64748b'
+            const c = tradeColor(it.trade_section)
             return (
               <div key={it.id} style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:14, padding:'14px 15px', display:'flex', flexDirection:'column', gap:9 }}>
                 <div style={{ display:'flex', alignItems:'center', gap:8 }}>
@@ -180,7 +201,7 @@ export default function QuoteLibrary() {
       )}
 
       {/* add/edit modal */}
-      {modal && <ItemModal initial={modal} saving={saving} onClose={() => setModal(null)} onSave={saveItem} />}
+      {modal && <ItemModal initial={modal} knownTrades={knownTrades} saving={saving} onClose={() => setModal(null)} onSave={saveItem} />}
 
       {toast && <div style={{ position:'fixed', bottom:24, left:'50%', transform:'translateX(-50%)', background:'#0f172a', color:'#fff', padding:'10px 18px', borderRadius:10, fontSize:13, fontWeight:600, zIndex:300 }}>{toast}</div>}
     </div>
@@ -197,16 +218,29 @@ function Chip({ on, onClick, color, children }) {
   )
 }
 
-function ItemModal({ initial, saving, onClose, onSave }) {
+function ItemModal({ initial, knownTrades, saving, onClose, onSave }) {
   const [form, setForm] = useState({
     id: initial.id || null,
-    trade_section: initial.trade_section || 'Civil',
+    trade_section: initial.trade_section || (knownTrades[0] || 'Civil'),
     label: initial.label || '',
     description: initial.description || '',
     unit: initial.unit || 'nos',
     default_rate: initial.default_rate != null ? initial.default_rate : '',
   })
+  const [addingTrade, setAddingTrade] = useState(false)
+  const [newTrade, setNewTrade] = useState('')
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  // make sure the current value is always an option (e.g. editing a custom trade)
+  const tradeOptions = knownTrades.includes(form.trade_section) || !form.trade_section
+    ? knownTrades : [...knownTrades, form.trade_section]
+
+  function confirmNewTrade() {
+    const t = newTrade.trim()
+    if (!t) return
+    set('trade_section', t)
+    setNewTrade(''); setAddingTrade(false)
+  }
 
   return (
     <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:200, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
@@ -218,9 +252,22 @@ function ItemModal({ initial, saving, onClose, onSave }) {
         </div>
 
         <Field label="Trade section">
-          <select value={form.trade_section} onChange={e => set('trade_section', e.target.value)} style={inputStyle}>
-            {TRADES.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
+          {addingTrade ? (
+            <div style={{ display:'flex', gap:8 }}>
+              <input autoFocus value={newTrade} onChange={e => setNewTrade(e.target.value)} placeholder="New trade name (e.g. Glass & Mirror)"
+                onKeyDown={e => { if (e.key==='Enter') confirmNewTrade(); if (e.key==='Escape') { setAddingTrade(false); setNewTrade('') } }}
+                style={{ ...inputStyle, flex:1 }}/>
+              <button onClick={confirmNewTrade} disabled={!newTrade.trim()} style={{ ...btnPrimary, padding:'9px 13px', opacity:newTrade.trim()?1:0.5 }}><i className="ti ti-check" style={{ fontSize:15 }}/></button>
+              <button onClick={() => { setAddingTrade(false); setNewTrade('') }} style={{ ...btnGhost, padding:'9px 12px' }}><i className="ti ti-x" style={{ fontSize:15 }}/></button>
+            </div>
+          ) : (
+            <select value={form.trade_section}
+              onChange={e => { if (e.target.value === '__new__') { setAddingTrade(true) } else { set('trade_section', e.target.value) } }}
+              style={inputStyle}>
+              {tradeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+              <option value="__new__">+ New trade…</option>
+            </select>
+          )}
         </Field>
 
         <Field label="Short label (optional)">
