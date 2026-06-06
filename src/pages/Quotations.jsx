@@ -1076,7 +1076,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
               </div>
             )}
             <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap' }}>
-              <select value={voAddTrade} onChange={e=>setVoAddTrade(e.target.value)} style={{ ...inputStyle, flex:1, minWidth:180 }}>
+              <select value={voAddTrade} onChange={e=>setVoAddTrade(e.target.value)} style={{ ...inputStyle, width:'auto', flex:'0 1 auto', minWidth:200, maxWidth:300 }}>
                 <option value="">{voGroups.length === 0 ? 'Select a trade section...' : '+ Add a trade section...'}</option>
                 {voAvailTrades.map(t => <option key={t} value={t} style={{ background:inputBg, color:text }}>{t}</option>)}
               </select>
@@ -1470,7 +1470,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
               </div>
             )}
             <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap' }}>
-              <select value={addTradePick} onChange={e=>setAddTradePick(e.target.value)} style={{ ...inputStyle, flex:1, minWidth:180 }}>
+              <select value={addTradePick} onChange={e=>setAddTradePick(e.target.value)} style={{ ...inputStyle, width:'auto', flex:'0 1 auto', minWidth:200, maxWidth:300 }}>
                 <option value="">{boqGroups.length === 0 ? 'Select a trade section...' : '+ Add a trade section...'}</option>
                 {availableTrades.map(t => <option key={t} value={t} style={{ background:inputBg, color:text }}>{t}</option>)}
               </select>
