@@ -5,8 +5,9 @@ import { supabase } from '../lib/supabase'
 
 /* =========================================================================
    AI ASSISTANT — lead conversation thread + AI suggested reply.
-   - Left: searchable / filterable lead list
-   - Right: chat thread (in/out) + AI suggestion (reads full thread) + composer
+   - Left: searchable / filterable lead list (full height)
+   - Right: tall conversation panel — header + thread (fills height) +
+     AI suggested-reply CARD + composer + quick "lead replied" input.
    Calls Edge Function 'smart-function'. Stores thread in lead_conversations.
    Fully responsive + light/dark. Gated by CRM/AI add-on (sidebar).
    ========================================================================= */
@@ -36,16 +37,16 @@ export default function AIAssistant({ onNavigate }) {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
 
-  const [thread, setThread] = useState([])         // conversation rows for active lead
+  const [thread, setThread] = useState([])
   const [threadLoading, setThreadLoading] = useState(false)
-  const [scoreMap, setScoreMap] = useState({})     // { leadId: {score, temperature} }
+  const [scoreMap, setScoreMap] = useState({})
 
-  const [suggestion, setSuggestion] = useState('') // AI suggested reply text
+  const [suggestion, setSuggestion] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
 
-  const [draft, setDraft] = useState('')           // composer text
-  const [incoming, setIncoming] = useState('')     // quick "lead said" box
+  const [draft, setDraft] = useState('')
+  const [incoming, setIncoming] = useState('')
   const [toast, setToast] = useState('')
   const threadEndRef = useRef(null)
 
@@ -68,14 +69,13 @@ export default function AIAssistant({ onNavigate }) {
   }
 
   async function loadThread(leadId) {
-    setThreadLoading(true); setSuggestion(''); setAiError('')
+    setThreadLoading(true); setSuggestion(''); setAiError(''); setDraft('')
     try {
       const { data, error } = await supabase
         .from('lead_conversations').select('*')
         .eq('lead_id', leadId).order('created_at', { ascending: true })
       if (error) throw error
       let rows = data || []
-      // seed first incoming from the lead's original message if thread empty
       if (rows.length === 0) {
         const lead = leads.find(l => l.id === leadId)
         const firstMsg = lead ? field(lead, ['message','enquiry','note','notes']) : ''
@@ -107,7 +107,6 @@ export default function AIAssistant({ onNavigate }) {
     setAiLoading(true); setAiError(''); setSuggestion('')
     try {
       const lead = leads.find(l => l.id === active)
-      // build conversation text for context
       const convo = thread.map(m => `${m.direction === 'in' ? 'Customer' : 'Us'}: ${m.message}`).join('\n')
       const payload = {
         action: 'both',
@@ -134,7 +133,6 @@ export default function AIAssistant({ onNavigate }) {
         const e = new Error(msg); e.handled = true; throw e
       }
       setSuggestion(data.reply || '')
-      setDraft(data.reply || '')
       if (data.score != null || data.temperature) {
         setScoreMap(s => ({ ...s, [active]: { score: data.score, temperature: data.temperature } }))
       }
@@ -158,10 +156,28 @@ export default function AIAssistant({ onNavigate }) {
     setDraft(''); setSuggestion('')
   }
 
+  function useSuggestion() { if (suggestion) { setDraft(suggestion); showToast('Added to your reply') } }
+
   const activeLead = leads.find(l => l.id === active) || null
+  const at = scoreMap[active]?.temperature ? TEMP[scoreMap[active].temperature] : null
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+    <div style={{ maxWidth: 1180, margin: '0 auto' }}>
+      <style>{`
+        .aia-grid{display:grid;grid-template-columns:minmax(0,290px) minmax(0,1fr);gap:14px;align-items:stretch;height:calc(100vh - 200px);min-height:540px;max-height:880px}
+        .aia-list{display:flex;flex-direction:column;gap:8px;min-height:0}
+        .aia-list-scroll{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:2px}
+        .aia-panel{display:flex;flex-direction:column;background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;min-width:0}
+        .aia-thread{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;background:var(--bg2,rgba(127,127,127,0.03))}
+        @media(max-width:760px){
+          .aia-grid{grid-template-columns:1fr;height:auto;max-height:none}
+          .aia-list-scroll{max-height:220px;flex:none}
+          .aia-panel{min-height:64vh}
+          .aia-thread{min-height:38vh}
+        }
+        @keyframes spin{to{transform:rotate(360deg)}}
+      `}</style>
+
       <div style={{ marginBottom: 14 }}>
         <h1 style={{ fontSize:'clamp(20px,5vw,26px)', fontWeight:800, color:'var(--text)', margin:0, display:'flex', alignItems:'center', gap:9 }}>
           <i className="ti ti-robot" style={{ color:'#22c55e' }}/> AI Assistant
@@ -174,9 +190,9 @@ export default function AIAssistant({ onNavigate }) {
       ) : leads.length === 0 ? (
         <Empty onNavigate={onNavigate}/>
       ) : (
-        <div style={{ display:'grid', gridTemplateColumns:'minmax(0,300px) minmax(0,1fr)', gap:14, alignItems:'start' }}>
-          {/* lead list */}
-          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+        <div className="aia-grid">
+          {/* ---- lead list ---- */}
+          <div className="aia-list">
             <div style={{ display:'flex', alignItems:'center', gap:7, background:'var(--card)', border:'1px solid var(--border)', borderRadius:10, padding:'8px 11px' }}>
               <i className="ti ti-search" style={{ fontSize:14, color:'var(--text3)' }}/>
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search leads…"
@@ -194,7 +210,7 @@ export default function AIAssistant({ onNavigate }) {
                 )
               })}
             </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:6, maxHeight:'66vh', overflowY:'auto', paddingRight:2 }}>
+            <div className="aia-list-scroll">
               {leads.filter(l => {
                 const q = search.trim().toLowerCase()
                 if (q) {
@@ -210,10 +226,10 @@ export default function AIAssistant({ onNavigate }) {
                 const t = scoreMap[l.id]?.temperature ? TEMP[scoreMap[l.id].temperature] : null
                 return (
                   <div key={l.id} onClick={() => setActive(l.id)}
-                    style={{ background:'var(--card)', border: on?'1.5px solid #22c55e':'1px solid var(--border)', borderRadius:12, padding:'11px 13px', cursor:'pointer' }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:3 }}>
-                      <span style={{ fontSize:13.5, fontWeight:700, color:'var(--text)', flex:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{nm}</span>
-                      {t && <span style={{ fontSize:9.5, fontWeight:700, color:t.color, background:t.bg, borderRadius:99, padding:'1px 7px' }}>{scoreMap[l.id].score ?? ''} {t.label}</span>}
+                    style={{ background:'var(--card)', border: on?'1.5px solid #22c55e':'1px solid var(--border)', borderRadius:12, padding:'10px 12px', cursor:'pointer' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom: msg?3:0 }}>
+                      <span style={{ fontSize:13.5, fontWeight:700, color: on?'var(--text)':'var(--text)', flex:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{nm}</span>
+                      {t && <span style={{ fontSize:9.5, fontWeight:700, color:t.color, background:t.bg, borderRadius:99, padding:'1px 7px', flexShrink:0 }}>{scoreMap[l.id].score ?? ''} {t.label}</span>}
                     </div>
                     {msg && <div style={{ fontSize:11.5, color:'var(--text2)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{msg}</div>}
                   </div>
@@ -222,13 +238,13 @@ export default function AIAssistant({ onNavigate }) {
             </div>
           </div>
 
-          {/* conversation panel */}
+          {/* ---- conversation panel ---- */}
           {!activeLead ? (
-            <div style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:16, padding:40, textAlign:'center', color:'var(--text2)' }}>Select a lead.</div>
+            <div className="aia-panel" style={{ alignItems:'center', justifyContent:'center', color:'var(--text2)' }}>Select a lead.</div>
           ) : (
-            <div style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:16, display:'flex', flexDirection:'column', overflow:'hidden', minHeight:480 }}>
+            <div className="aia-panel">
               {/* header */}
-              <div style={{ display:'flex', alignItems:'center', gap:11, padding:'13px 16px', borderBottom:'1px solid var(--border)' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:11, padding:'13px 16px', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
                 <span style={{ width:40, height:40, borderRadius:'50%', background:'rgba(34,197,94,0.14)', color:'#16a34a', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:15, flexShrink:0 }}>
                   {(field(activeLead,['name'])||'?')[0].toUpperCase()}
                 </span>
@@ -236,22 +252,27 @@ export default function AIAssistant({ onNavigate }) {
                   <div style={{ fontSize:15, fontWeight:700, color:'var(--text)' }}>{field(activeLead,['name'])||'Unknown'}</div>
                   <div style={{ fontSize:11.5, color:'var(--text2)' }}>{[field(activeLead,['phone']), field(activeLead,['area','location'])].filter(Boolean).join(' · ') || 'No contact info'}</div>
                 </div>
-                {scoreMap[active]?.temperature && (
-                  <span style={{ fontSize:11, fontWeight:700, color:TEMP[scoreMap[active].temperature].color, background:TEMP[scoreMap[active].temperature].bg, borderRadius:99, padding:'4px 12px' }}>
-                    {scoreMap[active].score != null ? `${scoreMap[active].score} · ` : ''}{TEMP[scoreMap[active].temperature].label}
+                {at && (
+                  <span style={{ fontSize:11, fontWeight:700, color:at.color, background:at.bg, borderRadius:99, padding:'4px 12px', flexShrink:0 }}>
+                    {scoreMap[active].score != null ? `${scoreMap[active].score} · ` : ''}{at.label}
                   </span>
                 )}
               </div>
 
-              {/* thread */}
-              <div style={{ flex:1, padding:16, display:'flex', flexDirection:'column', gap:10, overflowY:'auto', maxHeight:'42vh', background:'var(--bg2,rgba(127,127,127,0.03))' }}>
+              {/* thread — fills available height */}
+              <div className="aia-thread">
                 {threadLoading ? <div style={{ textAlign:'center', color:'var(--text3)', fontSize:12, padding:20 }}>Loading…</div>
-                : thread.length === 0 ? <div style={{ textAlign:'center', color:'var(--text3)', fontSize:12.5, padding:20 }}>No messages yet. Add what the lead said below.</div>
+                : thread.length === 0 ? (
+                  <div style={{ margin:'auto', textAlign:'center', color:'var(--text3)', fontSize:12.5, maxWidth:260 }}>
+                    <i className="ti ti-message-2" style={{ fontSize:30, display:'block', marginBottom:8, opacity:.6 }}/>
+                    No messages yet. Add what the lead said using the box below, then let AI suggest a reply.
+                  </div>
+                )
                 : thread.map(m => {
                   const out = m.direction === 'out'
                   return (
                     <div key={m.id} style={{ display:'flex', justifyContent: out?'flex-end':'flex-start' }}>
-                      <div style={{ maxWidth:'78%', padding:'9px 12px', borderRadius:14, fontSize:13, lineHeight:1.45,
+                      <div style={{ maxWidth:'76%', padding:'9px 13px', borderRadius:15, fontSize:13.5, lineHeight:1.5,
                         ...(out ? { background:'#22c55e', color:'#fff', borderBottomRightRadius:4 }
                                 : { background:'var(--card)', color:'var(--text)', border:'1px solid var(--border)', borderBottomLeftRadius:4 }) }}>
                         {m.message}
@@ -263,50 +284,55 @@ export default function AIAssistant({ onNavigate }) {
                 <div ref={threadEndRef}/>
               </div>
 
-              {/* AI suggestion */}
-              <div style={{ borderTop:'1px solid var(--border)', padding:'12px 14px', background:'var(--card)' }}>
-                {aiError ? (
-                  <div style={{ background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.25)', borderRadius:10, padding:'11px 13px', marginBottom:10 }}>
+              {/* AI suggested reply zone */}
+              {aiError ? (
+                <div style={{ borderTop:'1px solid var(--border)', padding:'12px 14px', flexShrink:0 }}>
+                  <div style={{ background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.25)', borderRadius:10, padding:'11px 13px' }}>
                     <div style={{ fontSize:12.5, color:'#ef4444', fontWeight:600, marginBottom:6 }}><i className="ti ti-alert-triangle" style={{ verticalAlign:'-2px' }}/> {aiError}</div>
                     <button onClick={suggestReply} style={btnGhost}><i className="ti ti-refresh" style={{ fontSize:14 }}/> Retry</button>
                   </div>
-                ) : suggestion ? (
-                  <div style={{ marginBottom:10 }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:6 }}>
-                      <i className="ti ti-sparkles" style={{ fontSize:13, color:'#22c55e' }}/>
-                      <span style={{ fontSize:10.5, fontWeight:700, color:'#22c55e', textTransform:'uppercase', letterSpacing:'.05em' }}>AI suggested reply</span>
-                      <span style={{ fontSize:10, color:'var(--text3)', marginLeft:'auto' }}>reads full conversation</span>
-                    </div>
-                  </div>
-                ) : null}
-
-                <div style={{ display:'flex', gap:8, marginBottom:10 }}>
-                  <button onClick={suggestReply} disabled={aiLoading} style={{ ...btnPrimary, flex:'0 0 auto' }}>
-                    {aiLoading ? <><span style={{ width:14, height:14, border:'2px solid #fff', borderTopColor:'transparent', borderRadius:'50%', display:'inline-block', animation:'spin .8s linear infinite' }}/> Thinking…</>
-                      : <><i className="ti ti-sparkles" style={{ fontSize:15 }}/> Suggest reply</>}
-                  </button>
-                  <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
                 </div>
+              ) : suggestion ? (
+                <div style={{ borderTop:'1px solid var(--border)', padding:'12px 14px', background:'rgba(34,197,94,0.05)', flexShrink:0 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:7 }}>
+                    <i className="ti ti-sparkles" style={{ fontSize:13, color:'#16a34a' }}/>
+                    <span style={{ fontSize:10.5, fontWeight:800, color:'#16a34a', textTransform:'uppercase', letterSpacing:'.05em' }}>AI suggested reply</span>
+                    <span style={{ fontSize:10, color:'var(--text3)', marginLeft:'auto' }}>reads full thread</span>
+                  </div>
+                  <div style={{ fontSize:13.5, color:'var(--text)', lineHeight:1.55, background:'var(--card)', border:'1px solid rgba(34,197,94,0.3)', borderRadius:10, padding:'10px 12px' }}>{suggestion}</div>
+                  <div style={{ display:'flex', gap:8, marginTop:8, flexWrap:'wrap' }}>
+                    <button onClick={useSuggestion} style={btnPrimary}><i className="ti ti-arrow-down" style={{ fontSize:15 }}/> Use this</button>
+                    <button onClick={suggestReply} disabled={aiLoading} style={{ ...btnGhost, opacity: aiLoading?0.6:1 }}>
+                      {aiLoading ? <><span style={spinDot}/> Thinking…</> : <><i className="ti ti-refresh" style={{ fontSize:14 }}/> Regenerate</>}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ borderTop:'1px solid var(--border)', padding:'10px 14px', flexShrink:0 }}>
+                  <button onClick={suggestReply} disabled={aiLoading} style={{ ...btnPrimary, width:'100%', justifyContent:'center', padding:'11px 16px' }}>
+                    {aiLoading ? <><span style={spinDot}/> Thinking…</> : <><i className="ti ti-sparkles" style={{ fontSize:16 }}/> Suggest reply</>}
+                  </button>
+                </div>
+              )}
 
-                {/* composer */}
-                <textarea value={draft} onChange={e => setDraft(e.target.value)} rows={2} placeholder="Type your reply… (or use AI suggestion above)"
-                  style={{ width:'100%', background:'var(--bg2,rgba(127,127,127,0.05))', border:'1px solid var(--border)', borderRadius:10, padding:'10px 12px', fontSize:13.5, color:'var(--text)', resize:'vertical', minHeight:54, outline:'none', boxSizing:'border-box', fontFamily:'inherit', marginBottom:8 }}/>
-                <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+              {/* composer */}
+              <div style={{ borderTop:'1px solid var(--border)', padding:'12px 14px', background:'var(--card)', flexShrink:0 }}>
+                <textarea value={draft} onChange={e => setDraft(e.target.value)} rows={2} placeholder="Type your reply… or tap 'Use this' above"
+                  style={{ width:'100%', background:'var(--bg2,rgba(127,127,127,0.05))', border:'1px solid var(--border)', borderRadius:10, padding:'10px 12px', fontSize:13.5, color:'var(--text)', resize:'vertical', minHeight:52, outline:'none', boxSizing:'border-box', fontFamily:'inherit', marginBottom:8 }}/>
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
                   <button onClick={sendReply} disabled={!draft.trim()} style={{ ...btnPrimary, opacity: draft.trim()?1:0.5 }}>
                     <i className="ti ti-brand-whatsapp" style={{ fontSize:16 }}/> Send on WhatsApp
                   </button>
                   <button onClick={() => { if (draft.trim()) { addMessage('out', draft, 'manual'); setDraft(''); setSuggestion('') } }} disabled={!draft.trim()} style={{ ...btnGhost, opacity: draft.trim()?1:0.5 }}>
                     <i className="ti ti-check" style={{ fontSize:15 }}/> Save only
                   </button>
-                </div>
-
-                {/* quick add incoming */}
-                <div style={{ display:'flex', gap:8, marginTop:10, alignItems:'center' }}>
-                  <input value={incoming} onChange={e => setIncoming(e.target.value)} placeholder="What the lead said (incoming)…"
-                    onKeyDown={e => { if (e.key==='Enter' && incoming.trim()) { addMessage('in', incoming, 'manual'); setIncoming('') } }}
-                    style={{ flex:1, background:'transparent', border:'1px dashed var(--border)', borderRadius:9, padding:'8px 11px', fontSize:12.5, color:'var(--text)', outline:'none' }}/>
-                  <button onClick={() => { if (incoming.trim()) { addMessage('in', incoming, 'manual'); setIncoming('') } }} disabled={!incoming.trim()}
-                    style={{ ...btnGhost, padding:'8px 12px', opacity: incoming.trim()?1:0.5 }}>+ Add</button>
+                  <div style={{ flex:1, minWidth:170, display:'flex', gap:6, alignItems:'center', marginLeft:'auto' }}>
+                    <input value={incoming} onChange={e => setIncoming(e.target.value)} placeholder="Lead replied… (incoming)"
+                      onKeyDown={e => { if (e.key==='Enter' && incoming.trim()) { addMessage('in', incoming, 'manual'); setIncoming('') } }}
+                      style={{ flex:1, background:'transparent', border:'1px dashed var(--border)', borderRadius:9, padding:'8px 11px', fontSize:12.5, color:'var(--text)', outline:'none', minWidth:0 }}/>
+                    <button onClick={() => { if (incoming.trim()) { addMessage('in', incoming, 'manual'); setIncoming('') } }} disabled={!incoming.trim()}
+                      style={{ ...btnGhost, padding:'8px 11px', opacity: incoming.trim()?1:0.5 }}><i className="ti ti-plus" style={{ fontSize:14 }}/></button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -340,3 +366,4 @@ function Empty({ onNavigate }) {
 
 const btnPrimary = { display:'inline-flex', alignItems:'center', gap:6, padding:'10px 16px', borderRadius:10, border:'none', background:'#22c55e', color:'#fff', fontSize:13.5, fontWeight:600, cursor:'pointer' }
 const btnGhost = { display:'inline-flex', alignItems:'center', gap:6, padding:'10px 14px', borderRadius:10, border:'1px solid var(--border)', background:'transparent', color:'var(--text)', fontSize:13.5, fontWeight:600, cursor:'pointer' }
+const spinDot = { width:14, height:14, border:'2px solid #fff', borderTopColor:'transparent', borderRadius:'50%', display:'inline-block', animation:'spin .8s linear infinite' }
