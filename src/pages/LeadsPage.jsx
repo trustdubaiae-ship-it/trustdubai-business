@@ -37,10 +37,14 @@ const STATUS_MAP = {
 const DIST_TO_PAGE = { assigned:'new', viewed:'qualified', contacted:'in_conversation', quoted:'proposal_given', won:'won', lost:'lost', transferred:'lost' }
 const PAGE_TO_DIST = { new:'assigned', qualified:'viewed', in_conversation:'contacted', proposal_given:'quoted', won:'won', lost:'lost' }
 
+// Public site base (where the shareable lead form lives) — NOT the business portal origin
+const PUBLIC_BASE = 'https://trustdubai.ae'
+
 const SOURCE_CARDS = [
-  { key:'meta',     label:'Meta',     icon:'ti-brand-meta',     color:'#3b82f6' },
-  { key:'whatsapp', label:'WhatsApp', icon:'ti-brand-whatsapp', color:'#22c55e' },
-  { key:'own',      label:'Manual',   icon:'ti-user-plus',      color:'#8b5cf6' },
+  { key:'meta',     label:'Meta',        icon:'ti-brand-meta',     color:'#3b82f6' },
+  { key:'whatsapp', label:'WhatsApp',    icon:'ti-brand-whatsapp', color:'#22c55e' },
+  { key:'public',   label:'Public / QR', icon:'ti-qrcode',         color:'#0891b2' },
+  { key:'own',      label:'Manual',      icon:'ti-user-plus',      color:'#8b5cf6' },
 ]
 
 const LEAD_SOURCES = ['Meta Ads','WhatsApp','Instagram','Referral','Walk-in','Website','Direct Call','Holiday Home Operator','Other']
@@ -90,6 +94,10 @@ export default function LeadsPage() {
   const [quickFilter, setQuickFilter] = useState('')
   const [mobileStage, setMobileStage] = useState('new')
   const [dragId, setDragId] = useState(null)
+
+  // Share + QR
+  const [shareForm, setShareForm] = useState(null)
+  const [copied, setCopied] = useState(false)
 
   const [openLead, setOpenLead] = useState(null)
   const [timeline, setTimeline] = useState([])
@@ -181,6 +189,9 @@ export default function LeadsPage() {
     if (toInsert.length > 0) await supabase.from('lead_form_questions').insert(toInsert)
     await fetchAll(); setSaving(false); toast.success('Form saved!')
   }
+
+  function openShare(form) { setShareForm(form); setCopied(false) }
+  function closeShare() { setShareForm(null) }
 
   function openAdd() { setAddF(blankAdd); setAddMore(false); setShowAdd(true) }
   function closeAdd() { setShowAdd(false) }
@@ -518,7 +529,7 @@ export default function LeadsPage() {
   }
   function unifyOwn(s) {
     return { key: 'own-' + s.id, subId: s.id, distId: null, isPlatform: false, rank: null,
-      name: s.name, phone: s.phone, email: s.email, answers: s.answers || {},
+      name: s.name, phone: s.phone, email: s.email, answers: s.answers || {}, source: s.source || null,
       status: s.status || 'new', created_at: s.created_at,
       follow_up_date: s.follow_up_date, notes: s.notes, temperature: s.temperature || 'warm' }
   }
@@ -526,15 +537,19 @@ export default function LeadsPage() {
   const myLeads = submissions.map(unifyOwn)
 
   function mySource(lead) {
+    const col = (lead.source || '').toLowerCase()
+    if (col === 'public_form') return 'public'
     const src = (lead.answers?.Source || '').toLowerCase()
     if (src.includes('meta') || src.includes('facebook') || src.includes('instagram')) return 'meta'
     if (src.includes('whatsapp')) return 'whatsapp'
+    if (src.includes('qr') || src.includes('public form')) return 'public'
     return 'own'
   }
   const mySourceBadge = (lead) => {
     const k = mySource(lead)
     if (k === 'meta') return { label: 'Meta', color: '#3b82f6', bg: 'rgba(59,130,246,0.14)' }
     if (k === 'whatsapp') return { label: 'WhatsApp', color: '#22c55e', bg: 'rgba(34,197,94,0.14)' }
+    if (k === 'public') return { label: 'Public / QR', color: '#0891b2', bg: 'rgba(8,145,178,0.14)' }
     return { label: 'Manual', color: '#8b5cf6', bg: 'rgba(139,92,246,0.14)' }
   }
 
@@ -659,6 +674,97 @@ export default function LeadsPage() {
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
             <i className="ti ti-brand-whatsapp" style={{ fontSize: 13 }} /> WA
           </button>
+        </div>
+      </div>
+    )
+  }
+
+  function ShareModal() {
+    if (!shareForm) return null
+    const link = `${PUBLIC_BASE}/form/${shareForm.id}`
+    const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&margin=14&data=${encodeURIComponent(link)}`
+
+    async function copyLink() {
+      try {
+        await navigator.clipboard.writeText(link)
+        setCopied(true); setTimeout(() => setCopied(false), 1800)
+      } catch (e) {
+        const ta = document.createElement('textarea')
+        ta.value = link; ta.style.position = 'fixed'; ta.style.opacity = '0'
+        document.body.appendChild(ta); ta.select()
+        try { document.execCommand('copy'); setCopied(true); setTimeout(() => setCopied(false), 1800) } catch (e2) { toast.error('Could not copy link') }
+        document.body.removeChild(ta)
+      }
+    }
+
+    async function downloadQR() {
+      try {
+        const res = await fetch(qrSrc)
+        const blob = await res.blob()
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${(shareForm.title || 'form').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-qr.png`
+        document.body.appendChild(a); a.click(); document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+      } catch (e) {
+        window.open(qrSrc, '_blank')
+      }
+    }
+
+    function shareWhatsApp() {
+      const text = `Get a quote from ${company?.name || 'us'} — fill this quick form: ${link}`
+      window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank')
+    }
+
+    return (
+      <div onClick={closeShare} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 220, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: mobile ? 0 : '24px 16px', overflowY: 'auto' }}>
+        <div onClick={e => e.stopPropagation()} style={{ width: mobile ? '100%' : 460, minHeight: mobile ? '100%' : 'auto', background: 'var(--card)', borderRadius: mobile ? 0 : 14, border: '0.5px solid var(--border)' }}>
+
+          <div style={{ position: 'sticky', top: 0, zIndex: 5, background: 'var(--card)', padding: '14px 18px', paddingTop: mobile ? `calc(14px + ${SAFE_TOP})` : 14, borderBottom: '0.5px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: mobile ? 0 : '14px 14px 0 0' }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)' }}>Share &amp; QR</div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{shareForm.title}</div>
+            </div>
+            <button onClick={closeShare} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 20, flexShrink: 0, marginLeft: 10 }}><i className="ti ti-x" /></button>
+          </div>
+
+          <div style={{ padding: 18 }}>
+
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 18 }}>
+              <div style={{ background: '#fff', padding: 14, borderRadius: 14, border: '0.5px solid var(--border)' }}>
+                <img src={qrSrc} alt="Form QR code" width={210} height={210} style={{ display: 'block', width: 210, height: 210 }} />
+              </div>
+              <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 10, textAlign: 'center', maxWidth: 320, lineHeight: 1.5 }}>
+                Customers scan this to open your form — no app, no login. Leads land straight in <b style={{ color: 'var(--text2)' }}>My Leads</b>.
+              </div>
+            </div>
+
+            <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 6, letterSpacing: '.3px' }}>Public link</div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              <input readOnly value={link} onFocus={e => e.target.select()} style={{ flex: 1, padding: '10px 12px', ...inputStyle, fontSize: 12.5, boxSizing: 'border-box', minWidth: 0 }} />
+              <button onClick={copyLink} style={{ padding: '0 16px', borderRadius: 8, background: copied ? '#10b981' : '#0099cc', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+                <i className={'ti ' + (copied ? 'ti-check' : 'ti-copy')} style={{ fontSize: 14 }} /> {copied ? 'Copied' : 'Copy'}
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, paddingBottom: mobile ? `calc(4px + env(safe-area-inset-bottom))` : 0 }}>
+              <button onClick={downloadQR} style={{ padding: 11, borderRadius: 8, background: 'var(--bg2)', color: 'var(--text)', border: '0.5px solid var(--border)', cursor: 'pointer', fontSize: 12.5, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <i className="ti ti-download" style={{ fontSize: 15 }} /> Download QR
+              </button>
+              <button onClick={shareWhatsApp} style={{ padding: 11, borderRadius: 8, background: '#22c55e', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 12.5, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <i className="ti ti-brand-whatsapp" style={{ fontSize: 15 }} /> Share
+              </button>
+            </div>
+
+            {!shareForm.is_active && (
+              <div style={{ marginTop: 14, padding: '9px 12px', borderRadius: 8, background: 'rgba(245,158,11,0.1)', border: '0.5px solid rgba(245,158,11,0.3)', fontSize: 11.5, color: 'var(--text2)', display: 'flex', gap: 7, alignItems: 'flex-start' }}>
+                <i className="ti ti-info-circle" style={{ fontSize: 14, color: '#f59e0b', marginTop: 1, flexShrink: 0 }} />
+                <span>This link works fine even though the form isn't set as Active. Set it Active if you also want it shown on your public profile page.</span>
+              </div>
+            )}
+
+          </div>
         </div>
       </div>
     )
@@ -1170,6 +1276,7 @@ export default function LeadsPage() {
     <div className="animate-in" style={{ color: 'var(--text)' }}>
       <Modal />
       <AddLeadModal />
+      <ShareModal />
       <input ref={fileRef} type="file" accept=".csv" onChange={handleCSV} style={{ display: 'none' }} />
 
       <div style={{ marginBottom: 14 }}>
@@ -1221,7 +1328,7 @@ export default function LeadsPage() {
           {!editingForm ? (
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
-                <p style={{ fontSize: 13, color: 'var(--text2)' }}>Create lead capture forms to embed or share — submissions land in My Leads.</p>
+                <p style={{ fontSize: 13, color: 'var(--text2)' }}>Create lead capture forms to share via link or QR — submissions land in My Leads.</p>
                 <button className="btn btn-primary btn-sm" onClick={() => setShowNewForm(true)}>+ New Form</button>
               </div>
 
@@ -1241,7 +1348,7 @@ export default function LeadsPage() {
                 <div style={{ ...card, textAlign: 'center', padding: '60px 20px' }}>
                   <div style={{ fontSize: 48, marginBottom: 16 }}>📋</div>
                   <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 8, color: 'var(--text)' }}>No forms yet</h3>
-                  <p style={{ fontSize: 14, color: 'var(--text2)', marginBottom: 24 }}>Create your first lead form</p>
+                  <p style={{ fontSize: 14, color: 'var(--text2)', marginBottom: 24 }}>Create your first lead form, then share its link or QR</p>
                   <button className="btn btn-primary" onClick={() => setShowNewForm(true)}>+ Create Form</button>
                 </div>
               ) : (
@@ -1256,7 +1363,10 @@ export default function LeadsPage() {
                           </div>
                           <div style={{ fontSize: 12, color: 'var(--text3)' }}>Created {new Date(form.created_at).toLocaleDateString('en-AE')}</div>
                         </div>
-                        <div style={{ display: 'flex', gap: 8 }}>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          <button onClick={() => openShare(form)} style={{ padding: '7px 13px', background: '#0891b2', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12.5, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <i className="ti ti-qrcode" style={{ fontSize: 15 }} /> Share &amp; QR
+                          </button>
                           {!form.is_active && <button className="btn btn-sm btn-secondary" onClick={() => setActive(form.id)}>Set as Active</button>}
                           <button className="btn btn-sm btn-primary" onClick={() => openEditor(form)}>Edit</button>
                           <button onClick={() => deleteForm(form.id)} style={{ padding: '6px 10px', background: 'rgba(239,68,68,0.14)', color: '#ef4444', border: 'none', borderRadius: 6, cursor: 'pointer' }}><Trash2 size={14} /></button>
