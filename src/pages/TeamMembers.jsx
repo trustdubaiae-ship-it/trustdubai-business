@@ -80,10 +80,14 @@ export default function TeamMembers() {
   }
 
   return (
-    <div className="page-content animate-in" style={{ maxWidth: 860 }}>
+    <div className="animate-in" style={{ maxWidth: 820 }}>
       <style>{`
-        .tm-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; }
-        @media (max-width:640px){ .tm-grid{ grid-template-columns:1fr; } }
+        .tm-list { display:flex; flex-direction:column; gap:10px; }
+        .tm-row  { display:flex; align-items:center; gap:14px; }
+        .tm-actions { display:flex; gap:8px; flex-shrink:0; }
+        @media (max-width:560px){
+          .tm-row { align-items:flex-start; gap:12px; }
+        }
       `}</style>
 
       <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:6, flexWrap:'wrap', gap:10 }}>
@@ -115,38 +119,42 @@ export default function TeamMembers() {
           <p>Add your designers, engineers and key people. Verified members appear on your public profile.</p>
         </div>
       ) : (
-        <div className="tm-grid">
+        <div className="tm-list">
           {members.map(m => {
             const badge = EID_BADGE[m.eid_status] || EID_BADGE.pending
             const exp = expiryInfo(m.eid_expiry)
             return (
-              <div key={m.id} style={{ background:'var(--card-bg)', border:'1px solid var(--card-border)', borderRadius:14, padding:14, display:'flex', gap:12 }}>
-                <div style={{ width:56, height:56, borderRadius:12, background: m.photo_url ? 'transparent' : BRAND, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:20, flexShrink:0, overflow:'hidden' }}>
+              <div key={m.id} className="tm-row" style={{ background:'var(--card-bg)', border:'1px solid var(--card-border)', borderRadius:14, padding:'12px 16px' }}>
+                <div style={{ width:52, height:52, borderRadius:12, background: m.photo_url ? 'transparent' : BRAND, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:19, flexShrink:0, overflow:'hidden' }}>
                   {m.photo_url ? <img src={m.photo_url} alt={m.name} style={{ width:'100%', height:'100%', objectFit:'cover' }} /> : (m.name?.[0]?.toUpperCase() || '?')}
                 </div>
+
                 <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
                     <span style={{ fontWeight:700, color:'var(--text-primary)', fontSize:15, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{m.name}</span>
                     {m.is_verified && <i className="ti ti-rosette-discount-check-filled" style={{ color:'#15803d', fontSize:16 }} title="EID Verified" />}
+                    <span style={{ display:'inline-flex', alignItems:'center', gap:4, fontSize:10, fontWeight:600, padding:'2px 8px', borderRadius:99, background:badge.bg, color:badge.fg }}>
+                      <i className={`ti ${badge.icon}`} style={{ fontSize:11 }} /> {badge.label}
+                    </span>
                   </div>
-                  <div style={{ fontSize:12.5, color:'var(--text-secondary)', marginTop:1 }}>{m.role || '—'}</div>
-                  {m.avg_rating > 0 && (
-                    <div style={{ fontSize:12, color:'var(--gold-dark)', marginTop:3 }}>
-                      {'★'.repeat(Math.round(m.avg_rating))}<span style={{ color:'var(--text-muted)' }}> {m.avg_rating} ({m.total_ratings})</span>
-                    </div>
-                  )}
-                  <div style={{ marginTop:6, display:'inline-flex', alignItems:'center', gap:4, fontSize:10.5, fontWeight:600, padding:'2px 8px', borderRadius:99, background:badge.bg, color:badge.fg }}>
-                    <i className={`ti ${badge.icon}`} style={{ fontSize:12 }} /> {badge.label}
+                  <div style={{ fontSize:12.5, color:'var(--text-secondary)', marginTop:2, display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+                    <span>{m.role || '—'}</span>
+                    {m.avg_rating > 0 && (
+                      <span style={{ color:'var(--gold-dark)' }}>
+                        {'★'.repeat(Math.round(m.avg_rating))}<span style={{ color:'var(--text-muted)' }}> {m.avg_rating} ({m.total_ratings})</span>
+                      </span>
+                    )}
+                    {exp && (
+                      <span style={{ fontWeight:600, color: exp.expired ? 'var(--red)' : exp.days <= 30 ? '#b45309' : 'var(--text-muted)' }}>
+                        {exp.expired ? '⚠ EID expired' : `EID expires in ${exp.days}d`}
+                      </span>
+                    )}
                   </div>
-                  {exp && (
-                    <div style={{ fontSize:10.5, marginTop:5, fontWeight:600, color: exp.expired ? 'var(--red)' : exp.days <= 30 ? '#b45309' : 'var(--text-muted)' }}>
-                      {exp.expired ? '⚠ EID expired' : `EID expires in ${exp.days} day${exp.days !== 1 ? 's' : ''}`}
-                    </div>
-                  )}
-                  <div style={{ marginTop:8, display:'flex', gap:10 }}>
-                    <button onClick={() => openEdit(m)} style={{ fontSize:12, color:BRAND, fontWeight:600, background:'none', border:'none', cursor:'pointer', padding:0 }}>Edit</button>
-                    <button onClick={() => deleteMember(m)} style={{ fontSize:12, color:'var(--red)', fontWeight:600, background:'none', border:'none', cursor:'pointer', padding:0 }}>Remove</button>
-                  </div>
+                </div>
+
+                <div className="tm-actions">
+                  <button onClick={() => openEdit(m)} style={{ fontSize:12, color:BRAND, fontWeight:600, background:'var(--bg2)', border:'1px solid var(--card-border)', borderRadius:8, cursor:'pointer', padding:'7px 12px' }}>Edit</button>
+                  <button onClick={() => deleteMember(m)} style={{ fontSize:12, color:'var(--red)', fontWeight:600, background:'rgba(239,68,68,0.1)', border:'none', borderRadius:8, cursor:'pointer', padding:'7px 12px' }}>Remove</button>
                 </div>
               </div>
             )
