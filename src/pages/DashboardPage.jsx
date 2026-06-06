@@ -7,8 +7,9 @@ import { can } from '../lib/permissions'
 
 /* =========================================================================
    TrustDubai Business — COMMAND CENTER
-   Same look & theme as the Admin Command Center (self-contained green theme,
-   light + dark via `theme` prop, fully responsive). Data is THIS company only.
+   Theme-correct via CSS variables (var(--card)/--text/--border/--bg2),
+   so it always matches the real light/dark theme. Charts read the live
+   theme from the DOM. Fully responsive. Data is THIS company only.
    ========================================================================= */
 
 function AnimatedNumber({ value, decimals = 0, duration = 900 }) {
@@ -54,7 +55,7 @@ function Donut({ segments, total, label, size = 150, isDark }) {
   const sum = segments.reduce((s,x)=>s+x.value,0) || 1
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke={isDark?'rgba(255,255,255,0.05)':'#f1f5f9'} strokeWidth="14"/>
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--bg2)" strokeWidth="14"/>
       {segments.map((seg,i) => {
         const frac = seg.value/sum
         const dash = frac*circ
@@ -62,14 +63,14 @@ function Donut({ segments, total, label, size = 150, isDark }) {
         offset += dash
         return el
       })}
-      <text x={cx} y={cy-4} textAnchor="middle" fontSize="20" fontWeight="700" fill={isDark?'#f1f5f9':'#0f172a'}>{total}</text>
-      <text x={cx} y={cy+14} textAnchor="middle" fontSize="9" fill={isDark?'#6b7280':'#94a3b8'}>{label}</text>
+      <text x={cx} y={cy-4} textAnchor="middle" fontSize="20" fontWeight="700" fill="var(--text)">{total}</text>
+      <text x={cx} y={cy+14} textAnchor="middle" fontSize="9" fill="var(--text3)">{label}</text>
     </svg>
   )
 }
 
 function DualLineChart({ series, color1, color2, isDark, height = 180 }) {
-  if (!series || series.length < 2) return <div style={{ height, display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, color:isDark?'#6b7280':'#94a3b8' }}>Not enough data yet</div>
+  if (!series || series.length < 2) return <div style={{ height, display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, color:'var(--text3)' }}>Not enough data yet</div>
   const w = 1000, h = 220, pad = 8
   const aVals = series.map(s=>s.a), bVals = series.map(s=>s.b)
   const aMax = Math.max(...aVals, 1), bMax = Math.max(...bVals, 1)
@@ -82,7 +83,7 @@ function DualLineChart({ series, color1, color2, isDark, height = 180 }) {
   return (
     <svg width="100%" height={height} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ display:'block' }}>
       <defs><linearGradient id="lcA" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color1} stopOpacity="0.18"/><stop offset="100%" stopColor={color1} stopOpacity="0"/></linearGradient></defs>
-      {[0,0.5,1].map(f => <line key={f} x1="0" y1={h*f} x2={w} y2={h*f} stroke={isDark?'rgba(255,255,255,0.04)':'rgba(0,0,0,0.05)'} strokeWidth="1"/>)}
+      {[0,0.5,1].map(f => <line key={f} x1="0" y1={h*f} x2={w} y2={h*f} stroke="var(--border)" strokeWidth="1"/>)}
       <polygon points={areaA} fill="url(#lcA)"/>
       <polyline points={lineA} fill="none" stroke={color1} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke"/>
       <polyline points={lineB} fill="none" stroke={color2} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke"/>
@@ -91,15 +92,15 @@ function DualLineChart({ series, color1, color2, isDark, height = 180 }) {
 }
 
 function BarChart({ data, color, isDark, height = 170 }) {
-  if (!data || data.length === 0) return <div style={{ height, display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, color:isDark?'#6b7280':'#94a3b8' }}>No data yet</div>
+  if (!data || data.length === 0) return <div style={{ height, display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, color:'var(--text3)' }}>No data yet</div>
   const max = Math.max(...data.map(d=>d.value), 1)
   return (
     <div style={{ display:'flex', alignItems:'flex-end', gap:10, height, padding:'0 4px' }}>
       {data.map((d,i) => (
         <div key={i} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:6, height:'100%', justifyContent:'flex-end' }}>
-          <div style={{ fontSize:10, fontWeight:700, color:isDark?'#9ca3af':'#64748b' }}>{d.value}</div>
+          <div style={{ fontSize:10, fontWeight:700, color:'var(--text2)' }}>{d.value}</div>
           <div style={{ width:'70%', maxWidth:34, height:`${Math.max(4,(d.value/max)*(height-40))}px`, background:`linear-gradient(180deg, ${color}, ${color}aa)`, borderRadius:'6px 6px 0 0', transition:'height 1s cubic-bezier(.3,1,.4,1)' }}/>
-          <div style={{ fontSize:9, color:isDark?'#6b7280':'#94a3b8' }}>{d.label}</div>
+          <div style={{ fontSize:9, color:'var(--text3)' }}>{d.label}</div>
         </div>
       ))}
     </div>
@@ -112,7 +113,7 @@ function Clock({ isDark }) {
     const tick = () => { if (ref.current) ref.current.textContent = new Date().toLocaleTimeString('en-AE',{hour:'2-digit',minute:'2-digit',second:'2-digit'}) + ' · GMT+4' }
     tick(); const t = setInterval(tick,1000); return () => clearInterval(t)
   }, [])
-  return <span ref={ref} style={{ fontSize:11, color:isDark?'#9ca3af':'#64748b', fontVariantNumeric:'tabular-nums' }}/>
+  return <span ref={ref} style={{ fontSize:11, color:'var(--text2)', fontVariantNumeric:'tabular-nums' }}/>
 }
 
 function timeAgo(d) {
@@ -128,7 +129,7 @@ const normSource = raw => {
   const s = norm(raw); if(!s) return 'Other'
   if (/meta|facebook|fb|insta|ig/.test(s)) return 'Meta'
   if (/whats|wa\b/.test(s)) return 'WhatsApp'
-  if (/form|web|site|landing|trustdubai/.test(s)) return 'TrustDubai'
+  if (/form|web|site|landing|trustdubai|qr|public/.test(s)) return 'TrustDubai'
   if (/manual|admin|direct|walk/.test(s)) return 'Manual'
   if (/google|ads|ppc/.test(s)) return 'Google'
   return raw ? String(raw).charAt(0).toUpperCase()+String(raw).slice(1) : 'Other'
@@ -137,11 +138,37 @@ const normTemp = raw => { const s=norm(raw); if(/hot|high/.test(s))return'hot'; 
 const isWonLost = st => { const s=norm(st); return /won|lost|reject|dead|drop|junk|spam|success|convert|deal/.test(s) }
 const isWon = st => { const s=norm(st); return /won|success|convert|deal/.test(s) && !/lost/.test(s) }
 
+// Read the LIVE theme from the DOM so the page always matches the real theme
+// (avoids the stale-prop desync that left cards white in dark mode).
+function detectDark() {
+  if (typeof document === 'undefined') return false
+  const root = document.documentElement
+  const ds = ((root.getAttribute('data-theme') || '') + ' ' + (root.className || '')).toLowerCase()
+  if (ds.includes('dark')) return true
+  if (ds.includes('light')) return false
+  try {
+    const v = (getComputedStyle(root).getPropertyValue('--bg') || '').trim() || getComputedStyle(document.body).backgroundColor
+    const m = (v || '').match(/\d+(\.\d+)?/g)
+    if (m && m.length >= 3) { const [r,g,b] = m.map(Number); return (0.299*r + 0.587*g + 0.114*b) < 128 }
+  } catch (e) {}
+  return false
+}
+
 /* ============================== main ============================== */
 export default function DashboardPage({ onNavigate, theme }) {
   const { company, staff, user, role, hasFeature, hasAddon } = useAuth()
-  const isDark = theme !== 'light'
   const adminName = staff?.name || company?.name || (user?.email||'').split('@')[0] || 'there'
+
+  // Live theme detection (re-checks when the prop changes or the DOM theme flips)
+  const [isDark, setIsDark] = useState(detectDark)
+  useEffect(() => {
+    setIsDark(detectDark())
+    const root = document.documentElement
+    const obs = new MutationObserver(() => setIsDark(detectDark()))
+    obs.observe(root, { attributes:true, attributeFilter:['class','data-theme','style'] })
+    if (document.body) obs.observe(document.body, { attributes:true, attributeFilter:['class','data-theme','style'] })
+    return () => obs.disconnect()
+  }, [theme])
 
   const [vw, setVw] = useState(typeof window !== 'undefined' ? window.innerWidth : 1280)
   useEffect(() => { const r = () => setVw(window.innerWidth); window.addEventListener('resize', r); return () => window.removeEventListener('resize', r) }, [])
@@ -243,16 +270,16 @@ export default function DashboardPage({ onNavigate, theme }) {
     finally{ setLoading(false) }
   }
 
-  /* ---------- theme tokens (admin green) ---------- */
+  /* ---------- theme tokens: surfaces use CSS vars (always theme-correct) ---------- */
   const C = {
-    text:   isDark ? '#f1f5f9' : '#0f172a',
-    text2:  isDark ? '#9ca3af' : '#475569',
-    text3:  isDark ? '#6b7280' : '#94a3b8',
-    border: isDark ? 'rgba(255,255,255,0.07)' : '#e5e9f0',
-    card:   isDark ? '#141921' : '#ffffff',
-    row:    isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc',
+    text:   'var(--text)',
+    text2:  'var(--text2)',
+    text3:  'var(--text3)',
+    border: 'var(--border)',
+    card:   'var(--card)',
+    row:    'var(--bg2)',
     shadow: isDark ? '0 4px 24px rgba(0,0,0,0.3)' : '0 1px 10px rgba(0,0,0,0.05)',
-    bar:    isDark ? 'rgba(255,255,255,0.06)' : '#eef2f7',
+    bar:    'var(--bg2)',
     green:'#22c55e', blue:'#3b82f6', purple:'#a855f7', gold:'#f59e0b', cyan:'#06b6d4', pink:'#ec4899', red:'#ef4444',
   }
   const cardStyle = { background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:'16px 18px', boxShadow:C.shadow, minWidth:0 }
@@ -328,10 +355,6 @@ export default function DashboardPage({ onNavigate, theme }) {
             <i className="ti ti-calendar" style={{ fontSize:13, color:C.green }}/>
             <Clock isDark={isDark}/>
           </div>
-          <button onClick={() => onNavigate && onNavigate('controlwall')} title="Open the full-screen Control Wall"
-            style={{ display:'flex', alignItems:'center', gap:6, background:'transparent', color:C.text, border:`1px solid ${C.border}`, borderRadius:10, padding:'9px 16px', fontSize:13, fontWeight:600, cursor:'pointer' }}>
-            <i className="ti ti-layout-grid" style={{ fontSize:14, color:C.green }}/> Control Wall
-          </button>
           <button onClick={fetchAll} style={{ display:'flex', alignItems:'center', gap:6, background:C.green, color:'#fff', border:'none', borderRadius:10, padding:'9px 16px', fontSize:13, fontWeight:600, cursor:'pointer' }}>
             <i className="ti ti-refresh" style={{ fontSize:14 }}/> Refresh
           </button>
