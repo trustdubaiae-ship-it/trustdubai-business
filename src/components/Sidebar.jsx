@@ -12,7 +12,7 @@ function hasAccess(userPlan, requiredPlan) {
 const CONTROL_PANEL_PAGES = ['controlpanel','verification','verificationStatus','plans','settings']
 
 // soon:true  → feature not built yet, opens a Coming Soon page (still navigable, shows "Soon" tag)
-const MENU = [
+export const MENU = [
   { section: 'MAIN' },
   { id:'controlwall',   icon:'ti-layout-grid',      label:'Control Wall',     perm:'view_dashboard' },
   { id:'dashboard',     icon:'ti-layout-dashboard', label:'Command Center',   perm:'view_dashboard' },
