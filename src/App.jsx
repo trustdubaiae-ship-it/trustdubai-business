@@ -1,72 +1,419 @@
-// trustdubai/src/App.jsx
-import { useState } from 'react'
-import { Routes, Route } from 'react-router-dom'
-import './index.css'
-import './styles/theme.css'
-import Home from './pages/Home'
-import SearchResults from './pages/SearchResults'
-import CompanyProfile from './pages/CompanyProfile'
-import EmployeeProfile from './pages/EmployeeProfile'
-import AddReview from './pages/AddReview'
-import AddEmpReview from './pages/AddEmpReview'
-import RegisterCompany from './pages/RegisterCompany'
-import RegisterEmployee from './pages/RegisterEmployee'
-import PublicProfile from './pages/PublicProfile'
-import PublicLeadForm from './pages/PublicLeadForm'
-import CustomerProfile from './pages/CustomerProfile'
-import MyRequests from './pages/MyRequests'
-import ServiceArea from './pages/ServiceArea'
-import Legal from './pages/Legal'
-import BottomNav from './components/BottomNav'
-function useIsMobile() {
-  const [mobile, setMobile] = useState(
-    () => document.documentElement.clientWidth < 481
-  )
-  useState(() => {
-    function check() {
-      setMobile(document.documentElement.clientWidth < 481)
-    }
-    window.addEventListener('resize', check)
-    return () => window.removeEventListener('resize', check)
-  })
-  return mobile
+import { useState, useEffect } from 'react'
+import { AuthProvider, useAuth } from './lib/auth'
+import { ToastProvider } from './lib/toast'
+import { can } from './lib/permissions'
+import { initTheme, toggleTheme, getTheme } from './lib/theme'
+import Sidebar from './components/Sidebar'
+import LoginNotificationPopup from './components/LoginNotificationPopup'
+import LoginPage from './pages/LoginPage'
+import RegisterPage from './pages/RegisterPage'
+import NoCompanyPage from './pages/NoCompanyPage'
+import DashboardPage from './pages/DashboardPage'
+import RevenueEngine from './pages/RevenueEngine'
+import ControlWall from './pages/ControlWall'
+import ComingSoon from './pages/ComingSoon'
+import Organizer from './pages/Organizer'
+import AIAssistant from './pages/AIAssistant'
+import TrustDubaiLeads from './pages/TrustDubaiLeads'
+import ProfilePage from './pages/ProfilePage'
+import ReviewsPage from './pages/ReviewsPage'
+import PortfolioPage from './pages/PortfolioPage'
+import AnalyticsPage from './pages/AnalyticsPage'
+import LeadsPage from './pages/LeadsPage'
+import LeadEngine from './pages/LeadEngine'
+import Quotations from './pages/Quotations'
+import QuoteSettings from './pages/QuoteSettings'
+import QuoteLibrary from './pages/QuoteLibrary'
+import SponsoredPage from './pages/SponsoredPage'
+import StaffManagement from './pages/StaffManagement'
+import TeamMembers from './pages/TeamMembers'
+import DocumentVerification from './pages/DocumentVerification'
+import FaqPage from './pages/FaqPage'
+import NotificationsPage from './pages/NotificationsPage'
+import InboxPage from './pages/InboxPage'
+import TrustScorePage from './pages/TrustScorePage'
+import ControlPanel from './pages/ControlPanel'
+
+const ROLE_LABEL = { owner:'Owner', manager:'Manager', sales:'Sales', engineer:'Engineer', staff:'Staff' }
+
+const PAGE_PERM = {
+  dashboard:          'view_dashboard',
+  revenueengine:      'view_leads',
+  controlwall:        'view_dashboard',
+  leadform:           'view_leads',
+  tdleads:            'view_leads',
+  metaads:            'view_leads',
+  quoteapprovals:     'view_leads',
+  aiquote:            'view_leads',
+  projects:           'view_profile',
+  materials:          'view_profile',
+  expenses:           'view_profile',
+  aiassistant:        'view_dashboard',
+  organizer:          'view_dashboard',
+  inbox:              'view_dashboard',
+  notifications:      'view_dashboard',
+  profile:            'view_profile',
+  reviews:            'view_reviews',
+  portfolio:          'view_portfolio',
+  analytics:          'view_analytics',
+  leads:              'view_leads',
+  leadengine:         'view_leads',
+  quotations:         'view_leads',
+  quoteSettings:      'view_profile',
+  quotelibrary:       'view_leads',
+  sponsored:          'view_sponsored',
+  staff:              'manage_staff',
+  team:               'view_profile',
+  documents:          'view_profile',
+  faq:                'view_profile',
+  trust:              'view_dashboard',
+  controlpanel:       'view_profile',
+  verification:       'view_profile',
+  verificationStatus: 'view_profile',
+  plans:              'view_profile',
+  settings:           'view_profile',
 }
-export default function App() {
-  const [screen, setScreen] = useState('home')
-  const [params, setParams] = useState({})
-  const isMobile = useIsMobile()
-  function navigate(to, p = {}) {
-    setScreen(to)
-    setParams(p)
-    window.scrollTo(0, 0)
+
+const LIMITED_PAGES = ['controlwall', 'dashboard', 'inbox', 'profile', 'portfolio', 'faq', 'notifications', 'team', 'documents', 'quoteSettings', 'leadform', 'tdleads', 'metaads', 'quoteapprovals', 'aiquote', 'projects', 'materials', 'expenses', 'aiassistant', 'organizer']
+
+// --- Refresh persistence (URL hash) ---
+// activePage is mirrored in the URL hash (e.g. #leads) so a page refresh
+// restores the same page instead of resetting to Control Wall. Pages with internal
+// views (list/builder/detail) can also persist a sub-route, e.g. #quotations/builder,
+// so a refresh keeps them on the same view instead of resetting to the list.
+const VALID_PAGES = [
+  'controlwall', 'dashboard', 'revenueengine', 'inbox', 'profile', 'reviews', 'portfolio', 'analytics', 'leads', 'leadengine', 'leadform', 'tdleads', 'metaads', 'quotations', 'quoteSettings', 'quotelibrary', 'quoteapprovals', 'aiquote', 'projects', 'materials', 'expenses', 'aiassistant', 'organizer',
+  'sponsored', 'staff', 'team', 'documents', 'faq', 'notifications', 'trust',
+  'controlpanel', 'verification', 'verificationStatus', 'plans', 'settings',
+]
+
+const DEFAULT_PAGE = 'controlwall'
+const isMobileView = () => typeof window !== 'undefined' && window.innerWidth < 768
+// Mobile opens on the card-home (Command Center); desktop keeps Control Wall.
+const getDefaultPage = () => (isMobileView() ? 'dashboard' : DEFAULT_PAGE)
+
+function parseHash() {
+  const raw = (window.location.hash || '').replace(/^#/, '')
+  const [page, ...rest] = raw.split('/')
+  const validPage = VALID_PAGES.includes(page) ? page : getDefaultPage()
+  return { page: validPage, sub: rest.join('/') || '' }
+}
+function getPageFromHash() {
+  return parseHash().page
+}
+
+function Portal() {
+  const { user, company, staff, role, loading, signOut } = useAuth()
+  const [activePage,   setActivePage]   = useState(getPageFromHash)
+  const [subRoute,     setSubRoute]     = useState(() => parseHash().sub)
+  const [showRegister, setShowRegister] = useState(false)
+  const [showProfile,  setShowProfile]  = useState(false)
+  const [theme,        setTheme]        = useState(getTheme)
+  const [sidebarOpen,  setSidebarOpen]  = useState(false)
+  const [vw,           setVw]           = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280))
+  const mobile = vw < 768
+
+  useEffect(() => { initTheme() }, [])
+
+  // Keep activePage + subRoute in sync when the URL hash changes (refresh, back/forward button)
+  useEffect(() => {
+    const onHash = () => {
+      const { page, sub } = parseHash()
+      setActivePage(page)
+      setSubRoute(sub)
+    }
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+
+  // Track viewport so we can keep the mobile experience clean.
+  useEffect(() => {
+    const r = () => setVw(window.innerWidth)
+    window.addEventListener('resize', r)
+    return () => window.removeEventListener('resize', r)
+  }, [])
+
+  // Control Wall is too dense for phones — on mobile, send it to the card-home instead.
+  useEffect(() => {
+    if (mobile && activePage === 'controlwall') navigate('dashboard')
+  }, [mobile, activePage])
+
+  function navigate(page) {
+    setActivePage(page)
+    setSubRoute('')
+    setSidebarOpen(false)
+    if (window.location.hash.replace(/^#/, '') !== page) {
+      window.location.hash = page
+    }
   }
-  const screenProps = { navigate, params }
-  return (
-    <div style={{ background:'var(--bg-primary)', minHeight:'100vh' }}>
-      <Routes>
-        {/* Static / reserved routes — MUST come before the catch-all "/:slug" */}
-        <Route path="/terms"   element={<Legal page="terms" />} />
-        <Route path="/privacy" element={<Legal page="privacy" />} />
-        <Route path="/refund"  element={<Legal page="refund" />} />
-        <Route path="/form/:formId" element={<PublicLeadForm />} />
-        <Route path="/services/:serviceArea" element={<ServiceArea />} />
-        <Route path="/:slug" element={<PublicProfile />} />
-        <Route path="/" element={
-          <div style={{ paddingBottom: isMobile ? 64 : 0 }}>
-            {screen === 'home'              && <Home {...screenProps} />}
-            {screen === 'search'            && <SearchResults {...screenProps} />}
-            {screen === 'company'           && <CompanyProfile {...screenProps} />}
-            {screen === 'employee'          && <EmployeeProfile {...screenProps} />}
-            {screen === 'add-review'        && <AddReview {...screenProps} />}
-            {screen === 'add-emp-review'    && <AddEmpReview {...screenProps} />}
-            {screen === 'register-company'  && <RegisterCompany {...screenProps} />}
-            {screen === 'register-employee' && <RegisterEmployee {...screenProps} />}
-            {screen === 'customer-profile'  && <CustomerProfile {...screenProps} />}
-            {screen === 'my-requests'       && <MyRequests {...screenProps} />}
-            {isMobile && <BottomNav screen={screen} navigate={navigate} />}
-          </div>
-        } />
-      </Routes>
+
+  // Pages call this to persist their internal view in the URL (e.g. 'builder', 'detail/UID')
+  // so a refresh keeps them on the same view instead of resetting to the list.
+  function setPageSub(sub) {
+    const target = sub ? `${activePage}/${sub}` : activePage
+    if (window.location.hash.replace(/^#/, '') !== target) {
+      window.location.hash = target
+    }
+    setSubRoute(sub || '')
+  }
+
+  if (showRegister) return <RegisterPage onBack={() => setShowRegister(false)} />
+
+  if (loading) return (
+    <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', background:'#f8fafc', gap:16 }}>
+      <div style={{ width:44, height:44, background:'linear-gradient(135deg,#e8b84b,#c9952a)', borderRadius:12, display:'flex', alignItems:'center', justifyContent:'center', fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:18, color:'#0d1117' }}>TD</div>
+      <div style={{ width:28, height:28, border:'2px solid rgba(232,184,75,0.2)', borderTopColor:'#e8b84b', borderRadius:'50%', animation:'spin 0.7s linear infinite' }}/>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <div style={{ fontSize:12, color:'#94a3b8' }}>Loading TrustDubai Business...</div>
     </div>
+  )
+
+  if (!user)    return <LoginPage onRegister={() => setShowRegister(true)} />
+  if (!company) return <NoCompanyPage />
+
+  const status     = (company.status || 'pending').toLowerCase()
+  const isApproved = status === 'approved'
+  const isRejected = status === 'rejected'
+
+  const allPages = {
+    controlwall:        <ControlWall onNavigate={navigate} theme={theme} embedded />,
+    dashboard:          <DashboardPage onNavigate={navigate} theme={theme} />,
+    revenueengine:      <RevenueEngine onNavigate={navigate} theme={theme} />,
+    inbox:              <InboxPage />,
+    profile:            <ProfilePage />,
+    reviews:            <ReviewsPage />,
+    portfolio:          <PortfolioPage />,
+    analytics:          <AnalyticsPage onNavigate={navigate} />,
+    leads:              <LeadsPage />,
+    leadengine:         <LeadEngine />,
+    leadform:           <ComingSoon feature="trustdubai_leads" title="Lead Form" onNavigate={navigate} />,
+    tdleads:            <TrustDubaiLeads onNavigate={navigate} />,
+    metaads:            <ComingSoon feature="meta_ads" onNavigate={navigate} />,
+    quoteapprovals:     <ComingSoon feature="quote_approvals" onNavigate={navigate} />,
+    aiquote:            <ComingSoon feature="ai_quote_builder" onNavigate={navigate} />,
+    projects:           <ComingSoon feature="projects" onNavigate={navigate} />,
+    materials:          <ComingSoon feature="material_requests" onNavigate={navigate} />,
+    expenses:           <ComingSoon feature="site_expenses" onNavigate={navigate} />,
+    aiassistant:        <AIAssistant onNavigate={navigate} />,
+    organizer:          <Organizer onNavigate={navigate} />,
+    quotations:         <Quotations subRoute={subRoute} setSubRoute={setPageSub} />,
+    quoteSettings:      <QuoteSettings />,
+    quotelibrary:       <QuoteLibrary />,
+    sponsored:          <SponsoredPage onNavigate={navigate} />,
+    staff:              <StaffManagement />,
+    team:               <TeamMembers />,
+    documents:          <DocumentVerification />,
+    faq:                <FaqPage />,
+    notifications:      <NotificationsPage />,
+    trust:              <TrustScorePage />,
+    controlpanel:       <ControlPanel initialTab="general" />,
+    verification:       <ControlPanel initialTab="verification" />,
+    verificationStatus: <ControlPanel initialTab="verification" />,
+    plans:              <ControlPanel initialTab="plans" />,
+    settings:           <ControlPanel initialTab="settings" />,
+  }
+
+  const pageTitles = {
+    controlwall:'Control Wall', dashboard:'Command Center', revenueengine:'Revenue Engine', leadform:'Lead Form', tdleads:'TrustDubai Leads', metaads:'Meta Ads', quoteapprovals:'Quote Approvals', aiquote:'AI Quote Builder', projects:'Projects', materials:'Material Requests', expenses:'Site Expenses', aiassistant:'AI Assistant', organizer:'My Organizer', inbox:'Inbox', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
+    analytics:'Analytics', leads:'Lead Form', leadengine:'Lead Engine', quotations:'Quotations', quoteSettings:'Quote Settings', quotelibrary:'Description Library', sponsored:'Sponsored Placement', staff:'Staff & Access',
+    team:'Our Team', documents:'Document Verification', faq:'FAQ Management', notifications:'Notifications', trust:'Trust Score', controlpanel:'Control Panel',
+    verification:'Control Panel', verificationStatus:'Control Panel', plans:'Control Panel', settings:'Control Panel',
+  }
+
+  const neededPerm = PAGE_PERM[activePage]
+  const permAllowed = !neededPerm || can(role, staff?.permissions, neededPerm)
+  const limitedBlocked = !isApproved && !LIMITED_PAGES.includes(activePage)
+
+  const planColors = { free:'#6b7280', silver:'#64748b', gold:'#d97706', platinum:'#8b5cf6' }
+  const planName   = company?.plan || 'free'
+  const isPlatinum = planName === 'platinum'
+  const pageBg     = isPlatinum ? '#0f0e1a' : '#f8fafc'
+
+  const displayName  = staff?.name || company?.name || 'User'
+  const displayEmail = user?.email || ''
+  const roleLabel    = ROLE_LABEL[role] || 'Member'
+  const avatarLetter = (displayName?.[0] || '?').toUpperCase()
+
+  const ReviewBanner = !isApproved && (
+    <div style={{
+      margin:'0 0 18px', padding:'14px 18px', borderRadius:12,
+      background: isRejected ? 'rgba(220,38,38,0.08)' : 'rgba(0,153,204,0.08)',
+      border:`1px solid ${isRejected ? 'rgba(220,38,38,0.3)' : 'rgba(0,153,204,0.3)'}`,
+      display:'flex', alignItems:'center', gap:12,
+    }}>
+      <div style={{ fontSize:22 }}>{isRejected ? '⚠️' : '⏳'}</div>
+      <div style={{ flex:1 }}>
+        <div style={{ fontSize:14, fontWeight:700, color: isRejected ? '#dc2626' : '#0077a3' }}>
+          {isRejected ? 'Application Rejected' : 'Application Under Review'}
+        </div>
+        <div style={{ fontSize:12.5, color:'#5d6b7e', marginTop:2 }}>
+          {isRejected
+            ? (company.rejection_reason || 'Please review and re-submit your details. Contact support if needed.')
+            : 'Your business is being reviewed by our team. Meanwhile, you can set up your profile, logo, portfolio and FAQ — it will go live once approved. You\'ll be notified by email.'}
+        </div>
+      </div>
+    </div>
+  )
+
+  const LockedScreen = (
+    <div style={{ padding:40, display:'flex', justifyContent:'center' }}>
+      <div style={{ background:'var(--card)', borderRadius:16, padding:32, maxWidth:440, textAlign:'center', boxShadow:'0 4px 20px rgba(0,0,0,0.06)', border:'0.5px solid var(--border)' }}>
+        <div style={{ fontSize:38, marginBottom:10 }}>🔒</div>
+        <h3 style={{ margin:'0 0 6px', color:'var(--text)' }}>Available after approval</h3>
+        <p style={{ fontSize:13, color:'var(--text2)', margin:'0 0 18px', lineHeight:1.5 }}>
+          This section unlocks once your business is approved. For now, you can complete your profile, logo, portfolio and FAQ so you're ready to go live.
+        </p>
+        <button onClick={() => navigate('profile')}
+          style={{ padding:'10px 18px', borderRadius:9, border:'none', background:'#0099cc', color:'#fff', fontWeight:600, cursor:'pointer' }}>
+          Complete Your Profile →
+        </button>
+      </div>
+    </div>
+  )
+
+  const AccessDenied = (
+    <div style={{ padding:40, display:'flex', justifyContent:'center' }}>
+      <div style={{ background:'var(--card)', borderRadius:16, padding:32, maxWidth:420, textAlign:'center', boxShadow:'0 4px 20px rgba(0,0,0,0.06)', border:'0.5px solid var(--border)' }}>
+        <div style={{ fontSize:34, marginBottom:8 }}>🔒</div>
+        <h3 style={{ margin:'0 0 6px', color:'var(--text)' }}>Access Restricted</h3>
+        <p style={{ fontSize:13, color:'var(--text2)', margin:'0 0 16px' }}>
+          Restricted. Please contact {company?.name || 'your company'} admin.
+        </p>
+        <button onClick={() => navigate('controlwall')}
+          style={{ padding:'10px 18px', borderRadius:9, border:'none', background:'#0099cc', color:'#fff', fontWeight:600, cursor:'pointer' }}>
+          Go to Control Wall
+        </button>
+      </div>
+    </div>
+  )
+
+  let mainContent
+  if (!permAllowed) mainContent = AccessDenied
+  else if (limitedBlocked) mainContent = LockedScreen
+  else mainContent = (allPages[activePage] || allPages.controlwall)
+
+  return (
+    <div className="layout" style={{ background: pageBg }}>
+      <div className={`sidebar-overlay${sidebarOpen ? ' show' : ''}`} onClick={() => setSidebarOpen(false)} />
+
+      <Sidebar
+        activePage={activePage}
+        onNavigate={navigate}
+        limitedMode={!isApproved}
+        limitedPages={LIMITED_PAGES}
+        open={sidebarOpen}
+      />
+
+      <main className="main" style={{ background: pageBg }}>
+
+        <div className="topbar" style={{ background: isPlatinum?'#161b2e':'var(--card)', borderBottom:`0.5px solid ${isPlatinum?'rgba(139,92,246,0.2)':'var(--border)'}` }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10, minWidth:0, flex:1 }}>
+            {!mobile && (
+              <button className="hamburger-btn" onClick={() => setSidebarOpen(true)} aria-label="Menu">
+                <i className="ti ti-menu-2" />
+              </button>
+            )}
+
+            <div style={{ width:34, height:34, borderRadius:9, background:'linear-gradient(135deg,#e8b84b,#c9952a)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:14, color:'#0d1117', flexShrink:0 }}>
+              {company?.name?.[0]?.toUpperCase()||'?'}
+            </div>
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontSize:14, fontWeight:700, color: isPlatinum?'#f1f5f9':'var(--text)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                {company?.name||'My Business'}
+              </div>
+              <div style={{ fontSize:9, color: isPlatinum?'rgba(167,139,250,0.7)':'var(--text3)', marginTop:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                {pageTitles[activePage]} · business.trustdubai.ae
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
+            {!isApproved && (
+              <div className="topbar-statuspill" style={{ background: isRejected?'rgba(220,38,38,0.1)':'rgba(0,153,204,0.1)', border:`0.5px solid ${isRejected?'rgba(220,38,38,0.3)':'rgba(0,153,204,0.3)'}`, borderRadius:8, padding:'4px 10px', fontSize:9, fontWeight:700, color: isRejected?'#dc2626':'#0077a3', display:'flex', alignItems:'center', gap:4, whiteSpace:'nowrap' }}>
+                <i className={`ti ${isRejected?'ti-alert-triangle':'ti-clock'}`} style={{ fontSize:10 }}/>
+                {isRejected ? 'Rejected' : 'Under Review'}
+              </div>
+            )}
+            <div className="topbar-search" style={{ background: isPlatinum?'rgba(255,255,255,0.05)':'var(--bg2)', border:`0.5px solid ${isPlatinum?'rgba(255,255,255,0.08)':'var(--border)'}`, borderRadius:20, padding:'6px 12px', display:'flex', alignItems:'center', gap:6, minWidth:180 }}>
+              <i className="ti ti-search" style={{ fontSize:11, color: isPlatinum?'rgba(255,255,255,0.3)':'var(--text3)' }}/>
+              <input placeholder="Global search..." style={{ border:'none', background:'none', outline:'none', fontSize:10, color: isPlatinum?'rgba(255,255,255,0.6)':'var(--text)', width:'100%' }}/>
+            </div>
+            <div className="topbar-date" style={{ background: isPlatinum?'rgba(255,255,255,0.05)':'var(--bg2)', border:`0.5px solid ${isPlatinum?'rgba(255,255,255,0.08)':'var(--border)'}`, borderRadius:8, padding:'5px 10px', fontSize:9, color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)', display:'flex', alignItems:'center', gap:5, whiteSpace:'nowrap' }}>
+              <i className="ti ti-calendar" style={{ fontSize:10 }}/> Last 30 Days <i className="ti ti-chevron-down" style={{ fontSize:9 }}/>
+            </div>
+
+            <div onClick={() => setTheme(toggleTheme())} title={theme==='dark'?'Switch to light':'Switch to dark'}
+              style={{ cursor:'pointer', width:30, height:30, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)', flexShrink:0 }}>
+              <i className={`ti ${theme==='dark'?'ti-sun':'ti-moon'}`} style={{ fontSize:17 }}/>
+            </div>
+
+            <div onClick={() => navigate('notifications')} style={{ position:'relative', cursor:'pointer', flexShrink:0 }}>
+              <i className="ti ti-bell" style={{ fontSize:18, color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)' }}/>
+              <div style={{ position:'absolute', top:-2, right:-2, width:7, height:7, background:'#ef4444', borderRadius:'50%', border:`1.5px solid ${isPlatinum?'#161b2e':'var(--card)'}` }}/>
+            </div>
+            <i className="ti ti-message-circle topbar-msg" style={{ fontSize:18, color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)', cursor:'pointer' }}/>
+            <div className="topbar-plan" style={{ background: planName==='gold'?'#fffbeb': planName==='platinum'?'rgba(139,92,246,0.15)':'var(--bg2)', border:`0.5px solid ${planName==='gold'?'#fcd34d': planName==='platinum'?'rgba(139,92,246,0.3)':'var(--border)'}`, borderRadius:8, padding:'4px 10px', fontSize:9, color: planColors[planName], fontWeight:700, display:'flex', alignItems:'center', gap:4, whiteSpace:'nowrap' }}>
+              <i className={`ti ${planName==='platinum'?'ti-diamond': planName==='gold'?'ti-star':'ti-building'}`} style={{ fontSize:10 }}/>
+              {planName.charAt(0).toUpperCase()+planName.slice(1)} Plan
+            </div>
+
+            <div style={{ position:'relative', flexShrink:0 }}>
+              <div onClick={() => setShowProfile(v => !v)} title={`${displayName} · ${displayEmail}`}
+                style={{ width:32, height:32, borderRadius:8, background:'#0099cc', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:13, color:'#fff', cursor:'pointer' }}>
+                {avatarLetter}
+              </div>
+              {showProfile && (
+                <>
+                  <div onClick={() => setShowProfile(false)} style={{ position:'fixed', inset:0, zIndex:40 }}/>
+                  <div style={{ position:'absolute', right:0, top:42, zIndex:50, width:240, background:'var(--card)', borderRadius:12, boxShadow:'0 10px 30px rgba(0,0,0,0.15)', border:'1px solid var(--border)', overflow:'hidden' }}>
+                    <div style={{ padding:14, display:'flex', alignItems:'center', gap:10, borderBottom:'1px solid var(--border)' }}>
+                      <div style={{ width:40, height:40, borderRadius:'50%', background:'#0099cc', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700 }}>{avatarLetter}</div>
+                      <div style={{ minWidth:0 }}>
+                        <div style={{ fontSize:13, fontWeight:700, color:'var(--text)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{displayName}</div>
+                        <div style={{ fontSize:11, color:'var(--text2)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{displayEmail}</div>
+                      </div>
+                    </div>
+                    <div style={{ padding:'10px 14px', fontSize:12, color:'var(--text2)', display:'flex', flexDirection:'column', gap:8 }}>
+                      <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ color:'var(--text3)' }}>Company</span><span style={{ fontWeight:600, color:'var(--text)' }}>{company?.name}</span></div>
+                      <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ color:'var(--text3)' }}>Role</span><span style={{ fontWeight:600, color:'#0099cc' }}>{roleLabel}</span></div>
+                      <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ color:'var(--text3)' }}>Status</span><span style={{ fontWeight:600, color: isApproved?'#1e9e63':(isRejected?'#dc2626':'#0077a3'), textTransform:'capitalize' }}>{isApproved?'Approved':(isRejected?'Rejected':'Under Review')}</span></div>
+                      <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ color:'var(--text3)' }}>Plan</span><span style={{ fontWeight:600, color: planColors[planName], textTransform:'capitalize' }}>{planName}</span></div>
+                    </div>
+                    <div style={{ borderTop:'1px solid var(--border)', padding:8 }}>
+                      <button onClick={() => { setShowProfile(false); signOut() }} style={{ width:'100%', textAlign:'left', padding:'9px 10px', fontSize:13, color:'#dc2626', background:'none', border:'none', borderRadius:8, cursor:'pointer', display:'flex', alignItems:'center', gap:8 }}>
+                        <i className="ti ti-logout"/> Sign Out
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="page-content">
+          {mobile && activePage !== 'dashboard' && (
+            <button onClick={() => navigate('dashboard')}
+              style={{ display:'inline-flex', alignItems:'center', gap:6, margin:'0 0 14px', padding:'8px 14px', borderRadius:10, border:'0.5px solid var(--border)', background:'var(--card)', color:'var(--text)', fontSize:13, fontWeight:600, cursor:'pointer' }}>
+              <i className="ti ti-arrow-left" style={{ fontSize:15 }}/> Home
+            </button>
+          )}
+          {ReviewBanner}
+          {mainContent}
+        </div>
+      </main>
+
+      <LoginNotificationPopup onOpenPage={() => navigate('notifications')} />
+    </div>
+  )
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <ToastProvider>
+        <Portal />
+      </ToastProvider>
+    </AuthProvider>
   )
 }
