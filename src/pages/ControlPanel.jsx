@@ -35,22 +35,28 @@ export default function ControlPanel({ initialTab = 'general' }) {
   const wide = tab === 'plans'
 
   return (
-    <div style={{ padding: '24px 20px', color: 'var(--text)' }}>
+    <div className="cp-wrap" style={{ color: 'var(--text)' }}>
+      <style>{`
+        .cp-wrap{ padding:24px 20px; }
+        .cp-tabs{ display:flex; gap:6; flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch; border-bottom:1px solid var(--border); margin-bottom:22px; }
+        .cp-tabs::-webkit-scrollbar{ height:0; }
+        .cp-tab-btn{ border:none; background:none; cursor:pointer; padding:10px 14px; font-size:14px; font-weight:600; display:flex; align-items:center; gap:6px; white-space:nowrap; flex-shrink:0; font-family:inherit; }
+        @media (max-width:768px){ .cp-wrap{ padding:16px 14px; } }
+      `}</style>
+
       <div style={{ maxWidth: 1000, margin: '0 auto' }}>
         <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 4, color: 'var(--text)' }}>Control Panel</h1>
         <p style={{ color: 'var(--text2)', marginBottom: 18, fontSize: 14 }}>
           Manage your company settings, verification, finance and profile visibility.
         </p>
 
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', borderBottom: '1px solid var(--border)', marginBottom: 22 }}>
+        <div className="cp-tabs">
           {TABS.map(t => (
             <button key={t.key} onClick={() => setTab(t.key)}
+              className="cp-tab-btn"
               style={{
-                border: 'none', background: 'none', cursor: 'pointer',
-                padding: '10px 14px', fontSize: 14, fontWeight: 600,
                 color: tab === t.key ? BRAND : 'var(--text2)',
                 borderBottom: tab === t.key ? `2px solid ${BRAND}` : '2px solid transparent',
-                display: 'flex', alignItems: 'center', gap: 6,
               }}>
               <i className={`ti ${t.icon}`} style={{ fontSize: 15 }} /> {t.label}
             </button>
@@ -192,7 +198,7 @@ function TemplatesTab() {
 
   return (
     <div style={{ maxWidth: 760 }}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14, gap:10, flexWrap:'wrap' }}>
         <div>
           <h2 style={{ fontSize:17, fontWeight:700, color:'var(--text)' }}>Message Templates</h2>
           <p style={{ fontSize:13, color:'var(--text2)', marginTop:2 }}>Ready WhatsApp messages for lead follow-ups. Use them in Lead Hub.</p>
@@ -204,14 +210,14 @@ function TemplatesTab() {
         <div style={{ fontSize:12, fontWeight:700, color:'var(--text)', textTransform:'uppercase', letterSpacing:'0.03em', marginBottom:10 }}>Built-in templates</div>
         <div style={{ fontSize:12, color:'var(--text3)', marginBottom:12 }}>These are always available in Lead Hub — you can't edit or delete them.</div>
         {DEFAULT_TEMPLATES.map(t => (
-          <div key={t.name} style={{ display:'flex', gap:10, alignItems:'flex-start', padding:'8px 0', borderTop:'1px dashed var(--border)' }}>
+          <div key={t.name} style={{ display:'flex', gap:10, alignItems:'flex-start', padding:'8px 0', borderTop:'1px dashed var(--border)', flexWrap:'wrap' }}>
             <span style={{ fontSize:12, fontWeight:700, color:BRAND, minWidth:120 }}>{t.name}</span>
-            <span style={{ fontSize:12, color:'var(--text2)', lineHeight:1.4 }}>{t.body}</span>
+            <span style={{ fontSize:12, color:'var(--text2)', lineHeight:1.4, flex:1, minWidth:180 }}>{t.body}</span>
           </div>
         ))}
       </div>
 
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', margin:'18px 0 12px' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', margin:'18px 0 12px', gap:10, flexWrap:'wrap' }}>
         <div style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>My templates ({templates.length})</div>
         {editing === null && (
           <button onClick={startNew} style={{ padding:'8px 16px', background:BRAND, color:'#fff', border:'none', borderRadius:8, fontWeight:600, fontSize:13, cursor:'pointer', display:'flex', alignItems:'center', gap:6 }}>
@@ -380,7 +386,7 @@ function FinanceTab() {
 
   return (
     <div style={{ maxWidth: 760 }}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14, gap:10, flexWrap:'wrap' }}>
         <div>
           <h2 style={{ fontSize:17, fontWeight:700, color:'var(--text)' }}>Finance Settings</h2>
           <p style={{ fontSize:13, color:'var(--text2)', marginTop:2 }}>Set once — quotations & projects will use these automatically.</p>
@@ -395,7 +401,7 @@ function FinanceTab() {
         <label style={labelStyle}>TRN (Tax Registration Number)</label>
         <input value={f.trn} onChange={e => set('trn', e.target.value)} placeholder="100xxxxxxxxxxxx" style={inputStyle} />
         <div style={hint}>This will appear automatically on your quotations & invoices.</div>
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:16 }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:16, gap:12 }}>
           <div>
             <div style={{ fontWeight:600, fontSize:14, color:'var(--text)' }}>VAT Registered</div>
             <div style={hint}>When on, 5% VAT is auto-added to your quotes.</div>
