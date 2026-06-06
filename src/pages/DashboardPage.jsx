@@ -300,6 +300,7 @@ export default function DashboardPage({ onNavigate, theme }) {
     for (const item of MENU) {
       if (item.section) { cur = { section: item.section, items: [] }; out.push(cur) }
       else if (cur) {
+        if (item.id === 'controlwall' || item.id === 'dashboard') continue
         const permLocked = !can(role, perms, item.perm)
         const addonLocked = !permLocked && !!item.addon && !checkAddon(item.addon)
         const featureLocked = !permLocked && !addonLocked && !item.soon && item.featureKey ? !checkFeature(item.featureKey) : false
