@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, Fragment } from 'react'
 import { useAuth } from '../lib/auth'
 import { can } from '../lib/permissions'
 import UpgradeLockModal from './UpgradeLockModal'
@@ -14,7 +14,6 @@ const CONTROL_PANEL_PAGES = ['controlpanel','verification','verificationStatus',
 // soon:true  → feature not built yet, opens a Coming Soon page (still navigable, shows "Soon" tag)
 export const MENU = [
   { section: 'MAIN' },
-  { id:'controlwall',   icon:'ti-layout-grid',      label:'Control Wall',     perm:'view_dashboard' },
   { id:'dashboard',     icon:'ti-layout-dashboard', label:'Command Center',   perm:'view_dashboard' },
   { id:'revenueengine', icon:'ti-gauge',            label:'Revenue Engine',   perm:'view_leads' },
   { id:'inbox',         icon:'ti-mail',             label:'Inbox',            perm:'view_dashboard' },
@@ -86,6 +85,42 @@ export default function Sidebar({ activePage, onNavigate, limitedMode = false, l
   const [lockModal, setLockModal] = useState({ open:false, name:'' })
   const [restrictModal, setRestrictModal] = useState({ open:false, name:'' })
   const [addonModal, setAddonModal] = useState({ open:false, name:'', addon:'' })
+
+  // Share Profile + QR
+  const [shareOpen, setShareOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const slug        = company?.slug || ''
+  const publicLink  = `https://trustdubai.ae/${slug}`
+  const profileQrSrc= `https://api.qrserver.com/v1/create-qr-code/?size=600x600&margin=14&data=${encodeURIComponent(publicLink)}`
+
+  async function copyProfileLink() {
+    try {
+      await navigator.clipboard.writeText(publicLink)
+      setCopied(true); setTimeout(() => setCopied(false), 1800)
+    } catch (e) {
+      const ta = document.createElement('textarea')
+      ta.value = publicLink; ta.style.position = 'fixed'; ta.style.opacity = '0'
+      document.body.appendChild(ta); ta.select()
+      try { document.execCommand('copy'); setCopied(true); setTimeout(() => setCopied(false), 1800) } catch (e2) {}
+      document.body.removeChild(ta)
+    }
+  }
+  async function downloadProfileQR() {
+    try {
+      const res = await fetch(profileQrSrc)
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${(company?.name || 'profile').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-qr.png`
+      document.body.appendChild(a); a.click(); document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (e) { window.open(profileQrSrc, '_blank') }
+  }
+  function shareProfileWhatsApp() {
+    const text = `Check out ${company?.name || 'our'} verified profile on TrustDubai: ${publicLink}`
+    window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank')
+  }
 
   // safe fallback if hasAddon not provided by older auth
   const checkAddon = (k) => (typeof hasAddon === 'function' ? hasAddon(k) : false)
@@ -165,7 +200,7 @@ export default function Sidebar({ activePage, onNavigate, limitedMode = false, l
                 : (featureLocked ? 'Upgrade plan to unlock'
                   : (limitLocked ? 'Available after approval' : ''))))
 
-          return (
+          const navBtn = (
             <button key={`${item.id}-${i}`}
               className={`nav-item${isActive?' active':''}`}
               onClick={() => handleNav(item, permLocked, featureLocked, addonLocked)}
@@ -184,6 +219,20 @@ export default function Sidebar({ activePage, onNavigate, limitedMode = false, l
               ))}
             </button>
           )
+
+          // Inject "Share Profile" right next to Command Center (in MAIN).
+          if (item.id === 'dashboard') {
+            return (
+              <Fragment key={`grp-${item.id}-${i}`}>
+                {navBtn}
+                <button className="nav-item" onClick={() => { setCopied(false); setShareOpen(true) }} title="Share your public profile (link + QR)">
+                  <i className="ti ti-qrcode"/>
+                  Share Profile
+                </button>
+              </Fragment>
+            )
+          }
+          return navBtn
         })}
 
         <div className="nav-section-label" style={{ marginTop:4 }}>QUICK LINKS</div>
@@ -223,6 +272,73 @@ export default function Sidebar({ activePage, onNavigate, limitedMode = false, l
         onClose={() => setLockModal({ open:false, name:'' })}
         onUpgrade={() => { setLockModal({ open:false, name:'' }); onNavigate('plans') }}
       />
+
+      {shareOpen && (
+        <div
+          onClick={() => setShareOpen(false)}
+          style={{ position:'fixed', inset:0, zIndex:80, background:'rgba(0,0,0,0.5)',
+            display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ background:'var(--card)', border:'0.5px solid var(--border)', borderRadius:16, width:'min(440px, 100%)', maxHeight:'calc(100vh - 32px)', overflowY:'auto' }}>
+
+            <div style={{ padding:'16px 18px', borderBottom:'0.5px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <div style={{ minWidth:0 }}>
+                <div style={{ fontSize:17, fontWeight:700, color:'var(--text)' }}>Share your profile</div>
+                <div style={{ fontSize:11, color:'var(--text3)', marginTop:2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{company?.name || 'Your business'}</div>
+              </div>
+              <button onClick={() => setShareOpen(false)} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text3)', fontSize:20, flexShrink:0, marginLeft:10 }}><i className="ti ti-x" /></button>
+            </div>
+
+            <div style={{ padding:18 }}>
+              {!slug ? (
+                <div style={{ textAlign:'center', padding:'24px 8px' }}>
+                  <div style={{ width:52, height:52, borderRadius:'50%', background:'rgba(245,158,11,0.12)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 14px' }}>
+                    <i className="ti ti-link-off" style={{ fontSize:24, color:'#d97706' }}/>
+                  </div>
+                  <div style={{ fontSize:14, fontWeight:600, color:'var(--text)', marginBottom:6 }}>Your public link isn't ready yet</div>
+                  <div style={{ fontSize:12.5, color:'var(--text2)', lineHeight:1.6, marginBottom:18 }}>Complete your business profile to get a shareable TrustDubai profile URL and QR code.</div>
+                  <button onClick={() => { setShareOpen(false); onNavigate('profile') }}
+                    style={{ padding:'10px 18px', borderRadius:9, border:'none', background:'#0099cc', color:'#fff', fontWeight:600, fontSize:13, cursor:'pointer' }}>
+                    Complete profile →
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div style={{ display:'flex', flexDirection:'column', alignItems:'center', marginBottom:18 }}>
+                    <div style={{ background:'#fff', padding:14, borderRadius:14, border:'0.5px solid var(--border)' }}>
+                      <img src={profileQrSrc} alt="Profile QR code" width={200} height={200} style={{ display:'block', width:200, height:200 }} />
+                    </div>
+                    <div style={{ fontSize:11.5, color:'var(--text3)', marginTop:10, textAlign:'center', maxWidth:320, lineHeight:1.5 }}>
+                      Customers scan this to view your <b style={{ color:'var(--text2)' }}>verified TrustDubai profile</b> — reviews, work, trust score &amp; contact.
+                    </div>
+                  </div>
+
+                  <div style={{ fontSize:10, color:'var(--text3)', textTransform:'uppercase', marginBottom:6, letterSpacing:'.3px' }}>Profile link</div>
+                  <div style={{ display:'flex', gap:8, marginBottom:14 }}>
+                    <input readOnly value={publicLink} onFocus={e => e.target.select()}
+                      style={{ flex:1, minWidth:0, padding:'10px 12px', border:'1px solid var(--border)', background:'var(--bg2)', color:'var(--text)', borderRadius:8, fontSize:12.5, boxSizing:'border-box', fontFamily:'inherit' }} />
+                    <button onClick={copyProfileLink}
+                      style={{ padding:'0 16px', borderRadius:8, background: copied ? '#10b981' : '#0099cc', color:'#fff', border:'none', cursor:'pointer', fontSize:12.5, fontWeight:600, whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:5, flexShrink:0 }}>
+                      <i className={'ti ' + (copied ? 'ti-check' : 'ti-copy')} style={{ fontSize:14 }} /> {copied ? 'Copied' : 'Copy'}
+                    </button>
+                  </div>
+
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                    <button onClick={downloadProfileQR}
+                      style={{ padding:11, borderRadius:8, background:'var(--bg2)', color:'var(--text)', border:'0.5px solid var(--border)', cursor:'pointer', fontSize:12.5, fontWeight:600, display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                      <i className="ti ti-download" style={{ fontSize:15 }} /> Download QR
+                    </button>
+                    <button onClick={shareProfileWhatsApp}
+                      style={{ padding:11, borderRadius:8, background:'#22c55e', color:'#fff', border:'none', cursor:'pointer', fontSize:12.5, fontWeight:600, display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                      <i className="ti ti-brand-whatsapp" style={{ fontSize:15 }} /> Share
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {restrictModal.open && (
         <div
