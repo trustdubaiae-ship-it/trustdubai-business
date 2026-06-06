@@ -92,7 +92,7 @@ export default function ReviewsPage() {
   const needsReplyCount = reviews.filter(r => !r.owner_reply).length
 
   return (
-    <div className="page-content animate-in">
+    <div className="animate-in">
       {/* Header */}
       <div style={{ marginBottom: 20, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>

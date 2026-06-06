@@ -176,7 +176,7 @@ export default function ProfilePage() {
   const availableCats = allCategories.filter(c => !form.categories.includes(c))
 
   return (
-    <div className="page-content animate-in">
+    <div className="animate-in">
       <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>
           <h1 className="font-syne fw-700" style={{ fontSize: 24, marginBottom: 4 }}>Company Profile</h1>

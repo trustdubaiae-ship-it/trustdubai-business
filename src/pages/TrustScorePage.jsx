@@ -34,8 +34,8 @@ export default function TrustScorePage() {
   }
   useEffect(() => { load() }, [companyId])
 
-  if (loading) return <div className="page-content">Loading…</div>
-  if (!row) return <div className="page-content">No data.</div>
+  if (loading) return <div style={{ color: 'var(--text3)', padding: 8 }}>Loading…</div>
+  if (!row) return <div style={{ color: 'var(--text3)', padding: 8 }}>No data.</div>
 
   const score = row.trust_score || 0
   const tier = TIERS[row.trust_tier] || TIERS.listed
@@ -69,8 +69,8 @@ export default function TrustScorePage() {
     tips.push({ icon: 'ti-user-circle', text: `Complete your profile (${completionPct}%)`, pts: '+ up to 10%', color: '#3b82f6' })
 
   return (
-    <div className="page-content animate-in">
-      <div style={{ marginBottom: 24 }}>
+    <div className="animate-in">
+      <div style={{ marginBottom: 20 }}>
         <h1 className="font-syne fw-700" style={{ fontSize: 24, marginBottom: 4 }}>Trust Score</h1>
         <p className="text-secondary" style={{ fontSize: 14 }}>Your credibility rating on TrustDubai — higher score means more leads.</p>
       </div>
@@ -129,7 +129,7 @@ export default function TrustScorePage() {
               <i className={`ti ${tip.icon}`} style={{ color: tip.color, fontSize: 16 }} />
             </div>
             <div style={{ flex: 1, fontSize: 13.5 }}>{tip.text}</div>
-            <span style={{ fontSize: 12, fontWeight: 700, color: tip.color }}>{tip.pts}</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: tip.color, flexShrink: 0 }}>{tip.pts}</span>
           </div>
         ))}
       </div>
