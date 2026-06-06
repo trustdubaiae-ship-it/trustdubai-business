@@ -101,6 +101,10 @@ export default function LeadsPage() {
   const [logTemp, setLogTemp] = useState('warm')
   const [savingLog, setSavingLog] = useState(false)
   const [msgText, setMsgText] = useState('')
+  const [chatMsgs, setChatMsgs] = useState([])
+  const [chatText, setChatText] = useState('')
+  const [chatLoading, setChatLoading] = useState(false)
+  const [chatSending, setChatSending] = useState(false)
   const [showNewTpl, setShowNewTpl] = useState(false)
   const [tplName, setTplName] = useState('')
   const [tplBody, setTplBody] = useState('')
@@ -259,8 +263,50 @@ export default function LeadsPage() {
     const { data } = lead.distId ? await q.eq('distribution_id', lead.distId) : await q.eq('lead_id', lead.subId)
     setTimeline(data || [])
     setTlLoading(false)
+    setChatMsgs([]); setChatText('')
+    loadChat(lead)
   }
-  function closeModal() { setOpenLead(null); setTimeline([]) }
+  function closeModal() { setOpenLead(null); setTimeline([]); setChatMsgs([]); setChatText('') }
+
+  async function loadChat(lead) {
+    if (!lead || !lead.subId || !lead.isPlatform) { setChatMsgs([]); return }
+    try {
+      const { data } = await supabase
+        .from('lead_chat')
+        .select('id,sender_type,body,created_at,read_by_company,read_by_customer')
+        .eq('lead_id', lead.subId)
+        .eq('company_id', company.id)
+        .order('created_at', { ascending: true })
+      setChatMsgs(data || [])
+      const unread = (data || []).filter(m => m.sender_type === 'customer' && !m.read_by_company)
+      if (unread.length) {
+        await supabase.from('lead_chat').update({ read_by_company: true })
+          .eq('lead_id', lead.subId).eq('company_id', company.id).eq('sender_type', 'customer').eq('read_by_company', false)
+      }
+    } catch (e) { console.error('loadChat', e) }
+  }
+
+  async function sendChat() {
+    const body = chatText.trim()
+    if (!body || chatSending || !openLead?.subId) return
+    setChatSending(true)
+    const optimistic = { id: 'tmp' + Date.now(), sender_type: 'company', body, created_at: new Date().toISOString() }
+    setChatMsgs(m => [...m, optimistic])
+    setChatText('')
+    try {
+      await supabase.from('lead_chat').insert({
+        lead_id: openLead.subId, company_id: company.id, customer_id: null,
+        sender_type: 'company', body, read_by_company: true,
+      })
+    } catch (e) { console.error('sendChat', e) }
+    finally { setChatSending(false) }
+  }
+
+  useEffect(() => {
+    if (!openLead || !openLead.isPlatform || !openLead.subId) return
+    const t = setInterval(() => loadChat(openLead), 5000)
+    return () => clearInterval(t)
+  }, [openLead])
 
   async function saveLog() {
     if (!openLead) return
@@ -750,6 +796,41 @@ export default function LeadsPage() {
             <i className="ti ti-file-invoice" style={{ fontSize: 16 }} /> {creatingQuote ? 'Preparing...' : 'Create Quotation for this lead'}
           </button>
 
+          {lead.isPlatform && (
+            <div style={{ border: '0.5px solid var(--border)', borderRadius: 10, padding: 13, marginBottom: 14 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <i className="ti ti-messages" style={{ fontSize: 15, color: '#0099cc' }} /> Chat with customer
+                <span style={{ fontSize: 9, fontWeight: 600, padding: '1px 7px', borderRadius: 99, background: 'rgba(0,153,204,0.12)', color: '#0099cc' }}>TrustDubai</span>
+              </div>
+
+              <div style={{ background: 'var(--bg2)', borderRadius: 9, padding: 11, maxHeight: 240, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
+                {chatMsgs.length === 0 ? (
+                  <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'center', padding: '14px 8px' }}>
+                    No messages yet. When the customer messages you from TrustDubai, it appears here — reply to start the conversation.
+                  </div>
+                ) : chatMsgs.map(m => {
+                  const mine = m.sender_type === 'company'
+                  return (
+                    <div key={m.id} style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '82%' }}>
+                      <div style={{ background: mine ? '#0099cc' : 'var(--card)', color: mine ? '#fff' : 'var(--text)', border: mine ? 'none' : '0.5px solid var(--border)', padding: '8px 11px', borderRadius: mine ? '11px 11px 4px 11px' : '11px 11px 11px 4px', fontSize: 12.5, lineHeight: 1.5, wordBreak: 'break-word' }}>{m.body}</div>
+                      <div style={{ fontSize: 9, color: 'var(--text3)', textAlign: mine ? 'right' : 'left', marginTop: 2 }}>{mine ? 'You' : (lead.name || 'Customer')} · {new Date(m.created_at).toLocaleTimeString('en-AE', { hour: 'numeric', minute: '2-digit' })}</div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div style={{ display: 'flex', gap: 7 }}>
+                <input value={chatText} onChange={e => setChatText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') sendChat() }}
+                  placeholder="Type a reply to the customer..."
+                  style={{ flex: 1, padding: '9px 12px', ...inputStyle, fontSize: 12.5, boxSizing: 'border-box' }} />
+                <button onClick={sendChat} disabled={chatSending || !chatText.trim()}
+                  style={{ padding: '0 16px', borderRadius: 8, background: '#0099cc', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 12.5, fontWeight: 600, opacity: (chatSending || !chatText.trim()) ? 0.6 : 1, display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <i className="ti ti-send" style={{ fontSize: 14 }} /> Send
+                </button>
+              </div>
+            </div>
+          )}
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
             <div style={{ background: 'var(--bg2)', borderRadius: 9, padding: 11, minWidth: 0 }}>
               <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 6 }}>Contacts</div>
@@ -1086,7 +1167,7 @@ export default function LeadsPage() {
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text3)' }}>Loading...</div>
 
   return (
-    <div className="page-content animate-in" style={{ color: 'var(--text)' }}>
+    <div className="animate-in" style={{ color: 'var(--text)' }}>
       <Modal />
       <AddLeadModal />
       <input ref={fileRef} type="file" accept=".csv" onChange={handleCSV} style={{ display: 'none' }} />
