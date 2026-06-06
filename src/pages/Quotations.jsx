@@ -152,8 +152,19 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
 
   const [restoring, setRestoring] = useState(true)
 
-  const tradeList = (Array.isArray(tpl?.default_trades) && tpl.default_trades.length)
-    ? tpl.default_trades : TRADE_FALLBACK
+  // Trades come from BOTH Quote Settings (default_trades) AND the Description Library
+  // (distinct trade_section values), merged + de-duplicated. Falls back to defaults only if empty.
+  const tradeList = (() => {
+    const settingsTrades = (Array.isArray(tpl?.default_trades) && tpl.default_trades.length) ? tpl.default_trades : []
+    const libTrades = [...new Set((libItems || []).map(li => li.trade_section).filter(Boolean))]
+    const merged = []
+    const seen = new Set()
+    for (const t of [...settingsTrades, ...libTrades]) {
+      const key = String(t).trim().toLowerCase()
+      if (t && key && !seen.has(key)) { seen.add(key); merged.push(t) }
+    }
+    return merged.length ? merged : TRADE_FALLBACK
+  })()
 
   function setView(v, sub) {
     setViewRaw(v)
@@ -398,8 +409,8 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
     if (m === mode) return
     if (m === 'boq' && !canBoq) { setLockModal(true); return }
     if (m === 'boq') {
-      const def = tradeList[0] || 'Misc'
-      setItems(prev => prev.map(it => it.trade ? it : { ...it, trade: def }))
+      // Fresh BOQ: drop empty rows so the user selects a trade first, then adds items.
+      setItems(prev => prev.filter(it => (it.desc || '').trim()))
     }
     setMode(m)
   }
@@ -516,7 +527,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
     setVoEditId(null)
     setVoDescription('')
     setVoMode(activeQuote?.mode === 'boq' && canBoq ? 'boq' : 'simple')
-    setVoItems(activeQuote?.mode === 'boq' && canBoq ? [blankItemT(tradeList[0]||'Misc')] : [blankItem()])
+    setVoItems(activeQuote?.mode === 'boq' && canBoq ? [] : [blankItem()])
     setVoVat(true); setVoAddTrade('')
     setView('voBuilder', `voBuilder/${activeQuote.id}`)
   }
@@ -984,7 +995,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
         {canBoq && (
           <div style={{ display:'inline-flex', background:pillBg, border:`1px solid ${border}`, borderRadius:10, padding:3, marginBottom:14 }}>
             <button onClick={()=>{ setVoMode('simple') }} style={{ fontSize:13, fontWeight: voMode==='simple'?600:400, padding:'6px 16px', borderRadius:7, border:'none', cursor:'pointer', background: voMode==='simple'?(isDark?'rgba(3,193,245,0.15)':'#e0f9ff'):'transparent', color: voMode==='simple'?'#0099cc':textSub }}>Simple</button>
-            <button onClick={()=>{ setVoMode('boq'); setVoItems(prev=>prev.map(it=> it.trade?it:{...it,trade:tradeList[0]||'Misc'})) }} style={{ fontSize:13, fontWeight: voMode==='boq'?600:400, padding:'6px 16px', borderRadius:7, border:'none', cursor:'pointer', background: voMode==='boq'?(isDark?'rgba(3,193,245,0.15)':'#e0f9ff'):'transparent', color: voMode==='boq'?'#0099cc':textSub }}>BOQ</button>
+            <button onClick={()=>{ setVoMode('boq'); setVoItems(prev=>prev.filter(it=> (it.desc||'').trim())) }} style={{ fontSize:13, fontWeight: voMode==='boq'?600:400, padding:'6px 16px', borderRadius:7, border:'none', cursor:'pointer', background: voMode==='boq'?(isDark?'rgba(3,193,245,0.15)':'#e0f9ff'):'transparent', color: voMode==='boq'?'#0099cc':textSub }}>BOQ</button>
           </div>
         )}
 
@@ -1057,9 +1068,16 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
                 </div>
               </div>
             ))}
+            {voGroups.length === 0 && (
+              <div style={{ background:subBg, border:`1px dashed ${border}`, borderRadius:10, padding:'20px 16px', textAlign:'center', marginBottom:12 }}>
+                <i className="ti ti-stack-2" style={{ fontSize:24, color:textMuted }}/>
+                <div style={{ fontSize:13, color:textSub, marginTop:6, fontWeight:600 }}>Select a trade section to begin</div>
+                <div style={{ fontSize:11.5, color:textMuted, marginTop:3 }}>Pick a trade below, then add your variation items.</div>
+              </div>
+            )}
             <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap' }}>
               <select value={voAddTrade} onChange={e=>setVoAddTrade(e.target.value)} style={{ ...inputStyle, flex:1, minWidth:180 }}>
-                <option value="">+ Add a trade section...</option>
+                <option value="">{voGroups.length === 0 ? 'Select a trade section...' : '+ Add a trade section...'}</option>
                 {voAvailTrades.map(t => <option key={t} value={t} style={{ background:inputBg, color:text }}>{t}</option>)}
               </select>
               <button onClick={()=>{ if(voAddTrade){ addVoItemToTrade(voAddTrade); setVoAddTrade('') } }} disabled={!voAddTrade} style={{ padding:'0 16px', borderRadius:8, border:`1px solid ${border}`, background:cardBg, color: voAddTrade?'#0099cc':textMuted, fontSize:13, fontWeight:600, cursor: voAddTrade?'pointer':'default', whiteSpace:'nowrap' }}>
@@ -1444,9 +1462,16 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
                 </div>
               </div>
             ))}
+            {boqGroups.length === 0 && (
+              <div style={{ background:subBg, border:`1px dashed ${border}`, borderRadius:10, padding:'22px 16px', textAlign:'center', marginBottom:12 }}>
+                <i className="ti ti-stack-2" style={{ fontSize:26, color:textMuted }}/>
+                <div style={{ fontSize:13.5, color:textSub, marginTop:7, fontWeight:600 }}>Start by selecting a trade section</div>
+                <div style={{ fontSize:11.5, color:textMuted, marginTop:3, lineHeight:1.5 }}>Choose a trade below, then add your line items.<br/>Trades come from your Quote Settings &amp; Description Library.</div>
+              </div>
+            )}
             <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap' }}>
               <select value={addTradePick} onChange={e=>setAddTradePick(e.target.value)} style={{ ...inputStyle, flex:1, minWidth:180 }}>
-                <option value="">+ Add a trade section...</option>
+                <option value="">{boqGroups.length === 0 ? 'Select a trade section...' : '+ Add a trade section...'}</option>
                 {availableTrades.map(t => <option key={t} value={t} style={{ background:inputBg, color:text }}>{t}</option>)}
               </select>
               <button onClick={addTradeSection} disabled={!addTradePick} style={{ padding:'0 16px', borderRadius:8, border:`1px solid ${border}`, background:cardBg, color: addTradePick?'#0099cc':textMuted, fontSize:13, fontWeight:600, cursor: addTradePick?'pointer':'default', whiteSpace:'nowrap' }}>
