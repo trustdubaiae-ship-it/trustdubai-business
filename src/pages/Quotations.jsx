@@ -136,6 +136,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
   const [preparedBy, setPreparedBy]   = useState('')
   const [clientEmail, setClientEmail] = useState('')
   const [previewDraft, setPreviewDraft] = useState(null)
+  const [sourceLead, setSourceLead] = useState(null)
 
   // ---- VO state ----
   const [vos, setVos]             = useState([])
@@ -188,6 +189,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
         setDiscountType(d.discountType ?? null); setDiscountValue(d.discountValue ?? 0)
         setNotes(d.notes || ''); setShowFooter(d.showFooter ?? true); setShowSignature(d.showSignature ?? true); setShowBank(d.showBank ?? false)
         setLocation(d.location || ''); setPreparedBy(d.preparedBy || ''); setClientEmail(d.clientEmail || '')
+        setSourceLead(d.sourceLead || null)
       }
       setViewRaw('builder')
       setRestoring(false)
@@ -289,6 +291,22 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
     } catch { /* best-effort, ignore */ }
   }
 
+  // link a quote back to its originating lead → move to Quoted + timeline log (best-effort)
+  async function linkLeadQuoted(sl, quoteNo) {
+    try {
+      if (sl.distId) {
+        await supabase.from('lead_distributions').update({ status: 'quoted', status_updated_at: new Date().toISOString() }).eq('id', sl.distId)
+      } else if (sl.subId) {
+        await supabase.from('lead_submissions').update({ status: 'proposal_given', status_updated_at: new Date().toISOString() }).eq('id', sl.subId)
+      }
+      await supabase.from('lead_activity').insert({
+        lead_id: sl.subId || null, distribution_id: sl.distId || null, company_id: company.id,
+        actor_name: company?.name || null, kind: 'stage_change', old_stage: sl.status || null, new_stage: 'proposal_given',
+        note: quoteNo ? ('Quotation ' + quoteNo + ' created') : 'Quotation created',
+      })
+    } catch { /* best-effort */ }
+  }
+
   async function searchClients(q) {
     setClientSearch(q); setClient(null)
     if (!q.trim()) { setSuggestions([]); setShowSug(false); return }
@@ -338,7 +356,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
     setVatEnabled(tpl?.default_vat_enabled ?? true)
     setDiscountType(null); setDiscountValue(0)
     setShowFooter(true); setShowSignature(true); setShowBank(tpl?.default_show_bank ?? false); setAddTradePick('')
-    setLocation(''); setPreparedBy(''); setClientEmail('')
+    setLocation(''); setPreparedBy(''); setClientEmail(''); setSourceLead(null)
     setView('builder', 'builder')
   }
   function resumeDraft() {
@@ -354,6 +372,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
     setDiscountType(d.discountType ?? null); setDiscountValue(d.discountValue ?? 0)
     setNotes(d.notes || ''); setShowFooter(d.showFooter ?? true); setShowSignature(d.showSignature ?? true); setShowBank(d.showBank ?? false)
     setLocation(d.location || ''); setPreparedBy(d.preparedBy || ''); setClientEmail(d.clientEmail || '')
+    setSourceLead(d.sourceLead || null)
     setAddTradePick(''); setView('builder', 'builder')
   }
   function discardDraft() { clearDraft(); setDraftExists(false); toast.info('Draft discarded') }
@@ -371,7 +390,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
     setVatEnabled(!!q.vat_amount || (tpl?.default_vat_enabled ?? true))
     setDiscountType(null); setDiscountValue(0)
     setShowFooter(q.show_footer ?? true); setShowSignature(q.show_signature ?? true); setShowBank(q.show_bank ?? (tpl?.default_show_bank ?? false))
-    setLocation(q.location || ''); setPreparedBy(q.prepared_by || ''); setClientEmail(q.client_email || '')
+    setLocation(q.location || ''); setPreparedBy(q.prepared_by || ''); setClientEmail(q.client_email || ''); setSourceLead(null)
     setAddTradePick(''); setView('builder', 'builder')
   }
 
@@ -405,11 +424,11 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
     const hasContent = client || projectTitle.trim() || items.some(it => it.desc.trim())
     if (!hasContent) return
     const t = setTimeout(() => {
-      saveDraft({ mode, client, clientSearch, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, showBank, location, preparedBy, clientEmail })
+      saveDraft({ mode, client, clientSearch, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, showBank, location, preparedBy, clientEmail, sourceLead })
       setDraftExists(true)
     }, 500)
     return () => clearTimeout(t)
-  }, [view, editId, mode, client, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, showBank, location, preparedBy, clientEmail])
+  }, [view, editId, mode, client, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, showBank, location, preparedBy, clientEmail, sourceLead])
 
   function openBuilderPreview() {
     if (!client) { toast.error('Select a client first'); return }
@@ -457,6 +476,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
         show_footer: showFooter, show_signature: showSignature, show_bank: showBank,
         status: sendNow ? 'sent' : 'draft',
       }
+      let savedQuoteNo = editId ? (activeQuote?.quote_number || '') : ''
       if (editId) {
         const { error } = await supabase.from('quotations').update(payload).eq('id', editId)
         if (error) throw error
@@ -467,11 +487,16 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
         const prefix = tpl?.quote_prefix || 'QTN'
         payload.company_id = company.id
         payload.quote_number = `${prefix}-${String(seq).padStart(3,'0')}`
+        savedQuoteNo = payload.quote_number
         const { error } = await supabase.from('quotations').insert(payload)
         if (error) throw error
         toast.success(sendNow ? 'Quotation sent ✓' : 'Draft saved ✓')
       }
       growLibrary(validItems, mode)
+      if (sourceLead && !['won','lost'].includes(sourceLead.status || '')) {
+        await linkLeadQuoted(sourceLead, savedQuoteNo)
+      }
+      setSourceLead(null)
       clearDraft(); setDraftExists(false)
       setView('list'); fetchQuotes()
     } catch (e) {
