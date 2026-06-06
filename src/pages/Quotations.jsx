@@ -22,6 +22,13 @@ const UNITS = ['Lump Sum', 'Nos', 'm²', 'm', 'L/s', 'Set', 'Hour', 'Day']
 const TRADE_FALLBACK = ['Civil', 'MEP', 'False Ceiling', 'Flooring', 'Painting', 'Joinery', 'Sanitary', 'Misc']
 const PLAN_RANK = { free:0, silver:1, gold:2, platinum:3 }
 
+// map a library unit (free text) to the closest quote UNIT (case-insensitive)
+function mapUnit(u) {
+  if (!u) return null
+  const f = UNITS.find(x => x.toLowerCase() === String(u).toLowerCase())
+  return f || null
+}
+
 const blankItem  = () => ({ desc:'', unit:'Nos', qty:1, rate:0 })
 const blankItemT = (trade) => ({ desc:'', unit:'Nos', qty:1, rate:0, trade: trade || '' })
 
@@ -84,7 +91,7 @@ const saveDraft  = (d) => { try { localStorage.setItem(DRAFT_KEY, JSON.stringify
 const clearDraft = () => { try { localStorage.removeItem(DRAFT_KEY) } catch {} }
 
 export default function Quotations({ subRoute = '', setSubRoute }) {
-  const { company } = useAuth()
+  const { company, user } = useAuth()
   const toast = useToast()
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
 
@@ -101,6 +108,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
   const [search, setSearch]   = useState('')
   const [filter, setFilter]   = useState('all')
   const [draftExists, setDraftExists] = useState(false)
+  const [libItems, setLibItems] = useState([])
 
   const [activeQuote, setActiveQuote] = useState(null)
   const [statusBusy, setStatusBusy]   = useState(false)
@@ -152,7 +160,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
   }
 
   useEffect(() => {
-    if (company?.id) { fetchQuotes(); fetchTemplate() }
+    if (company?.id) { fetchQuotes(); fetchTemplate(); loadLibrary() }
     setDraftExists(!!loadDraft())
     const observer = new MutationObserver(() => forceUpdate(n => n + 1))
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
@@ -226,11 +234,58 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
       .eq('company_id', company.id).maybeSingle()
     setTpl(data || null)
   }
+  async function loadLibrary() {
+    try {
+      const { data } = await supabase.from('quote_library').select('*')
+        .eq('company_id', String(company.id)).order('created_at', { ascending: false })
+      setLibItems(data || [])
+    } catch { setLibItems([]) }
+  }
   async function fetchVos(quotationId) {
     setVoLoading(true)
     const { data } = await supabase.from('quotation_variations').select('*')
       .eq('quotation_id', quotationId).order('vo_number', { ascending: true })
     setVos(data || []); setVoLoading(false)
+  }
+
+  // ---- Description Library: autocomplete fill + auto-grow ----
+  function applyDesc(idx, val, isVo) {
+    const lib = libItems.find(li => li.description === val || (li.label && li.label === val))
+    const apply = (it) => {
+      if (!lib) return { ...it, desc: val }
+      const u = mapUnit(lib.unit)
+      return { ...it, desc: lib.description, unit: u || it.unit, rate: Number(lib.default_rate) || it.rate }
+    }
+    if (isVo) setVoItems(prev => prev.map((it,i)=> i===idx ? apply(it) : it))
+    else setItems(prev => prev.map((it,i)=> i===idx ? apply(it) : it))
+  }
+  // best-effort: save any new line descriptions into the library (owner only via RLS)
+  async function growLibrary(validItems, m) {
+    try {
+      if (!company?.id) return
+      const existing = new Set(libItems.map(li => (li.description||'').trim().toLowerCase()))
+      const seen = new Set()
+      const rows = []
+      for (const it of validItems) {
+        const d = (it.desc||'').trim()
+        if (d.length < 4) continue
+        const key = d.toLowerCase()
+        if (existing.has(key) || seen.has(key)) continue
+        seen.add(key)
+        rows.push({
+          company_id: String(company.id),
+          owner_email: user?.email || null,
+          trade_section: (m === 'boq' ? (it.trade || 'Misc') : 'Misc'),
+          label: null,
+          description: d,
+          unit: it.unit || null,
+          default_rate: Number(it.rate) || 0,
+        })
+      }
+      if (!rows.length) return
+      const { data, error } = await supabase.from('quote_library').insert(rows).select()
+      if (!error && data) setLibItems(prev => [...prev, ...data])
+    } catch { /* best-effort, ignore */ }
   }
 
   async function searchClients(q) {
@@ -415,6 +470,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
         if (error) throw error
         toast.success(sendNow ? 'Quotation sent ✓' : 'Draft saved ✓')
       }
+      growLibrary(validItems, mode)
       clearDraft(); setDraftExists(false)
       setView('list'); fetchQuotes()
     } catch (e) {
@@ -482,6 +538,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
         if (error) throw error
         toast.success('Variation saved ✓')
       }
+      growLibrary(validItems, voMode)
       await fetchVos(activeQuote.id)
       setView('detail', `detail/${activeQuote.id}`)
     } catch (e) {
@@ -798,6 +855,12 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
   const inputStyle = { padding:'9px 11px', border:`1px solid ${border}`, borderRadius:8, fontSize:13, background:inputBg, color:text, outline:'none', width:'100%', boxSizing:'border-box' }
   const initials = nm => nm ? nm.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase() : '?'
 
+  const LibDatalist = () => (
+    <datalist id="qlib-list">
+      {libItems.map(li => <option key={li.id} value={li.description}>{li.label || ''}</option>)}
+    </datalist>
+  )
+
   // ============ PREVIEW ============
   if (view === 'preview' && activeQuote) {
     const q = activeQuote
@@ -859,6 +922,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
     const voAvailTrades = tradeList.filter(t => !(voGroups||[]).some(g => g.trade === t))
     return (
       <div>
+        <LibDatalist />
         <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14 }}>
           <button onClick={() => setView('detail', `detail/${activeQuote.id}`)} style={{ width:34, height:34, borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:textSub, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
             <i className="ti ti-arrow-left" style={{ fontSize:16 }}/>
@@ -890,7 +954,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
                   const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
                   return (
                     <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 50px 40px 58px 78px 26px', gap:7, padding:'8px 12px', alignItems:'center', borderTop:`1px solid ${border}` }}>
-                      <input value={it.desc} onChange={e=>updateVoItem(idx,'desc',e.target.value)} placeholder="Item description" style={{ ...inputStyle, padding:'7px 8px', fontSize:12.5 }}/>
+                      <input list="qlib-list" value={it.desc} onChange={e=>applyDesc(idx, e.target.value, true)} placeholder="Item description" style={{ ...inputStyle, padding:'7px 8px', fontSize:12.5 }}/>
                       <select value={it.unit} onChange={e=>updateVoItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 4px', fontSize:11 }}>
                         {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
                       </select>
@@ -928,7 +992,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
                       const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
                       return (
                         <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 48px 38px 56px 76px 24px', gap:7, padding:'6px 12px', alignItems:'center', borderTop:`1px solid ${border}` }}>
-                          <input value={it.desc} onChange={e=>updateVoItem(idx,'desc',e.target.value)} placeholder="Item description" style={{ ...inputStyle, padding:'7px 8px', fontSize:12 }}/>
+                          <input list="qlib-list" value={it.desc} onChange={e=>applyDesc(idx, e.target.value, true)} placeholder="Item description" style={{ ...inputStyle, padding:'7px 8px', fontSize:12 }}/>
                           <select value={it.unit} onChange={e=>updateVoItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 3px', fontSize:10.5 }}>
                             {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
                           </select>
@@ -1179,6 +1243,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
     const availableTrades = tradeList.filter(t => !(boqGroups||[]).some(g => g.trade === t))
     return (
       <div>
+        <LibDatalist />
         <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14 }}>
           <button onClick={() => setView('list')} style={{ width:34, height:34, borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:textSub, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
             <i className="ti ti-arrow-left" style={{ fontSize:16 }}/>
@@ -1273,7 +1338,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
                   const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
                   return (
                     <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 50px 40px 58px 78px 26px', gap:7, padding:'8px 12px', alignItems:'center', borderTop:`1px solid ${border}` }}>
-                      <input value={it.desc} onChange={e=>updateItem(idx,'desc',e.target.value)} placeholder="Item description" style={{ ...inputStyle, padding:'7px 8px', fontSize:12.5 }}/>
+                      <input list="qlib-list" value={it.desc} onChange={e=>applyDesc(idx, e.target.value, false)} placeholder="Item description" style={{ ...inputStyle, padding:'7px 8px', fontSize:12.5 }}/>
                       <select value={it.unit} onChange={e=>updateItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 4px', fontSize:11 }}>
                         {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
                       </select>
@@ -1313,7 +1378,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
                       const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
                       return (
                         <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 48px 38px 56px 76px 24px', gap:7, padding:'6px 12px', alignItems:'center', borderTop:`1px solid ${border}` }}>
-                          <input value={it.desc} onChange={e=>updateItem(idx,'desc',e.target.value)} placeholder="Item description" style={{ ...inputStyle, padding:'7px 8px', fontSize:12 }}/>
+                          <input list="qlib-list" value={it.desc} onChange={e=>applyDesc(idx, e.target.value, false)} placeholder="Item description" style={{ ...inputStyle, padding:'7px 8px', fontSize:12 }}/>
                           <select value={it.unit} onChange={e=>updateItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 3px', fontSize:10.5 }}>
                             {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
                           </select>
