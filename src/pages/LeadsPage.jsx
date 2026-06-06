@@ -375,6 +375,7 @@ export default function LeadsPage() {
         location: loc,
         preparedBy: '',
         clientEmail: clientRow.email || lead.email || '',
+        sourceLead: { subId: lead.subId || null, distId: lead.distId || null, isPlatform: !!lead.isPlatform, status: lead.status || 'new' },
       }
       try { localStorage.setItem('td_quote_draft_v1', JSON.stringify(draft)) } catch {}
 
