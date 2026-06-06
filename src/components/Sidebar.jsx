@@ -26,10 +26,11 @@ const MENU = [
   { id:'metaads',    icon:'ti-ad-2',           label:'Meta Ads',         perm:'view_leads', addon:'crm', soon:true },
 
   { section: 'SALES & QUOTES' },
-  { id:'quotations',    icon:'ti-file-invoice', label:'Quotations',      perm:'view_leads' },
-  { id:'quoteSettings', icon:'ti-settings',     label:'Quote Settings',  perm:'view_profile' },
-  { id:'quoteapprovals',icon:'ti-checklist',    label:'Quote Approvals', perm:'view_leads', addon:'quotation', soon:true },
-  { id:'aiquote',       icon:'ti-sparkles',     label:'AI Quote Builder',perm:'view_leads', addon:'quotation', soon:true },
+  { id:'quotations',    icon:'ti-file-invoice', label:'Quotations',         perm:'view_leads' },
+  { id:'quotelibrary',  icon:'ti-books',        label:'Description Library',perm:'view_leads' },
+  { id:'quoteSettings', icon:'ti-settings',     label:'Quote Settings',     perm:'view_profile' },
+  { id:'quoteapprovals',icon:'ti-checklist',    label:'Quote Approvals',    perm:'view_leads', addon:'quotation', soon:true },
+  { id:'aiquote',       icon:'ti-sparkles',     label:'AI Quote Builder',   perm:'view_leads', addon:'quotation', soon:true },
 
   { section: 'PROJECTS & OPS' },
   { id:'projects',  icon:'ti-briefcase',     label:'Projects',          perm:'view_profile', addon:'projects', soon:true },
