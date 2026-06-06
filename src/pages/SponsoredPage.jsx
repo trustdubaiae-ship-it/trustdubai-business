@@ -42,6 +42,10 @@ export default function SponsoredPage({ onNavigate }) {
   const [submitting, setSubmitting] = useState(false)
   const [activeTab,  setActiveTab]  = useState('overview')
 
+  const [vw, setVw] = useState(typeof window !== 'undefined' ? window.innerWidth : 1280)
+  useEffect(() => { const r = () => setVw(window.innerWidth); window.addEventListener('resize', r); return () => window.removeEventListener('resize', r) }, [])
+  const mobile = vw < 768
+
   useEffect(() => { if (company) fetchAll() }, [company])
 
   async function fetchAll() {
@@ -139,7 +143,7 @@ export default function SponsoredPage({ onNavigate }) {
   )
 
   return (
-    <div className="page-content animate-in">
+    <div className="animate-in">
 
       {/* Header */}
       <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:20, flexWrap:'wrap', gap:10 }}>
@@ -160,11 +164,11 @@ export default function SponsoredPage({ onNavigate }) {
       {!mySlot && (
         <>
           {/* What you get */}
-          <div style={{ background:'var(--card)', border:'0.5px solid var(--border)', borderRadius:12, padding:'20px 24px', marginBottom:16 }}>
+          <div style={{ background:'var(--card)', border:'0.5px solid var(--border)', borderRadius:12, padding: mobile?'16px':'20px 24px', marginBottom:16 }}>
             <div style={{ fontSize:13, fontWeight:700, color:'var(--text)', marginBottom:14, textTransform:'uppercase', letterSpacing:'0.04em' }}>
               What You Get as a Sponsor
             </div>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(160px,1fr))', gap:12, marginBottom:16 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(150px,1fr))', gap:12, marginBottom:16 }}>
               {[
                 { icon:'ti-home',         label:'Homepage Placement', desc:'Your card appears on trustdubai.ae home page' },
                 { icon:'ti-eye',          label:'Maximum Visibility',  desc:'Seen by every visitor — top of page' },
@@ -204,9 +208,9 @@ export default function SponsoredPage({ onNavigate }) {
           </div>
 
           {/* Pricing */}
-          <div style={{ background:'var(--card)', border:'0.5px solid var(--border)', borderRadius:12, padding:'20px 24px', marginBottom:16 }}>
+          <div style={{ background:'var(--card)', border:'0.5px solid var(--border)', borderRadius:12, padding: mobile?'16px':'20px 24px', marginBottom:16 }}>
             <div style={{ fontSize:13, fontWeight:700, color:'var(--text)', marginBottom:14, textTransform:'uppercase', letterSpacing:'0.04em' }}>Pricing</div>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
+            <div style={{ display:'grid', gridTemplateColumns: mobile?'1fr':'repeat(3,1fr)', gap:12 }}>
               {pricing.map((p,i) => (
                 <div key={p.id}
                   style={{ background: i===1?'linear-gradient(135deg,#fffbeb,#fef3c7)':'var(--bg2)', border:`${i===1?'1.5px':'0.5px'} solid ${i===1?'#fcd34d':'var(--border)'}`, borderRadius:10, padding:'16px', textAlign:'center', position:'relative' }}>
@@ -237,11 +241,11 @@ export default function SponsoredPage({ onNavigate }) {
           {(() => {
             const sc = STATUS_CONFIG[mySlot.status] || STATUS_CONFIG.pending
             return (
-              <div style={{ background:sc.bg, border:`0.5px solid ${sc.border}`, borderRadius:12, padding:'16px 20px', display:'flex', alignItems:'center', gap:14, marginBottom:16 }}>
+              <div style={{ background:sc.bg, border:`0.5px solid ${sc.border}`, borderRadius:12, padding:'16px 20px', display:'flex', alignItems:'center', gap:14, marginBottom:16, flexWrap:'wrap' }}>
                 <div style={{ width:44, height:44, borderRadius:12, background:sc.bg, border:`0.5px solid ${sc.border}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                   <i className={`ti ${sc.icon}`} style={{ fontSize:20, color:sc.color }}/>
                 </div>
-                <div style={{ flex:1 }}>
+                <div style={{ flex:1, minWidth:180 }}>
                   <div style={{ fontSize:14, fontWeight:700, color:sc.color }}>{sc.label}</div>
                   <div style={{ fontSize:11, color:'var(--text2)', marginTop:2 }}>
                     {mySlot.status==='pending'  && 'Your request is being reviewed by our team. You will be notified once approved.'}
@@ -271,7 +275,7 @@ export default function SponsoredPage({ onNavigate }) {
             <>
               {/* Progress bar */}
               <div style={{ background:'var(--card)', border:'0.5px solid var(--border)', borderRadius:12, padding:'14px 16px', marginBottom:14 }}>
-                <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:'var(--text3)', marginBottom:6 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:'var(--text3)', marginBottom:6, gap:8, flexWrap:'wrap' }}>
                   <span>Started: {mySlot.starts_at ? new Date(mySlot.starts_at).toLocaleDateString('en-AE',{day:'numeric',month:'short',year:'numeric'}) : '—'}</span>
                   <span style={{ color: daysLeft<=7?'#ef4444':'#10b981' }}>
                     {daysLeft<=7 ? `⚠️ Expires in ${daysLeft} days` : `Expires: ${new Date(mySlot.expires_at).toLocaleDateString('en-AE',{day:'numeric',month:'short',year:'numeric'})}`}
@@ -280,21 +284,21 @@ export default function SponsoredPage({ onNavigate }) {
                 <div style={{ height:6, background:'var(--bg2)', borderRadius:99, overflow:'hidden', marginBottom:6 }}>
                   <div style={{ height:'100%', width:`${progressPct}%`, background:daysLeft<=7?'#ef4444':'#e8b84b', borderRadius:99, transition:'width 0.5s' }}/>
                 </div>
-                <div style={{ display:'flex', justifyContent:'space-between', fontSize:9, color:'var(--text3)' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', fontSize:9, color:'var(--text3)', gap:8, flexWrap:'wrap' }}>
                   <span>{Math.round(progressPct)}% time elapsed</span>
                   <span>Slot #{mySlot.slot_number} · {mySlot.duration_months} month plan</span>
                 </div>
               </div>
 
               {/* Tabs */}
-              <div style={{ display:'flex', gap:4, marginBottom:14 }}>
+              <div style={{ display:'flex', gap:4, marginBottom:14, overflowX:'auto', WebkitOverflowScrolling:'touch' }}>
                 {[
                   { id:'overview', label:'Overview' },
                   { id:'analytics', label:'Analytics' },
                   { id:'leads', label:`Leads (${leads.length})` },
                 ].map(tab => (
                   <button key={tab.id} onClick={()=>setActiveTab(tab.id)}
-                    style={{ padding:'7px 14px', borderRadius:8, border:'none', cursor:'pointer', fontSize:11, fontWeight:600, background:activeTab===tab.id?'rgba(232,184,75,0.15)':'var(--bg2)', color:activeTab===tab.id?'#d97706':'var(--text2)', transition:'all 0.15s' }}>
+                    style={{ padding:'7px 14px', borderRadius:8, border:'none', cursor:'pointer', fontSize:11, fontWeight:600, whiteSpace:'nowrap', flexShrink:0, background:activeTab===tab.id?'rgba(232,184,75,0.15)':'var(--bg2)', color:activeTab===tab.id?'#d97706':'var(--text2)', transition:'all 0.15s' }}>
                     {tab.label}
                   </button>
                 ))}
@@ -303,7 +307,7 @@ export default function SponsoredPage({ onNavigate }) {
               {/* Tab: Overview */}
               {activeTab === 'overview' && (
                 <>
-                  <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10, marginBottom:14 }}>
+                  <div style={{ display:'grid', gridTemplateColumns: mobile?'repeat(2,1fr)':'repeat(4,1fr)', gap:10, marginBottom:14 }}>
                     {[
                       { label:'Total Views',      value:analytics.views,  icon:'ti-eye',          color:'#6366f1', trend:analytics.daily },
                       { label:'Total Clicks',     value:analytics.clicks, icon:'ti-cursor-text',  color:'#3b82f6', trend:analytics.daily },
@@ -326,7 +330,7 @@ export default function SponsoredPage({ onNavigate }) {
                   {/* Conversion rates */}
                   <div style={{ background:'var(--card)', border:'0.5px solid var(--border)', borderRadius:12, padding:'14px 16px', marginBottom:14 }}>
                     <div style={{ fontSize:11, fontWeight:700, color:'var(--text)', textTransform:'uppercase', letterSpacing:'0.04em', marginBottom:12 }}>Performance Metrics</div>
-                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                    <div style={{ display:'grid', gridTemplateColumns: mobile?'1fr':'1fr 1fr', gap:12 }}>
                       {[
                         { label:'Click-through Rate', value:parseFloat(ctr),      color:'#3b82f6', desc:'Views that became clicks' },
                         { label:'Lead Conversion',    value:parseFloat(convRate), color:'#e8b84b', desc:'Clicks that became leads' },
@@ -350,7 +354,7 @@ export default function SponsoredPage({ onNavigate }) {
               {/* Tab: Analytics */}
               {activeTab === 'analytics' && (
                 <div style={{ background:'var(--card)', border:'0.5px solid var(--border)', borderRadius:12, padding:'14px 16px', marginBottom:14 }}>
-                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10, gap:8, flexWrap:'wrap' }}>
                     <div style={{ fontSize:11, fontWeight:700, color:'var(--text)', textTransform:'uppercase', letterSpacing:'0.04em' }}>Daily Clicks — Last 14 Days</div>
                     <div style={{ display:'flex', gap:10 }}>
                       {[['#3b82f6','Clicks'],['#e8b84b','Leads']].map(([c,l]) => (
@@ -448,7 +452,7 @@ export default function SponsoredPage({ onNavigate }) {
 
           {/* Pending state details */}
           {mySlot.status === 'pending' && (
-            <div style={{ background:'var(--card)', border:'0.5px solid var(--border)', borderRadius:12, padding:'20px 24px' }}>
+            <div style={{ background:'var(--card)', border:'0.5px solid var(--border)', borderRadius:12, padding: mobile?'16px':'20px 24px' }}>
               <div style={{ fontSize:13, fontWeight:700, color:'var(--text)', marginBottom:12 }}>Request Details</div>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
                 {[
@@ -475,8 +479,8 @@ export default function SponsoredPage({ onNavigate }) {
 
       {/* Request Modal */}
       {showRequest && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200 }}>
-          <div style={{ background:'var(--card)', border:'0.5px solid var(--border)', borderRadius:14, padding:'24px', width:420, maxWidth:'90vw' }}>
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200, padding:16 }}>
+          <div style={{ background:'var(--card)', border:'0.5px solid var(--border)', borderRadius:14, padding:'24px', width:420, maxWidth:'100%', maxHeight:'92vh', overflowY:'auto' }}>
             <div style={{ fontSize:15, fontWeight:700, color:'var(--text)', marginBottom:4 }}>Request Sponsor Slot</div>
             <div style={{ fontSize:11, color:'var(--text2)', marginBottom:18 }}>Select your preferred duration — price will be confirmed by admin.</div>
 
@@ -510,7 +514,7 @@ export default function SponsoredPage({ onNavigate }) {
                 value={reqForm.message}
                 onChange={e=>setReqForm({...reqForm, message:e.target.value})}
                 placeholder="Any specific requirements or questions..."
-                style={{ width:'100%', padding:'9px 12px', background:'var(--bg2)', border:'0.5px solid var(--border)', borderRadius:8, fontSize:11, color:'var(--text)', outline:'none', resize:'vertical', minHeight:70, fontFamily:'inherit' }}
+                style={{ width:'100%', padding:'9px 12px', background:'var(--bg2)', border:'0.5px solid var(--border)', borderRadius:8, fontSize:11, color:'var(--text)', outline:'none', resize:'vertical', minHeight:70, fontFamily:'inherit', boxSizing:'border-box' }}
               />
             </div>
 
