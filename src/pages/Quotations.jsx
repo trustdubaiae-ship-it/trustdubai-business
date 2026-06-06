@@ -130,6 +130,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
   const [notes, setNotes]     = useState('')
   const [showFooter, setShowFooter] = useState(true)
   const [showSignature, setShowSignature] = useState(true)
+  const [showBank, setShowBank] = useState(false)
   const [addTradePick, setAddTradePick] = useState('')
   const [location, setLocation]       = useState('')
   const [preparedBy, setPreparedBy]   = useState('')
@@ -185,7 +186,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
         setItems(Array.isArray(d.items) && d.items.length ? d.items : [blankItem()])
         setVatEnabled(d.vatEnabled ?? true)
         setDiscountType(d.discountType ?? null); setDiscountValue(d.discountValue ?? 0)
-        setNotes(d.notes || ''); setShowFooter(d.showFooter ?? true); setShowSignature(d.showSignature ?? true)
+        setNotes(d.notes || ''); setShowFooter(d.showFooter ?? true); setShowSignature(d.showSignature ?? true); setShowBank(d.showBank ?? false)
         setLocation(d.location || ''); setPreparedBy(d.preparedBy || ''); setClientEmail(d.clientEmail || '')
       }
       setViewRaw('builder')
@@ -336,7 +337,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
     setProjectTitle(''); setItems([blankItem()]); setNotes('')
     setVatEnabled(tpl?.default_vat_enabled ?? true)
     setDiscountType(null); setDiscountValue(0)
-    setShowFooter(true); setShowSignature(true); setAddTradePick('')
+    setShowFooter(true); setShowSignature(true); setShowBank(tpl?.default_show_bank ?? false); setAddTradePick('')
     setLocation(''); setPreparedBy(''); setClientEmail('')
     setView('builder', 'builder')
   }
@@ -351,7 +352,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
     setItems(Array.isArray(d.items) && d.items.length ? d.items : [blankItem()])
     setVatEnabled(d.vatEnabled ?? true)
     setDiscountType(d.discountType ?? null); setDiscountValue(d.discountValue ?? 0)
-    setNotes(d.notes || ''); setShowFooter(d.showFooter ?? true); setShowSignature(d.showSignature ?? true)
+    setNotes(d.notes || ''); setShowFooter(d.showFooter ?? true); setShowSignature(d.showSignature ?? true); setShowBank(d.showBank ?? false)
     setLocation(d.location || ''); setPreparedBy(d.preparedBy || ''); setClientEmail(d.clientEmail || '')
     setAddTradePick(''); setView('builder', 'builder')
   }
@@ -369,7 +370,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
     setNotes('')
     setVatEnabled(!!q.vat_amount || (tpl?.default_vat_enabled ?? true))
     setDiscountType(null); setDiscountValue(0)
-    setShowFooter(q.show_footer ?? true); setShowSignature(q.show_signature ?? true)
+    setShowFooter(q.show_footer ?? true); setShowSignature(q.show_signature ?? true); setShowBank(q.show_bank ?? (tpl?.default_show_bank ?? false))
     setLocation(q.location || ''); setPreparedBy(q.prepared_by || ''); setClientEmail(q.client_email || '')
     setAddTradePick(''); setView('builder', 'builder')
   }
@@ -404,11 +405,11 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
     const hasContent = client || projectTitle.trim() || items.some(it => it.desc.trim())
     if (!hasContent) return
     const t = setTimeout(() => {
-      saveDraft({ mode, client, clientSearch, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, location, preparedBy, clientEmail })
+      saveDraft({ mode, client, clientSearch, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, showBank, location, preparedBy, clientEmail })
       setDraftExists(true)
     }, 500)
     return () => clearTimeout(t)
-  }, [view, editId, mode, client, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, location, preparedBy, clientEmail])
+  }, [view, editId, mode, client, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, showBank, location, preparedBy, clientEmail])
 
   function openBuilderPreview() {
     if (!client) { toast.error('Select a client first'); return }
@@ -426,7 +427,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
         ...(mode === 'boq' ? { trade: it.trade || 'Misc' } : {}),
       })),
       subtotal, vat_amount: vatAmount, total: grandTotal,
-      show_footer: showFooter, show_signature: showSignature,
+      show_footer: showFooter, show_signature: showSignature, show_bank: showBank,
       created_at: new Date().toISOString(),
     }
     setPreviewDraft(tempQuote)
@@ -453,7 +454,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
         })),
         subtotal, vat_amount: vatAmount, total: grandTotal,
         payment_terms: tpl?.payment_schedule || null, why_choose_us: tpl?.why_choose_us || null,
-        show_footer: showFooter, show_signature: showSignature,
+        show_footer: showFooter, show_signature: showSignature, show_bank: showBank,
         status: sendNow ? 'sent' : 'draft',
       }
       if (editId) {
@@ -572,6 +573,11 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
     const terms  = escapeHtml(tpl?.default_terms || DEFAULT_TERMS)
     const wantFooter = q.show_footer ?? true
     const wantSign   = q.show_signature ?? true
+    const wantBank   = q.show_bank ?? false
+    const bankFields = [
+      ['Bank', tpl?.bank_name], ['Account Name', tpl?.bank_account_name], ['Account No', tpl?.bank_account_number],
+      ['IBAN', tpl?.bank_iban], ['SWIFT', tpl?.bank_swift], ['Branch', tpl?.bank_branch],
+    ].filter(([, v]) => v && String(v).trim()).map(([k, v]) => [k, escapeHtml(v)])
     const qItems = Array.isArray(q.items) ? q.items : []
     const isBoq  = (q.mode === 'boq')
     const isVo   = !!voMeta
@@ -656,6 +662,14 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
           <div style="flex:1;text-align:center;"><div style="font-size:9px;font-weight:700;color:#6b6b6b;margin-bottom:24px;">Client Acceptance & Approval</div><div style="border-bottom:1px solid #1a1a1a;"></div><div style="font-size:8px;color:#999;margin-top:4px;">Name · Signature · Date</div></div>
         </div>` : ''
 
+      const bankBlock = (wantBank && bankFields.length) ? `
+        <div style="padding:18px 30px 0;">
+          <div style="font-size:10px;color:#c9952a;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:10px;">— Bank Details</div>
+          <div style="border:0.5px solid #eee;border-left:2px solid #c9952a;border-radius:4px;padding:11px 14px;display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;">
+            ${bankFields.map(([k,v])=>`<div style="display:flex;gap:8px;font-size:10px;"><span style="color:#999;min-width:80px;">${k}</span><span style="font-weight:600;color:#1a1a1a;word-break:break-word;">${v}</span></div>`).join('')}
+          </div>
+        </div>` : ''
+
       return `<div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;max-width:680px;margin:0 auto;background:#fff;">
         <div style="height:5px;background:#c9952a;"></div>
         <div style="padding:22px 30px 0;">
@@ -715,6 +729,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
             <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding:7px 10px;margin-top:5px;background:#1a1a1a;color:#fff;border-radius:4px;"><span>${isVo?'VO Total':'Grand Total'}</span><span style="color:#c9952a;">AED ${n(tot)}</span></div>
           </div>
         </div>
+        ${bankBlock}
         ${wantFooter ? paymentCards + whyBlock + (!isVo ? `
           <div style="padding:18px 30px 0;">
             <div style="font-size:10px;color:#c9952a;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:7px;">— Terms & Conditions</div>
@@ -735,6 +750,10 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
         <div style="font-size:10px;color:#777;line-height:1.6;white-space:pre-line;">${terms}</div>
       </div>` : ''
     const signHtml = wantSign ? `<div style="text-align:center;"><div style="width:120px;border-bottom:1px solid #1a1a1a;margin-bottom:4px;height:30px;"></div><div style="font-size:9.5px;color:#6b6b6b;">Authorized Signature &amp; Stamp</div></div>` : '<div></div>'
+    const bankHtml = (wantBank && bankFields.length) ? `<div style="background:#faf8f3;border-radius:5px;padding:11px 13px;margin-bottom:14px;">
+        <div style="font-size:9px;color:#c9952a;text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:6px;">Bank Details</div>
+        ${bankFields.map(([k,v])=>`<div style="font-size:10.5px;color:#555;margin-bottom:2px;"><span style="color:#999;display:inline-block;min-width:86px;">${k}</span> <span style="font-weight:600;color:#1a1a1a;">${v}</span></div>`).join('')}
+      </div>` : ''
 
     return `<div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;max-width:680px;margin:0 auto;padding:30px;background:#fff;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #c9952a;padding-bottom:14px;margin-bottom:16px;">
@@ -784,6 +803,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
           <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding:6px 0 0;border-top:1.5px solid #1a1a1a;margin-top:4px;"><span>${isVo?'VO Total':'Grand Total'}</span><span style="color:#c9952a;">AED ${n(tot)}</span></div>
         </div>
       </div>
+      ${bankHtml}
       ${footerHtml}
       <div style="display:flex;justify-content:space-between;align-items:flex-end;padding-top:14px;">
         <div style="font-size:9.5px;color:#999;">Thank you for choosing ${cName}.</div>
@@ -1239,6 +1259,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
   // ============ BUILDER ============
   if (view === 'builder') {
     const md = MODE_STYLE[mode] || MODE_STYLE.simple
+    const hasBank = !!(tpl?.bank_name || tpl?.bank_iban || tpl?.bank_account_number)
     const boqGroups = mode === 'boq' ? groupByTradeIdx(items, tradeList) : null
     const availableTrades = tradeList.filter(t => !(boqGroups||[]).some(g => g.trade === t))
     return (
@@ -1455,6 +1476,14 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
               <div style={{ flex:1 }}>
                 <div style={{ fontSize:13, color:text }}>Signature &amp; stamp</div>
                 <div style={{ fontSize:11, color:textMuted }}>{canPremium?'Dual-party signature block':'Authorized signature block'} on the PDF</div>
+              </div>
+            </label>
+            <label style={{ display:'flex', alignItems:'center', gap:10, background:cardBg, border:`1px solid ${showBank?'#0099cc':border}`, borderRadius:8, padding:'9px 12px', cursor:'pointer' }}>
+              <input type="checkbox" checked={showBank} onChange={e=>setShowBank(e.target.checked)} style={{ width:'auto' }}/>
+              <i className="ti ti-building-bank" style={{ fontSize:15, color:textSub }}/>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:13, color:text }}>Bank account details</div>
+                <div style={{ fontSize:11, color:textMuted }}>{hasBank ? 'Account name, number & IBAN on the PDF' : 'Add bank details in Quote Settings first'}</div>
               </div>
             </label>
           </div>

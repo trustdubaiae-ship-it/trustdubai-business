@@ -64,6 +64,15 @@ export default function QuoteSettings() {
   const [payment, setPayment]       = useState([...DEFAULT_PAYMENT])
   const [terms, setTerms]           = useState(DEFAULT_TERMS)
 
+  // bank / payment account
+  const [bankName, setBankName]               = useState('')
+  const [bankAccName, setBankAccName]         = useState('')
+  const [bankAccNumber, setBankAccNumber]     = useState('')
+  const [bankIban, setBankIban]               = useState('')
+  const [bankSwift, setBankSwift]             = useState('')
+  const [bankBranch, setBankBranch]           = useState('')
+  const [showBankDefault, setShowBankDefault] = useState(false)
+
   useEffect(() => {
     if (company?.id) fetchTemplate()
     const observer = new MutationObserver(() => forceUpdate(n => n + 1))
@@ -89,6 +98,13 @@ export default function QuoteSettings() {
       setWhy(parseWhy(data.why_choose_us))
       setPayment(parsePayment(data.payment_schedule))
       setTerms(data.default_terms || DEFAULT_TERMS)
+      setBankName(data.bank_name || '')
+      setBankAccName(data.bank_account_name || '')
+      setBankAccNumber(data.bank_account_number || '')
+      setBankIban(data.bank_iban || '')
+      setBankSwift(data.bank_swift || '')
+      setBankBranch(data.bank_branch || '')
+      setShowBankDefault(data.default_show_bank ?? false)
     } else {
       // no row yet — sensible defaults pulled from company
       setLegalName(company?.name || '')
@@ -144,6 +160,13 @@ export default function QuoteSettings() {
         why_choose_us: JSON.stringify(cleanWhy),
         payment_schedule: cleanPay,
         default_terms: terms.trim() || null,
+        bank_name: bankName.trim() || null,
+        bank_account_name: bankAccName.trim() || null,
+        bank_account_number: bankAccNumber.trim() || null,
+        bank_iban: bankIban.trim() || null,
+        bank_swift: bankSwift.trim() || null,
+        bank_branch: bankBranch.trim() || null,
+        default_show_bank: showBankDefault,
       }
       const { error } = await supabase.from('quotation_templates')
         .upsert(payload, { onConflict: 'company_id' })
@@ -303,6 +326,24 @@ export default function QuoteSettings() {
             <i className={`ti ${payOk ? 'ti-check' : 'ti-alert-triangle'}`} style={{ fontSize:14 }}/> Total: {payTotal}%
           </span>
         </div>
+      </div>
+
+      {/* Bank / Payment Account */}
+      <div style={cardStyle}>
+        <div style={cardHead}><i className="ti ti-building-bank" style={{ fontSize:18, color:'#0099cc' }}/> Bank / Payment Account</div>
+        <p style={{ margin:'0 0 12px', fontSize:11, color:textMuted }}>Shown on the quote PDF when the “Bank account details” option is ticked in the builder. Leave blank to hide.</p>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(220px,1fr))', gap:12 }}>
+          <div><label style={labelStyle}>Bank name</label><input value={bankName} onChange={e=>setBankName(e.target.value)} placeholder="Emirates NBD" style={inputStyle}/></div>
+          <div><label style={labelStyle}>Account name</label><input value={bankAccName} onChange={e=>setBankAccName(e.target.value)} placeholder="Company LLC" style={inputStyle}/></div>
+          <div><label style={labelStyle}>Account number</label><input value={bankAccNumber} onChange={e=>setBankAccNumber(e.target.value)} placeholder="1011xxxxxxxxx" style={inputStyle}/></div>
+          <div><label style={labelStyle}>IBAN</label><input value={bankIban} onChange={e=>setBankIban(e.target.value)} placeholder="AE07 0331 2345 6789 0123 456" style={inputStyle}/></div>
+          <div><label style={labelStyle}>SWIFT / BIC</label><input value={bankSwift} onChange={e=>setBankSwift(e.target.value)} placeholder="EBILAEAD" style={inputStyle}/></div>
+          <div><label style={labelStyle}>Branch</label><input value={bankBranch} onChange={e=>setBankBranch(e.target.value)} placeholder="Business Bay Branch" style={inputStyle}/></div>
+        </div>
+        <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginTop:13 }}>
+          <input type="checkbox" checked={showBankDefault} onChange={e=>setShowBankDefault(e.target.checked)} style={{ width:'auto' }}/>
+          <span style={{ fontSize:13, color:text }}>Include bank details on new quotes by default</span>
+        </label>
       </div>
 
       {/* Terms */}
