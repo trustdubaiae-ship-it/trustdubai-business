@@ -78,7 +78,7 @@ const LIMITED_PAGES = ['controlwall', 'dashboard', 'inbox', 'profile', 'portfoli
 
 // --- Refresh persistence (URL hash) ---
 // activePage is mirrored in the URL hash (e.g. #leads) so a page refresh
-// restores the same page instead of resetting to Control Wall. Pages with internal
+// restores the same page instead of resetting to the Command Center. Pages with internal
 // views (list/builder/detail) can also persist a sub-route, e.g. #quotations/builder,
 // so a refresh keeps them on the same view instead of resetting to the list.
 const VALID_PAGES = [
@@ -87,10 +87,10 @@ const VALID_PAGES = [
   'controlpanel', 'verification', 'verificationStatus', 'plans', 'settings',
 ]
 
-const DEFAULT_PAGE = 'controlwall'
+// Command Center is the home/default page for all devices (Control Wall has been retired).
+const DEFAULT_PAGE = 'dashboard'
 const isMobileView = () => typeof window !== 'undefined' && window.innerWidth < 768
-// Mobile opens on the card-home (Command Center); desktop keeps Control Wall.
-const getDefaultPage = () => (isMobileView() ? 'dashboard' : DEFAULT_PAGE)
+const getDefaultPage = () => DEFAULT_PAGE
 
 function parseHash() {
   const raw = (window.location.hash || '').replace(/^#/, '')
@@ -133,10 +133,10 @@ function Portal() {
     return () => window.removeEventListener('resize', r)
   }, [])
 
-  // Control Wall is too dense for phones — on mobile, send it to the card-home instead.
+  // Control Wall has been replaced by the Command Center — bounce any stray controlwall hits there.
   useEffect(() => {
-    if (mobile && activePage === 'controlwall') navigate('dashboard')
-  }, [mobile, activePage])
+    if (activePage === 'controlwall') navigate('dashboard')
+  }, [activePage])
 
   function navigate(page) {
     setActivePage(page)
@@ -214,7 +214,7 @@ function Portal() {
   }
 
   const pageTitles = {
-    controlwall:'Control Wall', dashboard:'Command Center', revenueengine:'Revenue Engine', leadform:'Lead Form', tdleads:'TrustDubai Leads', metaads:'Meta Ads', quoteapprovals:'Quote Approvals', aiquote:'AI Quote Builder', projects:'Projects', materials:'Material Requests', expenses:'Site Expenses', aiassistant:'AI Assistant', organizer:'My Organizer', inbox:'Inbox', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
+    controlwall:'Command Center', dashboard:'Command Center', revenueengine:'Revenue Engine', leadform:'Lead Form', tdleads:'TrustDubai Leads', metaads:'Meta Ads', quoteapprovals:'Quote Approvals', aiquote:'AI Quote Builder', projects:'Projects', materials:'Material Requests', expenses:'Site Expenses', aiassistant:'AI Assistant', organizer:'My Organizer', inbox:'Inbox', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
     analytics:'Analytics', leads:'Lead Form', leadengine:'Lead Engine', quotations:'Quotations', quoteSettings:'Quote Settings', quotelibrary:'Description Library', sponsored:'Sponsored Placement', staff:'Staff & Access',
     team:'Our Team', documents:'Document Verification', faq:'FAQ Management', notifications:'Notifications', trust:'Trust Score', controlpanel:'Control Panel',
     verification:'Control Panel', verificationStatus:'Control Panel', plans:'Control Panel', settings:'Control Panel',
@@ -279,9 +279,9 @@ function Portal() {
         <p style={{ fontSize:13, color:'var(--text2)', margin:'0 0 16px' }}>
           Restricted. Please contact {company?.name || 'your company'} admin.
         </p>
-        <button onClick={() => navigate('controlwall')}
+        <button onClick={() => navigate('dashboard')}
           style={{ padding:'10px 18px', borderRadius:9, border:'none', background:'#0099cc', color:'#fff', fontWeight:600, cursor:'pointer' }}>
-          Go to Control Wall
+          Go to Command Center
         </button>
       </div>
     </div>
@@ -290,7 +290,7 @@ function Portal() {
   let mainContent
   if (!permAllowed) mainContent = AccessDenied
   else if (limitedBlocked) mainContent = LockedScreen
-  else mainContent = (allPages[activePage] || allPages.controlwall)
+  else mainContent = (allPages[activePage] || allPages.dashboard)
 
   return (
     <div className="layout" style={{ background: pageBg }}>
