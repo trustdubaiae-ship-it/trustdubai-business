@@ -2,6 +2,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
+import { MENU } from '../components/Sidebar'
+import { can } from '../lib/permissions'
 
 /* =========================================================================
    TrustDubai Business — COMMAND CENTER
@@ -137,7 +139,7 @@ const isWon = st => { const s=norm(st); return /won|success|convert|deal/.test(s
 
 /* ============================== main ============================== */
 export default function DashboardPage({ onNavigate, theme }) {
-  const { company, staff, user } = useAuth()
+  const { company, staff, user, role, hasFeature, hasAddon } = useAuth()
   const isDark = theme !== 'light'
   const adminName = staff?.name || company?.name || (user?.email||'').split('@')[0] || 'there'
 
@@ -285,6 +287,29 @@ export default function DashboardPage({ onNavigate, theme }) {
     { label:'Leads Won',         value:stats.won,         icon:'ti-trophy',       color:C.green, page:'leads' },
   ]
 
+  const perms = staff?.permissions || null
+  const checkAddon = (k) => (typeof hasAddon === 'function' ? hasAddon(k) : false)
+  const checkFeature = (k) => (typeof hasFeature === 'function' ? hasFeature(k) : true)
+  const sectionColor = {
+    'MAIN': C.blue, 'LEAD HUB': C.green, 'SALES & QUOTES': C.cyan,
+    'PROJECTS & OPS': C.gold, 'AI & CRM': C.purple, 'REPUTATION': C.pink,
+    'MY PROFILE': C.blue, 'GROWTH': C.green, 'TEAM & ACCESS': C.text2, 'SETTINGS': C.text2,
+  }
+  const mobileGroups = (() => {
+    const out = []; let cur = null
+    for (const item of MENU) {
+      if (item.section) { cur = { section: item.section, items: [] }; out.push(cur) }
+      else if (cur) {
+        const permLocked = !can(role, perms, item.perm)
+        const addonLocked = !permLocked && !!item.addon && !checkAddon(item.addon)
+        const featureLocked = !permLocked && !addonLocked && !item.soon && item.featureKey ? !checkFeature(item.featureKey) : false
+        const showSoon = !!item.soon && !addonLocked
+        cur.items.push({ ...item, permLocked, addonLocked, featureLocked, showSoon })
+      }
+    }
+    return out.filter(g => g.items.length)
+  })()
+
   const fmtPct = (p) => `${p>=0?'+':''}${p}%`
 
   return (
@@ -312,6 +337,54 @@ export default function DashboardPage({ onNavigate, theme }) {
         </div>
       </div>
 
+      {/* MOBILE-ONLY: quick stats + feature card launcher (PC unchanged) */}
+      {mobile && (
+        <div style={{ display:'flex', gap:8, marginBottom:16 }}>
+          {[['Trust Score', Math.round(stats.trust), C.green],['Total Leads', stats.leads, C.cyan],['Reviews', stats.reviews, C.gold]].map(([l,v,c]) => (
+            <div key={l} style={{ flex:1, background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:'11px 6px', textAlign:'center', boxShadow:C.shadow }}>
+              <div style={{ fontSize:20, fontWeight:800, color:c, lineHeight:1 }}>{v}</div>
+              <div style={{ fontSize:10, color:C.text2, marginTop:4 }}>{l}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {mobile && (
+        <div style={{ marginBottom:6 }}>
+          {mobileGroups.map((g, gi) => (
+            <div key={gi} style={{ marginBottom:18 }}>
+              <div style={{ fontSize:11, color:C.text3, textTransform:'uppercase', letterSpacing:'.5px', fontWeight:700, margin:'0 2px 10px' }}>{g.section}</div>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10 }}>
+                {g.items.map(it => {
+                  const col = sectionColor[g.section] || C.green
+                  const dim = it.permLocked || it.addonLocked || it.featureLocked
+                  return (
+                    <div key={it.id}
+                      onClick={() => { if (it.permLocked) return; if (it.addonLocked || it.featureLocked) { onNavigate && onNavigate('plans') } else { onNavigate && onNavigate(it.id) } }}
+                      style={{ position:'relative', background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:'14px 6px 12px', textAlign:'center', cursor: it.permLocked?'not-allowed':'pointer', opacity: dim?0.55:1, boxShadow:C.shadow, transition:'transform .12s' }}
+                      onTouchStart={e=>{ e.currentTarget.style.transform='scale(0.96)' }}
+                      onTouchEnd={e=>{ e.currentTarget.style.transform='none' }}>
+                      {it.permLocked
+                        ? <i className="ti ti-lock" style={{ position:'absolute', top:7, right:7, fontSize:11, color:C.text3 }}/>
+                        : it.addonLocked
+                          ? <span style={{ position:'absolute', top:6, right:6, fontSize:7.5, fontWeight:700, color:'#0099cc', background:'rgba(0,153,204,0.14)', padding:'1px 5px', borderRadius:99 }}>ADD-ON</span>
+                          : it.showSoon
+                            ? <span style={{ position:'absolute', top:6, right:6, fontSize:7.5, fontWeight:700, color:C.gold, background:C.gold+'22', padding:'1px 5px', borderRadius:99 }}>SOON</span>
+                            : null}
+                      <div style={{ width:42, height:42, margin:'0 auto 8px', borderRadius:12, background: dim?C.row:col+'1e', display:'flex', alignItems:'center', justifyContent:'center', color: dim?C.text3:col }}>
+                        <i className={`ti ${it.icon}`} style={{ fontSize:21 }}/>
+                      </div>
+                      <div style={{ fontSize:11, color: dim?C.text2:C.text, lineHeight:1.25, fontWeight:500 }}>{it.label}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!mobile && (<>
       {/* 5 STAT CARDS */}
       <div className="cc-grid-stats" style={{ marginBottom:14 }}>
         {STAT_CARDS.map((s,i) => (
@@ -460,6 +533,7 @@ export default function DashboardPage({ onNavigate, theme }) {
           </div>
         ))}
       </div>
+      </>)}
     </div>
   )
 }
