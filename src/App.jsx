@@ -88,11 +88,14 @@ const VALID_PAGES = [
 ]
 
 const DEFAULT_PAGE = 'controlwall'
+const isMobileView = () => typeof window !== 'undefined' && window.innerWidth < 768
+// Mobile opens on the card-home (Command Center); desktop keeps Control Wall.
+const getDefaultPage = () => (isMobileView() ? 'dashboard' : DEFAULT_PAGE)
 
 function parseHash() {
   const raw = (window.location.hash || '').replace(/^#/, '')
   const [page, ...rest] = raw.split('/')
-  const validPage = VALID_PAGES.includes(page) ? page : DEFAULT_PAGE
+  const validPage = VALID_PAGES.includes(page) ? page : getDefaultPage()
   return { page: validPage, sub: rest.join('/') || '' }
 }
 function getPageFromHash() {
@@ -107,6 +110,8 @@ function Portal() {
   const [showProfile,  setShowProfile]  = useState(false)
   const [theme,        setTheme]        = useState(getTheme)
   const [sidebarOpen,  setSidebarOpen]  = useState(false)
+  const [vw,           setVw]           = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280))
+  const mobile = vw < 768
 
   useEffect(() => { initTheme() }, [])
 
@@ -120,6 +125,18 @@ function Portal() {
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
+
+  // Track viewport so we can keep the mobile experience clean.
+  useEffect(() => {
+    const r = () => setVw(window.innerWidth)
+    window.addEventListener('resize', r)
+    return () => window.removeEventListener('resize', r)
+  }, [])
+
+  // Control Wall is too dense for phones — on mobile, send it to the card-home instead.
+  useEffect(() => {
+    if (mobile && activePage === 'controlwall') navigate('dashboard')
+  }, [mobile, activePage])
 
   function navigate(page) {
     setActivePage(page)
@@ -291,9 +308,11 @@ function Portal() {
 
         <div className="topbar" style={{ background: isPlatinum?'#161b2e':'var(--card)', borderBottom:`0.5px solid ${isPlatinum?'rgba(139,92,246,0.2)':'var(--border)'}` }}>
           <div style={{ display:'flex', alignItems:'center', gap:10, minWidth:0, flex:1 }}>
-            <button className="hamburger-btn" onClick={() => setSidebarOpen(true)} aria-label="Menu">
-              <i className="ti ti-menu-2" />
-            </button>
+            {!mobile && (
+              <button className="hamburger-btn" onClick={() => setSidebarOpen(true)} aria-label="Menu">
+                <i className="ti ti-menu-2" />
+              </button>
+            )}
 
             <div style={{ width:34, height:34, borderRadius:9, background:'linear-gradient(135deg,#e8b84b,#c9952a)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:14, color:'#0d1117', flexShrink:0 }}>
               {company?.name?.[0]?.toUpperCase()||'?'}
@@ -373,6 +392,12 @@ function Portal() {
         </div>
 
         <div className="page-content">
+          {mobile && activePage !== 'dashboard' && (
+            <button onClick={() => navigate('dashboard')}
+              style={{ display:'inline-flex', alignItems:'center', gap:6, margin:'0 0 14px', padding:'8px 14px', borderRadius:10, border:'0.5px solid var(--border)', background:'var(--card)', color:'var(--text)', fontSize:13, fontWeight:600, cursor:'pointer' }}>
+              <i className="ti ti-arrow-left" style={{ fontSize:15 }}/> Home
+            </button>
+          )}
           {ReviewBanner}
           {mainContent}
         </div>
