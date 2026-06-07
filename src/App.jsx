@@ -108,12 +108,22 @@ function Portal() {
   const [subRoute,     setSubRoute]     = useState(() => parseHash().sub)
   const [showRegister, setShowRegister] = useState(false)
   const [showProfile,  setShowProfile]  = useState(false)
-  const [theme,        setTheme]        = useState(getTheme)
+  const theme = 'light'  // light-only (dark mode retired)
   const [sidebarOpen,  setSidebarOpen]  = useState(false)
   const [vw,           setVw]           = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280))
   const mobile = vw < 768
 
-  useEffect(() => { initTheme() }, [])
+  // Force LIGHT theme app-wide (dark mode retired — no more mixup)
+  useEffect(() => {
+    try {
+      initTheme()
+      const root = document.documentElement
+      root.setAttribute('data-theme', 'light')
+      root.classList.remove('dark'); root.classList.add('light')
+      if (document.body) { document.body.classList.remove('dark'); document.body.classList.add('light') }
+      ;['theme','td-theme','trustdubai-theme','color-theme'].forEach(k => { try { localStorage.setItem(k,'light') } catch(e){} })
+    } catch (e) {}
+  }, [])
 
   // Keep activePage + subRoute in sync when the URL hash changes (refresh, back/forward button)
   useEffect(() => {
@@ -222,7 +232,7 @@ function Portal() {
   const planColors = { free:'#6b7280', silver:'#64748b', gold:'#d97706', platinum:'#8b5cf6' }
   const planName   = company?.plan || 'free'
   const isPlatinum = planName === 'platinum'
-  const pageBg     = isPlatinum ? '#0f0e1a' : 'var(--bg)'  // follow active light/dark theme (no mixup)
+  const pageBg     = isPlatinum ? '#0f0e1a' : '#f8fafc'  // light-only
 
   const displayName  = staff?.name || company?.name || 'User'
   const displayEmail = user?.email || ''
@@ -335,11 +345,6 @@ function Portal() {
             </div>
             <div className="topbar-date" style={{ background: isPlatinum?'rgba(255,255,255,0.05)':'var(--bg2)', border:`0.5px solid ${isPlatinum?'rgba(255,255,255,0.08)':'var(--border)'}`, borderRadius:8, padding:'5px 10px', fontSize:9, color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)', display:'flex', alignItems:'center', gap:5, whiteSpace:'nowrap' }}>
               <i className="ti ti-calendar" style={{ fontSize:10 }}/> Last 30 Days <i className="ti ti-chevron-down" style={{ fontSize:9 }}/>
-            </div>
-
-            <div onClick={() => setTheme(toggleTheme())} title={theme==='dark'?'Switch to light':'Switch to dark'}
-              style={{ cursor:'pointer', width:30, height:30, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)', flexShrink:0 }}>
-              <i className={`ti ${theme==='dark'?'ti-sun':'ti-moon'}`} style={{ fontSize:17 }}/>
             </div>
 
             <div onClick={() => navigate('notifications')} style={{ position:'relative', cursor:'pointer', flexShrink:0 }}>
