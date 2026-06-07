@@ -155,7 +155,16 @@ function detectDark() {
 /* ============================== main ============================== */
 export default function DashboardPage({ onNavigate, theme }) {
   const { company, staff, user, role, hasFeature, hasAddon } = useAuth()
-  const isDark = false  // light-only (dark mode retired)
+  // Accurate live theme (fixes dark cards desync) — colors stay exactly the same
+  const [isDark, setIsDark] = useState(detectDark)
+  useEffect(() => {
+    setIsDark(detectDark())
+    const root = document.documentElement
+    const obs = new MutationObserver(() => setIsDark(detectDark()))
+    obs.observe(root, { attributes:true, attributeFilter:['class','data-theme','style'] })
+    if (document.body) obs.observe(document.body, { attributes:true, attributeFilter:['class','data-theme','style'] })
+    return () => obs.disconnect()
+  }, [theme])
   const adminName = staff?.name || company?.name || (user?.email||'').split('@')[0] || 'there'
 
   const [vw, setVw] = useState(typeof window !== 'undefined' ? window.innerWidth : 1280)
