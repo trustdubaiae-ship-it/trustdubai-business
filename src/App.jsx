@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './lib/auth'
 import { ToastProvider } from './lib/toast'
 import { can } from './lib/permissions'
 import { initTheme, toggleTheme, getTheme } from './lib/theme'
+import { supabase } from './lib/supabase'
 import Sidebar from './components/Sidebar'
 import LoginNotificationPopup from './components/LoginNotificationPopup'
 import LoginPage from './pages/LoginPage'
@@ -110,6 +111,7 @@ function Portal() {
   const [showProfile,  setShowProfile]  = useState(false)
   const [theme,        setTheme]        = useState(getTheme)
   const [sidebarOpen,  setSidebarOpen]  = useState(false)
+  const [unreadCount,  setUnreadCount]  = useState(0)
   const [vw,           setVw]           = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280))
   const mobile = vw < 768
 
@@ -132,6 +134,36 @@ function Portal() {
     window.addEventListener('resize', r)
     return () => window.removeEventListener('resize', r)
   }, [])
+
+  // --- Bell: real unread notification count (company-wide + this staff only) ---
+  // Refreshes on mount, on every page navigation (so opening Notifications clears it),
+  // on window focus, and every 60s. Counts rows where is_read=false OR status='unread'.
+  useEffect(() => {
+    let cancelled = false
+    async function fetchUnread() {
+      if (!company?.id) return
+      try {
+        const { data } = await supabase
+          .from('notifications')
+          .select('id,is_read,status,recipient_staff_id')
+          .or(`company_id.eq.${company.id},company_id.is.null`)
+          .limit(500)
+        if (cancelled) return
+        let rows = data || []
+        // Staff only sees company-wide + their own targeted notifications (owner sees all).
+        if (staff?.id) {
+          rows = rows.filter(n => !n.recipient_staff_id || n.recipient_staff_id === staff.id)
+        }
+        const count = rows.filter(n => n.is_read === false || n.status === 'unread').length
+        setUnreadCount(count)
+      } catch (e) { /* silent */ }
+    }
+    fetchUnread()
+    const onFocus = () => fetchUnread()
+    window.addEventListener('focus', onFocus)
+    const t = setInterval(fetchUnread, 60000)
+    return () => { cancelled = true; window.removeEventListener('focus', onFocus); clearInterval(t) }
+  }, [company, staff, activePage])
 
   function navigate(page) {
     setActivePage(page)
@@ -350,9 +382,13 @@ function Portal() {
               <i className={`ti ${theme==='dark'?'ti-sun':'ti-moon'}`} style={{ fontSize:17 }}/>
             </div>
 
-            <div onClick={() => navigate('notifications')} style={{ position:'relative', cursor:'pointer', flexShrink:0 }}>
-              <i className="ti ti-bell" style={{ fontSize:18, color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)' }}/>
-              <div style={{ position:'absolute', top:-2, right:-2, width:7, height:7, background:'#ef4444', borderRadius:'50%', border:`1.5px solid ${isPlatinum?'#161b2e':'var(--card)'}` }}/>
+            <div onClick={() => navigate('notifications')} title={unreadCount>0 ? `${unreadCount} unread notification${unreadCount>1?'s':''}` : 'Notifications'} style={{ position:'relative', cursor:'pointer', flexShrink:0 }}>
+              <i className="ti ti-bell" style={{ fontSize:18, color: unreadCount>0 ? '#0099cc' : (isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)') }}/>
+              {unreadCount > 0 && (
+                <div style={{ position:'absolute', top:-6, right:-7, minWidth:15, height:15, padding:'0 4px', background:'#ef4444', color:'#fff', borderRadius:8, fontSize:9, fontWeight:800, lineHeight:1, display:'flex', alignItems:'center', justifyContent:'center', border:`1.5px solid ${isPlatinum?'#161b2e':'var(--card)'}` }}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </div>
+              )}
             </div>
             <i className="ti ti-message-circle topbar-msg" style={{ fontSize:18, color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)', cursor:'pointer' }}/>
             <div className="topbar-plan" style={{ background: planName==='gold'?'#fffbeb': planName==='platinum'?'rgba(139,92,246,0.15)':'var(--bg2)', border:`0.5px solid ${planName==='gold'?'#fcd34d': planName==='platinum'?'rgba(139,92,246,0.3)':'var(--border)'}`, borderRadius:8, padding:'4px 10px', fontSize:9, color: planColors[planName], fontWeight:700, display:'flex', alignItems:'center', gap:4, whiteSpace:'nowrap' }}>
