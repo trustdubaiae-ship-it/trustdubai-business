@@ -301,7 +301,7 @@ function Portal() {
 
       <main className="main" style={{ background: pageBg }}>
 
-        <div className="topbar" style={{ background: isPlatinum?'#161b2e':'var(--card)', borderBottom:`0.5px solid ${isPlatinum?'rgba(139,92,246,0.2)':'var(--border)'}`, position:'sticky', top:0, zIndex:30 }}>
+        <div className="topbar" style={{ background: isPlatinum?'#161b2e':'var(--card)', borderBottom:`0.5px solid ${isPlatinum?'rgba(139,92,246,0.2)':'var(--border)'}` }}>
           <div style={{ display:'flex', alignItems:'center', gap:10, minWidth:0, flex:1 }}>
             {!mobile && (
               <button className="hamburger-btn" onClick={() => setSidebarOpen(true)} aria-label="Menu">
