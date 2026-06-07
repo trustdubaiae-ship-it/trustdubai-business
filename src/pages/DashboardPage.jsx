@@ -137,15 +137,55 @@ const normTemp = raw => { const s=norm(raw); if(/hot|high/.test(s))return'hot'; 
 const isWonLost = st => { const s=norm(st); return /won|lost|reject|dead|drop|junk|spam|success|convert|deal/.test(s) }
 const isWon = st => { const s=norm(st); return /won|success|convert|deal/.test(s) && !/lost/.test(s) }
 
+// Read the LIVE theme from the DOM so isDark is always accurate (design colors stay the same).
+function detectDark() {
+  if (typeof document === 'undefined') return false
+  const root = document.documentElement
+  const ds = ((root.getAttribute('data-theme') || '') + ' ' + (root.className || '')).toLowerCase()
+  if (ds.includes('dark')) return true
+  if (ds.includes('light')) return false
+  try {
+    const v = (getComputedStyle(root).getPropertyValue('--bg') || '').trim() || getComputedStyle(document.body).backgroundColor
+    const m = (v || '').match(/\d+(\.\d+)?/g)
+    if (m && m.length >= 3) { const [r,g,b] = m.map(Number); return (0.299*r + 0.587*g + 0.114*b) < 128 }
+  } catch (e) {}
+  return false
+}
+
 /* ============================== main ============================== */
 export default function DashboardPage({ onNavigate, theme }) {
   const { company, staff, user, role, hasFeature, hasAddon } = useAuth()
-  const isDark = theme !== 'light'
+  // Accurate live theme (fixes dark cards desync) — colors stay exactly the same
+  const [isDark, setIsDark] = useState(detectDark)
+  useEffect(() => {
+    setIsDark(detectDark())
+    const root = document.documentElement
+    const obs = new MutationObserver(() => setIsDark(detectDark()))
+    obs.observe(root, { attributes:true, attributeFilter:['class','data-theme','style'] })
+    if (document.body) obs.observe(document.body, { attributes:true, attributeFilter:['class','data-theme','style'] })
+    return () => obs.disconnect()
+  }, [theme])
   const adminName = staff?.name || company?.name || (user?.email||'').split('@')[0] || 'there'
 
   const [vw, setVw] = useState(typeof window !== 'undefined' ? window.innerWidth : 1280)
   useEffect(() => { const r = () => setVw(window.innerWidth); window.addEventListener('resize', r); return () => window.removeEventListener('resize', r) }, [])
   const mobile = vw < 768
+
+  // Share Profile + QR (mobile header button)
+  const [shareOpen, setShareOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const _slug = company?.slug || ''
+  const _publicLink = `https://trustdubai.ae/${_slug}`
+  const _profileQr = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&margin=14&data=${encodeURIComponent(_publicLink)}`
+  async function copyProfileLink() {
+    try { await navigator.clipboard.writeText(_publicLink); setCopied(true); setTimeout(()=>setCopied(false),1800) }
+    catch (e) { const ta=document.createElement('textarea'); ta.value=_publicLink; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); try{document.execCommand('copy'); setCopied(true); setTimeout(()=>setCopied(false),1800)}catch(e2){} document.body.removeChild(ta) }
+  }
+  async function downloadProfileQR() {
+    try { const res=await fetch(_profileQr); const blob=await res.blob(); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`${(company?.name||'profile').replace(/[^a-z0-9]+/gi,'-').toLowerCase()}-qr.png`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url) }
+    catch (e) { window.open(_profileQr,'_blank') }
+  }
+  function shareProfileWhatsApp() { const text=`Check out ${company?.name||'our'} verified profile on TrustDubai: ${_publicLink}`; window.open('https://wa.me/?text='+encodeURIComponent(text),'_blank') }
 
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState({ trust:0, reviews:0, avgRating:'0.0', views:0, leads:0, hot:0, followDue:0, won:0, newReviews:0, profilePct:0 })
@@ -328,10 +368,23 @@ export default function DashboardPage({ onNavigate, theme }) {
             <i className="ti ti-calendar" style={{ fontSize:13, color:C.green }}/>
             <Clock isDark={isDark}/>
           </div>
-          <button onClick={() => onNavigate && onNavigate('controlwall')} title="Open the full-screen Control Wall"
-            style={{ display:'flex', alignItems:'center', gap:6, background:'transparent', color:C.text, border:`1px solid ${C.border}`, borderRadius:10, padding:'9px 16px', fontSize:13, fontWeight:600, cursor:'pointer' }}>
-            <i className="ti ti-layout-grid" style={{ fontSize:14, color:C.green }}/> Control Wall
-          </button>
+          {mobile ? (
+            <>
+              <button onClick={() => onNavigate && onNavigate('dashboard')} title="Command Center"
+                style={{ display:'flex', alignItems:'center', gap:6, background:'transparent', color:C.text, border:`1px solid ${C.border}`, borderRadius:10, padding:'9px 14px', fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                <i className="ti ti-layout-dashboard" style={{ fontSize:14, color:C.green }}/> Command Center
+              </button>
+              <button onClick={() => { setShareOpen(true); setCopied(false) }} title="Share your profile"
+                style={{ display:'flex', alignItems:'center', gap:6, background:'transparent', color:C.text, border:`1px solid ${C.border}`, borderRadius:10, padding:'9px 14px', fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                <i className="ti ti-qrcode" style={{ fontSize:14, color:C.green }}/> Share Profile
+              </button>
+            </>
+          ) : (
+            <button onClick={() => onNavigate && onNavigate('controlwall')} title="Open the full-screen Control Wall"
+              style={{ display:'flex', alignItems:'center', gap:6, background:'transparent', color:C.text, border:`1px solid ${C.border}`, borderRadius:10, padding:'9px 16px', fontSize:13, fontWeight:600, cursor:'pointer' }}>
+              <i className="ti ti-layout-grid" style={{ fontSize:14, color:C.green }}/> Control Wall
+            </button>
+          )}
           <button onClick={fetchAll} style={{ display:'flex', alignItems:'center', gap:6, background:C.green, color:'#fff', border:'none', borderRadius:10, padding:'9px 16px', fontSize:13, fontWeight:600, cursor:'pointer' }}>
             <i className="ti ti-refresh" style={{ fontSize:14 }}/> Refresh
           </button>
@@ -535,6 +588,46 @@ export default function DashboardPage({ onNavigate, theme }) {
         ))}
       </div>
       </>)}
+
+      {shareOpen && (
+        <div onClick={() => setShareOpen(false)} style={{ position:'fixed', inset:0, zIndex:200, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
+          <div onClick={e=>e.stopPropagation()} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, width:'min(440px,100%)', maxHeight:'calc(100vh - 32px)', overflowY:'auto', boxShadow:C.shadow }}>
+            <div style={{ padding:'16px 18px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <div style={{ minWidth:0 }}>
+                <div style={{ fontSize:17, fontWeight:700, color:C.text }}>Share your profile</div>
+                <div style={{ fontSize:11, color:C.text3, marginTop:2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{company?.name || 'Your business'}</div>
+              </div>
+              <button onClick={()=>setShareOpen(false)} style={{ background:'none', border:'none', cursor:'pointer', color:C.text3, fontSize:20 }}><i className="ti ti-x"/></button>
+            </div>
+            <div style={{ padding:18 }}>
+              {!_slug ? (
+                <div style={{ textAlign:'center', padding:'24px 8px' }}>
+                  <div style={{ width:52,height:52,borderRadius:'50%',background:'rgba(245,158,11,0.12)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 14px' }}><i className="ti ti-link-off" style={{ fontSize:24, color:'#d97706' }}/></div>
+                  <div style={{ fontSize:14, fontWeight:600, color:C.text, marginBottom:6 }}>Your public link isn't ready yet</div>
+                  <div style={{ fontSize:12.5, color:C.text2, lineHeight:1.6, marginBottom:18 }}>Complete your business profile to get a shareable TrustDubai profile URL & QR.</div>
+                  <button onClick={()=>{ setShareOpen(false); onNavigate&&onNavigate('profile') }} style={{ padding:'10px 18px', borderRadius:9, border:'none', background:C.green, color:'#fff', fontWeight:600, fontSize:13, cursor:'pointer' }}>Complete profile →</button>
+                </div>
+              ) : (<>
+                <div style={{ display:'flex', flexDirection:'column', alignItems:'center', marginBottom:18 }}>
+                  <div style={{ background:'#fff', padding:14, borderRadius:14, border:`1px solid ${C.border}` }}>
+                    <img src={_profileQr} alt="Profile QR" width={200} height={200} style={{ display:'block', width:200, height:200 }}/>
+                  </div>
+                  <div style={{ fontSize:11.5, color:C.text3, marginTop:10, textAlign:'center', maxWidth:320, lineHeight:1.5 }}>Customers scan this to view your <b style={{ color:C.text2 }}>verified TrustDubai profile</b> — reviews, work, trust score & contact.</div>
+                </div>
+                <div style={{ fontSize:10, color:C.text3, textTransform:'uppercase', marginBottom:6, letterSpacing:'.3px' }}>Profile link</div>
+                <div style={{ display:'flex', gap:8, marginBottom:14 }}>
+                  <input readOnly value={_publicLink} onFocus={e=>e.target.select()} style={{ flex:1, minWidth:0, padding:'10px 12px', border:`1px solid ${C.border}`, background:C.row, color:C.text, borderRadius:8, fontSize:12.5, boxSizing:'border-box', fontFamily:'inherit' }}/>
+                  <button onClick={copyProfileLink} style={{ padding:'0 16px', borderRadius:8, background: copied?'#10b981':C.green, color:'#fff', border:'none', cursor:'pointer', fontSize:12.5, fontWeight:600, whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:5, flexShrink:0 }}><i className={'ti '+(copied?'ti-check':'ti-copy')} style={{ fontSize:14 }}/> {copied?'Copied':'Copy'}</button>
+                </div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                  <button onClick={downloadProfileQR} style={{ padding:11, borderRadius:8, background:C.row, color:C.text, border:`1px solid ${C.border}`, cursor:'pointer', fontSize:12.5, fontWeight:600, display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}><i className="ti ti-download" style={{ fontSize:15 }}/> Download QR</button>
+                  <button onClick={shareProfileWhatsApp} style={{ padding:11, borderRadius:8, background:'#22c55e', color:'#fff', border:'none', cursor:'pointer', fontSize:12.5, fontWeight:600, display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}><i className="ti ti-brand-whatsapp" style={{ fontSize:15 }}/> Share</button>
+                </div>
+              </>)}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
