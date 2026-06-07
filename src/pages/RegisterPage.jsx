@@ -142,7 +142,7 @@ export default function RegisterPage({ onBack }) {
             <div style={{ width: `${((step + 1) / STEPS.length) * 100}%`, height: '100%', background: 'linear-gradient(90deg, #e8b84b, #c9952a)', borderRadius: 99 }} />
           </div>
 
-          <style>{`.rf input,.rf select,.rf textarea{width:100%;padding:10px 14px;background:rgba(255,255,255,0.06);border:1.5px solid rgba(255,255,255,0.12);border-radius:8px;font-size:14px;color:#fff;font-family:'DM Sans',sans-serif;outline:none;box-sizing:border-box;margin-bottom:16px}.rf input:focus,.rf select:focus,.rf textarea:focus{border-color:#e8b84b}.rf input::placeholder,.rf textarea::placeholder{color:#4a5568}.rf select option{background:#1a1f2e}.rf textarea{min-height:100px;resize:vertical}.rf label{display:block;font-size:12px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px}.rf .err{color:#ef4444;font-size:12px;margin-top:-12px;margin-bottom:8px}`}</style>
+          <style>{`.rf input,.rf select,.rf textarea{width:100%;padding:10px 14px;background:rgba(255,255,255,0.06);border:1.5px solid rgba(255,255,255,0.12);border-radius:8px;font-size:14px;color:#fff;font-family:'DM Sans',sans-serif;outline:none;box-sizing:border-box;margin-bottom:16px}.rf input:focus,.rf select:focus,.rf textarea:focus{border-color:#e8b84b}.rf input::placeholder,.rf textarea::placeholder{color:#4a5568}.rf select option{background:#1a1f2e}.rf textarea{min-height:100px;resize:vertical}.rf label{display:block;font-size:12px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px}.rf .err{color:#ef4444;font-size:12px;margin-top:-12px;margin-bottom:8px}.rf-legal a{color:#e8b84b;text-decoration:none}.rf-legal a:hover{text-decoration:underline}`}</style>
 
           <div className="rf">
             {step === 0 && <>
@@ -192,7 +192,7 @@ export default function RegisterPage({ onBack }) {
                 </div>
               ))}
               <div style={{ background: 'rgba(232,184,75,0.08)', border: '1px solid rgba(232,184,75,0.2)', borderRadius: 8, padding: '12px 14px', fontSize: 12.5, color: '#9b8a5a', lineHeight: 1.7, marginTop: 4 }}>
-                By submitting, you confirm all information is accurate.
+                By submitting, you confirm all information is accurate and agree to TrustDubai's Terms of Service.
               </div>
             </div>}
           </div>
@@ -202,6 +202,13 @@ export default function RegisterPage({ onBack }) {
             <button onClick={step === STEPS.length - 1 ? submit : next} disabled={submitting} style={{ flex: 1, padding: '10px 18px', background: 'linear-gradient(135deg, #e8b84b, #c9952a)', border: 'none', borderRadius: 8, color: '#0d1117', cursor: submitting ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
               {submitting ? 'Submitting...' : step === STEPS.length - 1 ? 'Submit Application ✓' : <>Next <ChevronRight size={15} /></>}
             </button>
+          </div>
+
+          <div className="rf-legal" style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.08)', fontSize: 11.5, color: '#6e7681', lineHeight: 1.7, textAlign: 'center' }}>
+            By continuing, you agree to TrustDubai's{' '}
+            <a href="https://trustdubai.ae/terms" target="_blank" rel="noopener noreferrer">Terms of Service</a>,{' '}
+            <a href="https://trustdubai.ae/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>{' & '}
+            <a href="https://trustdubai.ae/refund" target="_blank" rel="noopener noreferrer">Refund Policy</a>.
           </div>
         </div>
       </div>
