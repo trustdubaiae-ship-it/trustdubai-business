@@ -108,22 +108,12 @@ function Portal() {
   const [subRoute,     setSubRoute]     = useState(() => parseHash().sub)
   const [showRegister, setShowRegister] = useState(false)
   const [showProfile,  setShowProfile]  = useState(false)
-  const theme = 'light'  // light-only (dark mode retired)
+  const [theme,        setTheme]        = useState(getTheme)
   const [sidebarOpen,  setSidebarOpen]  = useState(false)
   const [vw,           setVw]           = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280))
   const mobile = vw < 768
 
-  // Force LIGHT theme app-wide (dark mode retired — no more mixup)
-  useEffect(() => {
-    try {
-      initTheme()
-      const root = document.documentElement
-      root.setAttribute('data-theme', 'light')
-      root.classList.remove('dark'); root.classList.add('light')
-      if (document.body) { document.body.classList.remove('dark'); document.body.classList.add('light') }
-      ;['theme','td-theme','trustdubai-theme','color-theme'].forEach(k => { try { localStorage.setItem(k,'light') } catch(e){} })
-    } catch (e) {}
-  }, [])
+  useEffect(() => { initTheme() }, [])
 
   // Keep activePage + subRoute in sync when the URL hash changes (refresh, back/forward button)
   useEffect(() => {
@@ -231,8 +221,8 @@ function Portal() {
 
   const planColors = { free:'#6b7280', silver:'#64748b', gold:'#d97706', platinum:'#8b5cf6' }
   const planName   = company?.plan || 'free'
-  const isPlatinum = false  // light-only: Platinum ka dark shell band (plan badge planName se aata hai, isse nahi)
-  const pageBg     = isPlatinum ? '#0f0e1a' : '#f8fafc'  // light-only
+  const isPlatinum = false  // Platinum ka dark shell band; dark/light theme toggle se aata hai (var(--bg))
+  const pageBg     = isPlatinum ? '#0f0e1a' : 'var(--bg)'  // follow active light/dark theme (no mixup)
 
   const displayName  = staff?.name || company?.name || 'User'
   const displayEmail = user?.email || ''
@@ -311,11 +301,19 @@ function Portal() {
 
       <main className="main" style={{ background: pageBg }}>
 
-        <div className="topbar" style={{ background: isPlatinum?'#161b2e':'var(--card)', borderBottom:`0.5px solid ${isPlatinum?'rgba(139,92,246,0.2)':'var(--border)'}` }}>
+        <div className="topbar" style={{ background: isPlatinum?'#161b2e':'var(--card)', borderBottom:`0.5px solid ${isPlatinum?'rgba(139,92,246,0.2)':'var(--border)'}`, position:'sticky', top:0, zIndex:30 }}>
           <div style={{ display:'flex', alignItems:'center', gap:10, minWidth:0, flex:1 }}>
             {!mobile && (
               <button className="hamburger-btn" onClick={() => setSidebarOpen(true)} aria-label="Menu">
                 <i className="ti ti-menu-2" />
+              </button>
+            )}
+
+            {/* Home / Back button — lives inside the sticky topbar so it stays fixed at the top on every page */}
+            {activePage !== 'dashboard' && (
+              <button onClick={() => navigate('dashboard')} aria-label="Back to Command Center" title="Back to Command Center"
+                style={{ display:'flex', alignItems:'center', justifyContent:'center', width:32, height:32, borderRadius:9, border:`0.5px solid var(--border)`, background:'var(--bg2)', color:'var(--text)', cursor:'pointer', flexShrink:0 }}>
+                <i className="ti ti-arrow-left" style={{ fontSize:17 }}/>
               </button>
             )}
 
@@ -345,6 +343,11 @@ function Portal() {
             </div>
             <div className="topbar-date" style={{ background: isPlatinum?'rgba(255,255,255,0.05)':'var(--bg2)', border:`0.5px solid ${isPlatinum?'rgba(255,255,255,0.08)':'var(--border)'}`, borderRadius:8, padding:'5px 10px', fontSize:9, color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)', display:'flex', alignItems:'center', gap:5, whiteSpace:'nowrap' }}>
               <i className="ti ti-calendar" style={{ fontSize:10 }}/> Last 30 Days <i className="ti ti-chevron-down" style={{ fontSize:9 }}/>
+            </div>
+
+            <div onClick={() => setTheme(toggleTheme())} title={theme==='dark'?'Switch to light':'Switch to dark'}
+              style={{ cursor:'pointer', width:30, height:30, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)', flexShrink:0 }}>
+              <i className={`ti ${theme==='dark'?'ti-sun':'ti-moon'}`} style={{ fontSize:17 }}/>
             </div>
 
             <div onClick={() => navigate('notifications')} style={{ position:'relative', cursor:'pointer', flexShrink:0 }}>
@@ -392,12 +395,6 @@ function Portal() {
         </div>
 
         <div className="page-content">
-          {mobile && activePage !== 'dashboard' && (
-            <button onClick={() => navigate('dashboard')}
-              style={{ display:'inline-flex', alignItems:'center', gap:6, margin:'0 0 14px', padding:'8px 14px', borderRadius:10, border:'0.5px solid var(--border)', background:'var(--card)', color:'var(--text)', fontSize:13, fontWeight:600, cursor:'pointer' }}>
-              <i className="ti ti-arrow-left" style={{ fontSize:15 }}/> Home
-            </button>
-          )}
           {ReviewBanner}
           {mainContent}
         </div>
