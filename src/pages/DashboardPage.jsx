@@ -137,35 +137,10 @@ const normTemp = raw => { const s=norm(raw); if(/hot|high/.test(s))return'hot'; 
 const isWonLost = st => { const s=norm(st); return /won|lost|reject|dead|drop|junk|spam|success|convert|deal/.test(s) }
 const isWon = st => { const s=norm(st); return /won|success|convert|deal/.test(s) && !/lost/.test(s) }
 
-// Read the LIVE theme from the DOM so the page always matches the real theme
-// (keeps the exact same design — only makes dark/light detection accurate).
-function detectDark() {
-  if (typeof document === 'undefined') return false
-  const root = document.documentElement
-  const ds = ((root.getAttribute('data-theme') || '') + ' ' + (root.className || '')).toLowerCase()
-  if (ds.includes('dark')) return true
-  if (ds.includes('light')) return false
-  try {
-    const v = (getComputedStyle(root).getPropertyValue('--bg') || '').trim() || getComputedStyle(document.body).backgroundColor
-    const m = (v || '').match(/\d+(\.\d+)?/g)
-    if (m && m.length >= 3) { const [r,g,b] = m.map(Number); return (0.299*r + 0.587*g + 0.114*b) < 128 }
-  } catch (e) {}
-  return false
-}
-
 /* ============================== main ============================== */
 export default function DashboardPage({ onNavigate, theme }) {
   const { company, staff, user, role, hasFeature, hasAddon } = useAuth()
-  // Accurate live theme (re-checks on prop change OR when the DOM theme flips)
-  const [isDark, setIsDark] = useState(detectDark)
-  useEffect(() => {
-    setIsDark(detectDark())
-    const root = document.documentElement
-    const obs = new MutationObserver(() => setIsDark(detectDark()))
-    obs.observe(root, { attributes:true, attributeFilter:['class','data-theme','style'] })
-    if (document.body) obs.observe(document.body, { attributes:true, attributeFilter:['class','data-theme','style'] })
-    return () => obs.disconnect()
-  }, [theme])
+  const isDark = theme !== 'light'
   const adminName = staff?.name || company?.name || (user?.email||'').split('@')[0] || 'there'
 
   const [vw, setVw] = useState(typeof window !== 'undefined' ? window.innerWidth : 1280)
@@ -353,6 +328,10 @@ export default function DashboardPage({ onNavigate, theme }) {
             <i className="ti ti-calendar" style={{ fontSize:13, color:C.green }}/>
             <Clock isDark={isDark}/>
           </div>
+          <button onClick={() => onNavigate && onNavigate('controlwall')} title="Open the full-screen Control Wall"
+            style={{ display:'flex', alignItems:'center', gap:6, background:'transparent', color:C.text, border:`1px solid ${C.border}`, borderRadius:10, padding:'9px 16px', fontSize:13, fontWeight:600, cursor:'pointer' }}>
+            <i className="ti ti-layout-grid" style={{ fontSize:14, color:C.green }}/> Control Wall
+          </button>
           <button onClick={fetchAll} style={{ display:'flex', alignItems:'center', gap:6, background:C.green, color:'#fff', border:'none', borderRadius:10, padding:'9px 16px', fontSize:13, fontWeight:600, cursor:'pointer' }}>
             <i className="ti ti-refresh" style={{ fontSize:14 }}/> Refresh
           </button>
