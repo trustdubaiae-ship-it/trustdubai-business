@@ -231,7 +231,7 @@ function Portal() {
 
   const planColors = { free:'#6b7280', silver:'#64748b', gold:'#d97706', platinum:'#8b5cf6' }
   const planName   = company?.plan || 'free'
-  const isPlatinum = planName === 'platinum'
+  const isPlatinum = false  // light-only: Platinum ka dark shell band (plan badge planName se aata hai, isse nahi)
   const pageBg     = isPlatinum ? '#0f0e1a' : '#f8fafc'  // light-only
 
   const displayName  = staff?.name || company?.name || 'User'
