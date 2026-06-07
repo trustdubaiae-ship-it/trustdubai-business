@@ -227,7 +227,7 @@ function Portal() {
   const planColors = { free:'#6b7280', silver:'#64748b', gold:'#d97706', platinum:'#8b5cf6' }
   const planName   = company?.plan || 'free'
   const isPlatinum = planName === 'platinum'
-  const pageBg     = isPlatinum ? '#0f0e1a' : '#f8fafc'
+  const pageBg     = isPlatinum ? '#0f0e1a' : 'var(--bg)'  // follow the active light/dark theme (no mixup)
 
   const displayName  = staff?.name || company?.name || 'User'
   const displayEmail = user?.email || ''
