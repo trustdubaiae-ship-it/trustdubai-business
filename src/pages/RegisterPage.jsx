@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { Building2, Phone, Mail, MapPin, Tag, User, FileText, ChevronRight, Check } from 'lucide-react'
+import { Building2, Phone, Mail, MapPin, Tag, User, FileText, ChevronRight, Check, AlertTriangle } from 'lucide-react'
 
 const CATEGORIES = [
   'Construction & Renovation', 'Interior Design', 'Electrical', 'Plumbing',
@@ -12,10 +12,18 @@ const CATEGORIES = [
 
 const STEPS = ['Business Info', 'Contact Details', 'About You', 'Review & Submit']
 
+// Normalize a phone to just digits (last 9) for loose matching (+971 50 123 4567 -> 501234567)
+function phoneKey(p) {
+  const d = (p || '').replace(/\D/g, '')
+  return d.slice(-9)
+}
+
 export default function RegisterPage({ onBack }) {
   const [step, setStep] = useState(0)
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [checking, setChecking] = useState(false)
+  const [dupMatch, setDupMatch] = useState(null) // { name, slug, kind: 'name'|'phone' }
   const [form, setForm] = useState({
     company_name: '', category: '', location: '', website: '',
     phone: '', whatsapp: '', email: '', owner_name: '', description: '', how_heard: '',
@@ -25,6 +33,8 @@ export default function RegisterPage({ onBack }) {
   function set(field, value) {
     setForm(prev => ({ ...prev, [field]: value }))
     setErrors(prev => ({ ...prev, [field]: '' }))
+    // typing again clears a previous duplicate warning for that step
+    if (field === 'company_name' || field === 'phone') setDupMatch(null)
   }
 
   function validate() {
@@ -47,8 +57,49 @@ export default function RegisterPage({ onBack }) {
     return Object.keys(e).length === 0
   }
 
-  function next() { if (validate()) setStep(s => s + 1) }
-  function back() { if (step === 0) onBack(); else setStep(s => s - 1) }
+  // Look for an existing company by name (step 0) or phone (step 1).
+  // Returns a match object or null. Never blocks on error (fails open).
+  async function findDuplicate() {
+    try {
+      if (step === 0 && form.company_name.trim().length >= 3) {
+        const term = form.company_name.trim().replace(/[%_]/g, ' ')
+        const { data } = await supabase
+          .from('companies')
+          .select('name, slug')
+          .ilike('name', `%${term}%`)
+          .limit(1)
+        if (data && data.length) return { name: data[0].name, slug: data[0].slug, kind: 'name' }
+      }
+      if (step === 1) {
+        const key = phoneKey(form.phone)
+        if (key.length >= 7) {
+          const { data } = await supabase
+            .from('companies')
+            .select('name, slug, phone')
+            .ilike('phone', `%${key}%`)
+            .limit(1)
+          if (data && data.length) return { name: data[0].name, slug: data[0].slug, kind: 'phone' }
+        }
+      }
+    } catch (_) { /* fail open - never block registration on a check error */ }
+    return null
+  }
+
+  async function next() {
+    if (!validate()) return
+    // Run duplicate check on step 0 (name) and step 1 (phone)
+    if (step === 0 || step === 1) {
+      // if we already showed a match for this step and user chose to continue, let them through
+      if (dupMatch) { setDupMatch(null); setStep(s => s + 1); return }
+      setChecking(true)
+      const match = await findDuplicate()
+      setChecking(false)
+      if (match) { setDupMatch(match); return } // show warning, don't advance yet
+    }
+    setStep(s => s + 1)
+  }
+
+  function back() { setDupMatch(null); if (step === 0) onBack(); else setStep(s => s - 1) }
 
   async function submit() {
     setSubmitting(true)
@@ -197,10 +248,26 @@ export default function RegisterPage({ onBack }) {
             </div>}
           </div>
 
+          {dupMatch && (
+            <div style={{ background: 'rgba(232,184,75,0.1)', border: '1px solid rgba(232,184,75,0.4)', borderRadius: 10, padding: '14px 16px', marginBottom: 16, display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+              <AlertTriangle size={18} color="#e8b84b" style={{ flexShrink: 0, marginTop: 2 }} />
+              <div style={{ fontSize: 13, color: '#e8d9b0', lineHeight: 1.7 }}>
+                {dupMatch.kind === 'name'
+                  ? <>A business named <strong style={{ color: '#fff' }}>&ldquo;{dupMatch.name}&rdquo;</strong> already appears on TrustDubai.</>
+                  : <>This phone number is already linked to <strong style={{ color: '#fff' }}>&ldquo;{dupMatch.name}&rdquo;</strong> on TrustDubai.</>}
+                <div style={{ marginTop: 6 }}>
+                  If this is <strong>your</strong> business, it may already be listed &mdash; please contact us at{' '}
+                  <a href="mailto:support@trustdubai.ae" style={{ color: '#e8b84b', textDecoration: 'none' }}>support@trustdubai.ae</a>{' '}
+                  to claim it instead of creating a duplicate. If it's a <strong>different</strong> business, you can continue below.
+                </div>
+              </div>
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
             <button onClick={back} style={{ padding: '10px 18px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, color: '#9ca3af', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600 }}>Back</button>
-            <button onClick={step === STEPS.length - 1 ? submit : next} disabled={submitting} style={{ flex: 1, padding: '10px 18px', background: 'linear-gradient(135deg, #e8b84b, #c9952a)', border: 'none', borderRadius: 8, color: '#0d1117', cursor: submitting ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-              {submitting ? 'Submitting...' : step === STEPS.length - 1 ? 'Submit Application ✓' : <>Next <ChevronRight size={15} /></>}
+            <button onClick={step === STEPS.length - 1 ? submit : next} disabled={submitting || checking} style={{ flex: 1, padding: '10px 18px', background: 'linear-gradient(135deg, #e8b84b, #c9952a)', border: 'none', borderRadius: 8, color: '#0d1117', cursor: (submitting || checking) ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: (submitting || checking) ? 0.7 : 1 }}>
+              {checking ? 'Checking...' : submitting ? 'Submitting...' : step === STEPS.length - 1 ? 'Submit Application ✓' : dupMatch ? <>Continue anyway <ChevronRight size={15} /></> : <>Next <ChevronRight size={15} /></>}
             </button>
           </div>
 
