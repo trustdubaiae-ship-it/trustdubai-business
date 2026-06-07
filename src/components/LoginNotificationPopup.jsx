@@ -45,7 +45,7 @@ export default function LoginNotificationPopup({ onOpenPage }) {
       if (!seeAll && staff?.id) {
         rows = rows.filter(n => !n.recipient_staff_id || n.recipient_staff_id === staff.id)
       }
-      const unreadRows = rows.filter(n => n.status === 'unread')
+      const unreadRows = rows.filter(n => n.status === 'unread' && n.type !== 'lead') // leads shown separately below (avoid double)
 
       // 2) New leads since the user was last shown the popup
       const leadsKey = `td_leads_seen_${company.id}_${staff?.id || 'owner'}`
