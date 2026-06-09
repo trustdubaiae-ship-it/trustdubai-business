@@ -34,11 +34,13 @@ import NotificationsPage from './pages/NotificationsPage'
 import InboxPage from './pages/InboxPage'
 import TrustScorePage from './pages/TrustScorePage'
 import ControlPanel from './pages/ControlPanel'
+import MenuPage from './pages/MenuPage'
 
 const ROLE_LABEL = { owner:'Owner', manager:'Manager', sales:'Sales', engineer:'Engineer', staff:'Staff' }
 
 const PAGE_PERM = {
   dashboard:          'view_dashboard',
+  menu:               'view_dashboard',
   revenueengine:      'view_leads',
   controlwall:        'view_dashboard',
   leadform:           'view_leads',
@@ -75,7 +77,7 @@ const PAGE_PERM = {
   settings:           'view_profile',
 }
 
-const LIMITED_PAGES = ['controlwall', 'dashboard', 'inbox', 'profile', 'portfolio', 'faq', 'notifications', 'team', 'documents', 'quoteSettings', 'leadform', 'tdleads', 'metaads', 'quoteapprovals', 'aiquote', 'projects', 'materials', 'expenses', 'aiassistant', 'organizer']
+const LIMITED_PAGES = ['controlwall', 'dashboard', 'menu', 'inbox', 'profile', 'portfolio', 'faq', 'notifications', 'team', 'documents', 'quoteSettings', 'leadform', 'tdleads', 'metaads', 'quoteapprovals', 'aiquote', 'projects', 'materials', 'expenses', 'aiassistant', 'organizer']
 
 // --- Refresh persistence (URL hash) ---
 // activePage is mirrored in the URL hash (e.g. #leads) so a page refresh
@@ -83,7 +85,7 @@ const LIMITED_PAGES = ['controlwall', 'dashboard', 'inbox', 'profile', 'portfoli
 // views (list/builder/detail) can also persist a sub-route, e.g. #quotations/builder,
 // so a refresh keeps them on the same view instead of resetting to the list.
 const VALID_PAGES = [
-  'controlwall', 'dashboard', 'revenueengine', 'inbox', 'profile', 'reviews', 'portfolio', 'analytics', 'leads', 'leadengine', 'leadform', 'tdleads', 'metaads', 'quotations', 'quoteSettings', 'quotelibrary', 'quoteapprovals', 'aiquote', 'projects', 'materials', 'expenses', 'aiassistant', 'organizer',
+  'controlwall', 'dashboard', 'menu', 'revenueengine', 'inbox', 'profile', 'reviews', 'portfolio', 'analytics', 'leads', 'leadengine', 'leadform', 'tdleads', 'metaads', 'quotations', 'quoteSettings', 'quotelibrary', 'quoteapprovals', 'aiquote', 'projects', 'materials', 'expenses', 'aiassistant', 'organizer',
   'sponsored', 'staff', 'team', 'documents', 'faq', 'notifications', 'trust',
   'controlpanel', 'verification', 'verificationStatus', 'plans', 'settings',
 ]
@@ -205,6 +207,7 @@ function Portal() {
   const allPages = {
     controlwall:        <ControlWall onNavigate={navigate} theme={theme} embedded />,
     dashboard:          <DashboardPage onNavigate={navigate} theme={theme} />,
+    menu:               <MenuPage onNavigate={navigate} role={role} permissions={staff?.permissions} isApproved={isApproved} limitedPages={LIMITED_PAGES} />,
     revenueengine:      <RevenueEngine onNavigate={navigate} theme={theme} />,
     inbox:              <InboxPage />,
     profile:            <ProfilePage />,
@@ -241,7 +244,7 @@ function Portal() {
   }
 
   const pageTitles = {
-    controlwall:'Command Center', dashboard:'Command Center', revenueengine:'Revenue Engine', leadform:'Lead Form', tdleads:'TrustDubai Leads', metaads:'Meta Ads', quoteapprovals:'Quote Approvals', aiquote:'AI Quote Builder', projects:'Projects', materials:'Material Requests', expenses:'Site Expenses', aiassistant:'AI Assistant', organizer:'My Organizer', inbox:'Inbox', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
+    controlwall:'Command Center', dashboard:'Command Center', menu:'All Features', revenueengine:'Revenue Engine', leadform:'Lead Form', tdleads:'TrustDubai Leads', metaads:'Meta Ads', quoteapprovals:'Quote Approvals', aiquote:'AI Quote Builder', projects:'Projects', materials:'Material Requests', expenses:'Site Expenses', aiassistant:'AI Assistant', organizer:'My Organizer', inbox:'Inbox', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
     analytics:'Analytics', leads:'Lead Form', leadengine:'Lead Engine', quotations:'Quotations', quoteSettings:'Quote Settings', quotelibrary:'Description Library', sponsored:'Sponsored Placement', staff:'Staff & Access',
     team:'Our Team', documents:'Document Verification', faq:'FAQ Management', notifications:'Notifications', trust:'Trust Score', controlpanel:'Control Panel',
     verification:'Control Panel', verificationStatus:'Control Panel', plans:'Control Panel', settings:'Control Panel',
@@ -375,6 +378,11 @@ function Portal() {
             </div>
             <div className="topbar-date" style={{ background: isPlatinum?'rgba(255,255,255,0.05)':'var(--bg2)', border:`0.5px solid ${isPlatinum?'rgba(255,255,255,0.08)':'var(--border)'}`, borderRadius:8, padding:'5px 10px', fontSize:9, color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)', display:'flex', alignItems:'center', gap:5, whiteSpace:'nowrap' }}>
               <i className="ti ti-calendar" style={{ fontSize:10 }}/> Last 30 Days <i className="ti ti-chevron-down" style={{ fontSize:9 }}/>
+            </div>
+
+            <div onClick={() => navigate('menu')} title="All Features"
+              style={{ cursor:'pointer', width:30, height:30, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', color: activePage==='menu' ? '#0099cc' : (isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)'), flexShrink:0 }}>
+              <i className="ti ti-layout-grid" style={{ fontSize:17 }}/>
             </div>
 
             <div onClick={() => setTheme(toggleTheme())} title={theme==='dark'?'Switch to light':'Switch to dark'}
