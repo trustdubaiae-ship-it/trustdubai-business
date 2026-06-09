@@ -90,8 +90,8 @@ const VALID_PAGES = [
   'controlpanel', 'verification', 'verificationStatus', 'plans', 'settings',
 ]
 
-// Command Center is the home/default page for all devices (Control Wall has been retired).
-const DEFAULT_PAGE = 'dashboard'
+// App Launcher (Menu) is the home/default page. Command Center stays one tap away.
+const DEFAULT_PAGE = 'menu'
 const isMobileView = () => typeof window !== 'undefined' && window.innerWidth < 768
 const getDefaultPage = () => DEFAULT_PAGE
 
@@ -345,8 +345,8 @@ function Portal() {
             )}
 
             {/* Home / Back button — lives inside the sticky topbar so it stays fixed at the top on every page */}
-            {activePage !== 'dashboard' && (
-              <button onClick={() => navigate('dashboard')} aria-label="Back to Command Center" title="Back to Command Center"
+            {activePage !== 'menu' && (
+              <button onClick={() => navigate('menu')} aria-label="Back to All Features" title="Back to All Features"
                 style={{ display:'flex', alignItems:'center', justifyContent:'center', width:32, height:32, borderRadius:9, border:`0.5px solid var(--border)`, background:'var(--bg2)', color:'var(--text)', cursor:'pointer', flexShrink:0 }}>
                 <i className="ti ti-arrow-left" style={{ fontSize:17 }}/>
               </button>
