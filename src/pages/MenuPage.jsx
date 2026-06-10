@@ -15,6 +15,7 @@ import { MENU } from '../components/Sidebar'
      • add-on lock      → "ADD-ON" badge, tap → Plans
      • plan/feature lock→ greyed + 🔒 ("Upgrade plan"), tap → Plans
      • coming soon       → "Soon" badge, tap → Coming Soon page
+     • premium + unlocked→ crown 👑 (gold while on the Launch Plan trial, muted otherwise)
    Plus the two sidebar specials: "Share Profile" (link + QR modal) and
    "View Public Profile" (opens the live public page).
    Light + dark via CSS vars · responsive (2 → 3 → 4 → 5 columns).
@@ -57,7 +58,7 @@ function buildGroups() {
 const ADDON_NAMES = { crm: 'CRM / Lead Engine', quotation: 'Quotation Suite', projects: 'Projects & Ops', ai: 'AI Assistant' }
 
 export default function MenuPage({ onNavigate, isApproved = true, limitedPages = [] }) {
-  const { company, staff, role, hasFeature, hasAddon } = useAuth()
+  const { company, staff, role, hasFeature, hasAddon, isTrial, trialDaysLeft } = useAuth()
   const perms = staff?.permissions || null
   const limitedMode = !isApproved
   const checkAddon = (k) => (typeof hasAddon === 'function' ? hasAddon(k) : false)
@@ -128,6 +129,25 @@ export default function MenuPage({ onNavigate, isApproved = true, limitedPages =
         <p className="td-menu-sub">Everything in one place — tap a tile to open it.</p>
       </div>
 
+      {/* Launch Plan banner — visible only while the trial is active */}
+      {isTrial && (
+        <div
+          className="td-launch"
+          onClick={() => onNavigate && onNavigate('plans')}
+          title="You're on the free Launch Plan — full access for a limited time"
+        >
+          <span className="td-launch-icon"><i className="ti ti-rocket" /></span>
+          <div className="td-launch-txt">
+            <div className="td-launch-title">Launch Plan active</div>
+            <div className="td-launch-sub">
+              <span className="td-launch-days">{trialDaysLeft} {trialDaysLeft === 1 ? 'day' : 'days'}</span> of full access left —
+              every premium feature below is unlocked
+            </div>
+          </div>
+          <span className="td-launch-cta">Upgrade to keep →</span>
+        </div>
+      )}
+
       {groups.map((group, gi) => (
         <div className="td-menu-group" key={`${group.label}-${gi}`}>
           <div className="td-menu-group-head">
@@ -142,10 +162,17 @@ export default function MenuPage({ onNavigate, isApproved = true, limitedPages =
               const hardLocked = !special && (st.permLocked || st.limitLocked)
               const softLocked = !special && (st.addonLocked || st.featureLocked)
               const greyed = (hardLocked || softLocked) && !(st && st.showSoon)
-              const badge =
+
+              // Badge priority mirrors the sidebar: addon → soon → lock → crown.
+              // Crown 👑 shows on premium feature tiles that are NOT locked
+              // (during the trial these are unlocked → gold crown).
+              const isPremium = !special && (!!item.featureKey || !!item.addon)
+              let badge =
                 !special && st.addonLocked ? 'addon'
                   : !special && st.showSoon ? 'soon'
                     : (hardLocked || softLocked) ? 'lock' : ''
+              if (!badge && isPremium && !st.permLocked) badge = 'crown'
+
               const lockLabel =
                 special ? ''
                   : st.permLocked ? 'No access'
@@ -165,6 +192,18 @@ export default function MenuPage({ onNavigate, isApproved = true, limitedPages =
                   {badge === 'soon' && <span className="td-badge td-badge-soon">Soon</span>}
                   {badge === 'addon' && <span className="td-badge td-badge-addon"><i className="ti ti-plus" /> Add-on</span>}
                   {badge === 'lock' && <span className="td-badge td-badge-lock"><i className="ti ti-lock" /></span>}
+                  {badge === 'crown' && (
+                    <span
+                      className="td-badge td-badge-crown"
+                      style={{
+                        background: isTrial ? 'rgba(245,158,11,0.16)' : 'var(--bg2)',
+                        color: isTrial ? '#f59e0b' : 'var(--text3)',
+                      }}
+                      title={isTrial ? 'Premium feature · included in your Launch Plan' : 'Premium feature'}
+                    >
+                      <i className="ti ti-crown" />
+                    </span>
+                  )}
 
                   <span
                     className="td-tile-icon"
@@ -271,6 +310,21 @@ const CSS = `
 .td-menu-title{ font-size:22px; font-weight:800; color:var(--text); margin:0; font-family:'Syne',sans-serif; }
 .td-menu-sub{ font-size:13px; color:var(--text2); margin:5px 0 0; }
 
+/* Launch Plan banner */
+.td-launch{
+  display:flex; align-items:center; gap:13px; margin-bottom:22px; cursor:pointer;
+  background:linear-gradient(135deg, rgba(139,92,246,0.16), rgba(0,153,204,0.10));
+  border:0.5px solid rgba(139,92,246,0.35); border-radius:14px; padding:13px 16px;
+  transition:transform .15s ease, box-shadow .15s ease;
+}
+.td-launch:hover{ transform:translateY(-2px); box-shadow:0 8px 22px rgba(139,92,246,0.18); }
+.td-launch-icon{ width:40px; height:40px; border-radius:12px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:19px; color:#8b5cf6; background:rgba(139,92,246,0.16); }
+.td-launch-txt{ flex:1; min-width:0; }
+.td-launch-title{ font-size:13.5px; font-weight:800; color:#8b5cf6; }
+.td-launch-sub{ font-size:11.5px; color:var(--text2); margin-top:2px; line-height:1.5; }
+.td-launch-days{ font-weight:800; color:#8b5cf6; }
+.td-launch-cta{ font-size:11px; font-weight:700; color:#8b5cf6; background:rgba(139,92,246,0.12); border:0.5px solid rgba(139,92,246,0.3); padding:7px 12px; border-radius:9px; white-space:nowrap; flex-shrink:0; }
+
 .td-menu-group{ margin-bottom:22px; }
 .td-menu-group-head{ display:flex; align-items:center; gap:8px; margin:0 2px 11px; }
 .td-menu-dot{ width:9px; height:9px; border-radius:3px; flex-shrink:0; }
@@ -299,8 +353,10 @@ const CSS = `
 .td-badge-addon i{ font-size:9px; }
 .td-badge-lock{ padding:3px 6px; background:var(--bg2); color:var(--text3); }
 .td-badge-lock i{ font-size:11px; }
+.td-badge-crown{ padding:3px 6px; }
+.td-badge-crown i{ font-size:12px; }
 
 @media (max-width:1100px){ .td-menu-grid{ grid-template-columns:repeat(4,1fr); } }
 @media (max-width:860px){  .td-menu-grid{ grid-template-columns:repeat(3,1fr); } }
-@media (max-width:560px){  .td-menu-grid{ grid-template-columns:repeat(2,1fr); } .td-tile{ padding:13px; } .td-tile-icon{ width:38px; height:38px; font-size:19px; } }
+@media (max-width:560px){  .td-menu-grid{ grid-template-columns:repeat(2,1fr); } .td-tile{ padding:13px; } .td-tile-icon{ width:38px; height:38px; font-size:19px; } .td-launch-cta{ display:none; } }
 `
