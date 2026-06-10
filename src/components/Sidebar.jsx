@@ -11,6 +11,21 @@ function hasAccess(userPlan, requiredPlan) {
 
 const CONTROL_PANEL_PAGES = ['controlpanel','verification','verificationStatus','plans','settings']
 
+// Which plan unlocks each premium feature — used only to label the crown 👑.
+// (Display hint for the trial upsell; does not gate anything by itself.)
+const FEATURE_UNLOCK_PLAN = {
+  lead_email:        'silver',
+  reply_reviews:     'silver',
+  analytics:         'gold',
+  featured_homepage: 'platinum',
+}
+const ADDON_UNLOCK_LABEL = {
+  crm:       'Add-on',
+  quotation: 'Add-on',
+  projects:  'Add-on',
+  ai:        'Add-on',
+}
+
 // soon:true  → feature not built yet, opens a Coming Soon page (still navigable, shows "Soon" tag)
 export const MENU = [
   { section: 'MAIN' },
@@ -72,7 +87,7 @@ const ADDON_NAMES = {
 }
 
 export default function Sidebar({ activePage, onNavigate, limitedMode = false, limitedPages = [], open = false }) {
-  const { company, staff, role, signOut, hasFeature, hasAddon } = useAuth()
+  const { company, staff, role, signOut, hasFeature, hasAddon, isTrial, trialDaysLeft } = useAuth()
   const planName  = company?.plan || 'free'
   const planColor = planColors[planName] || planColors.free
   const perms     = staff?.permissions || null
@@ -167,10 +182,26 @@ export default function Sidebar({ activePage, onNavigate, limitedMode = false, l
             <div className="sidebar-company-name" style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
               {company.name}
             </div>
-            <div className="sidebar-company-plan" style={{ color: isExpired?'#ef4444':planColor }}>
-              <i className={`ti ${planIcons[planName]||'ti-building'}`} style={{ fontSize:9 }}/>
-              {isExpired ? 'Expired' : planName.charAt(0).toUpperCase()+planName.slice(1)}
+            <div className="sidebar-company-plan" style={{ color: isTrial ? '#8b5cf6' : (isExpired?'#ef4444':planColor) }}>
+              <i className={`ti ${isTrial ? 'ti-rocket' : (planIcons[planName]||'ti-building')}`} style={{ fontSize:9 }}/>
+              {isTrial ? 'Launch Plan' : (isExpired ? 'Expired' : planName.charAt(0).toUpperCase()+planName.slice(1))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Launch Plan countdown banner — visible only while the trial is active */}
+      {isTrial && (
+        <div
+          onClick={() => onNavigate('plans')}
+          style={{ margin:'8px 10px', background:'linear-gradient(135deg, rgba(139,92,246,0.16), rgba(0,153,204,0.12))', border:'0.5px solid rgba(139,92,246,0.35)', borderRadius:10, padding:'10px 12px', cursor:'pointer' }}
+          title="You're on the free Launch Plan — full access for a limited time">
+          <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:3 }}>
+            <i className="ti ti-rocket" style={{ fontSize:13, color:'#8b5cf6' }}/>
+            <span style={{ fontSize:11, fontWeight:700, color:'#8b5cf6' }}>Launch Plan active</span>
+          </div>
+          <div style={{ fontSize:10, color:'var(--text2, #94a3b8)', lineHeight:1.5 }}>
+            <b style={{ color:'#8b5cf6' }}>{trialDaysLeft} {trialDaysLeft === 1 ? 'day' : 'days'}</b> of full access left · Upgrade to keep these features
           </div>
         </div>
       )}
@@ -190,6 +221,16 @@ export default function Sidebar({ activePage, onNavigate, limitedMode = false, l
           // a soon item is only "available" (shows SOON) if its add-on is owned (or it has no add-on)
           const showSoon     = item.soon && !addonLocked
 
+          // Crown 👑 — shown on premium features (plan-feature or add-on items).
+          // During the trial these are unlocked, so the crown signals "this is a
+          // paid feature you're trying for free". After trial it sits next to the lock.
+          const isPremium    = !!item.featureKey || !!item.addon
+          const unlockPlan   = item.featureKey ? (FEATURE_UNLOCK_PLAN[item.featureKey] || null) : null
+          const crownTitle   = item.addon
+            ? `${ADDON_NAMES[item.addon] || 'Add-on'} feature`
+            : (unlockPlan ? `Unlocks on ${unlockPlan.charAt(0).toUpperCase()+unlockPlan.slice(1)} plan` : 'Premium feature')
+          const showCrown    = isPremium && !permLocked
+
           const isActive = !permLocked && (item.id === 'controlpanel'
             ? CONTROL_PANEL_PAGES.includes(activePage)
             : activePage === item.id)
@@ -199,7 +240,30 @@ export default function Sidebar({ activePage, onNavigate, limitedMode = false, l
             : (addonLocked ? `${ADDON_NAMES[item.addon] || 'Add-on'} — add this service to unlock`
               : (item.soon ? 'Coming soon'
                 : (featureLocked ? 'Upgrade plan to unlock'
-                  : (limitLocked ? 'Available after approval' : ''))))
+                  : (limitLocked ? 'Available after approval' : (isPremium && isTrial ? crownTitle + ' · included in Launch Plan' : '')))))
+
+          // right-side adornment: ADD-ON tag / SOON / lock / crown
+          let rightEl = null
+          if (addonLocked) {
+            rightEl = (
+              <span style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:3, fontSize:8.5, fontWeight:700, letterSpacing:'.03em', color:'#0099cc', background:'rgba(0,153,204,0.12)', border:'0.5px solid rgba(0,153,204,0.25)', padding:'1px 6px', borderRadius:6 }}>
+                <i className="ti ti-plus" style={{ fontSize:9 }}/> ADD-ON
+              </span>
+            )
+          } else if (showSoon) {
+            rightEl = (
+              <span style={{ marginLeft:'auto', fontSize:8.5, fontWeight:700, letterSpacing:'.03em', color:'#d97706', background:'rgba(245,158,11,0.14)', border:'0.5px solid rgba(245,158,11,0.25)', padding:'1px 6px', borderRadius:6 }}>SOON</span>
+            )
+          } else if (locked) {
+            rightEl = <i className="ti ti-lock" style={{ marginLeft:'auto', fontSize:11, color:'#94a3b8' }}/>
+          } else if (showCrown) {
+            // unlocked premium → crown. Gold while trialing (you're enjoying it), muted otherwise.
+            rightEl = (
+              <i className="ti ti-crown"
+                title={crownTitle}
+                style={{ marginLeft:'auto', fontSize:12, color: isTrial ? '#f59e0b' : '#cbd5e1' }} />
+            )
+          }
 
           const navBtn = (
             <button key={`${item.id}-${i}`}
@@ -209,15 +273,7 @@ export default function Sidebar({ activePage, onNavigate, limitedMode = false, l
               title={titleText}>
               <i className={`ti ${item.icon}`}/>
               {item.label}
-              {addonLocked ? (
-                <span style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:3, fontSize:8.5, fontWeight:700, letterSpacing:'.03em', color:'#0099cc', background:'rgba(0,153,204,0.12)', border:'0.5px solid rgba(0,153,204,0.25)', padding:'1px 6px', borderRadius:6 }}>
-                  <i className="ti ti-plus" style={{ fontSize:9 }}/> ADD-ON
-                </span>
-              ) : showSoon ? (
-                <span style={{ marginLeft:'auto', fontSize:8.5, fontWeight:700, letterSpacing:'.03em', color:'#d97706', background:'rgba(245,158,11,0.14)', border:'0.5px solid rgba(245,158,11,0.25)', padding:'1px 6px', borderRadius:6 }}>SOON</span>
-              ) : (locked && (
-                <i className="ti ti-lock" style={{ marginLeft:'auto', fontSize:11, color:'#94a3b8' }}/>
-              ))}
+              {rightEl}
             </button>
           )
 
@@ -243,7 +299,8 @@ export default function Sidebar({ activePage, onNavigate, limitedMode = false, l
         </button>
       </nav>
 
-      {planName === 'free' && role === 'owner' && (
+      {/* Upgrade nudge — only when NOT trialing (during trial the countdown banner covers this) */}
+      {!isTrial && planName === 'free' && role === 'owner' && (
         <div style={{ margin:'8px 10px', background:'rgba(232,184,75,0.08)', border:'0.5px solid rgba(232,184,75,0.2)', borderRadius:10, padding:'10px 12px', cursor:'pointer' }}
           onClick={() => onNavigate('plans')}>
           <div style={{ fontSize:11, fontWeight:700, color:'#d97706', marginBottom:3 }}>Upgrade Plan</div>
@@ -251,7 +308,7 @@ export default function Sidebar({ activePage, onNavigate, limitedMode = false, l
         </div>
       )}
 
-      {isExpired && planName !== 'free' && role === 'owner' && (
+      {!isTrial && isExpired && planName !== 'free' && role === 'owner' && (
         <div style={{ margin:'8px 10px', background:'rgba(239,68,68,0.08)', border:'0.5px solid rgba(239,68,68,0.2)', borderRadius:10, padding:'10px 12px', cursor:'pointer' }}
           onClick={() => onNavigate('plans')}>
           <div style={{ fontSize:11, fontWeight:700, color:'#ef4444', marginBottom:3 }}>Plan Expired</div>
