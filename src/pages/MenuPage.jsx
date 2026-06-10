@@ -6,18 +6,19 @@ import { MENU } from '../components/Sidebar'
 
 /* ============================================================================
    App Launcher — a tappable, grouped mirror of the sidebar.
-   Reads the SAME `MENU` exported by Sidebar.jsx (single source of truth), so
-   adding / renaming / reordering an item there updates this launcher too.
+   Reads the SAME `MENU` exported by Sidebar.jsx (single source of truth).
+
+   Every tile shows a CROWN coloured by the plan that unlocks that feature:
+     Free → grey · Silver → slate · Gold → gold · Platinum → purple
+   While on the Launch Plan trial, each PAID feature also shows a small
+   "X days left" chip (free features never expire, so they don't get one).
 
    Lock logic mirrors the sidebar exactly:
      • permission lock  → greyed + 🔒 ("No access"), not clickable
-     • approval lock    → greyed + 🔒 ("After approval"), not clickable (until approved)
-     • add-on lock      → "ADD-ON" badge, tap → Plans
+     • approval lock    → greyed + 🔒 ("After approval"), not clickable
+     • add-on lock      → "ADD-ON", tap → Plans
      • plan/feature lock→ greyed + 🔒 ("Upgrade plan"), tap → Plans
-     • coming soon       → "Soon" badge, tap → Coming Soon page
-     • premium + unlocked→ crown 👑 (gold while on the Launch Plan trial, muted otherwise)
-   Plus the two sidebar specials: "Share Profile" (link + QR modal) and
-   "View Public Profile" (opens the live public page).
+     • coming soon       → "Soon", tap → Coming Soon page
    Light + dark via CSS vars · responsive (2 → 3 → 4 → 5 columns).
 ============================================================================ */
 
@@ -33,6 +34,41 @@ const GROUP_COLOR = {
   'TEAM & ACCESS':  '#64748b',
   'SETTINGS':       '#64748b',
   'QUICK LINKS':    '#0099cc',
+}
+
+/* ---------------------------------------------------------------------------
+   WHICH PLAN EACH TILE BELONGS TO  ← edit any value to recolour its crown.
+   free | silver | gold | platinum
+--------------------------------------------------------------------------- */
+const TILE_PLAN = {
+  // MAIN
+  controlwall: 'free', dashboard: 'free', revenueengine: 'gold', inbox: 'free', notifications: 'free',
+  // LEAD HUB
+  leadengine: 'gold', leads: 'silver', metaads: 'platinum',
+  // SALES & QUOTES
+  quotations: 'silver', quotelibrary: 'silver', quoteSettings: 'silver', quoteapprovals: 'gold', aiquote: 'platinum',
+  // PROJECTS & OPS
+  projects: 'platinum', materials: 'platinum', expenses: 'platinum',
+  // AI & CRM
+  aiassistant: 'platinum', organizer: 'free',
+  // REPUTATION
+  trust: 'free', reviews: 'silver',
+  // MY PROFILE
+  profile: 'free', portfolio: 'free', documents: 'free', team: 'free', faq: 'free',
+  // GROWTH
+  analytics: 'gold', sponsored: 'platinum',
+  // TEAM & ACCESS
+  staff: 'silver',
+  // SETTINGS
+  controlpanel: 'free',
+}
+
+const CROWN_COLOR = { free: '#9ca3af', silver: '#64748b', gold: '#d97706', platinum: '#8b5cf6' }
+const PLAN_LABEL  = { free: 'Free', silver: 'Silver', gold: 'Gold', platinum: 'Platinum' }
+
+function tilePlan(item) {
+  if (item._special) return 'free'
+  return TILE_PLAN[item.id] || 'free'
 }
 
 // Convert the flat sidebar MENU (section markers + items) into grouped tiles,
@@ -140,8 +176,8 @@ export default function MenuPage({ onNavigate, isApproved = true, limitedPages =
           <div className="td-launch-txt">
             <div className="td-launch-title">Launch Plan active</div>
             <div className="td-launch-sub">
-              <span className="td-launch-days">{trialDaysLeft} {trialDaysLeft === 1 ? 'day' : 'days'}</span> of full access left —
-              every premium feature below is unlocked
+              <span className="td-launch-days">{trialDaysLeft} {trialDaysLeft === 1 ? 'day' : 'days'} left</span> — every paid
+              feature below (look for the 👑) is unlocked free
             </div>
           </div>
           <span className="td-launch-cta">Upgrade to keep →</span>
@@ -163,15 +199,19 @@ export default function MenuPage({ onNavigate, isApproved = true, limitedPages =
               const softLocked = !special && (st.addonLocked || st.featureLocked)
               const greyed = (hardLocked || softLocked) && !(st && st.showSoon)
 
-              // Badge priority mirrors the sidebar: addon → soon → lock → crown.
-              // Crown 👑 shows on premium feature tiles that are NOT locked
-              // (during the trial these are unlocked → gold crown).
-              const isPremium = !special && (!!item.featureKey || !!item.addon)
-              let badge =
+              // Status chip (top-right, next to the crown): addon → soon → lock
+              const status =
                 !special && st.addonLocked ? 'addon'
                   : !special && st.showSoon ? 'soon'
                     : (hardLocked || softLocked) ? 'lock' : ''
-              if (!badge && isPremium && !st.permLocked) badge = 'crown'
+
+              // Plan crown — coloured by the plan that owns this feature.
+              const plan = tilePlan(item)
+              const crownColor = CROWN_COLOR[plan]
+
+              // Days-left chip — shown on EVERY usable card during the trial.
+              // (Skipped only on hard-locked / coming-soon tiles, which you can't use yet.)
+              const showDays = isTrial && !greyed && !(st && st.showSoon)
 
               const lockLabel =
                 special ? ''
@@ -189,21 +229,19 @@ export default function MenuPage({ onNavigate, isApproved = true, limitedPages =
                   disabled={hardLocked}
                   title={lockLabel || item.label}
                 >
-                  {badge === 'soon' && <span className="td-badge td-badge-soon">Soon</span>}
-                  {badge === 'addon' && <span className="td-badge td-badge-addon"><i className="ti ti-plus" /> Add-on</span>}
-                  {badge === 'lock' && <span className="td-badge td-badge-lock"><i className="ti ti-lock" /></span>}
-                  {badge === 'crown' && (
+                  {/* top-right: status chip + plan crown */}
+                  <span className="td-tr">
+                    {status === 'soon' && <span className="td-mini td-mini-soon">Soon</span>}
+                    {status === 'addon' && <span className="td-mini td-mini-addon"><i className="ti ti-plus" /></span>}
+                    {status === 'lock' && <span className="td-mini td-mini-lock"><i className="ti ti-lock" /></span>}
                     <span
-                      className="td-badge td-badge-crown"
-                      style={{
-                        background: isTrial ? 'rgba(245,158,11,0.16)' : 'var(--bg2)',
-                        color: isTrial ? '#f59e0b' : 'var(--text3)',
-                      }}
-                      title={isTrial ? 'Premium feature · included in your Launch Plan' : 'Premium feature'}
+                      className="td-crown"
+                      style={{ color: crownColor, background: crownColor + '22' }}
+                      title={`${PLAN_LABEL[plan]} plan feature`}
                     >
                       <i className="ti ti-crown" />
                     </span>
-                  )}
+                  </span>
 
                   <span
                     className="td-tile-icon"
@@ -213,6 +251,12 @@ export default function MenuPage({ onNavigate, isApproved = true, limitedPages =
                   </span>
                   <span className="td-tile-title">{item.label}</span>
                   <span className="td-tile-desc">{lockLabel || labelHint(item)}</span>
+
+                  {showDays && (
+                    <span className="td-days" title="Free during your Launch Plan trial">
+                      <i className="ti ti-rocket" /> {trialDaysLeft} {trialDaysLeft === 1 ? 'day' : 'days'} left
+                    </span>
+                  )}
                 </button>
               )
             })}
@@ -347,14 +391,19 @@ const CSS = `
 .td-tile-title{ font-size:13.5px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
 .td-tile-desc{ font-size:11px; color:var(--text3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
 
-.td-badge{ position:absolute; top:10px; right:10px; font-size:9px; font-weight:800; line-height:1.4; border-radius:20px; display:flex; align-items:center; gap:3px; }
-.td-badge-soon{ padding:2px 8px; background:rgba(245,158,11,0.16); color:#c9952a; }
-.td-badge-addon{ padding:2px 7px; background:rgba(0,153,204,0.12); color:#0099cc; border:0.5px solid rgba(0,153,204,0.25); }
-.td-badge-addon i{ font-size:9px; }
-.td-badge-lock{ padding:3px 6px; background:var(--bg2); color:var(--text3); }
-.td-badge-lock i{ font-size:11px; }
-.td-badge-crown{ padding:3px 6px; }
-.td-badge-crown i{ font-size:12px; }
+/* top-right cluster: status chip + plan crown */
+.td-tr{ position:absolute; top:9px; right:9px; display:flex; align-items:center; gap:5px; }
+.td-crown{ width:22px; height:22px; border-radius:7px; display:inline-flex; align-items:center; justify-content:center; font-size:12px; flex-shrink:0; }
+.td-mini{ font-size:9px; font-weight:800; line-height:1.4; border-radius:20px; display:inline-flex; align-items:center; gap:3px; padding:2px 7px; }
+.td-mini-soon{ background:rgba(245,158,11,0.16); color:#c9952a; }
+.td-mini-addon{ background:rgba(0,153,204,0.12); color:#0099cc; border:0.5px solid rgba(0,153,204,0.25); padding:3px 6px; }
+.td-mini-addon i{ font-size:10px; }
+.td-mini-lock{ background:var(--bg2); color:var(--text3); padding:3px 6px; }
+.td-mini-lock i{ font-size:11px; }
+
+/* days-left chip (premium tiles, during trial) */
+.td-days{ display:inline-flex; align-items:center; gap:4px; margin-top:1px; font-size:10px; font-weight:800; color:#8b5cf6; background:rgba(139,92,246,0.12); padding:2px 8px; border-radius:7px; align-self:flex-start; max-width:100%; }
+.td-days i{ font-size:11px; }
 
 @media (max-width:1100px){ .td-menu-grid{ grid-template-columns:repeat(4,1fr); } }
 @media (max-width:860px){  .td-menu-grid{ grid-template-columns:repeat(3,1fr); } }
