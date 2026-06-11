@@ -106,7 +106,7 @@ function getPageFromHash() {
 }
 
 function Portal() {
-  const { user, company, staff, role, loading, signOut } = useAuth()
+  const { user, company, staff, role, loading, signOut, isTrial, trialDaysLeft } = useAuth()
   const [activePage,   setActivePage]   = useState(getPageFromHash)
   const [subRoute,     setSubRoute]     = useState(() => parseHash().sub)
   const [showRegister, setShowRegister] = useState(false)
@@ -399,9 +399,9 @@ function Portal() {
               )}
             </div>
             <i className="ti ti-message-circle topbar-msg" style={{ fontSize:18, color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)', cursor:'pointer' }}/>
-            <div className="topbar-plan" style={{ background: planName==='gold'?'#fffbeb': planName==='platinum'?'rgba(139,92,246,0.15)':'var(--bg2)', border:`0.5px solid ${planName==='gold'?'#fcd34d': planName==='platinum'?'rgba(139,92,246,0.3)':'var(--border)'}`, borderRadius:8, padding:'4px 10px', fontSize:9, color: planColors[planName], fontWeight:700, display:'flex', alignItems:'center', gap:4, whiteSpace:'nowrap' }}>
-              <i className={`ti ${planName==='platinum'?'ti-diamond': planName==='gold'?'ti-star':'ti-building'}`} style={{ fontSize:10 }}/>
-              {planName.charAt(0).toUpperCase()+planName.slice(1)} Plan
+            <div className="topbar-plan" title={isTrial ? `Launch Plan · ${trialDaysLeft} ${trialDaysLeft===1?'day':'days'} of full access left` : undefined} style={{ background: isTrial?'rgba(139,92,246,0.15)': planName==='gold'?'#fffbeb': planName==='platinum'?'rgba(139,92,246,0.15)':'var(--bg2)', border:`0.5px solid ${isTrial?'rgba(139,92,246,0.35)': planName==='gold'?'#fcd34d': planName==='platinum'?'rgba(139,92,246,0.3)':'var(--border)'}`, borderRadius:8, padding:'4px 10px', fontSize:9, color: isTrial ? '#8b5cf6' : planColors[planName], fontWeight:700, display:'flex', alignItems:'center', gap:4, whiteSpace:'nowrap' }}>
+              <i className={`ti ${isTrial?'ti-rocket': planName==='platinum'?'ti-diamond': planName==='gold'?'ti-star':'ti-building'}`} style={{ fontSize:10 }}/>
+              {isTrial ? 'Launch Plan' : planName.charAt(0).toUpperCase()+planName.slice(1)+' Plan'}
             </div>
 
             <div style={{ position:'relative', flexShrink:0 }}>
@@ -424,7 +424,7 @@ function Portal() {
                       <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ color:'var(--text3)' }}>Company</span><span style={{ fontWeight:600, color:'var(--text)' }}>{company?.name}</span></div>
                       <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ color:'var(--text3)' }}>Role</span><span style={{ fontWeight:600, color:'#0099cc' }}>{roleLabel}</span></div>
                       <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ color:'var(--text3)' }}>Status</span><span style={{ fontWeight:600, color: isApproved?'#1e9e63':(isRejected?'#dc2626':'#0077a3'), textTransform:'capitalize' }}>{isApproved?'Approved':(isRejected?'Rejected':'Under Review')}</span></div>
-                      <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ color:'var(--text3)' }}>Plan</span><span style={{ fontWeight:600, color: planColors[planName], textTransform:'capitalize' }}>{planName}</span></div>
+                      <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ color:'var(--text3)' }}>Plan</span><span style={{ fontWeight:600, color: isTrial ? '#8b5cf6' : planColors[planName], textTransform:'capitalize' }}>{isTrial ? 'Launch Plan (trial)' : planName}</span></div>
                     </div>
                     <div style={{ borderTop:'1px solid var(--border)', padding:8 }}>
                       <button onClick={() => { setShowProfile(false); signOut() }} style={{ width:'100%', textAlign:'left', padding:'9px 10px', fontSize:13, color:'#dc2626', background:'none', border:'none', borderRadius:8, cursor:'pointer', display:'flex', alignItems:'center', gap:8 }}>
