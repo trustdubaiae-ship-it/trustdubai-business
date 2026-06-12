@@ -37,6 +37,9 @@ const STATUS_MAP = {
 const DIST_TO_PAGE = { assigned:'new', viewed:'qualified', contacted:'in_conversation', quoted:'proposal_given', won:'won', lost:'lost', transferred:'lost' }
 const PAGE_TO_DIST = { new:'assigned', qualified:'viewed', in_conversation:'contacted', proposal_given:'quoted', won:'won', lost:'lost' }
 
+// Reassign SLA window (hours) — matches platform 12h rule
+const SLA_HOURS = 12
+
 // Public site base (where the shareable lead form lives) — NOT the business portal origin
 const PUBLIC_BASE = 'https://trustdubai.ae'
 
@@ -130,6 +133,13 @@ export default function LeadsPage() {
     return () => window.removeEventListener('resize', onResize)
   }, [])
   const mobile = vw < 768
+
+  // tick every minute so the SLA timers stay live without a refresh
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setTick(n => n + 1), 60000)
+    return () => clearInterval(t)
+  }, [])
 
   useEffect(() => { if (company) fetchAll() }, [company])
 
@@ -525,12 +535,13 @@ export default function LeadsPage() {
     return { key: 'dist-' + d.id, subId: s.id, distId: d.id, isPlatform: true, rank: d.rank,
       name: s.name, phone: s.phone, email: s.email, answers: s.answers || {},
       status: DIST_TO_PAGE[d.status] || 'new', created_at: d.assigned_at || s.created_at,
+      assigned_at: d.assigned_at || s.created_at,
       follow_up_date: d.follow_up_date, notes: d.notes, temperature: d.temperature || 'warm' }
   }
   function unifyOwn(s) {
     return { key: 'own-' + s.id, subId: s.id, distId: null, isPlatform: false, rank: null,
       name: s.name, phone: s.phone, email: s.email, answers: s.answers || {}, source: s.source || null,
-      status: s.status || 'new', created_at: s.created_at,
+      status: s.status || 'new', created_at: s.created_at, assigned_at: s.created_at,
       follow_up_date: s.follow_up_date, notes: s.notes, temperature: s.temperature || 'warm' }
   }
   const tdLeads = distLeads.map(unifyDist)
@@ -551,6 +562,20 @@ export default function LeadsPage() {
     if (k === 'whatsapp') return { label: 'WhatsApp', color: '#22c55e', bg: 'rgba(34,197,94,0.14)' }
     if (k === 'public') return { label: 'Public / QR', color: '#0891b2', bg: 'rgba(8,145,178,0.14)' }
     return { label: 'Manual', color: '#8b5cf6', bg: 'rgba(139,92,246,0.14)' }
+  }
+
+  // ---- SLA (response window) — REAL, from assigned_at + 12h reassign rule ----
+  function slaInfo(lead) {
+    // only meaningful for platform leads not yet acted on (still "new")
+    const active = lead.isPlatform && lead.status === 'new'
+    const base = lead.assigned_at || lead.created_at
+    const hrsSince = base ? (Date.now() - new Date(base).getTime()) / 3600000 : 0
+    const hrsLeft = SLA_HOURS - hrsSince
+    const pct = Math.max(0, Math.min(1, hrsLeft / SLA_HOURS))
+    const overdue = hrsLeft <= 0
+    const color = overdue ? '#ef4444' : hrsLeft <= 4 ? '#f59e0b' : '#10b981'
+    const left = hrsLeft >= 1 ? Math.ceil(hrsLeft) + 'h' : Math.max(1, Math.ceil(hrsLeft * 60)) + 'm'
+    return { active, pct, overdue, color, left }
   }
 
   const isTD = mainTab === 'trustdubai'
@@ -620,6 +645,11 @@ export default function LeadsPage() {
     const callNo = callNumber(lead)
     const waNo = waNumber(lead)
     const canMove = !isClosed
+
+    // REAL response-timer (replaces the demo "match %"): % of the 12h window left
+    const sla = slaInfo(lead)
+    const C = 2 * Math.PI * 16 // ring circumference (r = 16)
+
     return (
       <div
         draggable={draggable}
@@ -629,7 +659,19 @@ export default function LeadsPage() {
         style={{ background: 'var(--card)', border: '0.5px solid var(--border)', borderLeft: '3px solid ' + accent, borderRadius: 11, padding: 11, marginBottom: 8, cursor: 'pointer' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-          <div style={{ width: 30, height: 30, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: accent, background: accent + '22' }}>{(lead.name || 'A')[0].toUpperCase()}</div>
+          {/* avatar, wrapped in a live SLA ring for un-actioned platform leads */}
+          <div style={{ position: 'relative', width: 38, height: 38, flexShrink: 0 }}>
+            {sla.active && (
+              <svg width="38" height="38" style={{ position: 'absolute', top: 0, left: 0, transform: 'rotate(-90deg)' }}>
+                <circle cx="19" cy="19" r="16" fill="none" stroke="var(--border)" strokeWidth="3" />
+                <circle cx="19" cy="19" r="16" fill="none" stroke={sla.color} strokeWidth="3" strokeLinecap="round"
+                  strokeDasharray={C} strokeDashoffset={C * (1 - sla.pct)} style={{ transition: 'stroke-dashoffset .4s' }} />
+              </svg>
+            )}
+            <div style={{ position: 'absolute', top: 4, left: 4, width: 30, height: 30, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: accent, background: accent + '22' }}>
+              {(lead.name || 'A')[0].toUpperCase()}
+            </div>
+          </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.name || 'Anonymous'}</div>
             {(proj || budget) && <div style={{ fontSize: 10.5, color: 'var(--text3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{proj}{budget ? ' · ' + budget : ''}</div>}
@@ -644,6 +686,21 @@ export default function LeadsPage() {
           {isOverdue && <span style={{ fontSize: 9, fontWeight: 600, padding: '2px 7px', borderRadius: 99, background: 'rgba(239,68,68,0.14)', color: '#ef4444', display: 'inline-flex', alignItems: 'center', gap: 3 }}><i className="ti ti-clock" style={{ fontSize: 10 }} /> Overdue</span>}
           {!isOverdue && isDueToday && <span style={{ fontSize: 9, fontWeight: 600, padding: '2px 7px', borderRadius: 99, background: 'rgba(245,158,11,0.14)', color: '#f59e0b', display: 'inline-flex', alignItems: 'center', gap: 3 }}><i className="ti ti-clock" style={{ fontSize: 10 }} /> Today</span>}
         </div>
+
+        {/* REAL SLA timing line — only while the lead is un-actioned (status = New) */}
+        {sla.active && (
+          <div style={{ marginTop: 9 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+              <span style={{ fontSize: 9.5, fontWeight: 600, color: sla.color, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                <i className="ti ti-clock" style={{ fontSize: 11 }} /> {sla.overdue ? 'SLA passed · may reassign' : 'Respond in ' + sla.left}
+              </span>
+              <span style={{ fontSize: 9, color: 'var(--text3)' }}>{Math.round(sla.pct * 100)}%</span>
+            </div>
+            <div style={{ height: 5, borderRadius: 99, background: 'var(--bg)', overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: (sla.pct * 100) + '%', background: sla.color, borderRadius: 99, transition: 'width .4s' }} />
+            </div>
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: 6, marginTop: 10 }} onClick={e => e.stopPropagation()}>
           <button
@@ -875,6 +932,7 @@ export default function LeadsPage() {
     const proj = lead.answers?.['Project Type'] || lead.answers?.category || ''
     const budget = lead.answers?.['Budget (AED)'] || lead.answers?.budget || ''
     const loc = lead.answers?.['Location'] || lead.answers?.area || ''
+    const sla = slaInfo(lead)
     return (
       <div onClick={closeModal} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: mobile ? 0 : '24px 16px', overflowY: 'auto' }}>
         <div onClick={e => e.stopPropagation()} style={{ width: mobile ? '100%' : 560, minHeight: mobile ? '100%' : 'auto', background: 'var(--card)', borderRadius: mobile ? 0 : 14, border: '0.5px solid var(--border)' }}>
@@ -894,6 +952,21 @@ export default function LeadsPage() {
             <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 9px', borderRadius: 99, background: sc.bg, color: sc.color }}>{sc.label}</span>
             {isOverdue && <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 9px', borderRadius: 99, background: 'rgba(239,68,68,0.14)', color: '#ef4444' }}><i className="ti ti-clock" style={{ fontSize: 11 }} /> Overdue</span>}
           </div>
+
+          {/* Response SLA banner — real countdown to reassign (un-actioned platform leads) */}
+          {sla.active && (
+            <div style={{ marginBottom: 14, padding: '10px 13px', borderRadius: 10, border: '0.5px solid ' + sla.color + '55', background: sla.color + '14' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: sla.color, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  <i className="ti ti-clock-bolt" style={{ fontSize: 14 }} /> {sla.overdue ? 'Response window passed — may reassign' : 'Respond within ' + sla.left}
+                </span>
+                <span style={{ fontSize: 11, color: 'var(--text3)' }}>{Math.round(sla.pct * 100)}% left</span>
+              </div>
+              <div style={{ height: 6, borderRadius: 99, background: 'var(--bg2)', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: (sla.pct * 100) + '%', background: sla.color, borderRadius: 99, transition: 'width .4s' }} />
+              </div>
+            </div>
+          )}
 
           <div style={{ display: 'flex', gap: 7, marginBottom: 14 }}>
             {lead.phone && <a href={waMsg(lead)} target="_blank" rel="noreferrer" style={{ flex: 1, textAlign: 'center', fontSize: 11, padding: 8, borderRadius: 8, background: 'rgba(34,197,94,0.14)', color: '#0f7a52', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><i className="ti ti-brand-whatsapp" style={{ fontSize: 15 }} />WhatsApp</a>}
