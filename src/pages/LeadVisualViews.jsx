@@ -125,7 +125,8 @@ export default function LeadVisualViews({ mode = 'flow', leads = [], onOpenLead,
         .lv-chip:hover{border-color:var(--text3)}
         .lv-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
         .lv-orb{position:absolute;top:0;left:0;border-radius:50%;cursor:pointer;will-change:transform;z-index:2}
-        .lv-tag{position:absolute;left:50%;top:50%;transform:translate(-50%,-150%);white-space:nowrap;font-size:9px;font-weight:600;color:var(--text);background:var(--card);border:1px solid var(--border);border-radius:6px;padding:1px 6px;pointer-events:none}
+        .lv-tag{position:absolute;left:50%;top:50%;transform:translate(-50%,-150%);white-space:nowrap;font-size:9px;font-weight:600;color:var(--text);background:var(--card);border:1px solid var(--border);border-radius:6px;padding:1px 6px;pointer-events:none;transition:opacity .15s}
+        .lv-gorb:hover .lv-tag{opacity:1 !important}
         .lv-hub{position:absolute;transform:translate(-50%,-50%);text-align:center;cursor:pointer;z-index:3}
         .lv-ring{width:54px;height:54px;border-radius:50%;margin:0 auto;display:flex;align-items:center;justify-content:center;background:var(--card);transition:transform .2s}
         .lv-hub:hover .lv-ring{transform:scale(1.08)}
@@ -250,44 +251,53 @@ function FlowView({ nodes, counts, isDark, mobile, onOpenLead, onOpenStage }) {
 function GalaxyView({ nodes, counts, isDark, mobile, onOpenLead, onOpenStage }) {
   const wrapRef = useRef(null)
   const orbRefs = useRef({})
-  const hoverRef = useRef({})
-  const [dim, setDim] = useState({ w: 600, h: 460 })
-  const RAD = { new: 200, contacted: 148, quoted: 96, won: 44, lost: 250 }
+  const hoverRef = useRef(false)
+  const [dim, setDim] = useState({ w: 600, h: 480 })
+  const RAD = { new: 250, contacted: 182, quoted: 116, won: 54, lost: 280 }
+  const SPD = { new: 0.0040, contacted: -0.0058, quoted: 0.0050, won: 0.0110, lost: 0.0024 }
   const TILT = 0.52
 
   useEffect(() => {
     function fit() {
       const w = wrapRef.current ? wrapRef.current.clientWidth : 600
-      setDim({ w, h: Math.min(460, Math.max(320, w * 0.62)) })
+      setDim({ w, h: Math.min(600, Math.max(400, Math.round(w * 0.64))) })
     }
     fit(); window.addEventListener('resize', fit)
     return () => window.removeEventListener('resize', fit)
   }, [])
 
+  // even angular slot per stage so leads never bunch up, however many there are
+  const slots = useMemo(() => {
+    const by = {}; nodes.forEach(n => { (by[n.stage] = by[n.stage] || []).push(n) })
+    const m = {}; Object.values(by).forEach(list => list.forEach((n, i) => { m[n.key] = (i / list.length) * Math.PI * 2 }))
+    return m
+  }, [nodes])
+
   useEffect(() => {
     const cx = dim.w / 2, cy = dim.h / 2
-    const sc = Math.min(1, dim.w / 600)
-    const anim = nodes.map((n, i) => ({ n, ang: (i * 0.9) % 6.28, spd: (0.004 + (i % 6) * 0.001) * (i % 2 ? 1 : -1) }))
-    let raf
+    const sc = Math.min(1.3, dim.w / 600)
+    let t = 0, raf
     function tick() {
-      for (const a of anim) {
-        const el = orbRefs.current[a.n.key]; if (!el) continue
-        if (!hoverRef.current[a.n.key]) a.ang += a.spd
-        const R = (RAD[a.n.stage] ?? RAD.new) * sc
-        const x = cx + Math.cos(a.ang) * R, y = cy + Math.sin(a.ang) * R * TILT
-        const depth = (Math.sin(a.ang) + 1) / 2
+      if (!hoverRef.current) t += 1 // freeze whole galaxy while hovering -> easy click
+      for (const n of nodes) {
+        const el = orbRefs.current[n.key]; if (!el) continue
+        const ang = (slots[n.key] || 0) + t * (SPD[n.stage] ?? 0.004)
+        const R = (RAD[n.stage] ?? RAD.new) * sc
+        const x = cx + Math.cos(ang) * R, y = cy + Math.sin(ang) * R * TILT
+        const depth = (Math.sin(ang) + 1) / 2
         el.style.transform = `translate(${x}px,${y}px) translate(-50%,-50%) scale(${(0.85 + depth * 0.4).toFixed(2)})`
-        el.style.opacity = a.n.stage === 'lost' ? 0.5 : 1
+        el.style.opacity = n.stage === 'lost' ? 0.5 : 1
         el.style.zIndex = depth > 0.5 ? 4 : 1
       }
       raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [nodes, dim])
+  }, [nodes, dim, slots])
 
-  const cx = dim.w / 2, cy = dim.h / 2, sc = Math.min(1, dim.w / 600)
+  const cx = dim.w / 2, cy = dim.h / 2, sc = Math.min(1.3, dim.w / 600)
   const ringCol = { new: STAGE.new.color, contacted: STAGE.contacted.color, quoted: STAGE.quoted.color }
+  const crowd = {}; nodes.forEach(n => { crowd[n.stage] = (crowd[n.stage] || 0) + 1 })
 
   return (
     <div ref={wrapRef} style={{ width: '100%', height: dim.h, position: 'relative', overflow: 'hidden' }}>
@@ -301,17 +311,17 @@ function GalaxyView({ nodes, counts, isDark, mobile, onOpenLead, onOpenStage }) 
 
       {/* sun = Won */}
       <div onClick={() => onOpenStage('won')} title="Won"
-        style={{ position: 'absolute', left: cx, top: cy, width: 50, height: 50, margin: '-25px 0 0 -25px', borderRadius: '50%', cursor: 'pointer', zIndex: 3,
-          background: 'radial-gradient(circle at 50% 42%, #fff3c4, #f6c453 40%, #ef9f27 75%)', boxShadow: `0 0 ${isDark ? 26 : 14}px #f6a23c, 0 0 ${isDark ? 52 : 26}px ${STAGE.won.color}55` }} />
-      <div style={{ position: 'absolute', left: cx, top: cy + 32, transform: 'translate(-50%,0)', fontSize: 9.5, fontWeight: 600, color: STAGE.won.color, fontFamily: 'monospace', pointerEvents: 'none' }}>WON · {counts.won}</div>
+        style={{ position: 'absolute', left: cx, top: cy, width: 54, height: 54, margin: '-27px 0 0 -27px', borderRadius: '50%', cursor: 'pointer', zIndex: 3,
+          background: 'radial-gradient(circle at 50% 42%, #fff3c4, #f6c453 40%, #ef9f27 75%)', boxShadow: `0 0 ${isDark ? 28 : 15}px #f6a23c, 0 0 ${isDark ? 56 : 28}px ${STAGE.won.color}55` }} />
+      <div style={{ position: 'absolute', left: cx, top: cy + 34, transform: 'translate(-50%,0)', fontSize: 9.5, fontWeight: 600, color: STAGE.won.color, fontFamily: 'monospace', pointerEvents: 'none' }}>WON · {counts.won}</div>
 
       {nodes.map(n => (
-        <div key={n.key} ref={el => (orbRefs.current[n.key] = el)}
-          onMouseEnter={() => { hoverRef.current[n.key] = true }} onMouseLeave={() => { hoverRef.current[n.key] = false }}
+        <div key={n.key} ref={el => (orbRefs.current[n.key] = el)} className="lv-gorb"
+          onMouseEnter={() => { hoverRef.current = true }} onMouseLeave={() => { hoverRef.current = false }}
           onClick={() => onOpenLead && onOpenLead(n.lead)}
-          style={{ position: 'absolute', left: 0, top: 0, width: 24, height: 24, transform: 'translate(-50%,-50%)', cursor: 'pointer', zIndex: 2 }}>
+          style={{ position: 'absolute', left: 0, top: 0, width: 26, height: 26, transform: 'translate(-50%,-50%)', cursor: 'pointer', zIndex: 2 }}>
           <div style={{ position: 'absolute', left: '50%', top: '50%', width: 12, height: 12, borderRadius: '50%', transform: 'translate(-50%,-50%)', background: n.color, boxShadow: `0 0 ${isDark ? 9 : 5}px ${n.color}${isDark ? '' : '88'}` }} />
-          <span className="lv-tag">{n.name}</span>
+          <span className="lv-tag" style={{ opacity: (crowd[n.stage] || 0) <= 9 ? 1 : 0 }}>{n.name}</span>
         </div>
       ))}
     </div>
