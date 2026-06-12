@@ -626,53 +626,57 @@ export default function LeadsPage() {
         onDragStart={draggable ? () => setDragId(lead) : undefined}
         onDragEnd={draggable ? () => setDragId(null) : undefined}
         onClick={() => openModal(lead)}
-        style={{ background: 'var(--bg2)', borderRadius: 9, padding: 10, marginBottom: 7, borderLeft: '3px solid ' + accent, cursor: 'pointer' }}
+        style={{ background: 'var(--card)', border: '0.5px solid var(--border)', borderLeft: '3px solid ' + accent, borderRadius: 11, padding: 11, marginBottom: 8, cursor: 'pointer' }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
-          <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)', minWidth: 0, wordBreak: 'break-word' }}>{lead.name || 'Anonymous'}</div>
-          <span style={{ fontSize: 8.5, fontWeight: 600, padding: '1px 6px', borderRadius: 99, background: temp.bg, color: temp.color, flexShrink: 0 }}>{temp.label}</span>
-        </div>
-        {(proj || budget) && <div style={{ fontSize: 10, color: 'var(--text3)', margin: '3px 0', wordBreak: 'break-word' }}>{proj}{budget ? ' · ' + budget : ''}</div>}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
-          {lead.isPlatform
-            ? <span style={{ fontSize: 8.5, padding: '1px 6px', borderRadius: 99, background: 'rgba(8,145,178,0.14)', color: '#0891b2' }}>Rank #{lead.rank}</span>
-            : <span style={{ fontSize: 8.5, padding: '1px 6px', borderRadius: 99, background: mySourceBadge(lead).bg, color: mySourceBadge(lead).color }}>{mySourceBadge(lead).label}</span>}
-          {isOverdue && <span style={{ fontSize: 9, color: '#ef4444' }}><i className="ti ti-clock" style={{ fontSize: 10 }} /> Overdue</span>}
-          {!isOverdue && isDueToday && <span style={{ fontSize: 9, color: '#f59e0b' }}><i className="ti ti-clock" style={{ fontSize: 10 }} /> Today</span>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+          <div style={{ width: 30, height: 30, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: accent, background: accent + '22' }}>{(lead.name || 'A')[0].toUpperCase()}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.name || 'Anonymous'}</div>
+            {(proj || budget) && <div style={{ fontSize: 10.5, color: 'var(--text3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{proj}{budget ? ' · ' + budget : ''}</div>}
+          </div>
+          <span style={{ fontSize: 8.5, fontWeight: 600, padding: '2px 7px', borderRadius: 99, background: temp.bg, color: temp.color, flexShrink: 0 }}>{temp.label}</span>
         </div>
 
-        <div style={{ display: 'flex', gap: 6, marginTop: 9 }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+          {lead.isPlatform
+            ? <span style={{ fontSize: 8.5, fontWeight: 600, padding: '2px 7px', borderRadius: 99, background: 'rgba(8,145,178,0.14)', color: '#0891b2' }}>Rank #{lead.rank}</span>
+            : <span style={{ fontSize: 8.5, fontWeight: 600, padding: '2px 7px', borderRadius: 99, background: mySourceBadge(lead).bg, color: mySourceBadge(lead).color }}>{mySourceBadge(lead).label}</span>}
+          {isOverdue && <span style={{ fontSize: 9, fontWeight: 600, padding: '2px 7px', borderRadius: 99, background: 'rgba(239,68,68,0.14)', color: '#ef4444', display: 'inline-flex', alignItems: 'center', gap: 3 }}><i className="ti ti-clock" style={{ fontSize: 10 }} /> Overdue</span>}
+          {!isOverdue && isDueToday && <span style={{ fontSize: 9, fontWeight: 600, padding: '2px 7px', borderRadius: 99, background: 'rgba(245,158,11,0.14)', color: '#f59e0b', display: 'inline-flex', alignItems: 'center', gap: 3 }}><i className="ti ti-clock" style={{ fontSize: 10 }} /> Today</span>}
+        </div>
+
+        <div style={{ display: 'flex', gap: 6, marginTop: 10 }} onClick={e => e.stopPropagation()}>
           <button
             onClick={() => canMove && updateLeadStage(lead, nextStage(lead.status))}
             disabled={!canMove || updatingStatus === lead.key}
             title={canMove ? 'Move to next stage' : 'Lead is closed'}
-            style={{ flex: 1, fontSize: 11, fontWeight: 600, padding: '7px 4px', borderRadius: 8, border: 'none',
+            style={{ flex: 1, minHeight: 36, fontSize: 11, fontWeight: 600, borderRadius: 8, border: 'none',
               background: canMove ? '#0099cc' : 'var(--bg)', color: canMove ? '#fff' : 'var(--text3)',
               cursor: canMove ? 'pointer' : 'not-allowed', opacity: canMove ? 1 : 0.55,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, whiteSpace: 'nowrap' }}>
-            <i className="ti ti-arrow-right" style={{ fontSize: 13 }} /> Move
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, whiteSpace: 'nowrap' }}>
+            <i className="ti ti-arrow-right" style={{ fontSize: 14 }} /> Move
           </button>
 
           <button
             onClick={() => callNo && window.open('tel:' + callNo, '_self')}
             disabled={!callNo}
             title={callNo ? 'Call ' + lead.phone : 'No phone number'}
-            style={{ flex: 1, fontSize: 11, fontWeight: 600, padding: '7px 4px', borderRadius: 8, border: 'none',
+            style={{ width: 42, minHeight: 36, fontSize: 15, borderRadius: 8, border: 'none',
               background: callNo ? 'rgba(8,145,178,0.14)' : 'var(--bg)', color: callNo ? '#0077a3' : 'var(--text3)',
               cursor: callNo ? 'pointer' : 'not-allowed', opacity: callNo ? 1 : 0.55,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
-            <i className="ti ti-phone" style={{ fontSize: 13 }} /> Call
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <i className="ti ti-phone" />
           </button>
 
           <button
             onClick={() => waNo && openModal(lead)}
             disabled={!waNo}
             title={waNo ? 'Open templates & send WhatsApp' : 'No WhatsApp number'}
-            style={{ flex: 1, fontSize: 11, fontWeight: 600, padding: '7px 4px', borderRadius: 8, border: 'none',
+            style={{ width: 42, minHeight: 36, fontSize: 15, borderRadius: 8, border: 'none',
               background: waNo ? 'rgba(34,197,94,0.14)' : 'var(--bg)', color: waNo ? '#0f7a52' : 'var(--text3)',
               cursor: waNo ? 'pointer' : 'not-allowed', opacity: waNo ? 1 : 0.55,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
-            <i className="ti ti-brand-whatsapp" style={{ fontSize: 13 }} /> WA
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <i className="ti ti-brand-whatsapp" />
           </button>
         </div>
       </div>
@@ -1234,12 +1238,12 @@ export default function LeadsPage() {
         )}
 
         {!isTD && myLeads.length > 0 && (
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+          <div style={{ display: mobile ? 'grid' : 'flex', gridTemplateColumns: mobile ? 'repeat(2,1fr)' : undefined, gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
             {SOURCE_CARDS.map(s => {
               const active = fSource === s.key
               return (
                 <div key={s.key} onClick={() => toggleSource(s.key)}
-                  style={{ flex: 1, minWidth: 110, ...card, padding: '9px 13px', display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer', borderColor: active ? s.color : 'var(--border)', borderWidth: active ? 1.5 : 0.5, borderStyle: 'solid' }}>
+                  style={{ flex: mobile ? 'none' : 1, minWidth: 0, ...card, padding: '9px 13px', display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer', borderColor: active ? s.color : 'var(--border)', borderWidth: active ? 1.5 : 0.5, borderStyle: 'solid' }}>
                   <i className={'ti ' + s.icon} style={{ fontSize: 16, color: s.color }} />
                   <div><span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{mySrcCount(s.key)}</span> <span style={{ fontSize: 10, color: 'var(--text2)' }}>{s.label}</span></div>
                   {active && <i className="ti ti-circle-check-filled" style={{ fontSize: 14, color: s.color, marginLeft: 'auto' }} />}
@@ -1250,20 +1254,22 @@ export default function LeadsPage() {
         )}
 
         {baseLeads.length > 0 && (
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--card)', border: '0.5px solid var(--border)', borderRadius: 8, padding: '6px 12px', flex: '1 1 200px', minWidth: 160 }}>
+          <div style={{ display: 'flex', flexDirection: mobile ? 'column' : 'row', gap: 10, alignItems: mobile ? 'stretch' : 'center', marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--card)', border: '0.5px solid var(--border)', borderRadius: 8, padding: '8px 12px', flex: mobile ? 'none' : '1 1 200px', minWidth: 0 }}>
               <i className="ti ti-search" style={{ fontSize: 14, color: 'var(--text3)' }} />
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, phone, email..." style={{ border: 'none', background: 'none', outline: 'none', fontSize: 13, color: 'var(--text)', width: '100%', fontFamily: 'inherit' }} />
             </div>
-            <div style={{ display: 'flex', gap: 2, background: 'var(--bg2)', border: '0.5px solid var(--border)', borderRadius: 8, padding: 2 }}>
-              {[['board','ti-layout-kanban','Board'],['list','ti-list','List']].map(([v,ic,lbl]) => (
-                <button key={v} onClick={() => setView(v)} style={{ padding: '6px 11px', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4, background: view === v ? 'var(--card)' : 'transparent', color: view === v ? 'var(--primary)' : 'var(--text3)' }}>
-                  <i className={`ti ${ic}`} style={{ fontSize: 14 }} /> {lbl}
-                </button>
-              ))}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 2, background: 'var(--bg2)', border: '0.5px solid var(--border)', borderRadius: 8, padding: 2, flex: mobile ? 1 : 'none' }}>
+                {[['board','ti-layout-kanban','Board'],['list','ti-list','List']].map(([v,ic,lbl]) => (
+                  <button key={v} onClick={() => setView(v)} style={{ flex: mobile ? 1 : 'none', justifyContent: 'center', padding: '7px 11px', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4, background: view === v ? 'var(--card)' : 'transparent', color: view === v ? 'var(--primary)' : 'var(--text3)' }}>
+                    <i className={`ti ${ic}`} style={{ fontSize: 14 }} /> {lbl}
+                  </button>
+                ))}
+              </div>
+              {!isTD && <button className="btn btn-primary btn-sm" style={{ flex: mobile ? 1 : 'none', whiteSpace: 'nowrap' }} onClick={openAdd}>+ Add</button>}
+              {!isTD && <button className="btn btn-secondary btn-sm" style={{ flex: mobile ? 1 : 'none', whiteSpace: 'nowrap' }} disabled={importing} onClick={() => fileRef.current?.click()}>{importing ? '...' : '⬆ Import'}</button>}
             </div>
-            {!isTD && <button className="btn btn-primary btn-sm" onClick={openAdd}>+ Add Lead</button>}
-            {!isTD && <button className="btn btn-secondary btn-sm" disabled={importing} onClick={() => fileRef.current?.click()}>{importing ? 'Importing...' : '⬆ Import'}</button>}
           </div>
         )}
       </>
