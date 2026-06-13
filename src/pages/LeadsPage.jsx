@@ -53,7 +53,7 @@ const SOURCE_CARDS = [
 
 const LEAD_SOURCES = ['Meta Ads','WhatsApp','Instagram','Referral','Walk-in','Website','Direct Call','Holiday Home Operator','Other']
 
-const PROJECT_TYPES = ['Villa Renovation','Apartment Renovation','Office Fit-out','Retail Fit-out','Holiday Home Beautification','Bathroom Renovation','Kitchen Renovation','False Ceiling','Flooring & Tiling','Painting & Wallpaper','Full Interior Design','MEP Works','Swimming Pool Area','Landscape & Outdoor','Commercial Renovation','Showroom Fit-out','Restaurant Fit-out','Hotel Room Renovation','TV Wall Panel','Other']
+const PROJECT_TYPES = ['Villa Renovation','Apartment Renovation','Office Fit-out','Retail Fit-out','Holiday Home Beautification','Bathroom Renovation','Kitchen Renovation','False Ceiling','Flooring & Tiling','Painting & Wallpaper','Full Interior Design','MEP Works','Swimming Pool Area','Landscape & Outdoor','Commercial Renovation','Showroom Fit-out','Restaurant Fit-out','Hotel Room Renovation','TV Wall Panel','Joinery & Custom Furniture','Gypsum & Partition','AC / HVAC Works','Waterproofing','Villa Extension','Majlis Design','Wardrobe & Closet','Home Automation','Tiling & Marble','Demolition & Civil Works','Other']
 
 const TEMP = {
   hot:  { label:'Hot',  color:'#ef4444', bg:'rgba(239,68,68,0.14)' },
@@ -127,6 +127,7 @@ export default function LeadsPage() {
   const [savingAdd, setSavingAdd] = useState(false)
   const blankAdd = { name:'', phone:'', source:'Meta Ads', projectType:'', email:'', whatsapp:'', location:'', budget:'', followUp:'', status:'new', temp:'warm', notes:'' }
   const [addF, setAddF] = useState(blankAdd)
+  const [editId, setEditId] = useState(null)
 
   const [vw, setVw] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200)
   useEffect(() => {
@@ -205,8 +206,20 @@ export default function LeadsPage() {
   function openShare(form) { setShareForm(form); setCopied(false) }
   function closeShare() { setShareForm(null) }
 
-  function openAdd() { setAddF(blankAdd); setAddMore(false); setShowAdd(true) }
-  function closeAdd() { setShowAdd(false) }
+  function openAdd() { setEditId(null); setAddF(blankAdd); setAddMore(false); setShowAdd(true) }
+  function openEdit(lead) {
+    const a = lead.answers || {}
+    setEditId(lead.subId)
+    setAddF({
+      name: lead.name || '', phone: lead.phone || '', source: a['Source'] || 'Meta Ads',
+      projectType: a['Project Type'] || '', email: lead.email || '', whatsapp: a['WhatsApp'] || '',
+      location: a['Location'] || '', budget: a['Budget (AED)'] || '', followUp: lead.follow_up_date || '',
+      status: lead.status || 'new', temp: lead.temperature || 'warm', notes: lead.notes || a['Notes'] || '',
+    })
+    setAddMore(!!(lead.email || a['WhatsApp'] || a['Location'] || a['Budget (AED)'] || lead.follow_up_date || lead.notes || a['Notes']))
+    setShowAdd(true)
+  }
+  function closeAdd() { setShowAdd(false); setEditId(null) }
   function setA(k, v) { setAddF(p => ({ ...p, [k]: v })) }
 
   async function saveAddLead() {
@@ -220,6 +233,17 @@ export default function LeadsPage() {
     if (addF.budget) answers['Budget (AED)'] = addF.budget
     if (addF.whatsapp) answers['WhatsApp'] = addF.whatsapp
     if (addF.notes) answers['Notes'] = addF.notes
+
+    if (editId) {
+      const { error: upErr } = await supabase.from('lead_submissions').update({
+        name: addF.name.trim(), phone: addF.phone.trim(), email: addF.email.trim() || null,
+        status: addF.status, status_updated_at: new Date().toISOString(),
+        follow_up_date: addF.followUp || null, temperature: addF.temp, notes: addF.notes || null, answers,
+      }).eq('id', editId)
+      if (upErr) { setSavingAdd(false); toast.error('Could not update lead'); console.error(upErr); return }
+      setSavingAdd(false); await fetchAll(); setShowAdd(false); setEditId(null); toast.success('Lead updated!'); return
+    }
+
     const { error } = await supabase.from('lead_submissions').insert({
       company_id: company.id, name: addF.name.trim(), phone: addF.phone.trim(), email: addF.email.trim() || null,
       status: addF.status, status_updated_at: new Date().toISOString(),
@@ -678,6 +702,12 @@ export default function LeadsPage() {
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.name || 'Anonymous'}</div>
             {(proj || budget) && <div style={{ fontSize: 10.5, color: 'var(--text3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{proj}{budget ? ' · ' + budget : ''}</div>}
           </div>
+          {!lead.isPlatform && (
+            <button onClick={e => { e.stopPropagation(); openEdit(lead) }} title="Edit lead"
+              style={{ width: 26, height: 26, borderRadius: 7, border: '0.5px solid var(--border)', background: 'var(--bg2)', color: 'var(--text3)', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>
+              <i className="ti ti-pencil" />
+            </button>
+          )}
           <span style={{ fontSize: 8.5, fontWeight: 600, padding: '2px 7px', borderRadius: 99, background: temp.bg, color: temp.color, flexShrink: 0 }}>{temp.label}</span>
         </div>
 
@@ -843,8 +873,8 @@ export default function LeadsPage() {
 
           <div style={{ position: 'sticky', top: 0, zIndex: 5, background: 'var(--card)', padding: '14px 18px', paddingTop: mobile ? `calc(14px + ${SAFE_TOP})` : 14, borderBottom: '0.5px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: mobile ? 0 : '14px 14px 0 0' }}>
             <div>
-              <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)' }}>Add new lead</div>
-              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>Just name & phone is enough</div>
+              <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)' }}>{editId ? 'Edit lead' : 'Add new lead'}</div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{editId ? 'Update details & save' : 'Just name & phone is enough'}</div>
             </div>
             <button onClick={closeAdd} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 20 }}><i className="ti ti-x" /></button>
           </div>
@@ -916,7 +946,7 @@ export default function LeadsPage() {
           )}
 
           <div style={{ display: 'flex', gap: 8, paddingBottom: mobile ? `calc(4px + env(safe-area-inset-bottom))` : 0 }}>
-            <button onClick={saveAddLead} disabled={savingAdd} style={{ flex: 1, padding: 10, borderRadius: 8, background: '#0099cc', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>{savingAdd ? 'Saving...' : 'Save lead'}</button>
+            <button onClick={saveAddLead} disabled={savingAdd} style={{ flex: 1, padding: 10, borderRadius: 8, background: '#0099cc', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>{savingAdd ? (editId ? 'Updating...' : 'Saving...') : (editId ? 'Update lead' : 'Save lead')}</button>
             <button onClick={closeAdd} style={{ padding: '10px 18px', borderRadius: 8, border: '0.5px solid var(--border)', background: 'transparent', color: 'var(--text2)', cursor: 'pointer', fontSize: 12 }}>Cancel</button>
           </div>
           </div>
@@ -1359,7 +1389,7 @@ export default function LeadsPage() {
   return (
     <div className="animate-in" style={{ color: 'var(--text)' }}>
       <Modal />
-      <AddLeadModal />
+      {AddLeadModal()}
       <ShareModal />
       <input ref={fileRef} type="file" accept=".csv" onChange={handleCSV} style={{ display: 'none' }} />
 
@@ -1391,8 +1421,8 @@ export default function LeadsPage() {
             <i className="ti ti-shield-check" style={{ fontSize: 18, color: '#0891b2' }} />
             <div style={{ fontSize: 12, color: 'var(--text2)' }}>Verified leads delivered to you by the <b style={{ color: '#0891b2' }}>TrustDubai</b> platform, ranked by match.</div>
           </div>
-          <Toolbar />
-          <Board />
+          {Toolbar()}
+          {Board()}
         </div>
       )}
 
@@ -1402,8 +1432,8 @@ export default function LeadsPage() {
             <i className="ti ti-building-store" style={{ fontSize: 18, color: '#7c3aed' }} />
             <div style={{ fontSize: 12, color: 'var(--text2)' }}>Your own leads — from Meta ads, WhatsApp, manual entry and CSV imports. <span style={{ color: 'var(--text3)' }}>Meta auto-sync coming soon.</span></div>
           </div>
-          <Toolbar />
-          <Board />
+          {Toolbar()}
+          {Board()}
         </div>
       )}
 
