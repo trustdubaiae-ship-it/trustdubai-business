@@ -225,7 +225,7 @@ function Portal() {
     tdleads:            <TrustDubaiLeads onNavigate={navigate} />,
     metaads:            <ComingSoon feature="meta_ads" onNavigate={navigate} />,
     quoteapprovals:     <ComingSoon feature="quote_approvals" onNavigate={navigate} />,
-    aiquote:            <ComingSoon feature="ai_quote_builder" onNavigate={navigate} />,
+    aiquote:            <Quotations key="q-ai" subRoute={subRoute} setSubRoute={setPageSub} startAi />,
     projects:           <ComingSoon feature="projects" onNavigate={navigate} />,
     materials:          <ComingSoon feature="material_requests" onNavigate={navigate} />,
     expenses:           <ComingSoon feature="site_expenses" onNavigate={navigate} />,

@@ -18,11 +18,14 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const {
-      action = "reply", // "reply" | "score" | "both"
+      action = "reply", // "reply" | "score" | "both" | "quote"
       companyName = "our company",
       companyCategory = "",
       lead = {},
       tone = "professional",
+      description = "",      // for action "quote": the project description
+      library = [],          // for action "quote": [{ description, unit, default_rate, trade_section }]
+      mode = "simple",       // for action "quote": "simple" | "advanced" | "boq"
     } = body;
 
     const leadText = [
@@ -37,7 +40,28 @@ Deno.serve(async (req) => {
     let system = "";
     let userPrompt = "";
 
-    if (action === "score") {
+    if (action === "quote") {
+      const libText = (Array.isArray(library) ? library : []).slice(0, 90)
+        .map((li) => `- ${li.description} | unit: ${li.unit || "Nos"} | rate: ${li.default_rate || 0}${li.trade_section ? " | trade: " + li.trade_section : ""}`)
+        .join("\n");
+      const grouped = mode !== "simple";
+      system = `You are a senior quantity surveyor / estimator for ${companyName}${companyCategory ? `, a ${companyCategory} business` : ""} in Dubai (UAE). You produce detailed, realistic itemized quotations for construction, interior and fit-out projects. All prices in AED.`;
+      userPrompt = `Create an itemized quotation for the project below. Return ONLY compact JSON (no markdown, no extra text) in this exact shape:
+{"items":[{"desc":"...","unit":"Nos|m²|m|Lump Sum|Set|Hour|Day","qty":number,"rate":number${grouped ? ',"trade":"section or trade name"' : ""}}]}
+
+Rules:
+- 6 to 16 realistic line items covering the full scope.
+- Prefer the company's library items and KEEP their rates where they match the scope. For new items, estimate fair current Dubai market rates in AED.
+- "qty" and "rate" are plain numbers (no currency symbols or commas).
+- Clear, professional descriptions.
+${grouped ? '- Group items under a "trade" (e.g. Civil, MEP, Joinery, Painting, Flooring — or room names like Kitchen, Living Room).' : "- Do not include a trade field."}
+
+Company library (reuse these rates where relevant):
+${libText || "(no saved library items — estimate fair Dubai market rates)"}
+
+Project:
+${description || "General interior fit-out work"}`;
+    } else if (action === "score") {
       system = `You are a lead-qualification assistant for ${companyName}${companyCategory ? `, a ${companyCategory} business` : ""} in Dubai. Score how promising a sales lead is.`;
       userPrompt = `Given this lead, return ONLY a compact JSON object (no markdown, no extra text) with keys:
 "score" (integer 0-100), "temperature" ("hot"|"warm"|"cold"), "reason" (one short sentence).
@@ -77,7 +101,7 @@ ${leadText || "No details provided."}`;
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
-        max_tokens: 600,
+        max_tokens: action === "quote" ? 2400 : 600,
         system,
         messages: [{ role: "user", content: userPrompt }],
       }),
@@ -100,6 +124,12 @@ ${leadText || "No details provided."}`;
 
     const data = await aiRes.json();
     const text = (data?.content?.[0]?.text || "").trim();
+
+    if (action === "quote") {
+      const parsed = safeJson(text);
+      const items = Array.isArray(parsed?.items) ? parsed.items : [];
+      return json({ ok: true, items }, 200);
+    }
 
     if (action === "score" || action === "both") {
       const parsed = safeJson(text);

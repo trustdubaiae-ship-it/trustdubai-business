@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { useToast } from '../lib/toast'
@@ -117,7 +117,7 @@ const loadDraft  = () => { try { const r = localStorage.getItem(DRAFT_KEY); retu
 const saveDraft  = (d) => { try { localStorage.setItem(DRAFT_KEY, JSON.stringify(d)) } catch {} }
 const clearDraft = () => { try { localStorage.removeItem(DRAFT_KEY) } catch {} }
 
-export default function Quotations({ subRoute = '', setSubRoute }) {
+export default function Quotations({ subRoute = '', setSubRoute, startAi = false }) {
   const { company, user } = useAuth()
   const toast = useToast()
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
@@ -167,6 +167,9 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
   const [sourceLead, setSourceLead] = useState(null)
   const [workType, setWorkType] = useState('')
   const [validUntil, setValidUntil] = useState('')
+  const [aiOpen, setAiOpen] = useState(false)
+  const [aiDesc, setAiDesc] = useState('')
+  const [aiBusy, setAiBusy] = useState(false)
 
   // ---- VO state ----
   const [vos, setVos]             = useState([])
@@ -274,6 +277,15 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
     setViewRaw('list'); setSub('')
     setRestoring(false)
   }, [loading, subRoute, quotes])
+
+  // "AI Quote Builder" sidebar entry → open a fresh builder with the AI modal already up.
+  const aiStartedRef = useRef(false)
+  useEffect(() => {
+    if (!startAi || loading || restoring || aiStartedRef.current) return
+    aiStartedRef.current = true
+    openBuilder()
+    setAiOpen(true)
+  }, [startAi, loading, restoring])
 
   async function fetchQuotes() {
     setLoading(true)
@@ -546,6 +558,31 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
   function addItemToTrade(trade) { setItems(prev => [...prev, blankItemT(trade)]) }
   function removeItemBoq(idx) { setItems(prev => prev.filter((_,i)=>i!==idx)) }
   function addTradeSection() { if (!addTradePick) return; addItemToTrade(addTradePick); setAddTradePick('') }
+
+  // AI: describe a project → Claude drafts an itemized quote (grounded in the quote library + rates)
+  async function aiGenerate() {
+    if (!aiDesc.trim()) { toast.error('Describe the project first'); return }
+    setAiBusy(true)
+    try {
+      const lib = (libItems || []).map(li => ({ description: li.description, unit: li.unit, default_rate: li.default_rate, trade_section: li.trade_section }))
+      const { data, error } = await supabase.functions.invoke('smart-function', {
+        body: { action: 'quote', description: aiDesc.trim(), companyName: company?.name || '', companyCategory: company?.category || '', mode, library: lib },
+      })
+      if (error) throw error
+      if (data?.error) { toast.error(data.code === 'no_credit' ? 'AI credits exhausted' : (data.error || 'AI failed')); return }
+      const aiItems = Array.isArray(data?.items) ? data.items : []
+      if (!aiItems.length) { toast.error('AI could not generate items — add more detail (or redeploy the AI function)'); return }
+      const mapped = aiItems.map(it => ({
+        desc: String(it.desc || '').trim(), unit: it.unit || 'Nos',
+        qty: Number(it.qty) || 1, rate: Number(it.rate) || 0,
+        ...((mode === 'boq' || mode === 'advanced') ? { trade: it.trade || 'Misc' } : {}),
+      })).filter(it => it.desc)
+      if (!mapped.length) { toast.error('AI returned no usable items'); return }
+      setItems(mapped)
+      setAiOpen(false); setAiDesc('')
+      toast.success(`AI drafted ${mapped.length} items ✓ — review & edit rates`)
+    } catch (e) { toast.error('AI failed: ' + (e.message || 'unknown')) } finally { setAiBusy(false) }
+  }
 
   const subtotal = items.reduce((s,it)=> s + (Number(it.qty)||0)*(Number(it.rate)||0), 0)
   const discountAmount = discountType==='percent' ? Math.round(subtotal*(Number(discountValue)||0)/100)
@@ -1495,6 +1532,28 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
     return (
       <div>
         {LibDatalist()}
+        {aiOpen && (
+          <div onClick={()=>!aiBusy&&setAiOpen(false)} style={{ position:'fixed', inset:0, zIndex:2000, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
+            <div onClick={e=>e.stopPropagation()} style={{ background:cardBg, borderRadius:16, width:'100%', maxWidth:480, padding:20, border:`1px solid ${border}` }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
+                <i className="ti ti-sparkles" style={{ fontSize:20, color:'#7c3aed' }}/>
+                <div style={{ fontSize:16, fontWeight:700, color:text }}>Generate quote with AI</div>
+              </div>
+              <div style={{ fontSize:12, color:textMuted, marginBottom:12 }}>Describe the project — AI drafts an itemized quote using your library &amp; rates. You can edit everything afterwards.</div>
+              <textarea value={aiDesc} onChange={e=>setAiDesc(e.target.value)} autoFocus rows={5}
+                placeholder={'e.g. 3-bedroom villa kitchen renovation — remove old cabinets, install modular cabinets, quartz countertop, new sink & mixer, false ceiling with spotlights, repaint walls.'}
+                style={{ ...inputStyle, resize:'vertical', lineHeight:1.5, marginBottom:6 }}/>
+              <div style={{ fontSize:11, color:textMuted, marginBottom:14 }}>Mode: <b style={{ color:textSub }}>{md.label}</b>{mode!=='simple' ? ' · items will be grouped into sections' : ''}</div>
+              <div style={{ display:'flex', gap:8 }}>
+                <button onClick={()=>setAiOpen(false)} disabled={aiBusy} style={{ flex:1, padding:'11px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}>Cancel</button>
+                <button onClick={aiGenerate} disabled={aiBusy} style={{ flex:2, padding:'11px', borderRadius:9, border:'none', background:'linear-gradient(135deg,#7c3aed,#0099cc)', color:'#fff', fontSize:13.5, fontWeight:700, cursor:aiBusy?'default':'pointer', opacity:aiBusy?0.7:1, display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                  {aiBusy ? 'Generating…' : <><i className="ti ti-sparkles" style={{ fontSize:15 }}/> Generate</>}
+                </button>
+              </div>
+              {items.some(it=>(it.desc||'').trim()) && <div style={{ fontSize:10.5, color:'#d97706', marginTop:10 }}>⚠ This will replace the current items.</div>}
+            </div>
+          </div>
+        )}
         <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14 }}>
           <button onClick={() => setView('list')} style={{ width:34, height:34, borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:textSub, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
             <i className="ti ti-arrow-left" style={{ fontSize:16 }}/>
@@ -1521,6 +1580,17 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
             BOQ {!canBoq && <i className="ti ti-lock" style={{ fontSize:12 }}/>}
           </button>
         </div>
+
+        <button onClick={()=>setAiOpen(true)}
+          style={{ display:'flex', alignItems:'center', gap:9, width:'100%', marginBottom:14, padding:'11px 14px', borderRadius:10, border:'none', cursor:'pointer',
+            background:'linear-gradient(135deg,#7c3aed,#0099cc)', color:'#fff', fontSize:13.5, fontWeight:600, boxSizing:'border-box' }}>
+          <i className="ti ti-sparkles" style={{ fontSize:18 }}/>
+          <div style={{ textAlign:'left', flex:1 }}>
+            <div>Generate with AI</div>
+            <div style={{ fontSize:10.5, opacity:0.85, fontWeight:400 }}>Describe the project — AI drafts the itemized quote</div>
+          </div>
+          <i className="ti ti-arrow-right" style={{ fontSize:15 }}/>
+        </button>
 
         <div style={{ marginBottom:12, position:'relative' }}>
           <label style={{ fontSize:12, color:textSub, display:'block', marginBottom:5 }}>Select client <span style={{ color:'#dc2626' }}>*</span></label>
