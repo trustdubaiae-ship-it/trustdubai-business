@@ -35,6 +35,7 @@ import InboxPage from './pages/InboxPage'
 import TrustScorePage from './pages/TrustScorePage'
 import ControlPanel from './pages/ControlPanel'
 import MenuPage from './pages/MenuPage'
+import QuoteApproval from './pages/QuoteApproval'
 
 const ROLE_LABEL = { owner:'Owner', manager:'Manager', sales:'Sales', engineer:'Engineer', staff:'Staff' }
 
@@ -450,6 +451,11 @@ function Portal() {
 }
 
 export default function App() {
+  // Public, login-free quote approval page: #approve/<token>
+  const hash = (window.location.hash || '').replace(/^#/, '')
+  if (hash.startsWith('approve/')) {
+    return <QuoteApproval token={decodeURIComponent(hash.slice('approve/'.length))} />
+  }
   return (
     <AuthProvider>
       <ToastProvider>

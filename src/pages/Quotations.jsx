@@ -795,6 +795,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
           <div style="display:flex;gap:8px;">
             ${payments.map(p => `<div style="flex:1;border:0.5px solid #eee;border-top:2px solid #c9952a;padding:9px 10px;">
               <div style="font-size:16px;font-weight:700;color:#c9952a;">${escapeHtml(p.percent)}%</div>
+              <div style="font-size:11px;font-weight:700;color:#1a1a1a;margin-top:1px;">AED ${n(tot*(Number(p.percent)||0)/100)}</div>
               <div style="font-size:9.5px;font-weight:700;margin-top:3px;">${escapeHtml(p.label||'')}</div>
               ${p.description?`<div style="font-size:8.5px;color:#888;margin-top:2px;line-height:1.4;">${escapeHtml(p.description)}</div>`:''}
             </div>`).join('')}
@@ -898,7 +899,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
     }
 
     const paymentStr = payments.length
-      ? payments.map(p => p.label ? `${p.percent}% ${p.label}` : `${p.percent}%`).join(' · ')
+      ? payments.map(p => `${p.percent}% (AED ${n(tot*(Number(p.percent)||0)/100)})${p.label ? ' ' + p.label : ''}`).join(' · ')
       : '50% Advance · 40% On completion · 10% On handover'
     const footerHtml = (wantFooter && !isVo) ? `<div style="background:#faf8f3;border-radius:5px;padding:11px 13px;margin-bottom:14px;">
         <div style="font-size:9px;color:#c9952a;text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:5px;">Payment Schedule</div>
@@ -1020,6 +1021,20 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
     const msg = `Dear ${q.client_name||'Client'},\n\nPlease find your quotation ${q.quote_number} from ${company?.name||''}.\nProject: ${q.project_title||'—'}\nTotal: AED ${Number(q.total||0).toLocaleString('en-AE')}\n\nThank you.`
     window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(msg), '_blank')
   }
+  // Public approval link (client opens it, no login, to approve/reject online)
+  function approvalLink(q) { return `${window.location.origin}/#approve/${q.public_token || ''}` }
+  function copyApprovalLink(q) {
+    if (!q.public_token) { toast.error('Save the quote first to get an approval link'); return }
+    const link = approvalLink(q)
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(link).then(()=>toast.success('Approval link copied ✓')).catch(()=>window.prompt('Copy approval link:', link))
+    else window.prompt('Copy approval link:', link)
+  }
+  function whatsappApproval(q) {
+    if (!q.public_token) { toast.error('Save the quote first to get an approval link'); return }
+    const phone = (q.client_phone||'').replace(/[^0-9]/g,'')
+    const msg = `Dear ${q.client_name||'Client'},\n\nPlease review & approve your quotation ${q.quote_number} from ${company?.name||''}:\n${approvalLink(q)}\n\nThank you.`
+    window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(msg), '_blank')
+  }
 
   let list = quotes
   if (filter !== 'all') list = list.filter(q => (q.status||'draft')===filter)
@@ -1066,6 +1081,9 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
         <div style={{ display:'flex', gap:8, justifyContent:'center', marginTop:16, flexWrap:'wrap' }}>
           <button onClick={()=>printQuote(q)} style={{ padding:'10px 18px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}><i className="ti ti-printer" style={{ fontSize:14, verticalAlign:'-2px', marginRight:5 }}/> Print / PDF</button>
           <button onClick={()=>whatsappQuote(q)} style={{ padding:'10px 18px', borderRadius:9, border:'none', background:'#22c55e', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer' }}><i className="ti ti-brand-whatsapp" style={{ fontSize:14, verticalAlign:'-2px', marginRight:5 }}/> Send via WhatsApp</button>
+          {!previewDraft && q.public_token && (
+            <button onClick={()=>copyApprovalLink(q)} style={{ padding:'10px 18px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}><i className="ti ti-link" style={{ fontSize:14, verticalAlign:'-2px', marginRight:5 }}/> Approval link</button>
+          )}
         </div>
       </div>
     )
@@ -1325,6 +1343,30 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
                     border:`1px solid ${active?ss.color:border}`, background: active?(isDark?ss.color+'22':ss.bg):'transparent', color: active?ss.color:textSub }}>{ss.label}</button>
               )
             })}
+          </div>
+        </div>
+
+        <div style={{ borderTop:`1px dashed ${border}`, paddingTop:13, marginBottom:13 }}>
+          <div style={{ fontSize:11, color:textMuted, textTransform:'uppercase', letterSpacing:'.4px', marginBottom:8 }}>Client Approval</div>
+          {q.client_response_at ? (
+            <div style={{ background:subBg, border:`1px solid ${border}`, borderRadius:9, padding:'10px 12px', marginBottom:10 }}>
+              <div style={{ fontSize:13, fontWeight:700, color: q.status==='approved' ? '#0f6e56' : (q.status==='rejected' ? '#b91c1c' : text) }}>
+                <i className={`ti ${q.status==='approved' ? 'ti-circle-check' : 'ti-circle-x'}`} style={{ marginRight:5, verticalAlign:'-2px' }}/>
+                {q.status==='approved' ? 'Approved' : 'Rejected'}{q.approved_by_name ? ` by ${q.approved_by_name}` : ''}
+              </div>
+              <div style={{ fontSize:11.5, color:textMuted, marginTop:3 }}>{new Date(q.client_response_at).toLocaleString('en-GB')}</div>
+              {q.client_comment && <div style={{ fontSize:12, color:textSub, marginTop:5, fontStyle:'italic' }}>“{q.client_comment}”</div>}
+            </div>
+          ) : (
+            <div style={{ fontSize:12, color:textMuted, marginBottom:10 }}>Share a secure link — the client can approve / reject online. No login needed.</div>
+          )}
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+            <button onClick={()=>copyApprovalLink(q)} style={{ flex:1, minWidth:120, padding:'9px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:12.5, fontWeight:600, cursor:'pointer' }}>
+              <i className="ti ti-link" style={{ fontSize:14, verticalAlign:'-2px', marginRight:4 }}/> Copy approval link
+            </button>
+            <button onClick={()=>whatsappApproval(q)} style={{ flex:1, minWidth:120, padding:'9px', borderRadius:9, border:'none', background:'#22c55e', color:'#fff', fontSize:12.5, fontWeight:600, cursor:'pointer' }}>
+              <i className="ti ti-brand-whatsapp" style={{ fontSize:14, verticalAlign:'-2px', marginRight:4 }}/> Send for approval
+            </button>
           </div>
         </div>
 
