@@ -252,6 +252,7 @@ export default function LeadsPage() {
     if (error) { setSavingAdd(false); toast.error('Could not save lead'); console.error(error); return }
 
     await supabase.from('clients').insert({
+      company_id: company.id,
       name: addF.name.trim(),
       phone: addF.phone.trim(),
       email: addF.email.trim() || null,
@@ -424,17 +425,18 @@ export default function LeadsPage() {
 
       // 1) Try to find an existing client by phone (most reliable), else by exact name
       if (phoneDigits) {
-        const { data } = await supabase.from('clients').select('*').ilike('phone', `%${phoneDigits.slice(-9)}%`).limit(1)
+        const { data } = await supabase.from('clients').select('*').eq('company_id', company.id).ilike('phone', `%${phoneDigits.slice(-9)}%`).limit(1)
         if (data && data.length) clientRow = data[0]
       }
       if (!clientRow && lead.name) {
-        const { data } = await supabase.from('clients').select('*').eq('name', lead.name).limit(1)
+        const { data } = await supabase.from('clients').select('*').eq('company_id', company.id).eq('name', lead.name).limit(1)
         if (data && data.length) clientRow = data[0]
       }
 
       // 2) If not found, create one
       if (!clientRow) {
         const { data, error } = await supabase.from('clients').insert({
+          company_id: company.id,
           name: lead.name || 'Client',
           phone: lead.phone || null,
           email: lead.email || null,
@@ -541,6 +543,7 @@ export default function LeadsPage() {
       }
 
       const clientRows = records.map(r => ({
+        company_id: company.id,
         name: r.name,
         phone: r.phone || null,
         email: r.email || null,
