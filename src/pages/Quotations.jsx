@@ -63,6 +63,20 @@ function groupByTrade(items, order) {
 
 const DEFAULT_TERMS = 'Quotation valid for 30 days. Prices in AED. Work commences after advance payment & design approval. All as per approved drawing and engineer\'s instruction.'
 
+// Fallback work-type templates used in the builder when Quote Settings has not been
+// saved yet (so the "Work type" dropdown always appears). Mirrors the Settings seeds.
+const DEFAULT_WHY_TPL = [
+  { title: 'Full Turnkey Service', detail: 'From start to final handover, we manage every trade under one contract.' },
+  { title: 'Transparent Pricing',  detail: 'Every item priced separately — no hidden costs.' },
+]
+const _mkPay = (percent, label, description) => ({ percent, label, description })
+const DEFAULT_PRESETS = [
+  { name:'Interior',   isDefault:true,  terms:DEFAULT_TERMS, whyUs:DEFAULT_WHY_TPL, payment:[ _mkPay(50,'1st Payment — Advance','Upon contract signing before work commences'), _mkPay(25,'2nd Payment — Progress','After demolition & 60% of work completed'), _mkPay(25,'Final — Completion','After project handover & client sign-off') ] },
+  { name:'Joinery',    isDefault:false, terms:DEFAULT_TERMS, whyUs:DEFAULT_WHY_TPL, payment:[ _mkPay(60,'1st Payment — Advance','Upon order confirmation (covers material & production)'), _mkPay(40,'Final — Before Delivery','Before delivery & installation on site') ] },
+  { name:'Renovation', isDefault:false, terms:DEFAULT_TERMS, whyUs:DEFAULT_WHY_TPL, payment:[ _mkPay(40,'1st Payment — Advance','Upon contract signing before work commences'), _mkPay(30,'2nd Payment — Progress','After demolition & 60% of work completed'), _mkPay(30,'Final — Completion','After project handover & client sign-off') ] },
+  { name:'Fit-out',    isDefault:false, terms:DEFAULT_TERMS, whyUs:DEFAULT_WHY_TPL, payment:[ _mkPay(50,'1st Payment — Advance','Upon contract signing before work commences'), _mkPay(30,'2nd Payment — Progress','At 60% project completion'), _mkPay(20,'Final — Handover','After project handover & client sign-off') ] },
+]
+
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => (
     { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]
@@ -84,6 +98,19 @@ function parsePaymentTpl(raw) {
   }
   return []
 }
+// Work-type presets bundle (payment + terms + why-us) from quotation_templates.work_type_presets
+function parsePresetsTpl(raw) {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map(p => ({
+      name: (p && p.name) || '',
+      isDefault: !!(p && p.isDefault),
+      payment: Array.isArray(p && p.payment) ? p.payment : [],
+      terms: (p && p.terms) || '',
+      whyUs: Array.isArray(p && p.whyUs) ? p.whyUs : [],
+    }))
+    .filter(p => p.name)
+}
 
 const DRAFT_KEY = 'td_quote_draft_v1'
 const loadDraft  = () => { try { const r = localStorage.getItem(DRAFT_KEY); return r ? JSON.parse(r) : null } catch { return null } }
@@ -97,6 +124,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
 
   const planName    = company?.plan || 'free'
   const canBoq      = (PLAN_RANK[planName] || 0) >= 2
+  const canAdvanced = (PLAN_RANK[planName] || 0) >= 1
   const canPremium  = (PLAN_RANK[planName] || 0) >= 2
 
   const setSub = (typeof setSubRoute === 'function') ? setSubRoute : () => {}
@@ -137,6 +165,8 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
   const [clientEmail, setClientEmail] = useState('')
   const [previewDraft, setPreviewDraft] = useState(null)
   const [sourceLead, setSourceLead] = useState(null)
+  const [workType, setWorkType] = useState('')
+  const [validUntil, setValidUntil] = useState('')
 
   // ---- VO state ----
   const [vos, setVos]             = useState([])
@@ -166,6 +196,13 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
     return merged.length ? merged : TRADE_FALLBACK
   })()
 
+  // Work-type templates (payment + terms + why-us) from Quote Settings — fall back to
+  // sensible defaults so the builder "Work type" dropdown works even before Settings is saved.
+  const savedPresets = parsePresetsTpl(tpl?.work_type_presets)
+  const presets = savedPresets.length ? savedPresets : DEFAULT_PRESETS
+  const defaultPresetName = (presets.find(p => p.isDefault) || presets[0])?.name || ''
+  const selectedPreset = presets.find(p => p.name === workType) || presets.find(p => p.isDefault) || presets[0] || null
+
   function setView(v, sub) {
     setViewRaw(v)
     if (v === 'list') setSub('')
@@ -192,7 +229,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
       const d = loadDraft()
       if (d) {
         setEditId(null)
-        setMode(d.mode === 'boq' && canBoq ? 'boq' : 'simple')
+        setMode(d.mode === 'boq' && canBoq ? 'boq' : (d.mode === 'advanced' && canAdvanced ? 'advanced' : 'simple'))
         setClient(d.client || null); setClientSearch(d.clientSearch || '')
         setProjectTitle(d.projectTitle || '')
         setItems(Array.isArray(d.items) && d.items.length ? d.items : [blankItem()])
@@ -201,6 +238,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
         setNotes(d.notes || ''); setShowFooter(d.showFooter ?? true); setShowSignature(d.showSignature ?? true); setShowBank(d.showBank ?? false)
         setLocation(d.location || ''); setPreparedBy(d.preparedBy || ''); setClientEmail(d.clientEmail || '')
         setSourceLead(d.sourceLead || null)
+        setWorkType(d.workType || defaultPresetName); setValidUntil(d.validUntil || '')
       }
       setViewRaw('builder')
       setRestoring(false)
@@ -322,19 +360,87 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
     setClientSearch(q); setClient(null)
     if (!q.trim()) { setSuggestions([]); setShowSug(false); return }
     const term = q.trim()
-    const { data } = await supabase.from('clients').select('*')
+    const normPhone = p => (p || '').replace(/[^0-9]/g, '').slice(-9)
+    // 1) saved clients
+    const { data: cData } = await supabase.from('clients').select('*')
       .eq('company_id', company.id)
       .or(`name.ilike.%${term}%,phone.ilike.%${term}%,uid.ilike.%${term}%`)
       .order('name').limit(8)
-    setSuggestions(data || []); setShowSug(true)
+    const clientList = (cData || []).map(c => ({ ...c, _src: 'client' }))
+    // 2) own captured leads not yet saved as a client (deduped against the clients above)
+    const { data: lData } = await supabase.from('lead_submissions').select('id,name,phone,email,status')
+      .eq('company_id', company.id)
+      .or(`name.ilike.%${term}%,phone.ilike.%${term}%`)
+      .order('created_at', { ascending: false }).limit(8)
+    const seen = new Set(clientList.flatMap(c => [normPhone(c.phone), (c.name || '').trim().toLowerCase()].filter(Boolean)))
+    const leadList = (lData || []).filter(l => {
+      const ph = normPhone(l.phone), nm = (l.name || '').trim().toLowerCase()
+      return !((ph && seen.has(ph)) || (nm && seen.has(nm)))
+    }).map(l => ({ ...l, _src: 'lead' }))
+    setSuggestions([...clientList, ...leadList].slice(0, 10)); setShowSug(true)
   }
-  function pickClient(c) {
+  // Reuse / create a client row from a captured lead so the quote can link to it.
+  async function findOrCreateClientFromLead(lead) {
+    const phoneDigits = (lead.phone || '').replace(/[^0-9]/g, '')
+    let row = null
+    if (phoneDigits) {
+      const { data } = await supabase.from('clients').select('*').eq('company_id', company.id).ilike('phone', `%${phoneDigits.slice(-9)}%`).limit(1)
+      if (data && data.length) row = data[0]
+    }
+    if (!row && lead.name) {
+      const { data } = await supabase.from('clients').select('*').eq('company_id', company.id).eq('name', lead.name).limit(1)
+      if (data && data.length) row = data[0]
+    }
+    if (!row) {
+      const { data, error } = await supabase.from('clients').insert({
+        company_id: company.id, name: lead.name || 'Client', phone: lead.phone || null, email: lead.email || null, source: 'lead',
+      }).select('*').single()
+      if (error) throw error
+      row = data
+    }
+    return row
+  }
+  async function pickClient(c) {
+    if (c._src === 'lead') {
+      try {
+        const row = await findOrCreateClientFromLead(c)
+        setClient(row); setClientSearch(row.name || c.name || ''); setShowSug(false)
+        if (row.email || c.email) setClientEmail(row.email || c.email)
+        setSourceLead({ subId: c.id, distId: null, isPlatform: false, status: c.status || 'new' })
+      } catch (e) { toast.error('Could not use lead: ' + (e.message || 'unknown')) }
+      return
+    }
     setClient(c); setClientSearch(c.name); setShowSug(false)
     if (c.email) setClientEmail(c.email)
   }
 
   function openDetail(q) { setActiveQuote(q); setVos([]); fetchVos(q.id); setView('detail', `detail/${q.id}`) }
   function openPreview(q) { setPreviewDraft(null); setActiveQuote(q); setView('preview', `preview/${q.id}`) }
+  async function duplicateQuote(q) {
+    try {
+      const { data: seq, error: seqErr } = await supabase.rpc('fn_next_quote_seq', { p_company_id: company.id })
+      if (seqErr) throw seqErr
+      const prefix = tpl?.quote_prefix || 'QTN'
+      const payload = {
+        company_id: company.id,
+        quote_number: `${prefix}-${String(seq).padStart(3,'0')}`,
+        client_id: q.client_id, client_uid: q.client_uid, source_uid: q.source_uid || q.client_uid,
+        client_name: q.client_name, client_phone: q.client_phone || null, client_email: q.client_email || null,
+        location: q.location || null, prepared_by: q.prepared_by || null,
+        project_title: (q.project_title ? `${q.project_title} (Copy)` : 'Untitled (Copy)'),
+        mode: q.mode, items: q.items,
+        subtotal: q.subtotal, vat_amount: q.vat_amount, total: q.total,
+        payment_terms: q.payment_terms, why_choose_us: q.why_choose_us, terms: q.terms,
+        work_type: q.work_type || null, valid_until: null,
+        show_footer: q.show_footer ?? true, show_signature: q.show_signature ?? true, show_bank: q.show_bank ?? false,
+        status: 'draft',
+      }
+      const { error } = await supabase.from('quotations').insert(payload)
+      if (error) throw error
+      toast.success('Quote duplicated → draft ✓')
+      fetchQuotes()
+    } catch (e) { toast.error('Duplicate failed: ' + (e.message || 'unknown')) }
+  }
 
   async function changeStatus(newStatus) {
     if (!activeQuote || newStatus === activeQuote.status) return
@@ -369,13 +475,14 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
     setDiscountType(null); setDiscountValue(0)
     setShowFooter(true); setShowSignature(true); setShowBank(tpl?.default_show_bank ?? false); setAddTradePick('')
     setLocation(''); setPreparedBy(''); setClientEmail(''); setSourceLead(null)
+    setWorkType(defaultPresetName); setValidUntil('')
     setView('builder', 'builder')
   }
   function resumeDraft() {
     const d = loadDraft()
     if (!d) { setDraftExists(false); return }
     setEditId(null)
-    setMode(d.mode === 'boq' && canBoq ? 'boq' : 'simple')
+    setMode(d.mode === 'boq' && canBoq ? 'boq' : (d.mode === 'advanced' && canAdvanced ? 'advanced' : 'simple'))
     setClient(d.client || null); setClientSearch(d.clientSearch || '')
     setSuggestions([]); setShowSug(false)
     setProjectTitle(d.projectTitle || '')
@@ -385,13 +492,14 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
     setNotes(d.notes || ''); setShowFooter(d.showFooter ?? true); setShowSignature(d.showSignature ?? true); setShowBank(d.showBank ?? false)
     setLocation(d.location || ''); setPreparedBy(d.preparedBy || ''); setClientEmail(d.clientEmail || '')
     setSourceLead(d.sourceLead || null)
+    setWorkType(d.workType || defaultPresetName); setValidUntil(d.validUntil || '')
     setAddTradePick(''); setView('builder', 'builder')
   }
   function discardDraft() { clearDraft(); setDraftExists(false); toast.info('Draft discarded') }
 
   function editQuote(q) {
     setEditId(q.id)
-    setMode(q.mode === 'boq' && canBoq ? 'boq' : (q.mode || 'simple'))
+    setMode(q.mode === 'boq' && canBoq ? 'boq' : (q.mode === 'advanced' && canAdvanced ? 'advanced' : 'simple'))
     setClient(q.client_id ? { id:q.client_id, uid:q.client_uid, name:q.client_name, phone:q.client_phone, email:q.client_email } : null)
     setClientSearch(q.client_name || ''); setSuggestions([]); setShowSug(false)
     setProjectTitle(q.project_title || '')
@@ -403,14 +511,16 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
     setDiscountType(null); setDiscountValue(0)
     setShowFooter(q.show_footer ?? true); setShowSignature(q.show_signature ?? true); setShowBank(q.show_bank ?? (tpl?.default_show_bank ?? false))
     setLocation(q.location || ''); setPreparedBy(q.prepared_by || ''); setClientEmail(q.client_email || ''); setSourceLead(null)
+    setWorkType(q.work_type || defaultPresetName); setValidUntil(q.valid_until || '')
     setAddTradePick(''); setView('builder', 'builder')
   }
 
   function switchMode(m) {
     if (m === mode) return
+    if (m === 'advanced' && !canAdvanced) { setLockModal(true); return }
     if (m === 'boq' && !canBoq) { setLockModal(true); return }
-    if (m === 'boq') {
-      // Fresh BOQ: drop empty rows so the user selects a trade first, then adds items.
+    if (m === 'boq' || m === 'advanced') {
+      // Grouped modes: drop empty rows so the user adds a section first, then items.
       setItems(prev => prev.filter(it => (it.desc || '').trim()))
     }
     setMode(m)
@@ -455,9 +565,13 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
       project_title: projectTitle.trim() || '', mode,
       items: validItems.map(it => ({
         desc: it.desc.trim(), unit: it.unit || 'Nos', qty: Number(it.qty)||0, rate: Number(it.rate)||0,
-        ...(mode === 'boq' ? { trade: it.trade || 'Misc' } : {}),
+        ...((mode === 'boq' || mode === 'advanced') ? { trade: it.trade || 'Misc' } : {}),
       })),
       subtotal, vat_amount: vatAmount, total: grandTotal,
+      payment_terms: selectedPreset ? selectedPreset.payment : (tpl?.payment_schedule || null),
+      why_choose_us: selectedPreset ? JSON.stringify(selectedPreset.whyUs) : (tpl?.why_choose_us || null),
+      terms: selectedPreset ? selectedPreset.terms : (tpl?.default_terms || null),
+      work_type: workType || null, valid_until: validUntil || null,
       show_footer: showFooter, show_signature: showSignature, show_bank: showBank,
       created_at: new Date().toISOString(),
     }
@@ -481,10 +595,14 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
         project_title: projectTitle.trim() || null, mode,
         items: validItems.map(it => ({
           desc:it.desc.trim(), unit:it.unit||'Nos', qty:Number(it.qty)||0, rate:Number(it.rate)||0,
-          ...(mode === 'boq' ? { trade: it.trade || 'Misc' } : {}),
+          ...((mode === 'boq' || mode === 'advanced') ? { trade: it.trade || 'Misc' } : {}),
         })),
         subtotal, vat_amount: vatAmount, total: grandTotal,
-        payment_terms: tpl?.payment_schedule || null, why_choose_us: tpl?.why_choose_us || null,
+        payment_terms: selectedPreset ? selectedPreset.payment : (tpl?.payment_schedule || null),
+        why_choose_us: selectedPreset ? JSON.stringify(selectedPreset.whyUs) : (tpl?.why_choose_us || null),
+        terms: selectedPreset ? (selectedPreset.terms || null) : (tpl?.default_terms || null),
+        work_type: workType || null,
+        valid_until: validUntil || null,
         show_footer: showFooter, show_signature: showSignature, show_bank: showBank,
         status: sendNow ? 'sent' : 'draft',
       }
@@ -607,7 +725,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
     const cPhone = escapeHtml(tpl?.contact_phone || company?.phone || '')
     const cEmail = escapeHtml(tpl?.contact_email || '')
     const trn    = escapeHtml(tpl?.trn_number || '')
-    const terms  = escapeHtml(tpl?.default_terms || DEFAULT_TERMS)
+    const terms  = escapeHtml(q.terms || tpl?.default_terms || DEFAULT_TERMS)
     const wantFooter = q.show_footer ?? true
     const wantSign   = q.show_signature ?? true
     const wantBank   = q.show_bank ?? false
@@ -616,18 +734,19 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
       ['IBAN', tpl?.bank_iban], ['SWIFT', tpl?.bank_swift], ['Branch', tpl?.bank_branch],
     ].filter(([, v]) => v && String(v).trim()).map(([k, v]) => [k, escapeHtml(v)])
     const qItems = Array.isArray(q.items) ? q.items : []
-    const isBoq  = (q.mode === 'boq')
+    const isBoq  = (q.mode === 'boq' || q.mode === 'advanced')
     const isVo   = !!voMeta
     const docLabel = isVo ? 'VARIATION ORDER' : 'QUOTATION'
     const refLabel = isVo ? escapeHtml(voMeta.voNumber) : escapeHtml(q.quote_number||'')
     const dateStr = new Date(q.created_at || Date.now()).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })
+    const validStr = q.valid_until ? new Date(q.valid_until).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }) : ''
 
     const sub = Number(q.subtotal||0), vat = Number(q.vat_amount||0), tot = Number(q.total||0)
     const disc = Math.max(0, sub - (tot - vat))
     const n = v => Math.round(v).toLocaleString('en-AE')
 
-    const payments = parsePaymentTpl(tpl?.payment_schedule)
-    const whys = parseWhyTpl(tpl?.why_choose_us)
+    const payments = parsePaymentTpl(q.payment_terms || tpl?.payment_schedule)
+    const whys = parseWhyTpl(q.why_choose_us || tpl?.why_choose_us)
 
     const colgroup = `<colgroup><col style="width:26px"><col><col style="width:44px"><col style="width:36px"><col style="width:60px"><col style="width:72px"></colgroup>`
     const td = 'padding:7px 8px;font-size:10.5px;border-bottom:0.5px solid #ededed;'
@@ -725,6 +844,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
                 <div style="font-size:9px;color:#6b6b6b;font-family:monospace;">${isVo?'VO':'Ref'} · ${refLabel}</div>
                 ${isVo?`<div style="font-size:9px;color:#6b6b6b;font-family:monospace;">Against · ${escapeHtml(q.quote_number||'')}</div>`:(q.client_uid?`<div style="font-size:9px;color:#6b6b6b;font-family:monospace;">UID · ${escapeHtml(q.client_uid)}</div>`:'')}
                 <div style="font-size:9px;color:#6b6b6b;">Date · ${dateStr}</div>
+                ${validStr?`<div style="font-size:9px;color:#6b6b6b;">Valid until · ${validStr}</div>`:''}
               </div>
             </div>
           </div>
@@ -807,6 +927,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
           <div style="font-size:10px;color:#6b6b6b;margin-top:3px;font-family:monospace;">${isVo?'VO':'Ref'}: ${refLabel}</div>
           ${isVo?`<div style="font-size:10px;color:#6b6b6b;font-family:monospace;">Against: ${escapeHtml(q.quote_number||'')}</div>`:(q.client_uid?`<div style="font-size:10px;color:#6b6b6b;font-family:monospace;">UID: ${escapeHtml(q.client_uid)}</div>`:'')}
           <div style="font-size:10px;color:#6b6b6b;">Date: ${dateStr}</div>
+          ${validStr?`<div style="font-size:10px;color:#6b6b6b;">Valid until: ${validStr}</div>`:''}
         </div>
       </div>
       ${isVo && voMeta.description ? `<div style="background:#faf8f3;border-radius:5px;padding:9px 12px;margin-bottom:14px;"><div style="font-size:9px;color:#c9952a;text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:3px;">Variation Description</div><div style="font-size:10.5px;color:#555;">${escapeHtml(voMeta.description)}</div></div>` : ''}
@@ -1120,7 +1241,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
     const md = MODE_STYLE[q.mode||'simple']||MODE_STYLE.simple
     const st = STATUS_STYLE[q.status||'draft']||STATUS_STYLE.draft
     const qItems = Array.isArray(q.items) ? q.items : []
-    const isBoq = (q.mode === 'boq')
+    const isBoq = (q.mode === 'boq' || q.mode === 'advanced')
     const groups = isBoq ? groupByTrade(qItems, tradeList) : null
     const isApproved = (q.status||'draft') === 'approved'
     return (
@@ -1311,7 +1432,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
   if (view === 'builder') {
     const md = MODE_STYLE[mode] || MODE_STYLE.simple
     const hasBank = !!(tpl?.bank_name || tpl?.bank_iban || tpl?.bank_account_number)
-    const boqGroups = mode === 'boq' ? groupByTradeIdx(items, tradeList) : null
+    const boqGroups = (mode === 'boq' || mode === 'advanced') ? groupByTradeIdx(items, tradeList) : null
     const availableTrades = tradeList.filter(t => !(boqGroups||[]).some(g => g.trade === t))
     return (
       <div>
@@ -1331,6 +1452,11 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
           <button onClick={()=>switchMode('simple')}
             style={{ fontSize:13, fontWeight: mode==='simple'?600:400, padding:'6px 16px', borderRadius:7, border:'none', cursor:'pointer',
               background: mode==='simple'?(isDark?'rgba(3,193,245,0.15)':'#e0f9ff'):'transparent', color: mode==='simple'?'#0099cc':textSub }}>Simple</button>
+          <button onClick={()=>switchMode('advanced')}
+            style={{ fontSize:13, fontWeight: mode==='advanced'?600:400, padding:'6px 16px', borderRadius:7, border:'none', cursor:'pointer', display:'flex', alignItems:'center', gap:5,
+              background: mode==='advanced'?(isDark?'rgba(3,193,245,0.15)':'#e0f9ff'):'transparent', color: mode==='advanced'?'#0099cc':(canAdvanced?textSub:textMuted) }}>
+            Advanced {!canAdvanced && <i className="ti ti-lock" style={{ fontSize:12 }}/>}
+          </button>
           <button onClick={()=>switchMode('boq')}
             style={{ fontSize:13, fontWeight: mode==='boq'?600:400, padding:'6px 16px', borderRadius:7, border:'none', cursor:'pointer', display:'flex', alignItems:'center', gap:5,
               background: mode==='boq'?(isDark?'rgba(3,193,245,0.15)':'#e0f9ff'):'transparent', color: mode==='boq'?'#0099cc':(canBoq?textSub:textMuted) }}>
@@ -1354,13 +1480,13 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
             <>
               <div style={{ position:'relative' }}>
                 <input value={clientSearch} onChange={e=>searchClients(e.target.value)} onFocus={()=>clientSearch&&setShowSug(true)}
-                  placeholder="Type client name, phone or UID..." style={{ ...inputStyle, paddingLeft:34 }} />
+                  placeholder="Type name or phone — clients & leads..." style={{ ...inputStyle, paddingLeft:34 }} />
                 <i className="ti ti-search" style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)', fontSize:15, color:textMuted }}/>
               </div>
               {showSug && (
                 <div style={{ position:'absolute', top:'100%', left:0, right:0, marginTop:4, background:cardBg, border:`1px solid ${border}`, borderRadius:8, boxShadow:'0 8px 24px rgba(0,0,0,0.12)', zIndex:20, overflow:'hidden', maxHeight:280, overflowY:'auto' }}>
                   {suggestions.length > 0 ? suggestions.map((c,i) => (
-                    <div key={c.id} onClick={()=>pickClient(c)}
+                    <div key={`${c._src}-${c.id}`} onClick={()=>pickClient(c)}
                       style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 12px', cursor:'pointer', borderTop: i>0?`1px solid ${border}`:'none' }}
                       onMouseEnter={e=>e.currentTarget.style.background=subBg} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
                       <div style={{ width:30, height:30, borderRadius:7, background:subBg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:600, color:textSub }}>{initials(c.name)}</div>
@@ -1368,12 +1494,14 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
                         <div style={{ fontSize:13, fontWeight:600, color:text }}>{c.name}</div>
                         <div style={{ fontSize:11, color:textSub }}>{c.phone||'—'}</div>
                       </div>
-                      <span style={{ fontSize:10, color:textMuted, fontFamily:'monospace' }}>{c.uid}</span>
+                      {c._src === 'lead'
+                        ? <span style={{ fontSize:9.5, color:'#0891b2', background:isDark?'#0891b222':'#e0f7fa', padding:'2px 7px', borderRadius:99, fontWeight:600 }}>Lead</span>
+                        : <span style={{ fontSize:10, color:textMuted, fontFamily:'monospace' }}>{c.uid}</span>}
                     </div>
                   )) : (
                     <div style={{ padding:'14px 12px', textAlign:'center' }}>
-                      <div style={{ fontSize:12, color:textSub, marginBottom:4 }}>No client found</div>
-                      <div style={{ fontSize:11, color:textMuted }}>Client not listed? Add them in My Leads first, then select here.</div>
+                      <div style={{ fontSize:12, color:textSub, marginBottom:4 }}>No match found</div>
+                      <div style={{ fontSize:11, color:textMuted }}>No client or lead matches that name / phone.</div>
                     </div>
                   )}
                 </div>
@@ -1396,6 +1524,22 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
           <div style={{ minWidth:0 }}>
             <label style={{ fontSize:11, color:textMuted, display:'block', marginBottom:3 }}>Client email</label>
             <input value={clientEmail} onChange={e=>setClientEmail(e.target.value)} placeholder="client@email.com" style={{ ...inputStyle, fontSize:12.5 }}/>
+          </div>
+        </div>
+
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px,1fr))', gap:8, marginBottom:14 }}>
+          {presets.length > 0 && (
+            <div style={{ minWidth:0 }}>
+              <label style={{ fontSize:11, color:textMuted, display:'block', marginBottom:3 }}>Work type · payment &amp; terms</label>
+              <select value={workType} onChange={e=>setWorkType(e.target.value)} style={{ ...inputStyle, fontSize:12.5 }}>
+                {presets.map(p => <option key={p.name} value={p.name} style={{ background:inputBg, color:text }}>{p.name}{p.isDefault?' (default)':''}</option>)}
+              </select>
+              <div style={{ fontSize:10.5, color:textMuted, marginTop:3 }}>Payment schedule, why-us &amp; terms come from this template.</div>
+            </div>
+          )}
+          <div style={{ minWidth:0 }}>
+            <label style={{ fontSize:11, color:textMuted, display:'block', marginBottom:3 }}>Valid until <span style={{ color:textMuted }}>(optional)</span></label>
+            <input type="date" value={validUntil} onChange={e=>setValidUntil(e.target.value)} style={{ ...inputStyle, fontSize:12.5 }}/>
           </div>
         </div>
 
@@ -1431,7 +1575,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
           </div>
         )}
 
-        {mode === 'boq' && (
+        {(mode === 'boq' || mode === 'advanced') && (
           <>
             {boqGroups.map((g) => (
               <div key={g.trade} style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, overflow:'hidden', marginBottom:10 }}>
@@ -1473,15 +1617,21 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
             {boqGroups.length === 0 && (
               <div style={{ background:subBg, border:`1px dashed ${border}`, borderRadius:10, padding:'22px 16px', textAlign:'center', marginBottom:12 }}>
                 <i className="ti ti-stack-2" style={{ fontSize:26, color:textMuted }}/>
-                <div style={{ fontSize:13.5, color:textSub, marginTop:7, fontWeight:600 }}>Start by selecting a trade section</div>
-                <div style={{ fontSize:11.5, color:textMuted, marginTop:3, lineHeight:1.5 }}>Choose a trade below, then add your line items.<br/>Trades come from your Quote Settings &amp; Description Library.</div>
+                <div style={{ fontSize:13.5, color:textSub, marginTop:7, fontWeight:600 }}>{mode === 'advanced' ? 'Start by adding a section' : 'Start by selecting a trade section'}</div>
+                <div style={{ fontSize:11.5, color:textMuted, marginTop:3, lineHeight:1.5 }}>{mode === 'advanced' ? 'Type a section name (e.g. Kitchen, Living Room), then add your line items.' : <>Choose a trade below, then add your line items.<br/>Trades come from your Quote Settings &amp; Description Library.</>}</div>
               </div>
             )}
             <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap' }}>
-              <select value={addTradePick} onChange={e=>setAddTradePick(e.target.value)} style={{ ...inputStyle, width:'auto', flex:'0 1 auto', minWidth:200, maxWidth:300 }}>
-                <option value="">{boqGroups.length === 0 ? 'Select a trade section...' : '+ Add a trade section...'}</option>
-                {availableTrades.map(t => <option key={t} value={t} style={{ background:inputBg, color:text }}>{t}</option>)}
-              </select>
+              {mode === 'advanced' ? (
+                <input value={addTradePick} onChange={e=>setAddTradePick(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter'){ e.preventDefault(); addTradeSection() } }}
+                  placeholder={boqGroups.length === 0 ? 'Section name (e.g. Kitchen)...' : '+ Add a section (e.g. Bedroom)...'}
+                  style={{ ...inputStyle, width:'auto', flex:'0 1 auto', minWidth:200, maxWidth:300 }}/>
+              ) : (
+                <select value={addTradePick} onChange={e=>setAddTradePick(e.target.value)} style={{ ...inputStyle, width:'auto', flex:'0 1 auto', minWidth:200, maxWidth:300 }}>
+                  <option value="">{boqGroups.length === 0 ? 'Select a trade section...' : '+ Add a trade section...'}</option>
+                  {availableTrades.map(t => <option key={t} value={t} style={{ background:inputBg, color:text }}>{t}</option>)}
+                </select>
+              )}
               <button onClick={addTradeSection} disabled={!addTradePick} style={{ padding:'0 16px', borderRadius:8, border:`1px solid ${border}`, background:cardBg, color: addTradePick?'#0099cc':textMuted, fontSize:13, fontWeight:600, cursor: addTradePick?'pointer':'default', whiteSpace:'nowrap' }}>
                 <i className="ti ti-plus" style={{ fontSize:13, verticalAlign:'-2px', marginRight:3 }}/> Add
               </button>
@@ -1633,6 +1783,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
           {list.map(q => {
             const st = STATUS_STYLE[q.status||'draft']||STATUS_STYLE.draft
             const md = MODE_STYLE[q.mode||'simple']||MODE_STYLE.simple
+            const expired = q.valid_until && (q.status||'draft') !== 'approved' && new Date(q.valid_until) < new Date(new Date().toDateString())
             const iconBtn = (icon, color, onClick, title) => (
               <button title={title} onClick={(e)=>{ e.stopPropagation(); onClick() }}
                 style={{ width:30, height:30, borderRadius:7, border:`1px solid ${border}`, background:cardBg, color, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -1658,10 +1809,12 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
                 <div style={{ textAlign:'right', flexShrink:0 }}>
                   <div style={{ fontSize:14, fontWeight:600, color:text }}>{fmt(q.total||0)}</div>
                   <span style={{ fontSize:11, color:st.color, background:isDark?st.color+'22':st.bg, padding:'2px 9px', borderRadius:99 }}>{st.label}</span>
+                  {expired && <span style={{ fontSize:10, color:'#b91c1c', background:isDark?'#b91c1c22':'#fee2e2', padding:'2px 8px', borderRadius:99, marginLeft:5, fontWeight:600 }}>Expired</span>}
                 </div>
                 <div style={{ display:'flex', gap:5, flexShrink:0 }} onClick={e=>e.stopPropagation()}>
                   {iconBtn('ti-eye', '#0099cc', ()=>openPreview(q), 'View')}
                   {iconBtn('ti-edit', textSub, ()=>editQuote(q), 'Edit')}
+                  {iconBtn('ti-copy', textSub, ()=>duplicateQuote(q), 'Duplicate')}
                   {iconBtn('ti-trash', '#dc2626', ()=>{ if(window.confirm('Delete this quotation? This cannot be undone.')) doDelete(q.id) }, 'Delete')}
                 </div>
               </div>

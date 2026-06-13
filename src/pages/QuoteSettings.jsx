@@ -4,11 +4,6 @@ import { useAuth } from '../lib/auth'
 import { useToast } from '../lib/toast'
 
 const DEFAULT_TRADES = ['Civil', 'MEP', 'False Ceiling', 'Flooring', 'Painting', 'Joinery', 'Sanitary']
-const DEFAULT_PAYMENT = [
-  { percent: 50, label: '1st Payment — Advance',  description: 'Upon contract signing before work commences' },
-  { percent: 25, label: '2nd Payment — Progress', description: 'After demolition & 60% of work completed' },
-  { percent: 25, label: 'Final — Completion',     description: 'After project handover & client sign-off' },
-]
 const DEFAULT_WHY = [
   { title: 'Full Turnkey Service',  detail: 'From start to final handover, we manage every trade under one contract — no coordination headaches for the client.' },
   { title: 'Transparent Pricing',   detail: 'Every item priced separately — no hidden costs. All installation works carry a defect liability period.' },
@@ -18,24 +13,90 @@ const DEFAULT_TERMS = `1. This quotation is valid for 30 days from date of issue
 3. Any variations to the agreed scope will be priced separately via written variation order.
 4. Warranty: 1-year defect liability period from project handover date.`
 
+// Per-work-type default payment milestones (each must total 100%). Editable after seeding.
+const mkPay = (percent, label, description) => ({ percent, label, description })
+const PRESET_PAYMENTS = {
+  Interior: [
+    mkPay(50, '1st Payment — Advance',  'Upon contract signing before work commences'),
+    mkPay(25, '2nd Payment — Progress', 'After demolition & 60% of work completed'),
+    mkPay(25, 'Final — Completion',     'After project handover & client sign-off'),
+  ],
+  Joinery: [
+    mkPay(60, '1st Payment — Advance',  'Upon order confirmation (covers material & production)'),
+    mkPay(40, 'Final — Before Delivery','Before delivery & installation on site'),
+  ],
+  Renovation: [
+    mkPay(40, '1st Payment — Advance',  'Upon contract signing before work commences'),
+    mkPay(30, '2nd Payment — Progress', 'After demolition & 60% of work completed'),
+    mkPay(30, 'Final — Completion',     'After project handover & client sign-off'),
+  ],
+  'Fit-out': [
+    mkPay(50, '1st Payment — Advance',  'Upon contract signing before work commences'),
+    mkPay(30, '2nd Payment — Progress', 'At 60% project completion'),
+    mkPay(20, 'Final — Handover',       'After project handover & client sign-off'),
+  ],
+}
+const SEED_ORDER = ['Interior', 'Joinery', 'Renovation', 'Fit-out']
+
+function cleanWhyArr(arr) {
+  return (arr || []).map(w => ({ title: (w.title || '').trim(), detail: (w.detail || '').trim() }))
+}
+function cleanPayArr(arr) {
+  return (arr || []).map(p => ({ percent: Number(p.percent) || 0, label: (p.label || '').trim(), description: (p.description || '').trim() }))
+}
+
 // why_choose_us is a TEXT column — we store structured points as a JSON string.
-// Gracefully handle old plain-text data (each line becomes a title-only point).
 function parseWhy(raw) {
-  if (!raw) return [...DEFAULT_WHY]
+  if (!raw) return null
   try {
     const p = JSON.parse(raw)
-    if (Array.isArray(p)) return p.map(x => ({ title: x.title || '', detail: x.detail || '' }))
+    if (Array.isArray(p) && p.length) return p.map(x => ({ title: x.title || '', detail: x.detail || '' }))
   } catch {}
-  return String(raw).split('\n').filter(l => l.trim()).map(l => ({ title: l.trim(), detail: '' }))
+  const lines = String(raw).split('\n').filter(l => l.trim()).map(l => ({ title: l.trim(), detail: '' }))
+  return lines.length ? lines : null
 }
 function parsePayment(raw) {
   if (Array.isArray(raw) && raw.length)
     return raw.map(x => ({ percent: Number(x.percent) || 0, label: x.label || '', description: x.description || '' }))
-  return [...DEFAULT_PAYMENT]
+  return null
 }
 function parseTrades(raw) {
   if (Array.isArray(raw) && raw.length) return raw.filter(Boolean)
   return [...DEFAULT_TRADES]
+}
+
+// Build one preset object for a named work-type.
+function makePreset(name, { payment, terms, whyUs, isDefault } = {}) {
+  return {
+    name,
+    isDefault: !!isDefault,
+    payment: payment || PRESET_PAYMENTS[name] || PRESET_PAYMENTS.Interior,
+    terms: terms != null ? terms : DEFAULT_TERMS,
+    whyUs: whyUs || [...DEFAULT_WHY],
+  }
+}
+
+// Seed the 4 default work-types. Preserve any previously-saved global
+// payment/why/terms by folding them into the "Interior" (default) preset.
+function seedPresets(oldPay, oldWhy, oldTerms) {
+  return SEED_ORDER.map((name, i) => makePreset(name, {
+    isDefault: i === 0,
+    payment: name === 'Interior' ? (oldPay || undefined) : undefined,
+    whyUs:   name === 'Interior' ? (oldWhy || undefined) : undefined,
+    terms:   name === 'Interior' ? (oldTerms || undefined) : undefined,
+  }))
+}
+
+// Parse the work_type_presets column; null if absent/empty so we can seed.
+function parsePresets(raw) {
+  if (!Array.isArray(raw) || !raw.length) return null
+  return raw.map((p, i) => ({
+    name: (p.name || `Type ${i + 1}`).trim(),
+    isDefault: !!p.isDefault,
+    payment: Array.isArray(p.payment) && p.payment.length ? p.payment.map(x => ({ percent: Number(x.percent) || 0, label: x.label || '', description: x.description || '' })) : [...PRESET_PAYMENTS.Interior],
+    terms: p.terms != null ? p.terms : DEFAULT_TERMS,
+    whyUs: Array.isArray(p.whyUs) ? p.whyUs.map(x => ({ title: x.title || '', detail: x.detail || '' })) : [...DEFAULT_WHY],
+  }))
 }
 
 export default function QuoteSettings() {
@@ -60,9 +121,11 @@ export default function QuoteSettings() {
   const [vatDefault, setVatDefault] = useState(true)
   const [trades, setTrades]         = useState([...DEFAULT_TRADES])
   const [newTrade, setNewTrade]     = useState('')
-  const [why, setWhy]               = useState([...DEFAULT_WHY])
-  const [payment, setPayment]       = useState([...DEFAULT_PAYMENT])
-  const [terms, setTerms]           = useState(DEFAULT_TERMS)
+
+  // work-type templates (payment + terms + why-us bundled per type)
+  const [presets, setPresets]       = useState([])
+  const [activeIdx, setActiveIdx]   = useState(0)
+  const [newType, setNewType]       = useState('')
 
   // bank / payment account
   const [bankName, setBankName]               = useState('')
@@ -95,9 +158,9 @@ export default function QuoteSettings() {
       setNextSeq(data.next_quote_seq ?? 1)
       setVatDefault(data.default_vat_enabled ?? true)
       setTrades(parseTrades(data.default_trades))
-      setWhy(parseWhy(data.why_choose_us))
-      setPayment(parsePayment(data.payment_schedule))
-      setTerms(data.default_terms || DEFAULT_TERMS)
+      // work-type presets: use saved bundle, else seed (folding in old globals)
+      const saved = parsePresets(data.work_type_presets)
+      setPresets(saved || seedPresets(parsePayment(data.payment_schedule), parseWhy(data.why_choose_us), data.default_terms || null))
       setBankName(data.bank_name || '')
       setBankAccName(data.bank_account_name || '')
       setBankAccNumber(data.bank_account_number || '')
@@ -109,7 +172,9 @@ export default function QuoteSettings() {
       // no row yet — sensible defaults pulled from company
       setLegalName(company?.name || '')
       setPhone(company?.phone || '')
+      setPresets(seedPresets(null, null, null))
     }
+    setActiveIdx(0)
     setLoading(false)
   }
 
@@ -122,29 +187,69 @@ export default function QuoteSettings() {
   }
   function removeTrade(i) { setTrades(prev => prev.filter((_, idx) => idx !== i)) }
 
-  // ---- why choose us ----
-  function updateWhy(i, field, val) { setWhy(prev => prev.map((w, idx) => idx === i ? { ...w, [field]: val } : w)) }
-  function addWhy() { setWhy(prev => [...prev, { title: '', detail: '' }]) }
-  function removeWhy(i) { setWhy(prev => prev.filter((_, idx) => idx !== i)) }
+  // ---- work-type presets ----
+  const active = presets[activeIdx] || null
+  function patchActive(patch) {
+    setPresets(prev => prev.map((p, idx) => idx === activeIdx ? { ...p, ...patch } : p))
+  }
+  function addType() {
+    const t = newType.trim()
+    if (!t) return
+    if (presets.some(p => p.name.toLowerCase() === t.toLowerCase())) { toast.info('Work type already exists'); return }
+    setPresets(prev => [...prev, makePreset(t, { isDefault: prev.length === 0 })])
+    setActiveIdx(presets.length)
+    setNewType('')
+  }
+  function deleteType(i) {
+    if (presets.length <= 1) { toast.info('Keep at least one work type'); return }
+    setPresets(prev => {
+      const next = prev.filter((_, idx) => idx !== i)
+      if (!next.some(p => p.isDefault)) next[0] = { ...next[0], isDefault: true }
+      return next
+    })
+    setActiveIdx(idx => Math.max(0, idx >= i ? idx - 1 : idx))
+  }
+  function makeDefault() {
+    setPresets(prev => prev.map((p, idx) => ({ ...p, isDefault: idx === activeIdx })))
+  }
+  function renameActive(name) { patchActive({ name }) }
 
-  // ---- payment ----
-  function updatePay(i, field, val) { setPayment(prev => prev.map((p, idx) => idx === i ? { ...p, [field]: val } : p)) }
-  function addPay() { setPayment(prev => [...prev, { percent: 0, label: '', description: '' }]) }
-  function removePay(i) { setPayment(prev => prev.filter((_, idx) => idx !== i)) }
+  // payment editors (operate on active preset)
+  function updatePay(i, field, val) { patchActive({ payment: active.payment.map((p, idx) => idx === i ? { ...p, [field]: val } : p) }) }
+  function addPay() { patchActive({ payment: [...active.payment, { percent: 0, label: '', description: '' }] }) }
+  function removePay(i) { patchActive({ payment: active.payment.filter((_, idx) => idx !== i) }) }
 
-  const payTotal = payment.reduce((s, p) => s + (Number(p.percent) || 0), 0)
+  // why-us editors (operate on active preset)
+  function updateWhy(i, field, val) { patchActive({ whyUs: active.whyUs.map((w, idx) => idx === i ? { ...w, [field]: val } : w) }) }
+  function addWhy() { patchActive({ whyUs: [...active.whyUs, { title: '', detail: '' }] }) }
+  function removeWhy(i) { patchActive({ whyUs: active.whyUs.filter((_, idx) => idx !== i) }) }
+
+  const payTotal = active ? active.payment.reduce((s, p) => s + (Number(p.percent) || 0), 0) : 0
   const payOk = payTotal === 100
 
   async function save() {
-    if (payment.length > 0 && !payOk) {
-      toast.error(`Payment milestones must total 100% (currently ${payTotal}%)`); return
+    // every preset that has milestones must total 100%
+    for (const p of presets) {
+      const lines = p.payment.filter(x => x.label.trim() || Number(x.percent) > 0)
+      const total = lines.reduce((s, x) => s + (Number(x.percent) || 0), 0)
+      if (lines.length > 0 && total !== 100) {
+        toast.error(`"${p.name}" payment must total 100% (currently ${total}%)`); return
+      }
     }
     setSaving(true)
     try {
-      const cleanWhy = why.filter(w => w.title.trim() || w.detail.trim())
-        .map(w => ({ title: w.title.trim(), detail: w.detail.trim() }))
-      const cleanPay = payment.filter(p => p.label.trim() || Number(p.percent) > 0)
-        .map(p => ({ percent: Number(p.percent) || 0, label: p.label.trim(), description: (p.description || '').trim() }))
+      // normalise presets, ensure exactly one default
+      let cleanPresets = presets.map(p => ({
+        name: p.name.trim() || 'Untitled',
+        isDefault: !!p.isDefault,
+        payment: cleanPayArr(p.payment).filter(x => x.label || x.percent > 0),
+        terms: (p.terms || '').trim(),
+        whyUs: cleanWhyArr(p.whyUs).filter(w => w.title || w.detail),
+      }))
+      if (cleanPresets.length && !cleanPresets.some(p => p.isDefault)) {
+        cleanPresets = cleanPresets.map((p, i) => ({ ...p, isDefault: i === 0 }))
+      }
+      const def = cleanPresets.find(p => p.isDefault) || cleanPresets[0] || null
 
       const payload = {
         company_id: company.id,
@@ -157,9 +262,11 @@ export default function QuoteSettings() {
         quote_prefix: (prefix.trim() || 'QTN').toUpperCase(),
         default_vat_enabled: vatDefault,
         default_trades: trades.filter(Boolean),
-        why_choose_us: JSON.stringify(cleanWhy),
-        payment_schedule: cleanPay,
-        default_terms: terms.trim() || null,
+        work_type_presets: cleanPresets,
+        // mirror the DEFAULT preset into the legacy global columns for backward compatibility
+        why_choose_us: JSON.stringify(def ? def.whyUs : []),
+        payment_schedule: def ? def.payment : [],
+        default_terms: def ? (def.terms || null) : null,
         bank_name: bankName.trim() || null,
         bank_account_name: bankAccName.trim() || null,
         bank_account_number: bankAccNumber.trim() || null,
@@ -274,58 +381,113 @@ export default function QuoteSettings() {
         </div>
       </div>
 
-      {/* Why Choose Us */}
+      {/* Work-Type Templates (payment + why-us + terms per type) */}
       <div style={cardStyle}>
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
-          <div style={{ ...cardHead, marginBottom:0 }}><i className="ti ti-circle-check" style={{ fontSize:18, color:'#0099cc' }}/> Why Choose Us</div>
-          <span style={{ fontSize:11, color:textMuted }}>title + detail per point</span>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6, flexWrap:'wrap', gap:8 }}>
+          <div style={{ ...cardHead, marginBottom:0 }}><i className="ti ti-layout-grid" style={{ fontSize:18, color:'#0099cc' }}/> Work-Type Templates</div>
+          <span style={{ fontSize:11, color:textMuted }}>Payment + Why-us + Terms per work type</span>
         </div>
-        <p style={{ margin:'0 0 12px', fontSize:11, color:textMuted }}>Shows as a checklist on the quote PDF.</p>
+        <p style={{ margin:'0 0 12px', fontSize:11, color:textMuted }}>
+          In the builder you pick a work type (e.g. Joinery) and its payment schedule, why-us points &amp; terms auto-fill — still editable per quote.
+        </p>
 
-        {why.map((w, i) => (
-          <div key={i} style={{ border:`1px solid ${border}`, borderRadius:9, padding:'11px 12px', marginBottom:8 }}>
-            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
-              <i className="ti ti-check" style={{ fontSize:15, color:'#0f6e56' }}/>
-              <input value={w.title} onChange={e=>updateWhy(i,'title',e.target.value)} placeholder="Point title (e.g. Trusted Premium Brands)" style={{ ...inputStyle, flex:1, padding:'7px 9px' }}/>
-              <i className="ti ti-trash" onClick={()=>removeWhy(i)} style={{ fontSize:16, color:textMuted, cursor:'pointer' }}/>
-            </div>
-            <textarea value={w.detail} onChange={e=>updateWhy(i,'detail',e.target.value)} placeholder="Short description shown under the title..."
-              style={{ ...inputStyle, fontSize:12.5, minHeight:46, resize:'vertical' }}/>
+        {/* Type tabs */}
+        <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginBottom:14 }}>
+          {presets.map((p, i) => (
+            <button key={i} onClick={()=>setActiveIdx(i)}
+              style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 12px', borderRadius:9, fontSize:12.5, fontWeight:600, cursor:'pointer',
+                       border:`1px solid ${i===activeIdx ? '#0099cc' : border}`,
+                       background: i===activeIdx ? 'rgba(0,153,204,0.10)' : subBg,
+                       color: i===activeIdx ? '#0099cc' : textSub }}>
+              {p.isDefault && <i className="ti ti-star-filled" style={{ fontSize:12, color:'#f59e0b' }}/>}
+              {p.name}
+              {presets.length > 1 && (
+                <i className="ti ti-x" onClick={(e)=>{ e.stopPropagation(); deleteType(i) }} style={{ fontSize:13, color:textMuted, cursor:'pointer', marginLeft:2 }}/>
+              )}
+            </button>
+          ))}
+          <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+            <input value={newType} onChange={e=>setNewType(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter'){ e.preventDefault(); addType() } }}
+              placeholder="New work type" style={{ ...inputStyle, width:140, padding:'7px 9px' }}/>
+            <button onClick={addType} style={{ padding:'7px 12px', borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:'#0099cc', fontSize:12.5, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>
+              <i className="ti ti-plus" style={{ fontSize:12, verticalAlign:'-2px' }}/> Add
+            </button>
           </div>
-        ))}
-
-        <button onClick={addWhy} style={{ width:'100%', padding:'9px', borderRadius:8, border:`1px dashed ${textMuted}`, background:'transparent', color:textSub, fontSize:12.5, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
-          <i className="ti ti-plus" style={{ fontSize:14 }}/> Add another point
-        </button>
-      </div>
-
-      {/* Payment Schedule */}
-      <div style={cardStyle}>
-        <div style={cardHead}><i className="ti ti-credit-card" style={{ fontSize:18, color:'#0099cc' }}/> Payment Schedule</div>
-        <p style={{ margin:'0 0 12px', fontSize:11, color:textMuted }}>Milestones must total 100% · description shown on PDF.</p>
-
-        {payment.map((p, i) => (
-          <div key={i} style={{ display:'grid', gridTemplateColumns:'64px 1fr 26px', gap:8, alignItems:'start', marginBottom:8 }}>
-            <div>
-              <input type="number" value={p.percent} onChange={e=>updatePay(i,'percent',e.target.value)} style={{ ...inputStyle, textAlign:'center', padding:'8px 4px' }}/>
-              <div style={{ fontSize:10, color:textMuted, textAlign:'center', marginTop:2 }}>%</div>
-            </div>
-            <div>
-              <input value={p.label} onChange={e=>updatePay(i,'label',e.target.value)} placeholder="Milestone (e.g. 1st Payment — Advance)" style={{ ...inputStyle, marginBottom:5, padding:'8px 9px' }}/>
-              <input value={p.description} onChange={e=>updatePay(i,'description',e.target.value)} placeholder="Description (e.g. Upon contract signing)" style={{ ...inputStyle, fontSize:12, padding:'7px 9px', color:textSub }}/>
-            </div>
-            <i className="ti ti-trash" onClick={()=>removePay(i)} style={{ fontSize:16, color:textMuted, cursor:'pointer', marginTop:10, justifySelf:'center' }}/>
-          </div>
-        ))}
-
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:4 }}>
-          <button onClick={addPay} style={{ padding:'7px 14px', borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:'#0099cc', fontSize:13, fontWeight:600, cursor:'pointer' }}>
-            <i className="ti ti-plus" style={{ fontSize:13, verticalAlign:'-2px', marginRight:3 }}/> Add milestone
-          </button>
-          <span style={{ fontSize:12.5, fontWeight:600, color: payOk ? '#0f6e56' : '#dc2626', display:'flex', alignItems:'center', gap:4 }}>
-            <i className={`ti ${payOk ? 'ti-check' : 'ti-alert-triangle'}`} style={{ fontSize:14 }}/> Total: {payTotal}%
-          </span>
         </div>
+
+        {active && (
+          <div style={{ border:`1px solid ${border}`, borderRadius:11, padding:'14px 14px', background:subBg }}>
+            {/* Name + default */}
+            <div style={{ display:'flex', gap:10, alignItems:'flex-end', marginBottom:16, flexWrap:'wrap' }}>
+              <div style={{ flex:1, minWidth:180 }}>
+                <label style={labelStyle}>Work type name</label>
+                <input value={active.name} onChange={e=>renameActive(e.target.value)} placeholder="e.g. Joinery" style={inputStyle}/>
+              </div>
+              <button onClick={makeDefault} disabled={active.isDefault}
+                style={{ padding:'9px 14px', borderRadius:8, border:`1px solid ${active.isDefault ? border : '#f59e0b'}`, background:cardBg,
+                         color: active.isDefault ? textMuted : '#b45309', fontSize:12.5, fontWeight:600, cursor: active.isDefault?'default':'pointer',
+                         display:'flex', alignItems:'center', gap:5, whiteSpace:'nowrap' }}>
+                <i className={`ti ${active.isDefault ? 'ti-star-filled' : 'ti-star'}`} style={{ fontSize:14, color: active.isDefault ? '#f59e0b' : '#b45309' }}/>
+                {active.isDefault ? 'Default type' : 'Set as default'}
+              </button>
+            </div>
+
+            {/* Payment schedule for this type */}
+            <div style={{ fontSize:12.5, fontWeight:700, color:text, marginBottom:4, display:'flex', alignItems:'center', gap:6 }}>
+              <i className="ti ti-credit-card" style={{ fontSize:15, color:'#0099cc' }}/> Payment Schedule
+            </div>
+            <p style={{ margin:'0 0 10px', fontSize:11, color:textMuted }}>Milestones must total 100% · description shown on PDF.</p>
+            {active.payment.map((p, i) => (
+              <div key={i} style={{ display:'grid', gridTemplateColumns:'64px 1fr 26px', gap:8, alignItems:'start', marginBottom:8 }}>
+                <div>
+                  <input type="number" value={p.percent} onChange={e=>updatePay(i,'percent',e.target.value)} style={{ ...inputStyle, textAlign:'center', padding:'8px 4px' }}/>
+                  <div style={{ fontSize:10, color:textMuted, textAlign:'center', marginTop:2 }}>%</div>
+                </div>
+                <div>
+                  <input value={p.label} onChange={e=>updatePay(i,'label',e.target.value)} placeholder="Milestone (e.g. 1st Payment — Advance)" style={{ ...inputStyle, marginBottom:5, padding:'8px 9px' }}/>
+                  <input value={p.description} onChange={e=>updatePay(i,'description',e.target.value)} placeholder="Description (e.g. Upon contract signing)" style={{ ...inputStyle, fontSize:12, padding:'7px 9px', color:textSub }}/>
+                </div>
+                <i className="ti ti-trash" onClick={()=>removePay(i)} style={{ fontSize:16, color:textMuted, cursor:'pointer', marginTop:10, justifySelf:'center' }}/>
+              </div>
+            ))}
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:4, marginBottom:18 }}>
+              <button onClick={addPay} style={{ padding:'7px 14px', borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:'#0099cc', fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                <i className="ti ti-plus" style={{ fontSize:13, verticalAlign:'-2px', marginRight:3 }}/> Add milestone
+              </button>
+              <span style={{ fontSize:12.5, fontWeight:600, color: payOk ? '#0f6e56' : '#dc2626', display:'flex', alignItems:'center', gap:4 }}>
+                <i className={`ti ${payOk ? 'ti-check' : 'ti-alert-triangle'}`} style={{ fontSize:14 }}/> Total: {payTotal}%
+              </span>
+            </div>
+
+            {/* Why choose us for this type */}
+            <div style={{ fontSize:12.5, fontWeight:700, color:text, marginBottom:4, display:'flex', alignItems:'center', gap:6 }}>
+              <i className="ti ti-circle-check" style={{ fontSize:15, color:'#0099cc' }}/> Why Choose Us
+            </div>
+            <p style={{ margin:'0 0 10px', fontSize:11, color:textMuted }}>Shows as a checklist on the quote PDF.</p>
+            {active.whyUs.map((w, i) => (
+              <div key={i} style={{ border:`1px solid ${border}`, borderRadius:9, padding:'11px 12px', marginBottom:8, background:cardBg }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
+                  <i className="ti ti-check" style={{ fontSize:15, color:'#0f6e56' }}/>
+                  <input value={w.title} onChange={e=>updateWhy(i,'title',e.target.value)} placeholder="Point title (e.g. Trusted Premium Brands)" style={{ ...inputStyle, flex:1, padding:'7px 9px' }}/>
+                  <i className="ti ti-trash" onClick={()=>removeWhy(i)} style={{ fontSize:16, color:textMuted, cursor:'pointer' }}/>
+                </div>
+                <textarea value={w.detail} onChange={e=>updateWhy(i,'detail',e.target.value)} placeholder="Short description shown under the title..."
+                  style={{ ...inputStyle, fontSize:12.5, minHeight:46, resize:'vertical' }}/>
+              </div>
+            ))}
+            <button onClick={addWhy} style={{ width:'100%', padding:'9px', borderRadius:8, border:`1px dashed ${textMuted}`, background:'transparent', color:textSub, fontSize:12.5, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6, marginBottom:18 }}>
+              <i className="ti ti-plus" style={{ fontSize:14 }}/> Add another point
+            </button>
+
+            {/* Terms for this type */}
+            <div style={{ fontSize:12.5, fontWeight:700, color:text, marginBottom:4, display:'flex', alignItems:'center', gap:6 }}>
+              <i className="ti ti-file-text" style={{ fontSize:15, color:'#0099cc' }}/> Terms &amp; Conditions
+            </div>
+            <textarea value={active.terms} onChange={e=>patchActive({ terms: e.target.value })} placeholder="One condition per line..."
+              style={{ ...inputStyle, fontSize:12.5, minHeight:110, resize:'vertical', lineHeight:1.6 }}/>
+            <p style={{ margin:'8px 0 0', fontSize:11, color:textMuted }}>One point per line. Appears in the footer of quotes using this work type.</p>
+          </div>
+        )}
       </div>
 
       {/* Bank / Payment Account */}
@@ -344,14 +506,6 @@ export default function QuoteSettings() {
           <input type="checkbox" checked={showBankDefault} onChange={e=>setShowBankDefault(e.target.checked)} style={{ width:'auto' }}/>
           <span style={{ fontSize:13, color:text }}>Include bank details on new quotes by default</span>
         </label>
-      </div>
-
-      {/* Terms */}
-      <div style={cardStyle}>
-        <div style={cardHead}><i className="ti ti-file-text" style={{ fontSize:18, color:'#0099cc' }}/> Terms &amp; Conditions</div>
-        <textarea value={terms} onChange={e=>setTerms(e.target.value)} placeholder="One condition per line..."
-          style={{ ...inputStyle, fontSize:12.5, minHeight:120, resize:'vertical', lineHeight:1.6 }}/>
-        <p style={{ margin:'8px 0 0', fontSize:11, color:textMuted }}>One point per line. Appears in the footer of every quote.</p>
       </div>
 
       {/* Bottom save */}
