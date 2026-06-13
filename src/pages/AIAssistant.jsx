@@ -73,7 +73,7 @@ export default function AIAssistant({ onNavigate }) {
     try {
       const { data, error } = await supabase
         .from('lead_conversations').select('*')
-        .eq('lead_id', leadId).order('created_at', { ascending: true })
+        .eq('company_id', companyId).eq('lead_id', leadId).order('created_at', { ascending: true })
       if (error) throw error
       let rows = data || []
       if (rows.length === 0) {

@@ -152,13 +152,13 @@ export default function LeadsPage() {
       .from('lead_forms').select('*').eq('company_id', company.id).order('created_at', { ascending: false })
     setForms(formsData || [])
     const { data: subData } = await supabase
-      .from('lead_submissions').select('*').eq('company_id', company.id).order('created_at', { ascending: false })
+      .from('lead_submissions').select('*').eq('company_id', company.id).order('created_at', { ascending: false }).limit(2000)
     setSubmissions(subData || [])
     const { data: distData } = await supabase
       .from('lead_distributions')
       .select('id, rank, status, assigned_at, follow_up_date, notes, temperature, lead_id, lead_submissions(id, name, phone, email, answers, created_at, source)')
       .eq('company_id', company.id)
-      .order('assigned_at', { ascending: false })
+      .order('assigned_at', { ascending: false }).limit(1000)
     setDistLeads(distData || [])
     const { data: tplData } = await supabase
       .from('message_templates').select('*').eq('company_id', company.id).order('sort_order', { ascending: true })

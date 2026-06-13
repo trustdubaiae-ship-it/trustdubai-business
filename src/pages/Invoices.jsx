@@ -63,7 +63,7 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
   async function fetchInvoices() {
     setLoading(true)
     const { data } = await supabase.from('invoices').select('*')
-      .eq('company_id', company.id).order('created_at', { ascending: false })
+      .eq('company_id', company.id).order('created_at', { ascending: false }).limit(500)
     setInvoices(data || []); setLoading(false)
   }
   async function fetchTemplate() {

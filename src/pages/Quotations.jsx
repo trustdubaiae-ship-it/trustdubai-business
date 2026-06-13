@@ -278,7 +278,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
   async function fetchQuotes() {
     setLoading(true)
     const { data: qs } = await supabase.from('quotations').select('*')
-      .eq('company_id', company.id).order('created_at', { ascending: false })
+      .eq('company_id', company.id).order('created_at', { ascending: false }).limit(500)
     setQuotes(qs || []); setLoading(false)
   }
   async function fetchTemplate() {
