@@ -323,6 +323,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
     if (!q.trim()) { setSuggestions([]); setShowSug(false); return }
     const term = q.trim()
     const { data } = await supabase.from('clients').select('*')
+      .eq('company_id', company.id)
       .or(`name.ilike.%${term}%,phone.ilike.%${term}%,uid.ilike.%${term}%`)
       .order('name').limit(8)
     setSuggestions(data || []); setShowSug(true)
@@ -855,7 +856,14 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${safeTitle}</title>
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <style>
-        @media print { .__toolbar { display:none !important; } body { padding-top:0 !important; background:#fff !important; } }
+        /* force background colours/gradients to print & save-to-PDF (premium theme stays) */
+        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+        html, body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        @media print {
+          .__toolbar { display:none !important; }
+          body { padding-top:0 !important; background:#fff !important; }
+          @page { margin: 10mm; }
+        }
         .__toolbar { position:fixed; top:0; left:0; right:0; height:52px; z-index:9999; background:#0f1623; color:#fff; display:flex; align-items:center; justify-content:space-between; padding:0 16px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; box-shadow:0 2px 10px rgba(0,0,0,0.25); }
         .__toolbar .__t { font-size:14px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
         .__toolbar .__btns { display:flex; gap:8px; flex-shrink:0; }
@@ -978,7 +986,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
     const voAvailTrades = tradeList.filter(t => !(voGroups||[]).some(g => g.trade === t))
     return (
       <div>
-        <LibDatalist />
+        {LibDatalist()}
         <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14 }}>
           <button onClick={() => setView('detail', `detail/${activeQuote.id}`)} style={{ width:34, height:34, borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:textSub, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
             <i className="ti ti-arrow-left" style={{ fontSize:16 }}/>
@@ -1307,7 +1315,7 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
     const availableTrades = tradeList.filter(t => !(boqGroups||[]).some(g => g.trade === t))
     return (
       <div>
-        <LibDatalist />
+        {LibDatalist()}
         <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14 }}>
           <button onClick={() => setView('list')} style={{ width:34, height:34, borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:textSub, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
             <i className="ti ti-arrow-left" style={{ fontSize:16 }}/>
