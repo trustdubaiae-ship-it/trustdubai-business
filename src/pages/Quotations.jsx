@@ -355,6 +355,19 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
       })
     } catch { /* best-effort */ }
   }
+  // Quote approved → originating lead becomes Won (best-effort, owner-side).
+  async function markLeadWon(q) {
+    try {
+      if (!q?.source_sub_id && !q?.source_dist_id) return
+      if (q.source_dist_id) await supabase.from('lead_distributions').update({ status: 'won', status_updated_at: new Date().toISOString() }).eq('id', q.source_dist_id)
+      if (q.source_sub_id) await supabase.from('lead_submissions').update({ status: 'won', status_updated_at: new Date().toISOString() }).eq('id', q.source_sub_id)
+      await supabase.from('lead_activity').insert({
+        lead_id: q.source_sub_id || null, distribution_id: q.source_dist_id || null, company_id: company.id,
+        actor_name: company?.name || null, kind: 'stage_change', new_stage: 'won',
+        note: 'Quotation ' + (q.quote_number || '') + ' approved',
+      })
+    } catch { /* best-effort */ }
+  }
 
   async function searchClients(q) {
     setClientSearch(q); setClient(null)
@@ -450,8 +463,9 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
     const updated = { ...activeQuote, status: newStatus }
     setActiveQuote(updated)
     setQuotes(prev => prev.map(x => x.id === updated.id ? updated : x))
+    if (newStatus === 'approved') await markLeadWon(updated)
     setStatusBusy(false)
-    toast.success('Status updated')
+    toast.success(newStatus === 'approved' ? 'Approved · lead moved to Won' : 'Status updated')
   }
 
   async function doDelete(id) {
@@ -617,6 +631,8 @@ export default function Quotations({ subRoute = '', setSubRoute }) {
         const prefix = tpl?.quote_prefix || 'QTN'
         payload.company_id = company.id
         payload.quote_number = `${prefix}-${String(seq).padStart(3,'0')}`
+        payload.source_sub_id = sourceLead?.subId || null
+        payload.source_dist_id = sourceLead?.distId || null
         savedQuoteNo = payload.quote_number
         const { error } = await supabase.from('quotations').insert(payload)
         if (error) throw error

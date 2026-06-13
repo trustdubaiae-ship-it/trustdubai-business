@@ -24,6 +24,7 @@ import LeadsPage from './pages/LeadsPage'
 import LeadEngine from './pages/LeadEngine'
 import Quotations from './pages/Quotations'
 import Invoices from './pages/Invoices'
+import Ledger from './pages/Ledger'
 import QuoteSettings from './pages/QuoteSettings'
 import QuoteLibrary from './pages/QuoteLibrary'
 import SponsoredPage from './pages/SponsoredPage'
@@ -65,6 +66,7 @@ const PAGE_PERM = {
   leadengine:         'view_leads',
   quotations:         'view_leads',
   invoices:           'view_leads',
+  ledger:             'view_leads',
   quoteSettings:      'view_profile',
   quotelibrary:       'view_leads',
   sponsored:          'view_sponsored',
@@ -88,7 +90,7 @@ const LIMITED_PAGES = ['controlwall', 'dashboard', 'menu', 'inbox', 'profile', '
 // views (list/builder/detail) can also persist a sub-route, e.g. #quotations/builder,
 // so a refresh keeps them on the same view instead of resetting to the list.
 const VALID_PAGES = [
-  'controlwall', 'dashboard', 'menu', 'revenueengine', 'inbox', 'profile', 'reviews', 'portfolio', 'analytics', 'leads', 'leadengine', 'leadform', 'tdleads', 'metaads', 'quotations', 'invoices', 'quoteSettings', 'quotelibrary', 'quoteapprovals', 'aiquote', 'projects', 'materials', 'expenses', 'aiassistant', 'organizer',
+  'controlwall', 'dashboard', 'menu', 'revenueengine', 'inbox', 'profile', 'reviews', 'portfolio', 'analytics', 'leads', 'leadengine', 'leadform', 'tdleads', 'metaads', 'quotations', 'invoices', 'ledger', 'quoteSettings', 'quotelibrary', 'quoteapprovals', 'aiquote', 'projects', 'materials', 'expenses', 'aiassistant', 'organizer',
   'sponsored', 'staff', 'team', 'documents', 'faq', 'notifications', 'trust',
   'controlpanel', 'verification', 'verificationStatus', 'plans', 'settings',
 ]
@@ -231,6 +233,7 @@ function Portal() {
     organizer:          <Organizer onNavigate={navigate} />,
     quotations:         <Quotations subRoute={subRoute} setSubRoute={setPageSub} />,
     invoices:           <Invoices subRoute={subRoute} setSubRoute={setPageSub} />,
+    ledger:             <Ledger />,
     quoteSettings:      <QuoteSettings />,
     quotelibrary:       <QuoteLibrary />,
     sponsored:          <SponsoredPage onNavigate={navigate} />,
@@ -249,7 +252,7 @@ function Portal() {
 
   const pageTitles = {
     controlwall:'Command Center', dashboard:'Command Center', menu:'All Features', revenueengine:'Revenue Engine', leadform:'Lead Form', tdleads:'Tritova Leads', metaads:'Meta Ads', quoteapprovals:'Quote Approvals', aiquote:'AI Quote Builder', projects:'Projects', materials:'Material Requests', expenses:'Site Expenses', aiassistant:'AI Assistant', organizer:'My Organizer', inbox:'Inbox', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
-    analytics:'Analytics', leads:'Lead Form', leadengine:'Lead Engine', quotations:'Quotations', invoices:'Invoices', quoteSettings:'Quote Settings', quotelibrary:'Description Library', sponsored:'Sponsored Placement', staff:'Staff & Access',
+    analytics:'Analytics', leads:'Lead Form', leadengine:'Lead Engine', quotations:'Quotations', invoices:'Invoices', ledger:'Ledger', quoteSettings:'Quote Settings', quotelibrary:'Description Library', sponsored:'Sponsored Placement', staff:'Staff & Access',
     team:'Our Team', documents:'Document Verification', faq:'FAQ Management', notifications:'Notifications', trust:'Trust Score', controlpanel:'Control Panel',
     verification:'Control Panel', verificationStatus:'Control Panel', plans:'Control Panel', settings:'Control Panel',
   }

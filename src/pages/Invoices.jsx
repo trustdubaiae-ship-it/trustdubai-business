@@ -110,7 +110,7 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
         project_title: q.project_title, location: q.location,
         kind, milestone_label, mode, items, vat_enabled, subtotal, vat_amount, total,
         issue_date: issueDate || todayStr(), due_date: dueDate || null,
-        payments: [], status: 'unpaid',
+        payments: [], status: 'unpaid', phase: 'proforma',
       }
       const { data, error } = await supabase.from('invoices').insert(payload).select().single()
       if (error) throw error
@@ -122,9 +122,10 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
 
   async function savePayments(inv, newPayments) {
     const status = statusOf(inv.total, newPayments)
-    const { error } = await supabase.from('invoices').update({ payments: newPayments, status }).eq('id', inv.id)
+    const phase = newPayments.length > 0 ? 'tax' : 'proforma'   // first payment converts Proforma → Tax Invoice
+    const { error } = await supabase.from('invoices').update({ payments: newPayments, status, phase }).eq('id', inv.id)
     if (error) { toast.error('Update failed'); return false }
-    const updated = { ...inv, payments: newPayments, status }
+    const updated = { ...inv, payments: newPayments, status, phase }
     setActive(updated); setInvoices(prev => prev.map(i => i.id === updated.id ? updated : i))
     return true
   }
@@ -192,7 +193,7 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
               <div style="font-size:9.5px;color:#8a8a8a;margin-top:3px;">${cPhone}${trn ? ' · TRN ' + trn : ''}</div></div>
           </div>
           <div style="text-align:right;">
-            <div style="font-size:20px;font-weight:700;color:#c9952a;letter-spacing:1px;">TAX INVOICE</div>
+            <div style="font-size:20px;font-weight:700;color:#c9952a;letter-spacing:1px;">${paid > 0 ? 'TAX INVOICE' : 'PROFORMA INVOICE'}</div>
             <div style="display:inline-block;margin-top:6px;background:#faf6ec;border:0.5px solid #e8d9b5;border-radius:5px;padding:5px 9px;text-align:left;">
               <div style="font-size:9px;color:#6b6b6b;font-family:monospace;">Invoice · ${escapeHtml(inv.invoice_number || '')}</div>
               ${inv.quote_number ? `<div style="font-size:9px;color:#6b6b6b;font-family:monospace;">Ref Quote · ${escapeHtml(inv.quote_number)}</div>` : ''}
@@ -368,7 +369,7 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
           <button onClick={() => { setView('list'); setActive(null) }} style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${border}`, background: cardBg, color: textSub, cursor: 'pointer' }}><i className="ti ti-arrow-left" /></button>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 18, fontWeight: 700, color: text }}>{inv.invoice_number}</div>
-            {inv.quote_number && <div style={{ fontSize: 12, color: textMuted }}>from {inv.quote_number}{inv.milestone_label ? ' · ' + inv.milestone_label : ''}</div>}
+            <div style={{ fontSize: 12, color: textMuted }}>{paid > 0 ? 'Tax Invoice' : 'Proforma Invoice'}{inv.quote_number ? ` · from ${inv.quote_number}` : ''}{inv.milestone_label ? ' · ' + inv.milestone_label : ''}</div>
           </div>
           <span style={{ fontSize: 11, color: st.color, background: isDark ? st.color + '22' : st.bg, padding: '4px 11px', borderRadius: 99, fontWeight: 600 }}>{st.label}</span>
         </div>
@@ -490,7 +491,10 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
               <div key={inv.id} onClick={() => openDetail(inv)} style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
                 <div style={{ width: 42, height: 42, borderRadius: 10, background: subBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><i className="ti ti-receipt" style={{ fontSize: 19, color: textSub }} /></div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: text }}>{inv.invoice_number}{inv.milestone_label ? <span style={{ fontSize: 11, color: textMuted, fontWeight: 400 }}> · {inv.milestone_label}</span> : ''}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: text, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>{inv.invoice_number}
+                    <span style={{ fontSize: 9.5, fontWeight: 600, padding: '1px 6px', borderRadius: 99, background: paid > 0 ? (isDark ? '#0f6e5622' : '#e1f5ee') : (isDark ? '#94a3b822' : '#f1f5f9'), color: paid > 0 ? '#0f6e56' : textSub }}>{paid > 0 ? 'Tax' : 'Proforma'}</span>
+                    {inv.milestone_label ? <span style={{ fontSize: 11, color: textMuted, fontWeight: 400 }}>· {inv.milestone_label}</span> : null}
+                  </div>
                   <div style={{ fontSize: 12, color: textSub, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inv.client_name || 'No client'}{inv.project_title ? ' · ' + inv.project_title : ''}</div>
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
