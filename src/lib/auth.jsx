@@ -1,5 +1,5 @@
 // tritova-business/src/lib/auth.jsx
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase'
 import { hasFeature as _hasFeature, getLimit as _getLimit } from './permissions'
 
@@ -16,19 +16,39 @@ export function AuthProvider({ children }) {
   const [planFeatures, setPlanFeatures] = useState(null) // { feature_key: {enabled, limit_value} }
   const [launchPlan, setLaunchPlan] = useState(LP_DEFAULTS) // master switch + config
   const [loading, setLoading] = useState(true)
+  // Tracks the user id we've already resolved access for. Supabase fires
+  // onAuthStateChange (SIGNED_IN / TOKEN_REFRESHED) on every tab focus and token
+  // refresh; without this guard we'd re-run resolveAccess each time, which flips
+  // `loading` true and flashes the full-screen spinner ("page keeps refreshing").
+  const resolvedUserIdRef = useRef(null)
 
   useEffect(() => {
     // Load the Launch Plan master switch once (cheap, single row).
     loadLaunchPlanSettings()
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      if (session?.user) resolveAccess(session.user)
-      else setLoading(false)
+      const u = session?.user ?? null
+      setUser(u)
+      if (u) {
+        if (resolvedUserIdRef.current !== u.id) {
+          resolvedUserIdRef.current = u.id
+          resolveAccess(u)
+        }
+      } else setLoading(false)
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
-      if (session?.user) resolveAccess(session.user)
-      else { setCompany(null); setStaff(null); setRole(null); setPlanFeatures(null); setLoading(false) }
+      const u = session?.user ?? null
+      setUser(u)
+      if (u) {
+        // Only re-resolve when the signed-in user actually changes — not on
+        // token refresh / tab focus re-fires for the same user.
+        if (resolvedUserIdRef.current !== u.id) {
+          resolvedUserIdRef.current = u.id
+          resolveAccess(u)
+        }
+      } else {
+        resolvedUserIdRef.current = null
+        setCompany(null); setStaff(null); setRole(null); setPlanFeatures(null); setLoading(false)
+      }
     })
     return () => subscription.unsubscribe()
   }, [])
