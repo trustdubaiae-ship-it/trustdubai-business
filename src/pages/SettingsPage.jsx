@@ -255,7 +255,7 @@ export default function SettingsPage() {
                 <span style={{ fontSize: 18 }}>✅</span>
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 13.5, color: '#065f46' }}>Trade License Verified</div>
-                  <div style={{ fontSize: 12, color: '#047857' }}>Your business is verified on TrustDubai</div>
+                  <div style={{ fontSize: 12, color: '#047857' }}>Your business is verified on Tritova</div>
                 </div>
               </div>
             ) : company?.trade_license_pending ? (
@@ -309,7 +309,7 @@ export default function SettingsPage() {
           <div className="card" style={{ border: '1px solid rgba(3,193,245,0.2)', background: 'rgba(3,193,245,0.04)' }}>
             <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
               <strong style={{ color: 'var(--text-primary)' }}>Our Platform Policy</strong><br />
-              TrustDubai is built on trust and transparency. Once registered, your company profile remains permanent — your reputation is built through customer reviews.<br /><br />
+              Tritova is built on trust and transparency. Once registered, your company profile remains permanent — your reputation is built through customer reviews.<br /><br />
               Contact us at <a href="mailto:hello@trustdubai.ae" style={{ color: '#03C1F5' }}>hello@trustdubai.ae</a>
             </div>
           </div>

@@ -1,4 +1,4 @@
-// TrustDubai Business — Service Worker (PWA install + light caching)
+// Tritova Business — Service Worker (PWA install + light caching)
 const CACHE = 'td-business-v1'
 const PRECACHE = ['/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png']
 

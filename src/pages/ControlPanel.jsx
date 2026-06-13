@@ -1,4 +1,4 @@
-// trustdubai-business/src/pages/ControlPanel.jsx
+// tritova-business/src/pages/ControlPanel.jsx
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'

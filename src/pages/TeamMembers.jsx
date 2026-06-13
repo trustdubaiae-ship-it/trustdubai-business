@@ -1,4 +1,4 @@
-// trustdubai-business/src/pages/TeamMembers.jsx
+// tritova-business/src/pages/TeamMembers.jsx
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../lib/auth'
 import { useToast } from '../lib/toast'
@@ -237,7 +237,7 @@ function MemberForm({ company, member, onClose, onSaved }) {
     if (!eidExpiry) { setError('EID expiry date is required'); return }
     if (!eidFront) { setError('EID front photo is required'); return }
     if (!eidBack) { setError('EID back photo is required'); return }
-    if (!agreed) { setError('Please confirm and agree to the TrustDubai Policy'); return }
+    if (!agreed) { setError('Please confirm and agree to the Tritova Policy'); return }
     setSaving(true)
     const payload = {
       company_id: company.id,

@@ -1,10 +1,10 @@
-// trustdubai-business/src/pages/TrustDubaiLeads.jsx
+// tritova-business/src/pages/TrustDubaiLeads.jsx
 import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 
 /* =========================================================================
-   TRUSTDUBAI LEADS — only leads that came from the TrustDubai platform
+   TRITOVA LEADS — only leads that came from the Tritova platform
    (source = platform / trustdubai), separate from Meta/manual leads.
    Shows count + status, search, WhatsApp/Call quick actions.
    Fully responsive + light/dark.
@@ -94,9 +94,9 @@ export default function TrustDubaiLeads({ onNavigate }) {
       {/* header */}
       <div style={{ marginBottom: 16 }}>
         <h1 style={{ fontSize:'clamp(20px,5vw,26px)', fontWeight:800, color:'var(--text)', margin:0, display:'flex', alignItems:'center', gap:9 }}>
-          <i className="ti ti-discount-check" style={{ color:'#22c55e' }}/> TrustDubai Leads
+          <i className="ti ti-discount-check" style={{ color:'#22c55e' }}/> Tritova Leads
         </h1>
-        <p style={{ fontSize:13, color:'var(--text2)', margin:'4px 0 0' }}>Leads that came directly from your TrustDubai profile.</p>
+        <p style={{ fontSize:13, color:'var(--text2)', margin:'4px 0 0' }}>Leads that came directly from your Tritova profile.</p>
       </div>
 
       {/* stat cards */}
@@ -130,10 +130,10 @@ export default function TrustDubaiLeads({ onNavigate }) {
         <div style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:16, padding:'48px 20px', textAlign:'center' }}>
           <i className="ti ti-discount-check" style={{ fontSize:34, color:'var(--text3)', display:'block', marginBottom:10 }}/>
           <div style={{ fontSize:15, fontWeight:700, color:'var(--text)', marginBottom:4 }}>
-            {leads.length === 0 ? 'No TrustDubai leads yet' : 'No leads match your filter'}
+            {leads.length === 0 ? 'No Tritova leads yet' : 'No leads match your filter'}
           </div>
           <div style={{ fontSize:13, color:'var(--text2)', marginBottom:18 }}>
-            {leads.length === 0 ? 'When customers contact you via your TrustDubai profile, they appear here.' : 'Try a different search or status.'}
+            {leads.length === 0 ? 'When customers contact you via your Tritova profile, they appear here.' : 'Try a different search or status.'}
           </div>
           {leads.length === 0 && (
             <button onClick={() => onNavigate && onNavigate('profile')} style={btnPrimary}>View my profile</button>
@@ -157,7 +157,7 @@ export default function TrustDubaiLeads({ onNavigate }) {
                     <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
                       <span style={{ fontSize:15, fontWeight:700, color:'var(--text)' }}>{name}</span>
                       <span style={{ fontSize:9.5, fontWeight:700, color:'#16a34a', background:'rgba(34,197,94,0.14)', borderRadius:6, padding:'2px 7px', display:'inline-flex', alignItems:'center', gap:3 }}>
-                        <i className="ti ti-discount-check" style={{ fontSize:11 }}/> TrustDubai
+                        <i className="ti ti-discount-check" style={{ fontSize:11 }}/> Tritova
                       </span>
                     </div>
                     <div style={{ fontSize:12, color:'var(--text2)', marginTop:2 }}>

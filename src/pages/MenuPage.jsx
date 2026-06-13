@@ -1,4 +1,4 @@
-// trustdubai-business/src/pages/MenuPage.jsx
+// tritova-business/src/pages/MenuPage.jsx
 import { useState } from 'react'
 import { useAuth } from '../lib/auth'
 import { can } from '../lib/permissions'
@@ -134,7 +134,7 @@ export default function MenuPage({ onNavigate, isApproved = true, limitedPages =
     } catch (e) { window.open(profileQrSrc, '_blank') }
   }
   function shareProfileWhatsApp() {
-    const text = `Check out ${company?.name || 'our'} verified profile on TrustDubai: ${publicLink}`
+    const text = `Check out ${company?.name || 'our'} verified profile on Tritova: ${publicLink}`
     window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank')
   }
 
@@ -284,7 +284,7 @@ export default function MenuPage({ onNavigate, isApproved = true, limitedPages =
                     <i className="ti ti-link-off" style={{ fontSize: 24, color: '#d97706' }} />
                   </div>
                   <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>Your public link isn't ready yet</div>
-                  <div style={{ fontSize: 12.5, color: 'var(--text2)', lineHeight: 1.6, marginBottom: 18 }}>Complete your business profile to get a shareable TrustDubai profile URL and QR code.</div>
+                  <div style={{ fontSize: 12.5, color: 'var(--text2)', lineHeight: 1.6, marginBottom: 18 }}>Complete your business profile to get a shareable Tritova profile URL and QR code.</div>
                   <button onClick={() => { setShareOpen(false); onNavigate && onNavigate('profile') }}
                     style={{ padding: '10px 18px', borderRadius: 9, border: 'none', background: '#0099cc', color: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
                     Complete profile →
@@ -297,7 +297,7 @@ export default function MenuPage({ onNavigate, isApproved = true, limitedPages =
                       <img src={profileQrSrc} alt="Profile QR code" width={200} height={200} style={{ display: 'block', width: 200, height: 200 }} />
                     </div>
                     <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 10, textAlign: 'center', maxWidth: 320, lineHeight: 1.5 }}>
-                      Customers scan this to view your <b style={{ color: 'var(--text2)' }}>verified TrustDubai profile</b> — reviews, work, trust score &amp; contact.
+                      Customers scan this to view your <b style={{ color: 'var(--text2)' }}>verified Tritova profile</b> — reviews, work, trust score &amp; contact.
                     </div>
                   </div>
                   <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 6, letterSpacing: '.3px' }}>Profile link</div>

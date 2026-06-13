@@ -1,4 +1,4 @@
-// trustdubai-business/src/components/UpgradeLockModal.jsx
+// tritova-business/src/components/UpgradeLockModal.jsx
 export default function UpgradeLockModal({ open, featureName, currentPlan, onClose, onUpgrade }) {
   if (!open) return null
   const planLabel = (currentPlan || 'free').charAt(0).toUpperCase() + (currentPlan || 'free').slice(1)
@@ -16,7 +16,7 @@ export default function UpgradeLockModal({ open, featureName, currentPlan, onClo
           <b style={{ color:'#0f172a' }}>{featureName || 'This feature'}</b> is not available on your current <b style={{ color:'#d97706' }}>{planLabel}</b> plan.
         </p>
         <p style={{ fontSize:13, color:'#64748b', lineHeight:1.6, marginBottom:22 }}>
-          Upgrade your plan to unlock this feature and grow your business on TrustDubai.
+          Upgrade your plan to unlock this feature and grow your business on Tritova.
         </p>
         <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
           <button onClick={onUpgrade}

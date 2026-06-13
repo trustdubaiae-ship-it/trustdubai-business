@@ -1,4 +1,4 @@
-// trustdubai-business/src/lib/auth.jsx
+// tritova-business/src/lib/auth.jsx
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from './supabase'
 import { hasFeature as _hasFeature, getLimit as _getLimit } from './permissions'

@@ -216,7 +216,7 @@ export default function PortfolioPage() {
             <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color:'var(--text-primary)' }}>Photo Limit Reached</h3>
             <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 20, lineHeight: 1.6 }}>Your <strong style={{ textTransform: 'capitalize' }}>{plan}</strong> plan allows <strong>{limitLabel}</strong> photos. Upgrade to upload more.</p>
             <div style={{ display: 'flex', gap: 10 }}>
-              <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => { setShowUpgradePopup(false); window.open('https://wa.me/971503856786?text=Hi, I would like to upgrade my TrustDubai plan', '_blank') }}>Upgrade Now</button>
+              <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => { setShowUpgradePopup(false); window.open('https://wa.me/971503856786?text=Hi, I would like to upgrade my Tritova plan', '_blank') }}>Upgrade Now</button>
               <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setShowUpgradePopup(false)}>Maybe Later</button>
             </div>
           </div>

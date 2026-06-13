@@ -1,4 +1,4 @@
-// trustdubai-business/src/lib/theme.js
+// tritova-business/src/lib/theme.js
 // Light/Dark theme helper — sets data-theme on <html>, remembers choice in localStorage.
 
 const KEY = 'td_theme'

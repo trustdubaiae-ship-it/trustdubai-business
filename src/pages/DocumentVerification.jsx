@@ -1,4 +1,4 @@
-// trustdubai-business/src/pages/DocumentVerification.jsx
+// tritova-business/src/pages/DocumentVerification.jsx
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../lib/auth'
 import { useToast } from '../lib/toast'
@@ -171,7 +171,7 @@ function DocForm({ company, doc, existing, onClose, onSaved }) {
     if (!docNumber.trim()) { setError('Document number is required'); return }
     if (!docExpiry) { setError('Expiry date is required'); return }
     if (!fileUrl) { setError('Please upload the document file'); return }
-    if (!agreed) { setError('Please confirm and agree to the TrustDubai Policy'); return }
+    if (!agreed) { setError('Please confirm and agree to the Tritova Policy'); return }
     setSaving(true)
     const payload = {
       company_id: company.id,

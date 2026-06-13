@@ -20,14 +20,14 @@ export default function NoCompanyPage() {
           <button onClick={() => window.location.href = 'https://trustdubai.ae'} className="btn btn-primary" style={{ justifyContent: 'center' }}>
             🏢 List Your Business
           </button>
-          <button onClick={() => window.open('https://wa.me/971503856786?text=Hi, I want access to TrustDubai Business Portal', '_blank')} className="btn btn-secondary" style={{ justifyContent: 'center' }}>
+          <button onClick={() => window.open('https://wa.me/971503856786?text=Hi, I want access to Tritova Business Portal', '_blank')} className="btn btn-secondary" style={{ justifyContent: 'center' }}>
             📱 Request Business Access
           </button>
           <button className="btn btn-ghost" onClick={signOut} style={{ justifyContent: 'center' }}>
             Sign Out
           </button>
         </div>
-        <div style={{ marginTop: 20, fontSize: 11, color: '#9ca3af' }}>TrustDubai Business Portal</div>
+        <div style={{ marginTop: 20, fontSize: 11, color: '#9ca3af' }}>Tritova Business Portal</div>
       </div>
     </div>
   )

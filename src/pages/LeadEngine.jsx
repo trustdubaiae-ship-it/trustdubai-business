@@ -7,8 +7,8 @@ import MetaAds from './MetaAds'
 import MetaAdBuilder from './MetaAdBuilder'
 
 const SOURCES = [
-  { key:'trustdubai', icon:'ti-shield-check',   name:'TrustDubai Leads', sub:'Platform verified leads',
-    desc:'Receive verified leads from TrustDubai distribution.', status:'active', action:'Active' },
+  { key:'trustdubai', icon:'ti-shield-check',   name:'Tritova Leads', sub:'Platform verified leads',
+    desc:'Receive verified leads from Tritova distribution.', status:'active', action:'Active' },
   { key:'meta',       icon:'ti-brand-meta',      name:'Meta Ads',         sub:'Facebook & Instagram',
     desc:'Connect your Meta account to design, launch & auto-optimize lead ads — all from here.', status:'connect', action:'Connect Meta Account' },
   { key:'whatsapp',   icon:'ti-brand-whatsapp',  name:'WhatsApp',         sub:'Direct enquiries',
@@ -70,7 +70,7 @@ export default function LeadEngine() {
     }
     if (s.status === 'soon') { toast.info(s.name + ' is coming soon'); return }
     if (s.key === 'manual')  { toast.info('Use Leads → Add Lead / Import CSV'); return }
-    if (s.key === 'trustdubai') { toast.info('TrustDubai leads are already active'); return }
+    if (s.key === 'trustdubai') { toast.info('Tritova leads are already active'); return }
   }
 
   // ===== Meta sub-views =====

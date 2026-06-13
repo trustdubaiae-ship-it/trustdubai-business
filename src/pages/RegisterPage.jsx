@@ -163,9 +163,9 @@ export default function RegisterPage({ onBack }) {
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '60px', position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 48 }}>
-          <div style={{ width: 44, height: 44, background: 'linear-gradient(135deg, #e8b84b, #c9952a)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 18, color: '#0d1117' }}>TD</div>
+          <div style={{ width: 44, height: 44, background: 'linear-gradient(135deg, #e8b84b, #c9952a)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 18, color: '#0d1117' }}>T</div>
           <div>
-            <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 16, color: '#fff' }}>TrustDubai</div>
+            <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 16, color: '#fff' }}>Tritova</div>
             <div style={{ fontSize: 11, color: '#6e7681', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Business Registration</div>
           </div>
         </div>
@@ -243,7 +243,7 @@ export default function RegisterPage({ onBack }) {
                 </div>
               ))}
               <div style={{ background: 'rgba(232,184,75,0.08)', border: '1px solid rgba(232,184,75,0.2)', borderRadius: 8, padding: '12px 14px', fontSize: 12.5, color: '#9b8a5a', lineHeight: 1.7, marginTop: 4 }}>
-                By submitting, you confirm all information is accurate and agree to TrustDubai's Terms of Service.
+                By submitting, you confirm all information is accurate and agree to Tritova's Terms of Service.
               </div>
             </div>}
           </div>
@@ -253,8 +253,8 @@ export default function RegisterPage({ onBack }) {
               <AlertTriangle size={18} color="#e8b84b" style={{ flexShrink: 0, marginTop: 2 }} />
               <div style={{ fontSize: 13, color: '#e8d9b0', lineHeight: 1.7 }}>
                 {dupMatch.kind === 'name'
-                  ? <>A business named <strong style={{ color: '#fff' }}>&ldquo;{dupMatch.name}&rdquo;</strong> already appears on TrustDubai.</>
-                  : <>This phone number is already linked to <strong style={{ color: '#fff' }}>&ldquo;{dupMatch.name}&rdquo;</strong> on TrustDubai.</>}
+                  ? <>A business named <strong style={{ color: '#fff' }}>&ldquo;{dupMatch.name}&rdquo;</strong> already appears on Tritova.</>
+                  : <>This phone number is already linked to <strong style={{ color: '#fff' }}>&ldquo;{dupMatch.name}&rdquo;</strong> on Tritova.</>}
                 <div style={{ marginTop: 6 }}>
                   If this is <strong>your</strong> business, it may already be listed &mdash; please contact us at{' '}
                   <a href="mailto:support@trustdubai.ae" style={{ color: '#e8b84b', textDecoration: 'none' }}>support@trustdubai.ae</a>{' '}
@@ -272,7 +272,7 @@ export default function RegisterPage({ onBack }) {
           </div>
 
           <div className="rf-legal" style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.08)', fontSize: 11.5, color: '#6e7681', lineHeight: 1.7, textAlign: 'center' }}>
-            By continuing, you agree to TrustDubai's{' '}
+            By continuing, you agree to Tritova's{' '}
             <a href="https://trustdubai.ae/terms" target="_blank" rel="noopener noreferrer">Terms of Service</a>,{' '}
             <a href="https://trustdubai.ae/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>{' & '}
             <a href="https://trustdubai.ae/refund" target="_blank" rel="noopener noreferrer">Refund Policy</a>.

@@ -1,4 +1,4 @@
-// trustdubai-business/src/components/PolicyAgree.jsx
+// tritova-business/src/components/PolicyAgree.jsx
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
@@ -27,7 +27,7 @@ export default function PolicyAgree({ checked, onChange, context = 'submitting t
         <span>
           I confirm all information and documents are genuine, and I agree with the{' '}
           <span onClick={(e) => { e.preventDefault(); openPolicy() }} style={{ color: BRAND, fontWeight: 700, textDecoration: 'underline' }}>
-            TrustDubai Policy
+            Tritova Policy
           </span>.
         </span>
       </label>
@@ -36,7 +36,7 @@ export default function PolicyAgree({ checked, onChange, context = 'submitting t
         <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: 'var(--card-bg)', borderRadius: 16, width: '100%', maxWidth: 540, maxHeight: '85vh', overflowY: 'auto', padding: 24 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>TrustDubai Policy</h3>
+              <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Tritova Policy</h3>
               <button onClick={() => setOpen(false)} style={{ width: 32, height: 32, borderRadius: 9, border: 'none', background: 'var(--bg2)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 17 }}>✕</button>
             </div>
             <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 0, marginBottom: 18 }}>Terms & Verification Policy</p>

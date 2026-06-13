@@ -1,4 +1,4 @@
-// trustdubai-business/src/lib/permissions.js
+// tritova-business/src/lib/permissions.js
 // purified permission set — har page/feature ka apna control
 export const PERMISSIONS = [
   { key: 'view_dashboard',    label: 'Dashboard' },

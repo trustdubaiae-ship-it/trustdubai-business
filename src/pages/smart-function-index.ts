@@ -1,4 +1,4 @@
-// TrustDubai AI Assistant — drafts a lead reply + scores the lead using Claude API.
+// Tritova AI Assistant — drafts a lead reply + scores the lead using Claude API.
 // Requires secret: ANTHROPIC_API_KEY (set in Edge Functions → Secrets)
 
 const CORS = {

@@ -1,10 +1,10 @@
-// trustdubai-business/src/pages/ControlWall.jsx
+// tritova-business/src/pages/ControlWall.jsx
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 
 /* =========================================================================
-   TrustDubai Business — CONTROL WALL
+   Tritova Business — CONTROL WALL
    One full-screen board = Command Center + Revenue Engine (this company only).
    • Scale-to-fit: designed on a fixed 1600x900 canvas, auto-scaled to ANY
      screen (TV / desktop / laptop / tablet / phone) — no scroll ever.

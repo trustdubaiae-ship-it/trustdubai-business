@@ -1,4 +1,4 @@
-// trustdubai-business/src/lib/features.js
+// tritova-business/src/lib/features.js
 // ============================================================================
 // Single source of truth for the App Launcher (Menu) page.
 // Each item: { key, title, icon (Tabler), desc, perm, comingSoon }
@@ -17,7 +17,7 @@ export const FEATURE_GROUPS = [
     items: [
       { key: 'leads',          title: 'Lead Form',        icon: 'ti-forms',       desc: 'Capture enquiries',     perm: 'view_leads' },
       { key: 'leadengine',     title: 'Lead Engine',      icon: 'ti-rocket',      desc: 'Distribute & track',    perm: 'view_leads' },
-      { key: 'tdleads',        title: 'TrustDubai Leads', icon: 'ti-bolt',        desc: 'Marketplace leads',     perm: 'view_leads' },
+      { key: 'tdleads',        title: 'Tritova Leads', icon: 'ti-bolt',        desc: 'Marketplace leads',     perm: 'view_leads' },
       { key: 'revenueengine',  title: 'Revenue Engine',   icon: 'ti-chart-line',  desc: 'Sales CRM dashboard',   perm: 'view_leads' },
       { key: 'metaads',        title: 'Meta Ads',         icon: 'ti-brand-meta',  desc: 'Run ad campaigns',      perm: 'view_leads', comingSoon: true },
       { key: 'quoteapprovals', title: 'Quote Approvals',  icon: 'ti-checkbox',    desc: 'Approve quotes',        perm: 'view_leads', comingSoon: true },

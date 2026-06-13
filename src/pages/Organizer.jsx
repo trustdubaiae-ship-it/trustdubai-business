@@ -1,4 +1,4 @@
-// trustdubai-business/src/pages/Organizer.jsx
+// tritova-business/src/pages/Organizer.jsx
 import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'

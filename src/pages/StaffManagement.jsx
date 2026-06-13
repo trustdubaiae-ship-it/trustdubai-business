@@ -1,4 +1,4 @@
-// trustdubai-business/src/pages/StaffManagement.jsx
+// tritova-business/src/pages/StaffManagement.jsx
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";

@@ -1,4 +1,4 @@
-// trustdubai-business/src/pages/AIAssistant.jsx
+// tritova-business/src/pages/AIAssistant.jsx
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'

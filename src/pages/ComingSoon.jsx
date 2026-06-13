@@ -1,4 +1,4 @@
-// trustdubai-business/src/pages/ComingSoon.jsx
+// tritova-business/src/pages/ComingSoon.jsx
 import { useState, useEffect } from 'react'
 
 /* =========================================================================
@@ -10,11 +10,11 @@ import { useState, useEffect } from 'react'
 const FEATURES = {
   trustdubai_leads: {
     icon: 'ti-brand-trustpilot',
-    title: 'TrustDubai Leads',
+    title: 'Tritova Leads',
     tag: 'Lead Hub',
-    desc: 'A dedicated tab for leads delivered directly from the TrustDubai platform — separate from your own captured leads.',
+    desc: 'A dedicated tab for leads delivered directly from the Tritova platform — separate from your own captured leads.',
     points: [
-      'Platform leads in one focused view (All · TrustDubai · Own)',
+      'Platform leads in one focused view (All · Tritova · Own)',
       'Auto-delivered from your public profile enquiries',
       'Quick accept / contact / convert actions',
     ],

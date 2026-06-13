@@ -1,4 +1,4 @@
-// trustdubai-business/src/pages/VerificationPage.jsx
+// tritova-business/src/pages/VerificationPage.jsx
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'

@@ -1,10 +1,10 @@
-// trustdubai-business/src/pages/RevenueEngine.jsx
+// tritova-business/src/pages/RevenueEngine.jsx
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 
 /* =========================================================================
-   TrustDubai Business — REVENUE ENGINE (company-specific sales dashboard)
+   Tritova Business — REVENUE ENGINE (company-specific sales dashboard)
    Same look & theme as the Admin Revenue Engine (self-contained green theme,
    light + dark via `theme` prop, fully responsive). Data is THIS company only.
    ========================================================================= */
@@ -324,7 +324,7 @@ export default function RevenueEngine({ onNavigate, theme = 'dark' }) {
       <div className="re-header">
         <div>
           <h1 className="re-title">Revenue Engine <span className="re-badge">CRM</span></h1>
-          <p className="re-subtitle">Your sales pipeline & lead performance on TrustDubai.</p>
+          <p className="re-subtitle">Your sales pipeline & lead performance on Tritova.</p>
         </div>
         <button className="re-refresh" onClick={load} disabled={loading}>
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2"><path d={Ic.refresh} /></svg>

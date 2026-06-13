@@ -1,4 +1,4 @@
-// trustdubai-business/src/pages/QuoteLibrary.jsx
+// tritova-business/src/pages/QuoteLibrary.jsx
 import { useState, useEffect } from 'react'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'

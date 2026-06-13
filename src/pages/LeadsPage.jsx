@@ -962,7 +962,7 @@ export default function LeadsPage() {
     if (!openLead) return null
     const lead = openLead
     const sc = LEAD_STATUSES.find(s => s.value === lead.status) || LEAD_STATUSES[0]
-    const srcLabel = lead.isPlatform ? 'TrustDubai · Rank #' + lead.rank : mySourceBadge(lead).label
+    const srcLabel = lead.isPlatform ? 'Tritova · Rank #' + lead.rank : mySourceBadge(lead).label
     const isOverdue = lead.follow_up_date && lead.follow_up_date < today && !['won','lost'].includes(lead.status)
     const proj = lead.answers?.['Project Type'] || lead.answers?.category || ''
     const budget = lead.answers?.['Budget (AED)'] || lead.answers?.budget || ''
@@ -1018,13 +1018,13 @@ export default function LeadsPage() {
             <div style={{ border: '0.5px solid var(--border)', borderRadius: 10, padding: 13, marginBottom: 14 }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <i className="ti ti-messages" style={{ fontSize: 15, color: '#0099cc' }} /> Chat with customer
-                <span style={{ fontSize: 9, fontWeight: 600, padding: '1px 7px', borderRadius: 99, background: 'rgba(0,153,204,0.12)', color: '#0099cc' }}>TrustDubai</span>
+                <span style={{ fontSize: 9, fontWeight: 600, padding: '1px 7px', borderRadius: 99, background: 'rgba(0,153,204,0.12)', color: '#0099cc' }}>Tritova</span>
               </div>
 
               <div style={{ background: 'var(--bg2)', borderRadius: 9, padding: 11, maxHeight: 240, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
                 {chatMsgs.length === 0 ? (
                   <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'center', padding: '14px 8px' }}>
-                    No messages yet. When the customer messages you from TrustDubai, it appears here — reply to start the conversation.
+                    No messages yet. When the customer messages you from Tritova, it appears here — reply to start the conversation.
                   </div>
                 ) : chatMsgs.map(m => {
                   const mine = m.sender_type === 'company'
@@ -1197,9 +1197,9 @@ export default function LeadsPage() {
       return (
         <div style={{ ...card, textAlign: 'center', padding: '60px 20px' }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>{isTD ? '🎯' : '📭'}</div>
-          <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 8, color: 'var(--text)' }}>{isTD ? 'No TrustDubai leads yet' : 'No leads yet'}</h3>
+          <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 8, color: 'var(--text)' }}>{isTD ? 'No Tritova leads yet' : 'No leads yet'}</h3>
           <p style={{ fontSize: 14, color: 'var(--text2)', marginBottom: 20 }}>
-            {isTD ? 'Verified leads from the TrustDubai platform will appear here automatically.' : 'Add a lead manually, import a CSV, or connect your Meta ad account.'}
+            {isTD ? 'Verified leads from the Tritova platform will appear here automatically.' : 'Add a lead manually, import a CSV, or connect your Meta ad account.'}
           </p>
           {!isTD && <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
             <button className="btn btn-primary" onClick={openAdd}>+ Add Lead</button>
@@ -1403,7 +1403,7 @@ export default function LeadsPage() {
 
       <div style={{ display: 'flex', gap: mobile ? 2 : 4, marginBottom: 18, borderBottom: '1px solid var(--border)', flexWrap: 'nowrap', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
         {[
-          { id: 'trustdubai', label: mobile ? 'TrustDubai' : 'TrustDubai Leads', count: tdLeads.length, icon: 'ti-shield-check' },
+          { id: 'trustdubai', label: mobile ? 'Tritova' : 'Tritova Leads', count: tdLeads.length, icon: 'ti-shield-check' },
           { id: 'mine',       label: 'My Leads', count: myLeads.length, icon: 'ti-building-store' },
           { id: 'forms',      label: 'Forms',    count: forms.length,   icon: 'ti-forms' },
         ].map(t => (
@@ -1422,7 +1422,7 @@ export default function LeadsPage() {
         <div>
           <div style={{ background: 'rgba(8,145,178,0.07)', border: '0.5px solid rgba(8,145,178,0.25)', borderRadius: 10, padding: '10px 14px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 9 }}>
             <i className="ti ti-shield-check" style={{ fontSize: 18, color: '#0891b2' }} />
-            <div style={{ fontSize: 12, color: 'var(--text2)' }}>Verified leads delivered to you by the <b style={{ color: '#0891b2' }}>TrustDubai</b> platform, ranked by match.</div>
+            <div style={{ fontSize: 12, color: 'var(--text2)' }}>Verified leads delivered to you by the <b style={{ color: '#0891b2' }}>Tritova</b> platform, ranked by match.</div>
           </div>
           {Toolbar()}
           {Board()}
@@ -1563,7 +1563,7 @@ export default function LeadsPage() {
                           </div>
                         ))}
                         <div style={{ background: 'var(--primary)', color: '#fff', textAlign: 'center', padding: '8px', borderRadius: 20, fontSize: 13, fontWeight: 500, marginTop: 8 }}>Submit — Get Quote</div>
-                        <div style={{ textAlign: 'center', marginTop: 8, fontSize: 10, color: 'var(--text3)' }}>Powered by TrustDubai</div>
+                        <div style={{ textAlign: 'center', marginTop: 8, fontSize: 10, color: 'var(--text3)' }}>Powered by Tritova</div>
                       </div>
                     </div>
                   </div>

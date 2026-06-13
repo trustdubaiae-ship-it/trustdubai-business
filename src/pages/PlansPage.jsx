@@ -5,7 +5,7 @@ import { Check, X, Zap, Crown, Building2, Star, AlertTriangle, Clock } from 'luc
 
 const PLAN_ORDER = ['free', 'silver', 'gold', 'platinum']
 const PLAN_META = {
-  free:     { icon: Star,      color: '#6b7280', description: 'Get started on TrustDubai' },
+  free:     { icon: Star,      color: '#6b7280', description: 'Get started on Tritova' },
   silver:   { icon: Zap,       color: '#94a3b8', description: 'Grow your presence' },
   gold:     { icon: Crown,     color: '#e8b84b', description: 'Dominate your category', featured: true },
   platinum: { icon: Building2, color: '#8b5cf6', description: 'For large businesses' },
@@ -58,7 +58,7 @@ export default function PlansPage() {
   function handleUpgrade(planId) {
     if (planId === currentPlan && !expiryInfo?.expired) return
     const label = planId.charAt(0).toUpperCase() + planId.slice(1)
-    window.open('https://wa.me/971503856786?text=Hi, I would like to upgrade my TrustDubai plan to ' + label, '_blank')
+    window.open('https://wa.me/971503856786?text=Hi, I would like to upgrade my Tritova plan to ' + label, '_blank')
   }
 
   function buildFeatureList(planName) {
@@ -91,7 +91,7 @@ export default function PlansPage() {
     <div className="page-content animate-in">
       <div style={{ marginBottom: 24, textAlign: 'center' }}>
         <h1 className="font-syne fw-700" style={{ fontSize: 24, marginBottom: 4 }}>Plans & Billing</h1>
-        <p className="text-secondary" style={{ fontSize: 14 }}>Choose the right plan to grow your business on TrustDubai</p>
+        <p className="text-secondary" style={{ fontSize: 14 }}>Choose the right plan to grow your business on Tritova</p>
       </div>
 
       {expiryInfo && expiryInfo.urgent && (
@@ -108,7 +108,7 @@ export default function PlansPage() {
             </div>
           </div>
           <button className="btn btn-primary btn-sm"
-            onClick={() => window.open('https://wa.me/971503856786?text=Hi, I need to renew my TrustDubai ' + currentPlan + ' plan', '_blank')}>
+            onClick={() => window.open('https://wa.me/971503856786?text=Hi, I need to renew my Tritova ' + currentPlan + ' plan', '_blank')}>
             Renew Now
           </button>
         </div>
@@ -206,7 +206,7 @@ export default function PlansPage() {
           <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>Contact our team on WhatsApp for guidance and payment support</div>
         </div>
         <button className="btn btn-primary btn-sm"
-          onClick={() => window.open('https://wa.me/971503856786?text=Hi, I would like to upgrade my TrustDubai plan', '_blank')}>
+          onClick={() => window.open('https://wa.me/971503856786?text=Hi, I would like to upgrade my Tritova plan', '_blank')}>
           WhatsApp Us
         </button>
       </div>

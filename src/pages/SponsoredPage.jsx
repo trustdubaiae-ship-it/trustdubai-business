@@ -228,7 +228,7 @@ export default function SponsoredPage({ onNavigate }) {
               ))}
             </div>
             <div style={{ marginTop:12, padding:'10px 14px', background:'var(--bg2)', borderRadius:8, fontSize:10, color:'var(--text2)', lineHeight:1.6 }}>
-              Only 3 sponsor slots available on TrustDubai. Subject to availability and admin approval. Payment due after approval.
+              Only 3 sponsor slots available on Tritova. Subject to availability and admin approval. Payment due after approval.
             </div>
           </div>
         </>

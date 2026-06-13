@@ -110,7 +110,7 @@ export default function AnalyticsPage() {
           </div>
           <button
             className="btn btn-primary"
-            onClick={() => window.open('https://wa.me/971503856786?text=Hi, I would like to upgrade my TrustDubai plan to Gold', '_blank')}
+            onClick={() => window.open('https://wa.me/971503856786?text=Hi, I would like to upgrade my Tritova plan to Gold', '_blank')}
           >
             Upgrade to Gold — AED 349/mo
           </button>

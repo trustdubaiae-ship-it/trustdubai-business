@@ -142,7 +142,7 @@ export default function MetaConnect({ onBack, onConnected }) {
             </div>
             <h2 style={{ fontSize:18, fontWeight:700, color:text, margin:'0 0 6px' }}>Connect your Meta account</h2>
             <p style={{ fontSize:13, color:textSub, margin:'0 0 20px', lineHeight:1.6, maxWidth:380, marginLeft:'auto', marginRight:'auto' }}>
-              Link your Facebook &amp; Instagram ad account to design, launch and manage lead ads — all from your TrustDubai dashboard.
+              Link your Facebook &amp; Instagram ad account to design, launch and manage lead ads — all from your Tritova dashboard.
             </p>
             <button onClick={connectMeta} disabled={busy} style={{ padding:'13px 26px', borderRadius:10, border:'none', background:'#0099cc', color:'#fff', fontSize:14, fontWeight:600, cursor:'pointer' }}>
               <i className="ti ti-plug" style={{ fontSize:16, verticalAlign:'-2px', marginRight:6 }}/>
@@ -154,7 +154,7 @@ export default function MetaConnect({ onBack, onConnected }) {
           <div style={{ background:subBg, borderRadius:14, padding:18 }}>
             <div style={{ fontSize:12, fontWeight:700, color:textSub, textTransform:'uppercase', letterSpacing:'.4px', marginBottom:14 }}>How it works</div>
             {[
-              ['ti-login', 'Sign in with Facebook', 'Securely authorize TrustDubai to manage ads on your behalf.'],
+              ['ti-login', 'Sign in with Facebook', 'Securely authorize Tritova to manage ads on your behalf.'],
               ['ti-briefcase', 'Choose ad account & page', 'Pick which Meta ad account and Facebook/Instagram page to use.'],
               ['ti-wand', 'Build & launch ads', 'Create lead ads in guided steps and publish straight to Meta.'],
               ['ti-chart-line', 'Track & optimize', 'See live CPL, pause weak ads, scale the winners.'],

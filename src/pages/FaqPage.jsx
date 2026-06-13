@@ -1,4 +1,4 @@
-// trustdubai-business/src/pages/FaqPage.jsx
+// tritova-business/src/pages/FaqPage.jsx
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
