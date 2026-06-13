@@ -121,13 +121,17 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
   }
 
   async function savePayments(inv, newPayments) {
-    const status = statusOf(inv.total, newPayments)
-    const phase = newPayments.length > 0 ? 'tax' : 'proforma'   // first payment converts Proforma → Tax Invoice
-    const { error } = await supabase.from('invoices').update({ payments: newPayments, status, phase }).eq('id', inv.id)
-    if (error) { toast.error('Update failed'); return false }
-    const updated = { ...inv, payments: newPayments, status, phase }
-    setActive(updated); setInvoices(prev => prev.map(i => i.id === updated.id ? updated : i))
-    return true
+    try {
+      const status = statusOf(inv.total, newPayments)
+      const phase = newPayments.length > 0 ? 'tax' : 'proforma'   // first payment converts Proforma → Tax Invoice
+      const { data, error } = await supabase.from('invoices')
+        .update({ payments: newPayments, status, phase }).eq('id', inv.id).select()
+      if (error) { toast.error('Update failed: ' + error.message); return false }
+      if (!data || data.length === 0) { toast.error('Could not save — update not allowed for this invoice (RLS?)'); return false }
+      const updated = { ...inv, payments: newPayments, status, phase }
+      setActive(updated); setInvoices(prev => prev.map(i => i.id === updated.id ? updated : i))
+      return true
+    } catch (e) { toast.error('Update error: ' + (e.message || 'unknown')); return false }
   }
   async function addPayment() {
     const amt = Number(payAmount) || 0
@@ -179,8 +183,9 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
     const logoBox = cLogo
       ? `<img src="${escapeHtml(cLogo)}" style="width:50px;height:50px;border-radius:10px;object-fit:cover;">`
       : `<div style="width:50px;height:50px;border-radius:10px;background:#1a1a1a;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:20px;color:#c9952a;">${cName[0] || 'C'}</div>`
+    const paidOn = payments.map(p => p.date).filter(Boolean).sort().slice(-1)[0] || ''
     const paidStamp = bal <= 0
-      ? `<div style="position:absolute;top:60px;right:40px;border:3px solid #0f6e56;color:#0f6e56;font-weight:800;font-size:20px;letter-spacing:3px;padding:4px 14px;border-radius:8px;transform:rotate(-12deg);opacity:.85;">PAID</div>` : ''
+      ? `<div style="position:absolute;top:47%;left:50%;transform:translate(-50%,-50%) rotate(-15deg);border:3px solid #0f6e56;color:#0f6e56;font-weight:800;font-size:30px;letter-spacing:4px;padding:8px 22px;border-radius:12px;opacity:.8;text-align:center;z-index:5;">PAID${paidOn ? `<div style="font-size:11px;letter-spacing:1px;font-weight:700;margin-top:3px;">${dateStr(paidOn)}</div>` : ''}</div>` : ''
     return `<div style="position:relative;font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;max-width:680px;margin:0 auto;background:#fff;">
       ${paidStamp}
       <div style="height:5px;background:#c9952a;"></div>

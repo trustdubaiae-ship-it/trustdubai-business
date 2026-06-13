@@ -31,6 +31,22 @@ function fmtDate(d) {
 
 const GOLD = '#c9952a', INK = '#1a1a1a'
 
+// Defined at module scope (NOT inside the component) — otherwise every keystroke
+// re-creates these component types and React remounts the whole tree (input loses
+// focus + page scrolls to top).
+const Shell = ({ children }) => (
+  <div style={{ minHeight: '100vh', background: '#f4f5f7', padding: '24px 12px', fontFamily: 'Arial, Helvetica, sans-serif', color: INK }}>
+    <div style={{ maxWidth: 720, margin: '0 auto' }}>{children}</div>
+  </div>
+)
+const Center = ({ icon, title, sub, color }) => (
+  <Shell><div style={{ background: '#fff', borderRadius: 14, padding: '48px 24px', textAlign: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
+    <div style={{ fontSize: 40, marginBottom: 10, color: color || '#94a3b8' }}><i className={`ti ${icon}`} /></div>
+    <div style={{ fontSize: 18, fontWeight: 700 }}>{title}</div>
+    {sub && <div style={{ fontSize: 13, color: '#6b7280', marginTop: 6, lineHeight: 1.6 }}>{sub}</div>}
+  </div></Shell>
+)
+
 export default function QuoteApproval({ token }) {
   const [phase, setPhase] = useState('loading') // loading | ready | notfound | error | submitting | done
   const [payload, setPayload] = useState(null)
@@ -74,19 +90,6 @@ export default function QuoteApproval({ token }) {
     } catch { setErr('Could not submit. Please try again.'); setPhase('ready') }
   }
 
-  // ---- shells ----
-  const Shell = ({ children }) => (
-    <div style={{ minHeight: '100vh', background: '#f4f5f7', padding: '24px 12px', fontFamily: 'Arial, Helvetica, sans-serif', color: INK }}>
-      <div style={{ maxWidth: 720, margin: '0 auto' }}>{children}</div>
-    </div>
-  )
-  const Center = ({ icon, title, sub, color }) => (
-    <Shell><div style={{ background: '#fff', borderRadius: 14, padding: '48px 24px', textAlign: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
-      <div style={{ fontSize: 40, marginBottom: 10, color: color || '#94a3b8' }}><i className={`ti ${icon}`} /></div>
-      <div style={{ fontSize: 18, fontWeight: 700 }}>{title}</div>
-      {sub && <div style={{ fontSize: 13, color: '#6b7280', marginTop: 6, lineHeight: 1.6 }}>{sub}</div>}
-    </div></Shell>
-  )
 
   if (phase === 'loading') return <Center icon="ti-loader-2" title="Loading quotation…" />
   if (phase === 'notfound') return <Center icon="ti-link-off" title="Link not found" sub="This approval link is invalid or has expired." color="#d97706" />
