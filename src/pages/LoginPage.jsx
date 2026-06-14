@@ -46,6 +46,10 @@ export default function LoginPage({ onRegister }) {
           <button onClick={onRegister} style={{ width: '100%', padding: '12px 20px', background: 'transparent', border: '1px solid rgba(232,184,75,0.3)', borderRadius: 10, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, color: '#e8b84b' }}>
             🏢 Register Your Business
           </button>
+          <p style={{ fontSize: 12.5, color: '#6e7681', marginTop: 14, lineHeight: 1.6 }}>
+            Already listed on Tritova?{' '}
+            <span onClick={() => window.open('https://trustdubai.ae/claim-company', '_blank')} style={{ color: '#e8b84b', cursor: 'pointer', fontWeight: 600 }}>Claim your company</span>
+          </p>
         </div>
       </div>
     </div>
