@@ -37,7 +37,7 @@ export default function ProjectsPage({ onNavigate }) {
 
   async function loadProjects() {
     setLoading(true)
-    const { data } = await supabase.from('projects').select('*').eq('company_id', company.id).order('created_at', { ascending: false }).limit(500)
+    const { data } = await supabase.from('ops_projects').select('*').eq('company_id', company.id).order('created_at', { ascending: false }).limit(500)
     setProjects(data || []); setLoading(false)
   }
   async function openProject(p) {
@@ -61,8 +61,8 @@ export default function ProjectsPage({ onNavigate }) {
     setSaving(true)
     try {
       const payload = { company_id: company.id, name: p.name.trim(), client_name: p.client_name || null, client_phone: p.client_phone || null, status: p.status || 'planning', contract_value: Number(p.contract_value) || 0, start_date: p.start_date || null, end_date: p.end_date || null, progress: parseInt(p.progress) || 0, location: p.location || null, notes: p.notes || null, updated_at: new Date().toISOString() }
-      if (projModal.isNew) { payload.created_by_email = user?.email || null; const { error } = await supabase.from('projects').insert(payload); if (error) throw error }
-      else { const { error } = await supabase.from('projects').update(payload).eq('id', p.id).eq('company_id', company.id); if (error) throw error; if (active?.id === p.id) setActive({ ...active, ...payload }) }
+      if (projModal.isNew) { payload.created_by_email = user?.email || null; const { error } = await supabase.from('ops_projects').insert(payload); if (error) throw error }
+      else { const { error } = await supabase.from('ops_projects').update(payload).eq('id', p.id).eq('company_id', company.id); if (error) throw error; if (active?.id === p.id) setActive({ ...active, ...payload }) }
       setProjModal(null); toast.success('Project saved ✓'); await loadProjects()
     } catch (e) { console.error(e); toast.error('Save failed: ' + (e?.message || e)) } finally { setSaving(false) }
   }
@@ -71,13 +71,13 @@ export default function ProjectsPage({ onNavigate }) {
     try {
       await supabase.from('site_expenses').delete().eq('project_id', id).eq('company_id', company.id)
       await supabase.from('material_requests').delete().eq('project_id', id).eq('company_id', company.id)
-      await supabase.from('projects').delete().eq('id', id).eq('company_id', company.id)
+      await supabase.from('ops_projects').delete().eq('id', id).eq('company_id', company.id)
       toast.success('Project deleted'); setView('list'); setActive(null); loadProjects()
     } catch (e) { console.error(e); toast.error('Delete failed') }
   }
   async function patchActive(patch) {
     if (!active) return
-    const { error } = await supabase.from('projects').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', active.id).eq('company_id', company.id)
+    const { error } = await supabase.from('ops_projects').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', active.id).eq('company_id', company.id)
     if (error) { toast.error('Update failed'); return }
     setActive(a => ({ ...a, ...patch })); setProjects(ps => ps.map(x => x.id === active.id ? { ...x, ...patch } : x))
   }

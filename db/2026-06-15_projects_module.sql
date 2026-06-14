@@ -1,10 +1,11 @@
 -- ===========================================================================
--- Projects & Ops module: projects (from won quotes), material requests,
+-- Projects & Ops module: ops_projects (from won quotes), material requests,
 -- site expenses. Company-scoped RLS via current_company_ids().
+-- Named ops_projects to avoid clashing with the existing public "projects" table.
 -- Run in Supabase → SQL Editor. Safe to re-run.
 -- ===========================================================================
 
-create table if not exists public.projects (
+create table if not exists public.ops_projects (
   id              uuid primary key default gen_random_uuid(),
   company_id      uuid not null,
   quote_id        uuid,
@@ -23,8 +24,8 @@ create table if not exists public.projects (
   created_at      timestamptz default now(),
   updated_at      timestamptz default now()
 );
-create index if not exists projects_company_idx on public.projects(company_id);
-create index if not exists projects_quote_idx   on public.projects(quote_id);
+create index if not exists ops_projects_company_idx on public.ops_projects(company_id);
+create index if not exists ops_projects_quote_idx   on public.ops_projects(quote_id);
 
 create table if not exists public.material_requests (
   id          uuid primary key default gen_random_uuid(),
@@ -56,12 +57,12 @@ create index if not exists site_expenses_company_idx on public.site_expenses(com
 create index if not exists site_expenses_project_idx on public.site_expenses(project_id);
 
 -- ---- RLS (company-scoped) -------------------------------------------------
-alter table public.projects         enable row level security;
+alter table public.ops_projects     enable row level security;
 alter table public.material_requests enable row level security;
 alter table public.site_expenses    enable row level security;
 
-drop policy if exists projects_rw on public.projects;
-create policy projects_rw on public.projects for all to authenticated
+drop policy if exists ops_projects_rw on public.ops_projects;
+create policy ops_projects_rw on public.ops_projects for all to authenticated
   using      (company_id::text in (select cid::text from public.current_company_ids() cid))
   with check (company_id::text in (select cid::text from public.current_company_ids() cid));
 

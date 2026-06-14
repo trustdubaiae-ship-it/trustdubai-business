@@ -422,9 +422,9 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   // Quote approved → auto-create a Project (once per quote, best-effort).
   async function createProjectFromQuote(q) {
     try {
-      const { data: existing } = await supabase.from('projects').select('id').eq('quote_id', q.id).eq('company_id', company.id).maybeSingle()
+      const { data: existing } = await supabase.from('ops_projects').select('id').eq('quote_id', q.id).eq('company_id', company.id).maybeSingle()
       if (existing) return
-      const { error } = await supabase.from('projects').insert({
+      const { error } = await supabase.from('ops_projects').insert({
         company_id: company.id, quote_id: q.id,
         name: q.project_title || `Project — ${q.client_name || 'Client'}`,
         client_id: q.client_id || null, client_name: q.client_name || null, client_phone: q.client_phone || null,
