@@ -194,8 +194,8 @@ export default function MeetingsPage({ onNavigate }) {
     } catch (e) { console.error(e); toast.error('Could not update') }
   }
 
-  // Planner uses a fixed dark "workspace" palette (premium calendar look) regardless of app theme.
-  const C = { card: '#161d33', border: 'rgba(255,255,255,0.08)', text: '#eef2fb', t2: '#9aa6c4', t3: '#6b7693', bg2: '#0f1628' }
+  // Planner follows the app theme (light / dark) via CSS variables.
+  const C = { card: 'var(--card)', border: 'var(--border)', text: 'var(--text)', t2: 'var(--text2)', t3: 'var(--text3)', bg2: 'var(--bg2)' }
   const cells = monthMatrix(viewDate)
 
   return (
@@ -222,7 +222,6 @@ export default function MeetingsPage({ onNavigate }) {
       {loading ? (
         <div style={{ textAlign: 'center', padding: 50, color: C.t3 }}>Loading…</div>
       ) : (
-        <div style={{ background: 'linear-gradient(160deg,#0c1124 0%,#121a30 100%)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 18, padding: mobile ? 12 : 16, boxShadow: '0 24px 64px -28px rgba(0,0,0,0.7)' }}>
         <div style={{ display: 'flex', flexDirection: mobile ? 'column' : 'row', gap: 16, alignItems: 'flex-start' }}>
           {/* ===== Calendar ===== */}
           <div className="mtg-card mtg-glow" style={{ width: mobile ? '100%' : 360, flexShrink: 0, background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 16, position: 'relative', overflow: 'hidden' }}>
@@ -273,9 +272,8 @@ export default function MeetingsPage({ onNavigate }) {
                   lead={leadById[openClient]} meetings={meetings.filter(m => m.lead_id === openClient)} activity={clientActivity}
                   onBack={() => setOpenClient(null)} onSchedule={() => openNew({ lead_id: openClient, lead_name: leadById[openClient]?.name })}
                   onOpenMeeting={openEdit} onSetFollowup={setClientFollowup} onOpenLead={() => onNavigate && onNavigate('leads')} C={C} />
-              : <DayPanel dateKey={selected} groups={dayGroups} onOpenClient={openClientDetail} onOpenMeeting={openEdit} onNew={() => openNew()} C={C} />}
+              : <DayPanel dateKey={selected} items={dayItems} onOpenClient={openClientDetail} onOpenMeeting={openEdit} onNew={() => openNew()} C={C} />}
           </div>
-        </div>
         </div>
       )}
 
@@ -285,54 +283,56 @@ export default function MeetingsPage({ onNavigate }) {
 }
 
 /* ---------------- Day agenda ---------------- */
-function DayPanel({ dateKey: dk, groups, onOpenClient, onOpenMeeting, onNew, C }) {
-  const total = groups.reduce((n, g) => n + g.items.length, 0)
+function DayPanel({ dateKey: dk, items, onOpenClient, onOpenMeeting, onNew, C }) {
+  const total = items.length
+  const remindTxt = (m) => m ? (m >= 1440 ? '1 day before' : m + ' min before') : ''
   return (
     <div className="mtg-card" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, minHeight: 320, position: 'relative', overflow: 'hidden' }}>
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: GRAD }} />
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-        <div>
-          <div style={{ fontSize: 16, fontWeight: 700 }}>{fmtLong(dk)}</div>
-          <div style={{ fontSize: 12, color: C.t2 }}>{total} {total === 1 ? 'item' : 'items'}</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>{fmtLong(dk)}</div>
+          <div style={{ fontSize: 12, color: C.t2 }}>{total} {total === 1 ? 'item' : 'items'} scheduled</div>
         </div>
-        <button onClick={onNew} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, border: '1px solid rgba(59,130,246,0.4)', background: 'rgba(59,130,246,0.08)', color: '#3b82f6', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
+        <button onClick={onNew} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 9, border: 'none', background: GRAD, color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', boxShadow: '0 6px 16px -6px rgba(99,102,241,0.6)' }}>
           <i className="ti ti-plus" /> Add
         </button>
       </div>
-      {groups.length === 0 ? (
+      {total === 0 ? (
         <div style={{ textAlign: 'center', padding: '46px 16px', color: C.t3 }}>
           <i className="ti ti-calendar-off" style={{ fontSize: 30, display: 'block', marginBottom: 8 }} />
           Nothing scheduled for this day.
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {groups.map((g, gi) => (
-            <div key={gi} className="mtg-grp" style={{ border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
-              <div onClick={() => g.clientId && onOpenClient(g.clientId)} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 13px', background: C.bg2, cursor: g.clientId ? 'pointer' : 'default' }}>
-                <span style={{ width: 30, height: 30, borderRadius: '50%', background: GRAD, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0, boxShadow: '0 4px 12px -4px rgba(99,102,241,0.6)' }}>{(g.clientName || '?')[0]?.toUpperCase()}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.clientName || 'Untitled'}</div>
-                  <div style={{ fontSize: 11, color: C.t3 }}>{g.items.length} {g.items.length === 1 ? 'item' : 'items'}{g.clientId ? ' · view history' : ''}</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {items.map((it, i) => {
+            const kd = KINDS[it.kind] || KINDS.meeting
+            const open = () => it.meeting ? onOpenMeeting(it.meeting) : (it.clientId && onOpenClient(it.clientId))
+            return (
+              <div key={i} onClick={open} className="mtg-row" style={{ display: 'flex', gap: 12, padding: '12px 14px', background: C.bg2, border: `1px solid ${C.border}`, borderLeft: `3px solid ${kd.color}`, borderRadius: 12, cursor: 'pointer', alignItems: 'flex-start', opacity: it.done ? 0.72 : 1 }}>
+                {/* time rail */}
+                <div style={{ width: 48, flexShrink: 0, textAlign: 'center' }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 800, color: it.time ? C.text : C.t3 }}>{it.time ? fmtTime(it.time) : '—'}</div>
+                  {!it.time && <div style={{ fontSize: 9, color: C.t3, marginTop: 1 }}>all day</div>}
                 </div>
-                {g.clientId && <i className="ti ti-chevron-right" style={{ color: C.t3 }} />}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: kd.color + '1f', color: kd.color, fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99 }}><i className={'ti ' + kd.icon} style={{ fontSize: 12 }} /> {kd.label}</span>
+                    {it.done && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: 'rgba(34,197,94,0.16)', color: '#22c55e', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99 }}><i className="ti ti-check" style={{ fontSize: 11 }} /> Done</span>}
+                  </div>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: C.text, textDecoration: it.done ? 'line-through' : 'none', wordBreak: 'break-word' }}>{it.title}</div>
+                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 4 }}>
+                    {it.clientName && <span onClick={e => { e.stopPropagation(); it.clientId && onOpenClient(it.clientId) }} style={{ fontSize: 11.5, color: '#8b5cf6', fontWeight: 600 }}><i className="ti ti-user" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {it.clientName}</span>}
+                    {it.meeting?.location && <span style={{ fontSize: 11.5, color: C.t3 }}><i className="ti ti-map-pin" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {it.meeting.location}</span>}
+                    {it.meeting?.remind_minutes ? <span style={{ fontSize: 11.5, color: C.t3 }}><i className="ti ti-bell" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {remindTxt(it.meeting.remind_minutes)}</span> : null}
+                  </div>
+                  {it.meeting?.notes && <div style={{ fontSize: 11.5, color: C.t2, marginTop: 6, lineHeight: 1.5, wordBreak: 'break-word' }}>{it.meeting.notes}</div>}
+                  {it.meeting?.mom && <div style={{ fontSize: 11, color: C.t2, marginTop: 5, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 9px', lineHeight: 1.5, wordBreak: 'break-word' }}><b style={{ color: C.text }}>MOM:</b> {it.meeting.mom}</div>}
+                </div>
+                <i className="ti ti-chevron-right" style={{ color: C.t3, fontSize: 16, flexShrink: 0, marginTop: 2 }} />
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                {g.items.map((it, ii) => {
-                  const kd = KINDS[it.kind] || KINDS.meeting
-                  return (
-                    <div key={ii} onClick={() => it.meeting && onOpenMeeting(it.meeting)} className="mtg-row" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 13px', borderTop: `1px solid ${C.border}`, borderLeft: `3px solid ${kd.color}`, cursor: it.meeting ? 'pointer' : 'default', opacity: it.done ? 0.6 : 1 }}>
-                      <span style={{ width: 26, height: 26, borderRadius: 7, background: kd.color + '1f', color: kd.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><i className={'ti ' + kd.icon} style={{ fontSize: 14 }} /></span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, textDecoration: it.done ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.title}</div>
-                        <div style={{ fontSize: 11, color: C.t3 }}>{kd.label}{it.time ? ' · ' + fmtTime(it.time) : ''}{it.meeting?.location ? ' · ' + it.meeting.location : ''}</div>
-                      </div>
-                      {it.done && <i className="ti ti-circle-check-filled" style={{ color: '#22c55e', fontSize: 16 }} />}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
@@ -504,5 +504,5 @@ function MeetingModal({ modal, setModal, saving, onSave, onComplete, onDelete, C
 
 const navBtn = (C) => ({ width: 30, height: 30, borderRadius: 8, border: `1px solid ${C.border}`, background: 'transparent', color: C.text, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' })
 const linkBtn = { background: 'none', border: 'none', color: '#3b82f6', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: 0 }
-const field = (C) => ({ width: '100%', padding: '10px 12px', borderRadius: 9, border: `1px solid ${C.border}`, background: C.bg2, color: C.text, fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', colorScheme: 'dark' })
+const field = (C) => ({ width: '100%', padding: '10px 12px', borderRadius: 9, border: `1px solid ${C.border}`, background: 'var(--bg2,rgba(127,127,127,0.05))', color: C.text, fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' })
 const lbl = (C) => ({ fontSize: 12, color: C.t2, display: 'block', marginBottom: 5, fontWeight: 600 })
