@@ -65,6 +65,14 @@ export default function MetaConnect({ onBack, onConnected }) {
   const border=isDark?'rgba(255,255,255,0.08)':'#e2e8f0', cardBg=isDark?'#1e293b':'#ffffff'
   const subBg=isDark?'rgba(255,255,255,0.04)':'#f8fafc'
 
+  const WEBHOOK_BASE = 'https://ribdorraxxhfbfkjhpie.supabase.co/functions/v1/incoming-lead'
+  const webhookUrl = company?.lead_webhook_token ? `${WEBHOOK_BASE}?token=${company.lead_webhook_token}` : ''
+  function copyText(t) {
+    if (!t) return
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(t).then(() => toast.success('Copied ✓')).catch(() => {})
+    else window.prompt('Copy this URL:', t)
+  }
+
   if (loading) return (
     <div style={{ textAlign:'center', padding:50 }}>
       <div style={{ width:34, height:34, border:'3px solid #0099cc', borderTopColor:'transparent', borderRadius:'50%', animation:'spin 0.8s linear infinite', margin:'0 auto' }}/>
@@ -90,6 +98,43 @@ export default function MetaConnect({ onBack, onConnected }) {
             {isConnected ? 'Connected' : 'Not connected'}
           </div>
         </div>
+      </div>
+
+      {/* Auto-capture leads via Meta → Zapier (per-company webhook) */}
+      <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:14, padding:18, marginBottom:14 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
+          <i className="ti ti-webhook" style={{ fontSize:18, color:'#0099cc' }}/>
+          <div style={{ fontSize:15, fontWeight:700, color:text }}>Auto-Capture Leads</div>
+        </div>
+        <p style={{ fontSize:12.5, color:textSub, margin:'0 0 14px', lineHeight:1.6 }}>
+          Connect your Meta Lead Ads through Zapier so every new lead lands in your <b>My Leads</b> automatically. This URL is unique to your business — keep it private.
+        </p>
+        {webhookUrl ? (
+          <>
+            <label style={{ fontSize:11, color:textMuted, display:'block', marginBottom:5 }}>Your lead webhook URL</label>
+            <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:14 }}>
+              <div style={{ flex:1, minWidth:0, fontFamily:'monospace', fontSize:11.5, color:text, background:subBg, border:`1px solid ${border}`, borderRadius:8, padding:'9px 11px', overflowX:'auto', whiteSpace:'nowrap' }}>{webhookUrl}</div>
+              <button onClick={()=>copyText(webhookUrl)} style={{ flexShrink:0, padding:'9px 14px', borderRadius:8, border:'none', background:'#0099cc', color:'#fff', fontSize:12.5, fontWeight:600, cursor:'pointer' }}>Copy</button>
+            </div>
+            <div style={{ background:subBg, border:`1px solid ${border}`, borderRadius:10, padding:'13px 15px' }}>
+              <div style={{ fontSize:11.5, fontWeight:700, color:textSub, textTransform:'uppercase', letterSpacing:'.4px', marginBottom:10 }}>Set up in Zapier (5 min)</div>
+              {[
+                ['Create a Zap', 'Trigger: "Meta Lead Ads" → New Lead — connect your Facebook page & lead form.'],
+                ['Add an action', 'Choose "Webhooks by Zapier" → POST.'],
+                ['Paste your URL', 'Use the webhook URL above as the POST URL.'],
+                ['Map the fields', 'Payload type JSON. Send: name, phone, email, external_id (the Meta lead id) — plus any form answers.'],
+                ['Turn it on', 'Publish the Zap. New Meta leads now appear in My Leads automatically.'],
+              ].map(([t,d], i) => (
+                <div key={i} style={{ display:'flex', gap:10, marginBottom:i<4?11:0 }}>
+                  <div style={{ width:20, height:20, borderRadius:'50%', background:'#0099cc', color:'#fff', fontSize:11, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>{i+1}</div>
+                  <div><div style={{ fontSize:12.5, fontWeight:600, color:text }}>{t}</div><div style={{ fontSize:11.5, color:textSub, lineHeight:1.5 }}>{d}</div></div>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div style={{ fontSize:12, color:textMuted }}>Your webhook URL will appear once the lead-capture token is set up.</div>
+        )}
       </div>
 
       {isConnected ? (
