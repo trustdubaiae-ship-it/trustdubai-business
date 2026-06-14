@@ -14,6 +14,8 @@ const PSTATUS = {
 }
 const MSTATUS = { requested: { l: 'Requested', c: '#64748b' }, approved: { l: 'Approved', c: '#0099cc' }, ordered: { l: 'Ordered', c: '#f59e0b' }, received: { l: 'Received', c: '#22c55e' } }
 const ECAT = { labour: { l: 'Labour', c: '#8b5cf6' }, material: { l: 'Material', c: '#0099cc' }, transport: { l: 'Transport', c: '#f59e0b' }, misc: { l: 'Misc', c: '#64748b' } }
+const SSTATUS = { ongoing: { l: 'Ongoing', c: '#0099cc' }, completed: { l: 'Completed', c: '#22c55e' }, on_hold: { l: 'On Hold', c: '#f59e0b' } }
+const TRADES = ['MEP', 'Electrical', 'Plumbing', 'HVAC', 'Gypsum / Ceiling', 'Tiles / Flooring', 'Joinery', 'Painting', 'Civil', 'Glass / Aluminium', 'Furniture', 'Other']
 const AED = n => 'AED ' + Math.round(Number(n) || 0).toLocaleString('en-AE')
 const fmtD = d => d ? new Date(d).toLocaleDateString('en-AE', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'
 
@@ -28,6 +30,8 @@ export default function ProjectsPage({ onNavigate }) {
   const [tab, setTab] = useState('overview')
   const [materials, setMaterials] = useState([])
   const [expenses, setExpenses] = useState([])
+  const [subs, setSubs] = useState([])
+  const [subForm, setSubForm] = useState(null)
   const [projModal, setProjModal] = useState(null)
   const [matForm, setMatForm] = useState(null)
   const [expForm, setExpForm] = useState(null)
@@ -66,11 +70,12 @@ export default function ProjectsPage({ onNavigate }) {
   }
   async function reloadChildren(pid) {
     const id = pid || active?.id; if (!id) return
-    const [m, e] = await Promise.all([
+    const [m, e, s] = await Promise.all([
       supabase.from('material_requests').select('*').eq('project_id', id).order('created_at', { ascending: false }),
       supabase.from('site_expenses').select('*').eq('project_id', id).order('spent_on', { ascending: false }),
+      supabase.from('project_subcontractors').select('*').eq('project_id', id).order('created_at', { ascending: false }),
     ])
-    setMaterials(m.data || []); setExpenses(e.data || [])
+    setMaterials(m.data || []); setExpenses(e.data || []); setSubs(s.data || [])
   }
 
   function newProject() { setProjModal({ isNew: true, p: { name: '', client_name: '', client_phone: '', status: 'planning', contract_value: 0, start_date: '', end_date: '', location: '', notes: '', progress: 0 } }) }
@@ -129,10 +134,26 @@ export default function ProjectsPage({ onNavigate }) {
   }
   async function delExpense(id) { try { await supabase.from('site_expenses').delete().eq('id', id).eq('company_id', company.id); reloadChildren() } catch (e) { toast.error('Delete failed') } }
 
+  async function saveSub() {
+    const x = subForm
+    if (!x.name?.trim()) { toast.error('Subcontractor name is required'); return }
+    setSaving(true)
+    try {
+      const payload = { company_id: company.id, project_id: active.id, name: x.name.trim(), trade: x.trade || null, phone: x.phone || null, contract_amount: Number(x.contract_amount) || 0, paid_amount: Number(x.paid_amount) || 0, status: x.status || 'ongoing', notes: x.notes || null }
+      if (x.id) { const { error } = await supabase.from('project_subcontractors').update(payload).eq('id', x.id).eq('company_id', company.id); if (error) throw error }
+      else { const { error } = await supabase.from('project_subcontractors').insert(payload); if (error) throw error }
+      setSubForm(null); toast.success('Saved ✓'); reloadChildren()
+    } catch (e) { console.error(e); toast.error('Save failed: ' + (e?.message || e)) } finally { setSaving(false) }
+  }
+  async function delSub(id) { try { await supabase.from('project_subcontractors').delete().eq('id', id).eq('company_id', company.id); reloadChildren() } catch (e) { toast.error('Delete failed') } }
+
   const totalExpenses = expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0)
   const totalMaterials = materials.reduce((s, m) => s + (Number(m.est_cost) || 0), 0)
+  const totalSubs = subs.reduce((s, x) => s + (Number(x.contract_amount) || 0), 0)
+  const subsPaid = subs.reduce((s, x) => s + (Number(x.paid_amount) || 0), 0)
   const value = Number(active?.contract_value) || 0
-  const margin = value - totalExpenses
+  const totalCost = totalSubs + totalExpenses
+  const margin = value - totalCost
   const marginPct = value > 0 ? Math.round((margin / value) * 100) : 0
 
   const card = { background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: 16 }
@@ -210,14 +231,14 @@ export default function ProjectsPage({ onNavigate }) {
 
       {/* budget summary */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px,1fr))', gap: 10, marginBottom: 16 }}>
-        {[['Contract value', AED(value), '#0099cc'], ['Spent', AED(totalExpenses), '#ef4444'], ['Materials (est)', AED(totalMaterials), '#f59e0b'], [margin >= 0 ? 'Profit' : 'Loss', AED(Math.abs(margin)) + (value > 0 ? ` · ${marginPct}%` : ''), margin >= 0 ? '#22c55e' : '#ef4444']].map(([k, v, c]) => (
+        {[['Contract value', AED(value), '#0099cc'], ['Subcontractors', AED(totalSubs), '#8b5cf6'], ['Site expenses', AED(totalExpenses), '#f59e0b'], ['Total cost', AED(totalCost), '#ef4444'], [margin >= 0 ? 'Profit' : 'Loss', AED(Math.abs(margin)) + (value > 0 ? ` · ${marginPct}%` : ''), margin >= 0 ? '#22c55e' : '#ef4444']].map(([k, v, c]) => (
           <div key={k} style={{ ...card, padding: '12px 14px' }}><div style={{ fontSize: 11, color: 'var(--text2)' }}>{k}</div><div style={{ fontSize: 18, fontWeight: 700, marginTop: 2, color: c }}>{v}</div></div>
         ))}
       </div>
 
       {/* tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
-        {[['overview', 'Overview', 'ti-layout'], ['materials', `Materials (${materials.length})`, 'ti-package'], ['expenses', `Expenses (${expenses.length})`, 'ti-coin']].map(([k, l, ic]) => (
+        {[['overview', 'Overview', 'ti-layout'], ['subs', `Subcontractors (${subs.length})`, 'ti-users-group'], ['materials', `Materials (${materials.length})`, 'ti-package'], ['expenses', `Expenses (${expenses.length})`, 'ti-coin']].map(([k, l, ic]) => (
           <button key={k} onClick={() => setTab(k)} style={{ padding: '9px 15px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13.5, fontWeight: 600, whiteSpace: 'nowrap', color: tab === k ? 'var(--primary)' : 'var(--text2)', borderBottom: tab === k ? '2px solid var(--primary)' : '2px solid transparent', marginBottom: -1 }}><i className={'ti ' + ic} style={{ fontSize: 15, verticalAlign: '-2px', marginRight: 4 }} />{l}</button>
         ))}
       </div>
@@ -241,6 +262,39 @@ export default function ProjectsPage({ onNavigate }) {
           <label style={{ ...lbl, marginTop: 14 }}>Notes</label>
           <textarea value={active.notes || ''} onChange={e => setActive(a => ({ ...a, notes: e.target.value }))} onBlur={e => patchActive({ notes: e.target.value || null })} rows={3} style={{ ...input, resize: 'vertical', minHeight: 70 }} placeholder="Scope, site details, key dates…" />
           {active.quote_id && <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 10 }}><i className="ti ti-file-invoice" /> Linked to a quotation</div>}
+        </div>
+      )}
+
+      {tab === 'subs' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ fontSize: 12.5, color: 'var(--text2)' }}>Contracts: <b style={{ color: '#8b5cf6' }}>{AED(totalSubs)}</b> · Paid: <b style={{ color: '#22c55e' }}>{AED(subsPaid)}</b> · Balance: <b style={{ color: '#ef4444' }}>{AED(totalSubs - subsPaid)}</b></div>
+            <button onClick={() => setSubForm({ name: '', trade: 'MEP', phone: '', contract_amount: 0, paid_amount: 0, status: 'ongoing', notes: '' })} className="btn btn-primary btn-sm"><i className="ti ti-plus" /> Add subcontractor</button>
+          </div>
+          {subs.length === 0 ? <div style={{ ...card, textAlign: 'center', color: 'var(--text3)', padding: '34px 16px' }}>No subcontractors yet. Add MEP, Gypsum, Tiles…</div>
+            : <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+              {subs.map(s => { const ss = SSTATUS[s.status] || SSTATUS.ongoing; const bal = (Number(s.contract_amount) || 0) - (Number(s.paid_amount) || 0); return (
+                <div key={s.id} style={{ ...card, padding: '12px 14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1, minWidth: 160 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 14, fontWeight: 700 }}>{s.name}</span>
+                        {s.trade && <Badge c="#8b5cf6">{s.trade}</Badge>}
+                        <Badge c={ss.c}>{ss.l}</Badge>
+                      </div>
+                      {s.phone && <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}><i className="ti ti-phone" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {s.phone}{s.notes ? ' · ' + s.notes : ''}</div>}
+                    </div>
+                    <button onClick={() => setSubForm({ ...s })} style={iconBtn}><i className="ti ti-edit" style={{ fontSize: 15 }} /></button>
+                    <button onClick={() => delSub(s.id)} style={{ ...iconBtn, color: '#ef4444' }}><i className="ti ti-trash" style={{ fontSize: 15 }} /></button>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginTop: 10 }}>
+                    {[['Contract', AED(s.contract_amount), 'var(--text)'], ['Paid', AED(s.paid_amount), '#22c55e'], ['Balance', AED(bal), bal > 0 ? '#ef4444' : '#22c55e']].map(([k, v, c]) => (
+                      <div key={k} style={{ background: 'var(--bg2)', borderRadius: 8, padding: '8px 10px' }}><div style={{ fontSize: 10, color: 'var(--text3)' }}>{k}</div><div style={{ fontSize: 13.5, fontWeight: 700, color: c }}>{v}</div></div>
+                    ))}
+                  </div>
+                </div>
+              ) })}
+            </div>}
         </div>
       )}
 
@@ -314,6 +368,19 @@ export default function ProjectsPage({ onNavigate }) {
           <div><label style={lbl}>Amount (AED)</label><input type="number" autoFocus value={expForm.amount} onChange={e => setExpForm(x => ({ ...x, amount: e.target.value }))} style={input} /></div>
           <div><label style={lbl}>Date</label><input type="date" value={expForm.spent_on} onChange={e => setExpForm(x => ({ ...x, spent_on: e.target.value }))} style={input} /></div>
         </div>
+      </FormModal>}
+      {subForm && <FormModal title={subForm.id ? 'Edit subcontractor' : 'Add subcontractor'} onClose={() => setSubForm(null)} onSave={saveSub} saving={saving}>
+        <label style={lbl}>Name</label><input autoFocus value={subForm.name} onChange={e => setSubForm(s => ({ ...s, name: e.target.value }))} style={{ ...input, marginBottom: 10 }} placeholder="e.g. Al Noor MEP Works" />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+          <div><label style={lbl}>Trade / scope</label><select value={subForm.trade} onChange={e => setSubForm(s => ({ ...s, trade: e.target.value }))} style={input}>{TRADES.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
+          <div><label style={lbl}>Phone</label><input value={subForm.phone} onChange={e => setSubForm(s => ({ ...s, phone: e.target.value }))} style={input} /></div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+          <div><label style={lbl}>Contract amount (AED)</label><input type="number" value={subForm.contract_amount} onChange={e => setSubForm(s => ({ ...s, contract_amount: e.target.value }))} style={input} /></div>
+          <div><label style={lbl}>Paid so far (AED)</label><input type="number" value={subForm.paid_amount} onChange={e => setSubForm(s => ({ ...s, paid_amount: e.target.value }))} style={input} /></div>
+        </div>
+        <label style={lbl}>Status</label><select value={subForm.status} onChange={e => setSubForm(s => ({ ...s, status: e.target.value }))} style={{ ...input, marginBottom: 10 }}>{Object.entries(SSTATUS).map(([k, v]) => <option key={k} value={k}>{v.l}</option>)}</select>
+        <label style={lbl}>Notes / scope detail</label><input value={subForm.notes} onChange={e => setSubForm(s => ({ ...s, notes: e.target.value }))} style={input} placeholder="Scope of work…" />
       </FormModal>}
     </div>
   )
