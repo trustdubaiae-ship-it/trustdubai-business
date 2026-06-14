@@ -17,6 +17,24 @@ const KINDS = {
 const REMIND = [[0, 'No reminder'], [15, '15 min'], [30, '30 min'], [60, '1 hour'], [1440, '1 day']]
 const WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+const GRAD = 'linear-gradient(135deg,#3b82f6 0%,#8b5cf6 55%,#06b6d4 100%)'
+
+const MEET_CSS = `
+@keyframes mtgFade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes mtgPop{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}
+.mtg-card{animation:mtgFade .35s cubic-bezier(.2,.7,.2,1) both}
+.mtg-grad-text{background:${GRAD};-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
+.mtg-cell{transition:transform .12s ease, background .15s, box-shadow .2s}
+.mtg-cell:hover{transform:translateY(-2px)}
+.mtg-cell:hover .mtg-cellbg{opacity:1}
+.mtg-row{transition:background .15s, transform .12s}
+.mtg-row:hover{background:rgba(99,102,241,.07)}
+.mtg-grp{transition:box-shadow .2s, transform .12s}
+.mtg-grp:hover{box-shadow:0 10px 30px -14px rgba(99,102,241,.5)}
+.mtg-btn-grad{background:${GRAD};background-size:160% 160%;transition:background-position .4s, box-shadow .2s, transform .1s;box-shadow:0 6px 18px -6px rgba(99,102,241,.6)}
+.mtg-btn-grad:hover{background-position:100% 100%;transform:translateY(-1px)}
+.mtg-glow{box-shadow:0 10px 34px -14px rgba(99,102,241,.4)}
+`
 
 function pad(n) { return String(n).padStart(2, '0') }
 function dateKey(d) { const x = new Date(d); return `${x.getFullYear()}-${pad(x.getMonth() + 1)}-${pad(x.getDate())}` }
@@ -181,15 +199,19 @@ export default function MeetingsPage({ onNavigate }) {
 
   return (
     <div style={{ color: C.text }}>
+      <style>{MEET_CSS}</style>
       {/* header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
-        <div>
-          <h1 className="font-syne fw-700" style={{ fontSize: 23, margin: 0, display: 'flex', alignItems: 'center', gap: 9 }}>
-            <i className="ti ti-calendar-event" style={{ color: '#3b82f6' }} /> Meetings
-          </h1>
-          <p style={{ fontSize: 13, color: C.t2, margin: '4px 0 0' }}>Calendar of meetings, site visits & follow-ups — synced with every lead.</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 46, height: 46, borderRadius: 14, background: GRAD, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 22px -6px rgba(99,102,241,.6)', flexShrink: 0 }}>
+            <i className="ti ti-calendar-event" style={{ fontSize: 24, color: '#fff' }} />
+          </div>
+          <div>
+            <h1 className="font-syne fw-700 mtg-grad-text" style={{ fontSize: 25, margin: 0 }}>Meetings</h1>
+            <p style={{ fontSize: 13, color: C.t2, margin: '2px 0 0' }}>Calendar of meetings, site visits & follow-ups — synced with every lead.</p>
+          </div>
         </div>
-        <button onClick={() => openNew()} className="btn btn-primary"><i className="ti ti-plus" style={{ verticalAlign: '-2px', marginRight: 4 }} /> New</button>
+        <button onClick={() => openNew()} className="mtg-btn-grad" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '11px 18px', borderRadius: 11, border: 'none', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}><i className="ti ti-plus" style={{ fontSize: 17 }} /> New</button>
       </div>
 
       {loading ? (
@@ -197,7 +219,8 @@ export default function MeetingsPage({ onNavigate }) {
       ) : (
         <div style={{ display: 'flex', flexDirection: mobile ? 'column' : 'row', gap: 16, alignItems: 'flex-start' }}>
           {/* ===== Calendar ===== */}
-          <div style={{ width: mobile ? '100%' : 360, flexShrink: 0, background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 16 }}>
+          <div className="mtg-card mtg-glow" style={{ width: mobile ? '100%' : 360, flexShrink: 0, background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 16, position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: GRAD }} />
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <div style={{ fontSize: 15, fontWeight: 700 }}>{MONTHS[viewDate.getMonth()]} {viewDate.getFullYear()}</div>
               <div style={{ display: 'flex', gap: 6 }}>
@@ -218,11 +241,11 @@ export default function MeetingsPage({ onNavigate }) {
                 const isSel = k === selected
                 const kinds = [...new Set(items.map(it => it.kind))].slice(0, 4)
                 return (
-                  <button key={i} onClick={() => { setSelected(k); setOpenClient(null) }}
-                    style={{ aspectRatio: '1', border: isSel ? '1.5px solid #3b82f6' : `1px solid ${isToday ? '#3b82f6' : 'transparent'}`, background: isSel ? 'rgba(59,130,246,0.12)' : 'transparent', borderRadius: 9, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, padding: 2, position: 'relative' }}>
-                    <span style={{ fontSize: 12.5, fontWeight: isSel || isToday ? 800 : 500, color: isSel ? '#3b82f6' : C.text }}>{d.getDate()}</span>
+                  <button key={i} onClick={() => { setSelected(k); setOpenClient(null) }} className="mtg-cell"
+                    style={{ aspectRatio: '1', border: isSel ? 'none' : `1px solid ${isToday ? 'rgba(99,102,241,0.5)' : 'transparent'}`, background: isSel ? GRAD : (isToday ? 'rgba(99,102,241,0.08)' : 'transparent'), borderRadius: 10, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, padding: 2, position: 'relative', boxShadow: isSel ? '0 8px 20px -6px rgba(99,102,241,0.65)' : 'none' }}>
+                    <span style={{ fontSize: 12.5, fontWeight: isSel || isToday ? 800 : 500, color: isSel ? '#fff' : (isToday ? '#6366f1' : C.text) }}>{d.getDate()}</span>
                     <span style={{ display: 'flex', gap: 2, height: 5 }}>
-                      {kinds.map(kn => <span key={kn} style={{ width: 5, height: 5, borderRadius: '50%', background: (KINDS[kn] || KINDS.meeting).color }} />)}
+                      {kinds.map(kn => { const c = (KINDS[kn] || KINDS.meeting).color; return <span key={kn} style={{ width: 5, height: 5, borderRadius: '50%', background: isSel ? '#fff' : c, boxShadow: isSel ? 'none' : `0 0 5px ${c}` }} /> })}
                     </span>
                   </button>
                 )
@@ -258,7 +281,8 @@ export default function MeetingsPage({ onNavigate }) {
 function DayPanel({ dateKey: dk, groups, onOpenClient, onOpenMeeting, onNew, C }) {
   const total = groups.reduce((n, g) => n + g.items.length, 0)
   return (
-    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, minHeight: 320 }}>
+    <div className="mtg-card" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, minHeight: 320, position: 'relative', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: GRAD }} />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
         <div>
           <div style={{ fontSize: 16, fontWeight: 700 }}>{fmtLong(dk)}</div>
@@ -276,9 +300,9 @@ function DayPanel({ dateKey: dk, groups, onOpenClient, onOpenMeeting, onNew, C }
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {groups.map((g, gi) => (
-            <div key={gi} style={{ border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
+            <div key={gi} className="mtg-grp" style={{ border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
               <div onClick={() => g.clientId && onOpenClient(g.clientId)} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 13px', background: C.bg2, cursor: g.clientId ? 'pointer' : 'default' }}>
-                <span style={{ width: 30, height: 30, borderRadius: '50%', background: '#8b5cf61f', color: '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>{(g.clientName || '?')[0]?.toUpperCase()}</span>
+                <span style={{ width: 30, height: 30, borderRadius: '50%', background: GRAD, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0, boxShadow: '0 4px 12px -4px rgba(99,102,241,0.6)' }}>{(g.clientName || '?')[0]?.toUpperCase()}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13.5, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.clientName || 'Untitled'}</div>
                   <div style={{ fontSize: 11, color: C.t3 }}>{g.items.length} {g.items.length === 1 ? 'item' : 'items'}{g.clientId ? ' · view history' : ''}</div>
@@ -289,7 +313,7 @@ function DayPanel({ dateKey: dk, groups, onOpenClient, onOpenMeeting, onNew, C }
                 {g.items.map((it, ii) => {
                   const kd = KINDS[it.kind] || KINDS.meeting
                   return (
-                    <div key={ii} onClick={() => it.meeting && onOpenMeeting(it.meeting)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 13px', borderTop: `1px solid ${C.border}`, cursor: it.meeting ? 'pointer' : 'default', opacity: it.done ? 0.6 : 1 }}>
+                    <div key={ii} onClick={() => it.meeting && onOpenMeeting(it.meeting)} className="mtg-row" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 13px', borderTop: `1px solid ${C.border}`, cursor: it.meeting ? 'pointer' : 'default', opacity: it.done ? 0.6 : 1 }}>
                       <span style={{ width: 26, height: 26, borderRadius: 7, background: kd.color + '1f', color: kd.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><i className={'ti ' + kd.icon} style={{ fontSize: 14 }} /></span>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 13, fontWeight: 600, textDecoration: it.done ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.title}</div>
@@ -322,11 +346,12 @@ function ClientDetail({ lead, meetings, activity, onBack, onSchedule, onOpenMeet
   const upcoming = meetings.filter(m => m.status !== 'done' && new Date(m.start_at).getTime() >= now).sort((a, b) => new Date(a.start_at) - new Date(b.start_at))
   const pastM = meetings.filter(m => m.status === 'done' || new Date(m.start_at).getTime() < now).sort((a, b) => new Date(b.start_at) - new Date(a.start_at))
   return (
-    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18 }}>
+    <div className="mtg-card" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, position: 'relative', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: GRAD }} />
       <button onClick={onBack} style={linkBtn}>← Back to day</button>
       {/* client head */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '12px 0 14px' }}>
-        <span style={{ width: 46, height: 46, borderRadius: '50%', background: '#8b5cf61f', color: '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 19, flexShrink: 0 }}>{(lead.name || '?')[0]?.toUpperCase()}</span>
+        <span style={{ width: 48, height: 48, borderRadius: '50%', background: GRAD, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 20, flexShrink: 0, boxShadow: '0 8px 20px -6px rgba(99,102,241,0.6)' }}>{(lead.name || '?')[0]?.toUpperCase()}</span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 17, fontWeight: 700 }}>{lead.name || 'Lead'}</div>
           <div style={{ fontSize: 12, color: C.t2, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
