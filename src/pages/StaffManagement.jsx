@@ -66,8 +66,8 @@ export default function StaffManagement() {
   if (loading) return <div style={{ padding: 32, color: "#94a3b8" }}>Loading staff…</div>;
 
   return (
-    <div style={{ padding: 24, maxWidth: 880, margin: "0 auto" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+    <div style={{ padding: "clamp(16px,4vw,24px)", maxWidth: 880, margin: "0 auto" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 4 }}>
         <h1 style={{ fontSize: 22, fontWeight: 800, color: "#0f172a", margin: 0 }}>Team / Staff</h1>
         <button onClick={() => setShowAdd(true)} disabled={!canAdd}
           style={{ padding: "9px 16px", borderRadius: 9, border: "none", color: "#fff",
@@ -93,9 +93,10 @@ export default function StaffManagement() {
             const badge = STATUS_BADGE[s.status] || STATUS_BADGE.invited;
             return (
               <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                flexWrap: "wrap", gap: 10,
                 background: "#fff", border: "0.5px solid #e2e8f0", borderRadius: 12, padding: 14,
                 opacity: s.active ? 1 : 0.6 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0, flex: "1 1 180px" }}>
                   <div style={{ width: 40, height: 40, borderRadius: "50%", background: BRAND, color: "#fff",
                     display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, flexShrink: 0 }}>
                     {s.name?.charAt(0)?.toUpperCase() || "?"}

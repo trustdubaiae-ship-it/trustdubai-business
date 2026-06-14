@@ -83,7 +83,7 @@ export default function NotificationsPage() {
 
   return (
     <div style={{ padding:24, maxWidth:860, margin:'0 auto' }}>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, flexWrap:'wrap', marginBottom:6 }}>
         <h1 style={{ fontSize:22, fontWeight:800, color:'#0f172a', margin:0 }}>
           Notifications {unread>0 && <span style={{ fontSize:13, color:BRAND }}>({unread} new)</span>}
         </h1>

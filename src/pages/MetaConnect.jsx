@@ -111,9 +111,9 @@ export default function MetaConnect({ onBack, onConnected }) {
                 ['Facebook page', conn.page_name],
                 ['Instagram', conn.ig_username],
               ].map(([k,v]) => (
-                <div key={k} style={{ display:'flex', justifyContent:'space-between', padding:'7px 0', fontSize:13 }}>
-                  <span style={{ color:textSub }}>{k}</span>
-                  <span style={{ color:text, fontWeight:600 }}>{v||'—'}</span>
+                <div key={k} style={{ display:'flex', justifyContent:'space-between', gap:12, padding:'7px 0', fontSize:13 }}>
+                  <span style={{ color:textSub, flexShrink:0 }}>{k}</span>
+                  <span style={{ color:text, fontWeight:600, textAlign:'right', wordBreak:'break-word', minWidth:0 }}>{v||'—'}</span>
                 </div>
               ))}
             </div>

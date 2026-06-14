@@ -158,10 +158,10 @@ export default function RegisterPage({ onBack }) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', background: 'linear-gradient(135deg, #0d1117 0%, #161b22 100%)', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', flexWrap: 'wrap', background: 'linear-gradient(135deg, #0d1117 0%, #161b22 100%)', position: 'relative', overflow: 'hidden' }}>
       <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(232,184,75,0.07) 0%, transparent 50%)', pointerEvents: 'none' }} />
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '60px', position: 'relative' }}>
+      <div style={{ flex: '1 1 360px', minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: 'clamp(28px, 6vw, 60px)', position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 48 }}>
           <div style={{ width: 44, height: 44, background: 'linear-gradient(135deg, #e8b84b, #c9952a)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 18, color: '#0d1117' }}>T</div>
           <div>
@@ -169,7 +169,7 @@ export default function RegisterPage({ onBack }) {
             <div style={{ fontSize: 11, color: '#6e7681', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Business Registration</div>
           </div>
         </div>
-        <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 42, color: '#ffffff', lineHeight: 1.2, marginBottom: 16, maxWidth: 440 }}>
+        <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 'clamp(28px, 6vw, 42px)', color: '#ffffff', lineHeight: 1.2, marginBottom: 16, maxWidth: 440 }}>
           List your business.<br /><span style={{ color: '#e8b84b' }}>Build trust.</span>
         </h1>
         <p style={{ fontSize: 15, color: '#8b949e', maxWidth: 380, lineHeight: 1.8, marginBottom: 40 }}>Join hundreds of Dubai businesses. Get verified, showcase your work, attract more clients.</p>
@@ -185,8 +185,8 @@ export default function RegisterPage({ onBack }) {
         </div>
       </div>
 
-      <div style={{ width: 480, overflowY: 'auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 40 }}>
-        <div style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: 36, backdropFilter: 'blur(20px)', marginTop: 40, marginBottom: 40 }}>
+      <div style={{ flex: '1 1 360px', width: '100%', maxWidth: 480, overflowY: 'auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 'clamp(20px, 4vw, 40px)' }}>
+        <div style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: 'clamp(20px, 4vw, 36px)', backdropFilter: 'blur(20px)', marginTop: 40, marginBottom: 40 }}>
           <div style={{ fontSize: 11, color: '#6e7681', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>Step {step + 1} of {STEPS.length}</div>
           <h2 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 20, color: '#fff', marginBottom: 6 }}>{STEPS[step]}</h2>
           <div style={{ height: 3, background: 'rgba(255,255,255,0.08)', borderRadius: 99, marginBottom: 24, overflow: 'hidden' }}>

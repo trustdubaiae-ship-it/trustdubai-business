@@ -96,11 +96,11 @@ export default function DocumentVerification() {
           const badge = STATUS_BADGE[st] || null
 
           return (
-            <div key={doc.doc_key} style={{ background:'var(--card-bg)', border:'1px solid var(--card-border)', borderRadius:14, padding:'14px 16px', display:'flex', alignItems:'center', gap:14 }}>
+            <div key={doc.doc_key} style={{ background:'var(--card-bg)', border:'1px solid var(--card-border)', borderRadius:14, padding:'14px 16px', display:'flex', alignItems:'center', gap:14, flexWrap:'wrap' }}>
               <div style={{ width:42, height:42, borderRadius:11, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:19, background: st==='verified' ? 'rgba(34,197,94,0.12)' : 'var(--bg2)', color: st==='verified' ? GREEN : 'var(--text-muted)' }}>
                 <i className={`ti ${st==='verified' ? 'ti-circle-check' : 'ti-file-text'}`} />
               </div>
-              <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ flex:1, minWidth:120 }}>
                 <div style={{ fontSize:14, fontWeight:700, color:'var(--text-primary)' }}>{doc.label}</div>
                 <div style={{ fontSize:11.5, color:'var(--text-muted)', marginTop:2 }}>
                   {isAuto

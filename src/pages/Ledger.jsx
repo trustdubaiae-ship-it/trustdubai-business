@@ -75,7 +75,7 @@ export default function Ledger() {
         <p style={{ fontSize: 13, color: textSub, marginTop: 3 }}>Every payment received, across all invoices</p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 14 }}>
         <div style={{ ...card, marginBottom: 0, textAlign: 'center' }}><div style={{ fontSize: 11, color: textMuted }}>Received (this month)</div><div style={{ fontSize: 18, fontWeight: 700, color: '#0f6e56' }}>{fmt(totalMonth)}</div></div>
         <div style={{ ...card, marginBottom: 0, textAlign: 'center' }}><div style={{ fontSize: 11, color: textMuted }}>Received (all time)</div><div style={{ fontSize: 18, fontWeight: 700, color: text }}>{fmt(totalAll)}</div></div>
       </div>

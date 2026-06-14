@@ -4,7 +4,7 @@ export default function NoCompanyPage() {
   const { user, signOut } = useAuth()
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', padding: 20 }}>
-      <div style={{ background: 'white', borderRadius: 20, padding: '48px 40px', textAlign: 'center', maxWidth: 440, boxShadow: '0 8px 40px rgba(0,0,0,0.08)', border: '1px solid var(--card-border)' }}>
+      <div style={{ background: 'white', borderRadius: 20, padding: 'clamp(28px, 6vw, 48px) clamp(20px, 5vw, 40px)', textAlign: 'center', width: '100%', maxWidth: 440, boxShadow: '0 8px 40px rgba(0,0,0,0.08)', border: '1px solid var(--card-border)' }}>
         <div style={{ width: 72, height: 72, borderRadius: 18, background: '#fef9ed', border: '1px solid #fcd34d', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: 32 }}>🏢</div>
         <h2 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 22, marginBottom: 10 }}>No Business Found</h2>
         <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: 8 }}>

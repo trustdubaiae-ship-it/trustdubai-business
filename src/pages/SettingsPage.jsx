@@ -130,7 +130,7 @@ export default function SettingsPage() {
         <p className="text-secondary" style={{ fontSize: 14 }}>Manage your account preferences</p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
         {/* Notifications */}
         <div className="card">
           <div className="card-title" style={{ marginBottom: 18 }}>Notifications</div>
@@ -187,7 +187,7 @@ export default function SettingsPage() {
                   <span style={{ padding: '9px 10px', background: 'var(--bg-secondary)', fontSize: 12, color: 'var(--text-muted)', borderRight: '1px solid var(--card-border)', whiteSpace: 'nowrap' }}>
                     trustdubai.ae/company/
                   </span>
-                  <span style={{ flex: 1, padding: '9px 10px', fontSize: 13, color: 'var(--text-primary)' }}>
+                  <span style={{ flex: 1, minWidth: 0, padding: '9px 10px', fontSize: 13, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {company?.slug}
                   </span>
                   <span style={{ padding: '9px 10px', fontSize: 16 }}>🔒</span>
@@ -201,8 +201,8 @@ export default function SettingsPage() {
               </div>
             ) : (
               <div>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                  <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--card-border)', borderRadius: 8, overflow: 'hidden' }}>
                       <span style={{ padding: '9px 10px', background: 'var(--bg-secondary)', fontSize: 12, color: 'var(--text-muted)', borderRight: '1px solid var(--card-border)', whiteSpace: 'nowrap' }}>
                         trustdubai.ae/company/
@@ -211,7 +211,7 @@ export default function SettingsPage() {
                         value={slug}
                         onChange={e => checkSlug(e.target.value)}
                         placeholder="your-company"
-                        style={{ flex: 1, border: 'none', outline: 'none', padding: '9px 10px', fontSize: 13, background: 'transparent' }}
+                        style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', padding: '9px 10px', fontSize: 13, background: 'transparent' }}
                       />
                     </div>
                     {slugStatus && (

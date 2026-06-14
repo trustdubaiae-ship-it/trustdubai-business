@@ -294,7 +294,7 @@ export default function VerificationPage() {
 
       {/* TRADE LICENSE CARD (with small thumbnail) */}
       <div style={{ background: '#fff', border: '1px solid #e6e9ee', borderRadius: 12, padding: 18, marginBottom: 14 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
           <div>
             <span style={{ fontWeight: 600 }}>Trade License</span>
             <span style={{ color: '#c0392b', marginLeft: 6, fontSize: 12 }}>* required</span>
@@ -337,7 +337,7 @@ export default function VerificationPage() {
 
       {/* OWNER EMIRATES ID CARD */}
       <div style={{ background: '#fff', border: '1px solid #e6e9ee', borderRadius: 12, padding: 18, marginBottom: 14 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
           <div>
             <span style={{ fontWeight: 600 }}>Owner Emirates ID</span>
             <span style={{ color: '#999', marginLeft: 6, fontSize: 12 }}>optional</span>
@@ -382,7 +382,7 @@ export default function VerificationPage() {
 
       {/* PHONE */}
       <div style={{ background: '#fafbfc', border: '1px dashed #cfd6df', borderRadius: 12, padding: 18, marginBottom: 14 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ fontWeight: 600 }}>Phone Verification
             <span style={{ color: BRAND, marginLeft: 8, fontSize: 12, fontWeight: 600 }}>+5%</span>
           </span>

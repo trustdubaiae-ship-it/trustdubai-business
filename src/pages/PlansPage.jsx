@@ -95,9 +95,9 @@ export default function PlansPage() {
       </div>
 
       {expiryInfo && expiryInfo.urgent && (
-        <div style={{ background: expiryInfo.bg, border: '1px solid ' + expiryInfo.border, borderRadius: 'var(--radius)', padding: '14px 20px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{ background: expiryInfo.bg, border: '1px solid ' + expiryInfo.border, borderRadius: 'var(--radius)', padding: '14px 20px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
           <AlertTriangle size={20} color={expiryInfo.color} />
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: 200 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: expiryInfo.color }}>
               {expiryInfo.expired ? 'Your plan has expired!' : 'Your plan is expiring soon!'}
             </div>
@@ -114,11 +114,11 @@ export default function PlansPage() {
         </div>
       )}
 
-      <div style={{ background: 'linear-gradient(135deg, #0d1117, #161b22)', border: '1px solid rgba(232,184,75,0.2)', borderRadius: 'var(--radius)', padding: '16px 24px', display: 'flex', alignItems: 'center', gap: 16, marginBottom: 28 }}>
-        <div style={{ width: 44, height: 44, borderRadius: 10, background: 'rgba(232,184,75,0.1)', border: '1px solid rgba(232,184,75,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ background: 'linear-gradient(135deg, #0d1117, #161b22)', border: '1px solid rgba(232,184,75,0.2)', borderRadius: 'var(--radius)', padding: '16px 24px', display: 'flex', alignItems: 'center', gap: 16, marginBottom: 28, flexWrap: 'wrap' }}>
+        <div style={{ width: 44, height: 44, borderRadius: 10, background: 'rgba(232,184,75,0.1)', border: '1px solid rgba(232,184,75,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           <Crown size={20} color="#e8b84b" />
         </div>
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, minWidth: 180 }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: 'white' }}>
             Currently on: <span style={{ color: '#e8b84b', textTransform: 'capitalize' }}>{currentPlan}</span> Plan
           </div>
@@ -199,9 +199,9 @@ export default function PlansPage() {
         })}
       </div>
 
-      <div style={{ marginTop: 28, padding: '16px 20px', background: 'var(--bg)', border: '1px solid var(--card-border)', borderRadius: 'var(--radius)', display: 'flex', alignItems: 'center', gap: 14 }}>
+      <div style={{ marginTop: 28, padding: '16px 20px', background: 'var(--bg)', border: '1px solid var(--card-border)', borderRadius: 'var(--radius)', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 20 }}>💬</span>
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, minWidth: 180 }}>
           <div style={{ fontWeight: 600, fontSize: 13.5 }}>Need help choosing?</div>
           <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>Contact our team on WhatsApp for guidance and payment support</div>
         </div>

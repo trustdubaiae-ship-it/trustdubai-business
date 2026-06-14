@@ -406,9 +406,9 @@ export default function QuoteSettings() {
               )}
             </button>
           ))}
-          <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+          <div style={{ display:'flex', gap:6, alignItems:'center', flex:'1 1 160px', minWidth:0 }}>
             <input value={newType} onChange={e=>setNewType(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter'){ e.preventDefault(); addType() } }}
-              placeholder="New work type" style={{ ...inputStyle, width:140, padding:'7px 9px' }}/>
+              placeholder="New work type" style={{ ...inputStyle, flex:1, minWidth:0, padding:'7px 9px' }}/>
             <button onClick={addType} style={{ padding:'7px 12px', borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:'#0099cc', fontSize:12.5, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>
               <i className="ti ti-plus" style={{ fontSize:12, verticalAlign:'-2px' }}/> Add
             </button>

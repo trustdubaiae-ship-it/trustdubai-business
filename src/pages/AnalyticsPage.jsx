@@ -87,7 +87,7 @@ export default function AnalyticsPage() {
         </div>
         <div style={{
           background: 'var(--card-bg)', border: '1px solid var(--card-border)',
-          borderRadius: 'var(--radius)', padding: '60px 40px', textAlign: 'center'
+          borderRadius: 'var(--radius)', padding: 'clamp(32px, 6vw, 60px) clamp(20px, 5vw, 40px)', textAlign: 'center'
         }}>
           <div style={{ width: 64, height: 64, borderRadius: 16, background: '#fef9ed', border: '1px solid #fcd34d', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
             <Lock size={28} color="#e8b84b" />
@@ -96,7 +96,7 @@ export default function AnalyticsPage() {
           <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 24, maxWidth: 400, margin: '0 auto 24px', lineHeight: 1.6 }}>
             Upgrade to Gold or Platinum to see who's visiting your profile, when they visit, and track your growth over time.
           </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, maxWidth: 400, margin: '0 auto 24px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 12, maxWidth: 400, margin: '0 auto 24px' }}>
             {[
               { icon: '👁️', label: 'Profile Views' },
               { icon: '📈', label: 'View Trends' },
@@ -127,18 +127,18 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Stats cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16, marginBottom: 24 }}>
         {[
           { icon: Eye, label: 'Total Views', value: totalViews, color: '#3b82f6', bg: '#eff6ff' },
           { icon: TrendingUp, label: 'This Week', value: weekViews, color: '#10b981', bg: '#ecfdf5' },
           { icon: Users, label: 'Today', value: todayViews, color: '#8b5cf6', bg: '#f5f3ff' },
           { icon: Star, label: 'Avg Rating', value: company?.avg_rating || '0.0', color: '#e8b84b', bg: '#fffbef' },
         ].map(({ icon: Icon, label, value, color, bg }) => (
-          <div key={label} className="card" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div key={label} className="card" style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
             <div style={{ width: 44, height: 44, borderRadius: 10, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <Icon size={20} color={color} />
             </div>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 2 }}>{label}</div>
               <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>{loading ? '—' : value}</div>
             </div>
@@ -148,7 +148,7 @@ export default function AnalyticsPage() {
 
       {/* Chart */}
       <div className="card" style={{ marginBottom: 24 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
           <div>
             <div className="card-title">Profile Views</div>
             <div className="card-subtitle">Daily visitor trend</div>
@@ -224,8 +224,8 @@ export default function AnalyticsPage() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {[...viewsLog].reverse().slice(0, 10).map((log, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--bg)', borderRadius: 8 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'var(--bg)', borderRadius: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                   <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Eye size={14} color="#3b82f6" />
                   </div>
@@ -236,7 +236,7 @@ export default function AnalyticsPage() {
                     </div>
                   </div>
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0, textAlign: 'right' }}>
                   {new Date(log.visited_at).toLocaleDateString('en-AE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>

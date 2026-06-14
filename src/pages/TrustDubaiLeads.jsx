@@ -170,7 +170,7 @@ export default function TrustDubaiLeads({ onNavigate }) {
                       {field(l,['area','location']) && <Chip icon="ti-map-pin" text={field(l,['area','location'])} />}
                     </div>
                   </div>
-                  <div style={{ display:'flex', flexDirection:'column', gap:8, alignItems:'flex-end' }}>
+                  <div style={{ display:'flex', flexDirection:'column', gap:8, alignItems:'flex-end', marginLeft:'auto' }}>
                     <select value={l.status || 'new'} onChange={e=>updateStatus(l, e.target.value)}
                       style={{ background:st.color+'1a', color:st.color, border:`1px solid ${st.color}55`, borderRadius:8, padding:'5px 9px', fontSize:11.5, fontWeight:700, outline:'none', cursor:'pointer' }}>
                       {STATUSES.map(s => <option key={s.key} value={s.key} style={{ color:'#111' }}>{s.label}</option>)}

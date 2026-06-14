@@ -196,7 +196,7 @@ export default function QuoteApproval({ token }) {
         </table>
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '12px 14px' }}>
-          <div style={{ width: 260 }}>
+          <div style={{ width: 260, maxWidth: '100%' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '3px 0', color: '#6b7280' }}><span>{disc > 0 ? 'Gross Total' : 'Subtotal'}</span><span>AED {num(sub)}</span></div>
             {disc > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '3px 0', color: '#0f6e56' }}><span>Discount</span><span>− {num(disc)}</span></div>}
             {vat > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '3px 0', color: '#6b7280' }}><span>VAT 5%</span><span>{num(vat)}</span></div>}
@@ -226,7 +226,7 @@ export default function QuoteApproval({ token }) {
       {whys.length > 0 && (
         <div style={{ ...card, padding: '14px 16px' }}>
           <div style={{ fontSize: 10, color: GOLD, textTransform: 'uppercase', letterSpacing: 1.5, fontWeight: 700, marginBottom: 10 }}>— Why Choose {cName.split(' ').slice(0, 2).join(' ')}</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '9px 16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '9px 16px' }}>
             {whys.map((w, i) => (
               <div key={i} style={{ display: 'flex', gap: 7 }}>
                 <span style={{ color: GOLD, fontWeight: 700 }}>✓</span>
@@ -249,8 +249,8 @@ export default function QuoteApproval({ token }) {
       {bank.length > 0 && (
         <div style={{ ...card, padding: '14px 16px' }}>
           <div style={{ fontSize: 10, color: GOLD, textTransform: 'uppercase', letterSpacing: 1.5, fontWeight: 700, marginBottom: 10 }}>— Bank Details</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 20px' }}>
-            {bank.map(([k, v]) => <div key={k} style={{ display: 'flex', gap: 8, fontSize: 11 }}><span style={{ color: '#999', minWidth: 80 }}>{k}</span><span style={{ fontWeight: 600 }}>{v}</span></div>)}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '6px 20px' }}>
+            {bank.map(([k, v]) => <div key={k} style={{ display: 'flex', gap: 8, fontSize: 11, minWidth: 0 }}><span style={{ color: '#999', minWidth: 80 }}>{k}</span><span style={{ fontWeight: 600, wordBreak: 'break-word' }}>{v}</span></div>)}
           </div>
         </div>
       )}

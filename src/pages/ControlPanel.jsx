@@ -38,7 +38,7 @@ export default function ControlPanel({ initialTab = 'general' }) {
     <div className="cp-wrap" style={{ color: 'var(--text)' }}>
       <style>{`
         .cp-wrap{ padding:24px 20px; }
-        .cp-tabs{ display:flex; gap:6; flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch; border-bottom:1px solid var(--border); margin-bottom:22px; }
+        .cp-tabs{ display:flex; gap:6px; flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch; border-bottom:1px solid var(--border); margin-bottom:22px; }
         .cp-tabs::-webkit-scrollbar{ height:0; }
         .cp-tab-btn{ border:none; background:none; cursor:pointer; padding:10px 14px; font-size:14px; font-weight:600; display:flex; align-items:center; gap:6px; white-space:nowrap; flex-shrink:0; font-family:inherit; }
         @media (max-width:768px){ .cp-wrap{ padding:16px 14px; } }
@@ -122,7 +122,7 @@ function GeneralTab() {
 
       {TOGGLES.map(t => (
         <div key={t.col} style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:12, padding:16, marginBottom:12, display:'flex', alignItems:'center', justifyContent:'space-between', gap:16 }}>
-          <div>
+          <div style={{ minWidth:0 }}>
             <div style={{ fontWeight:600, fontSize:15, color:'var(--text)' }}>{t.label}</div>
             <div style={{ fontSize:13, color:'var(--text2)', marginTop:2 }}>{t.desc}</div>
           </div>
@@ -402,7 +402,7 @@ function FinanceTab() {
         <input value={f.trn} onChange={e => set('trn', e.target.value)} placeholder="100xxxxxxxxxxxx" style={inputStyle} />
         <div style={hint}>This will appear automatically on your quotations & invoices.</div>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:16, gap:12 }}>
-          <div>
+          <div style={{ minWidth:0 }}>
             <div style={{ fontWeight:600, fontSize:14, color:'var(--text)' }}>VAT Registered</div>
             <div style={hint}>When on, 5% VAT is auto-added to your quotes.</div>
           </div>

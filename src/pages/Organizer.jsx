@@ -286,7 +286,7 @@ export default function Organizer({ onNavigate }) {
               placeholder={modal.item.type==='meeting'?'Client meeting…':modal.item.type==='task'?'Follow up with…':'Quick note…'} style={{ ...input, marginBottom:12 }}/>
 
             {modal.item.type === 'meeting' && (
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:12 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:10, marginBottom:12 }}>
                 <div><label style={lbl}>Date & time</label>
                   <input type="datetime-local" value={modal.item.start_at} onChange={e => setModal(m => ({ ...m, item: { ...m.item, start_at: e.target.value } }))} style={input}/></div>
                 <div><label style={lbl}>Remind before</label>

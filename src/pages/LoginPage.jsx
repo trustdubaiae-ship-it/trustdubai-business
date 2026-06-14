@@ -21,7 +21,7 @@ export default function LoginPage({ onRegister }) {
         </div>
       </div>
 
-      <div style={{ width: '100%', maxWidth: 420, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: 40, backdropFilter: 'blur(20px)' }}>
+      <div style={{ width: '100%', maxWidth: 420, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: 'clamp(24px, 6vw, 40px)', backdropFilter: 'blur(20px)' }}>
         <h2 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 24, color: '#fff', marginBottom: 8, textAlign: 'center' }}>Welcome back</h2>
         <p style={{ fontSize: 14, color: '#8b949e', marginBottom: 32, textAlign: 'center' }}>Sign in to manage your business profile</p>
 

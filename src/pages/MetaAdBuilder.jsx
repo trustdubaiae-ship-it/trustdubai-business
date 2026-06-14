@@ -81,7 +81,7 @@ export default function MetaAdBuilder({ onBack, onDone }) {
   const pct = Math.round(((step+1)/STEPS.length)*100)
 
   return (
-    <div>
+    <div style={{ maxWidth:680, width:'100%', margin:'0 auto' }}>
       {/* Header */}
       <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14 }}>
         <button onClick={back} style={{ width:34, height:34, borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:textSub, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>

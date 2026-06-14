@@ -1141,7 +1141,7 @@ export default function LeadsPage() {
               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <i className="ti ti-calendar-event" style={{ fontSize: 15, color: '#3b82f6' }} /> Schedule meeting with {lead.name || 'lead'}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 8 }}>
                 <div>
                   <div style={{ fontSize: 10.5, color: 'var(--text2)', marginBottom: 4, fontWeight: 600 }}>Date & time</div>
                   <input type="datetime-local" value={meetingForm.start} onChange={e => setMeetingForm(m => ({ ...m, start: e.target.value }))}
@@ -1566,7 +1566,7 @@ export default function LeadsPage() {
         )}
 
         {baseLeads.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: mobile ? 'column' : 'row', gap: 10, alignItems: mobile ? 'stretch' : 'center', marginBottom: 16 }}>
+          <div style={{ display: 'flex', flexDirection: mobile ? 'column' : 'row', flexWrap: mobile ? 'nowrap' : 'wrap', gap: 10, alignItems: mobile ? 'stretch' : 'center', marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--card)', border: '0.5px solid var(--border)', borderRadius: 8, padding: '8px 12px', flex: mobile ? 'none' : '1 1 200px', minWidth: 0 }}>
               <i className="ti ti-search" style={{ fontSize: 14, color: 'var(--text3)' }} />
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, phone, project, location..." style={{ border: 'none', background: 'none', outline: 'none', fontSize: 13, color: 'var(--text)', width: '100%', fontFamily: 'inherit' }} />

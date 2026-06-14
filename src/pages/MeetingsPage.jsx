@@ -207,7 +207,7 @@ export default function MeetingsPage({ onNavigate }) {
             <i className="ti ti-calendar-event" style={{ fontSize: 24, color: '#fff' }} />
           </div>
           <div>
-            <h1 className="font-syne fw-700 mtg-grad-text" style={{ fontSize: 25, margin: 0 }}>Meetings</h1>
+            <h1 className="font-syne fw-700 mtg-grad-text" style={{ fontSize: 'clamp(20px,5vw,25px)', margin: 0 }}>Meetings</h1>
             <p style={{ fontSize: 13, color: C.t2, margin: '2px 0 0' }}>Calendar of meetings, site visits & follow-ups — synced with every lead.</p>
           </div>
         </div>
@@ -432,17 +432,17 @@ function MeetingModal({ modal, setModal, saving, onSave, onComplete, onDelete, C
         <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}><i className="ti ti-calendar-event" style={{ color: '#3b82f6' }} /> {modal.isNew ? 'New' : 'Edit'}</div>
         {it.lead_name && <div style={{ fontSize: 12, color: '#8b5cf6', background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.25)', borderRadius: 8, padding: '7px 11px', marginBottom: 12 }}><i className="ti ti-user" /> {it.lead_name}</div>}
 
-        <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
           {['meeting', 'site_visit', 'call'].map(k => { const v = KINDS[k]; const on = (it.kind || 'meeting') === k; return (
-            <button key={k} onClick={() => set({ kind: k })} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '8px', borderRadius: 9, cursor: 'pointer', fontSize: 12, fontWeight: 600, background: on ? v.color + '1f' : 'transparent', color: on ? v.color : C.t3, border: `1px solid ${on ? v.color : C.border}` }}><i className={'ti ' + v.icon} /> {v.label}</button>
+            <button key={k} onClick={() => set({ kind: k })} style={{ flex: '1 1 90px', minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '8px', borderRadius: 9, cursor: 'pointer', fontSize: 12, fontWeight: 600, background: on ? v.color + '1f' : 'transparent', color: on ? v.color : C.t3, border: `1px solid ${on ? v.color : C.border}` }}><i className={'ti ' + v.icon} /> {v.label}</button>
           ) })}
         </div>
 
         <label style={lbl(C)}>Title</label>
         <input autoFocus value={it.title || ''} onChange={e => set({ title: e.target.value })} placeholder="e.g. Kitchen design review" style={{ ...field(C), marginBottom: 12 }} />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-          <div><label style={lbl(C)}>Date & time</label><input type="datetime-local" value={it.start || ''} onChange={e => set({ start: e.target.value })} style={field(C)} /></div>
-          <div><label style={lbl(C)}>Remind</label><select value={it.remind} onChange={e => set({ remind: e.target.value })} style={field(C)}>{REMIND.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 12 }}>
+          <div style={{ minWidth: 0 }}><label style={lbl(C)}>Date & time</label><input type="datetime-local" value={it.start || ''} onChange={e => set({ start: e.target.value })} style={field(C)} /></div>
+          <div style={{ minWidth: 0 }}><label style={lbl(C)}>Remind</label><select value={it.remind} onChange={e => set({ remind: e.target.value })} style={field(C)}>{REMIND.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
         </div>
         <label style={lbl(C)}>Location</label>
         <input value={it.location || ''} onChange={e => set({ location: e.target.value })} placeholder="Office / site / video call" style={{ ...field(C), marginBottom: 12 }} />

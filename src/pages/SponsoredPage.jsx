@@ -433,7 +433,7 @@ export default function SponsoredPage({ onNavigate }) {
                               "{lead.lead_message}"
                             </div>
                           )}
-                          <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                          <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
                             <span style={{ fontSize:9, color:'var(--text3)' }}>via {lead.source_page||'home'}</span>
                             <span style={{ fontSize:9, color:'var(--text3)' }}>{new Date(lead.created_at).toLocaleDateString('en-AE',{day:'numeric',month:'short',year:'numeric'})}</span>
                           </div>
@@ -454,7 +454,7 @@ export default function SponsoredPage({ onNavigate }) {
           {mySlot.status === 'pending' && (
             <div style={{ background:'var(--card)', border:'0.5px solid var(--border)', borderRadius:12, padding: mobile?'16px':'20px 24px' }}>
               <div style={{ fontSize:13, fontWeight:700, color:'var(--text)', marginBottom:12 }}>Request Details</div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px,1fr))', gap:12 }}>
                 {[
                   { label:'Duration',   value:`${DURATION_OPTIONS.find(d=>d.months===mySlot.duration_months)?.label||'—'}` },
                   { label:'Status',     value:'Pending Admin Review' },

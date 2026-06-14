@@ -472,7 +472,7 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search invoices…" style={{ ...inputStyle, flex: 1, minWidth: 160 }} />
-        <div style={{ display: 'flex', gap: 4 }}>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
           {['all', 'unpaid', 'partial', 'paid'].map(f => (
             <button key={f} onClick={() => setFilter(f)} style={{ padding: '8px 12px', borderRadius: 8, border: `1px solid ${filter === f ? '#0099cc' : border}`, background: filter === f ? (isDark ? 'rgba(3,193,245,0.12)' : '#e0f9ff') : cardBg, color: filter === f ? '#0099cc' : textSub, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', textTransform: 'capitalize' }}>{f}</button>
           ))}

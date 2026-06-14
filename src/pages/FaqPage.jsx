@@ -106,7 +106,7 @@ export default function FaqPage() {
           <input value={form.question} onChange={e => setForm(f => ({ ...f, question: e.target.value }))} placeholder="e.g. Do you offer free site visits?" style={{ ...inputStyle, marginBottom: 14 }} />
           <label style={{ fontSize: 12.5, fontWeight: 600, color: '#1e2a3a', display: 'block', marginBottom: 6 }}>Answer</label>
           <textarea value={form.answer} onChange={e => setForm(f => ({ ...f, answer: e.target.value }))} placeholder="e.g. Yes, we provide free site assessment across Dubai." style={{ ...inputStyle, minHeight: 90, resize: 'vertical', marginBottom: 16 }} />
-          <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <button onClick={save} disabled={saving} style={{ padding: '10px 22px', background: ACCENT, color: '#fff', border: 'none', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1 }}>{saving ? 'Saving…' : 'Save FAQ'}</button>
             <button onClick={cancel} style={{ padding: '10px 22px', background: '#f1f5f9', color: '#64748b', border: '1px solid #e6eaf0', borderRadius: 9, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
           </div>
@@ -139,7 +139,7 @@ export default function FaqPage() {
                   <button onClick={() => move(f, 'down')} disabled={i === faqs.length - 1} style={{ width: 26, height: 24, borderRadius: 6, border: '1px solid #e6eaf0', background: '#fff', cursor: i === faqs.length - 1 ? 'default' : 'pointer', color: '#64748b', opacity: i === faqs.length - 1 ? 0.4 : 1 }}>↓</button>
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 10, paddingTop: 10, borderTop: '1px solid #f1f5f9' }}>
+              <div style={{ display: 'flex', gap: 8, marginTop: 10, paddingTop: 10, borderTop: '1px solid #f1f5f9', flexWrap: 'wrap' }}>
                 <button onClick={() => startEdit(f)} style={{ fontSize: 11.5, padding: '5px 12px', borderRadius: 7, border: '1px solid #e6eaf0', background: '#fff', color: '#475569', cursor: 'pointer', fontWeight: 600 }}>✏️ Edit</button>
                 <button onClick={() => toggleActive(f)} style={{ fontSize: 11.5, padding: '5px 12px', borderRadius: 7, border: '1px solid #e6eaf0', background: '#fff', color: f.is_active ? '#1e9e63' : '#94a3b8', cursor: 'pointer', fontWeight: 600 }}>{f.is_active ? '● Visible' : '○ Hidden'}</button>
                 <button onClick={() => remove(f)} style={{ fontSize: 11.5, padding: '5px 12px', borderRadius: 7, border: '1px solid rgba(220,38,38,0.3)', background: '#fff', color: '#dc2626', cursor: 'pointer', fontWeight: 600 }}>🗑️ Delete</button>

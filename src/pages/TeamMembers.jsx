@@ -83,10 +83,12 @@ export default function TeamMembers() {
     <div className="animate-in" style={{ maxWidth: 820 }}>
       <style>{`
         .tm-list { display:flex; flex-direction:column; gap:10px; }
-        .tm-row  { display:flex; align-items:center; gap:14px; }
+        .tm-row  { display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
         .tm-actions { display:flex; gap:8px; flex-shrink:0; }
         @media (max-width:560px){
           .tm-row { align-items:flex-start; gap:12px; }
+          .tm-actions { width:100%; }
+          .tm-actions button { flex:1; }
         }
       `}</style>
 

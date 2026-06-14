@@ -1989,7 +1989,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         </div>
       )}
 
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10, marginBottom:16 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:10, marginBottom:16 }}>
         {STATS.map(s => (
           <div key={s.label} style={{ background:subBg, borderRadius:10, padding:'12px 14px' }}>
             <div style={{ fontSize:12, color:textSub }}>{s.label}</div>
@@ -2035,7 +2035,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
             )
             return (
               <div key={q.id} onClick={()=>openDetail(q)}
-                style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:14, padding:'14px 16px', display:'flex', alignItems:'center', gap:12, cursor:'pointer', transition:'all .15s' }}
+                style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:14, padding:'14px 16px', display:'flex', alignItems:'center', gap:12, flexWrap:'wrap', cursor:'pointer', transition:'all .15s' }}
                 onMouseEnter={e=>{ e.currentTarget.style.transform='translateY(-1px)'; e.currentTarget.style.boxShadow=isDark?'0 4px 16px rgba(0,0,0,0.3)':'0 2px 12px rgba(0,0,0,0.06)' }}
                 onMouseLeave={e=>{ e.currentTarget.style.transform='none'; e.currentTarget.style.boxShadow='none' }}>
                 <div style={{ width:42, height:42, borderRadius:10, background:subBg, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><i className="ti ti-file-text" style={{ fontSize:19, color:textSub }}/></div>
@@ -2054,7 +2054,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
                   <span style={{ fontSize:11, color:st.color, background:isDark?st.color+'22':st.bg, padding:'2px 9px', borderRadius:99 }}>{st.label}</span>
                   {expired && <span style={{ fontSize:10, color:'#b91c1c', background:isDark?'#b91c1c22':'#fee2e2', padding:'2px 8px', borderRadius:99, marginLeft:5, fontWeight:600 }}>Expired</span>}
                 </div>
-                <div style={{ display:'flex', gap:5, flexShrink:0 }} onClick={e=>e.stopPropagation()}>
+                <div style={{ display:'flex', gap:5, flexShrink:0, marginLeft:'auto' }} onClick={e=>e.stopPropagation()}>
                   {iconBtn('ti-eye', '#0099cc', ()=>openPreview(q), 'View')}
                   {iconBtn('ti-edit', textSub, ()=>editQuote(q), 'Edit')}
                   {iconBtn('ti-copy', textSub, ()=>duplicateQuote(q), 'Duplicate')}
