@@ -139,6 +139,9 @@ export default function LeadsPage() {
   const [chatText, setChatText] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
   const [chatSending, setChatSending] = useState(false)
+  const [aiReplyLoading, setAiReplyLoading] = useState(false)
+  const [waDraft, setWaDraft] = useState(null)
+  const [waDraftLoading, setWaDraftLoading] = useState(false)
   const [showNewTpl, setShowNewTpl] = useState(false)
   const [tplName, setTplName] = useState('')
   const [tplBody, setTplBody] = useState('')
@@ -332,10 +335,10 @@ export default function LeadsPage() {
     const { data } = lead.distId ? await q.eq('distribution_id', lead.distId) : await q.eq('lead_id', lead.subId)
     setTimeline(data || [])
     setTlLoading(false)
-    setChatMsgs([]); setChatText('')
+    setChatMsgs([]); setChatText(''); setWaDraft(null)
     loadChat(lead)
   }
-  function closeModal() { setOpenLead(null); setTimeline([]); setChatMsgs([]); setChatText('') }
+  function closeModal() { setOpenLead(null); setTimeline([]); setChatMsgs([]); setChatText(''); setWaDraft(null) }
 
   async function loadChat(lead) {
     if (!lead || !lead.subId || !lead.isPlatform) { setChatMsgs([]); return }
@@ -369,6 +372,64 @@ export default function LeadsPage() {
       })
     } catch (e) { console.error('sendChat', e) }
     finally { setChatSending(false) }
+  }
+
+  function aiLeadContext(lead) {
+    return {
+      name: lead.name || '',
+      message: lead.answers?.Notes || lead.notes || '',
+      project_type: lead.answers?.['Project Type'] || '',
+      budget: lead.answers?.['Budget (AED)'] || '',
+      area: lead.answers?.Location || '',
+      source: lead.answers?.Source || lead.source || '',
+    }
+  }
+  function aiError(data) {
+    const code = data?.code
+    if (code === 'no_credit') return 'AI credit khatam ho gaya'
+    if (code === 'bad_key') return 'AI key invalid'
+    if (code === 'rate_limit') return 'AI busy — thodi der baad try karo'
+    return 'Could not generate a suggestion'
+  }
+
+  async function suggestChatReply() {
+    const lead = openLead
+    if (!lead || aiReplyLoading) return
+    setAiReplyLoading(true)
+    try {
+      const conversation = chatMsgs.map(m => ({ from: m.sender_type === 'company' ? 'company' : 'customer', text: m.body }))
+      const { data, error } = await supabase.functions.invoke('smart-function', {
+        body: {
+          action: 'reply', channel: 'chat',
+          companyName: company.name || 'our company',
+          companyCategory: company.categories?.[0] || company.category || '',
+          lead: aiLeadContext(lead), conversation,
+        },
+      })
+      if (error) throw error
+      if (data?.reply) setChatText(data.reply)
+      else toast.error(aiError(data))
+    } catch (e) { console.error('suggestChatReply', e); toast.error('Could not suggest a reply') }
+    finally { setAiReplyLoading(false) }
+  }
+
+  async function suggestWhatsApp(lead) {
+    if (waDraftLoading) return
+    setWaDraftLoading(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('smart-function', {
+        body: {
+          action: 'reply', channel: 'whatsapp',
+          companyName: company.name || 'our company',
+          companyCategory: company.categories?.[0] || company.category || '',
+          lead: aiLeadContext(lead),
+        },
+      })
+      if (error) throw error
+      if (data?.reply) setWaDraft(data.reply)
+      else toast.error(aiError(data))
+    } catch (e) { console.error('suggestWhatsApp', e); toast.error('Could not generate message') }
+    finally { setWaDraftLoading(false) }
   }
 
   useEffect(() => {
@@ -1067,6 +1128,12 @@ export default function LeadsPage() {
                 })}
               </div>
 
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 7 }}>
+                <button onClick={suggestChatReply} disabled={aiReplyLoading}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 8, border: '0.5px solid rgba(0,153,204,0.4)', background: 'rgba(0,153,204,0.08)', color: '#0099cc', fontSize: 11.5, fontWeight: 600, cursor: aiReplyLoading ? 'default' : 'pointer', opacity: aiReplyLoading ? 0.65 : 1 }}>
+                  <i className={'ti ' + (aiReplyLoading ? 'ti-loader-2' : 'ti-sparkles')} style={{ fontSize: 14 }} /> {aiReplyLoading ? 'Thinking…' : 'Suggest reply'}
+                </button>
+              </div>
               <div style={{ display: 'flex', gap: 7 }}>
                 <input value={chatText} onChange={e => setChatText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') sendChat() }}
                   placeholder="Type a reply to the customer..."
@@ -1076,6 +1143,40 @@ export default function LeadsPage() {
                   <i className="ti ti-send" style={{ fontSize: 14 }} /> Send
                 </button>
               </div>
+            </div>
+          )}
+
+          {!lead.isPlatform && lead.phone && (
+            <div style={{ border: '0.5px solid var(--border)', borderRadius: 10, padding: 13, marginBottom: 14 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <i className="ti ti-brand-whatsapp" style={{ fontSize: 15, color: '#22c55e' }} /> WhatsApp reply
+                <span style={{ fontSize: 9, fontWeight: 600, padding: '1px 7px', borderRadius: 99, background: 'rgba(0,153,204,0.12)', color: '#0099cc' }}>AI</span>
+              </div>
+              {waDraft != null ? (
+                <>
+                  <textarea value={waDraft} onChange={e => setWaDraft(e.target.value)}
+                    style={{ width: '100%', minHeight: 84, ...inputStyle, fontSize: 12.5, padding: '9px 12px', boxSizing: 'border-box', resize: 'vertical', marginBottom: 8 }} />
+                  <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+                    <button onClick={() => { if (navigator.clipboard?.writeText) { navigator.clipboard.writeText(waDraft); toast.success('Copied ✓') } }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 13px', borderRadius: 8, border: '0.5px solid var(--border)', background: 'var(--card)', color: 'var(--text)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                      <i className="ti ti-copy" style={{ fontSize: 14 }} /> Copy
+                    </button>
+                    <button onClick={() => window.open('https://wa.me/' + (lead.phone || '').replace(/[^0-9]/g, '') + '?text=' + encodeURIComponent(waDraft), '_blank')}
+                      style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 13px', borderRadius: 8, border: 'none', background: '#22c55e', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                      <i className="ti ti-brand-whatsapp" style={{ fontSize: 14 }} /> Open WhatsApp
+                    </button>
+                    <button onClick={() => suggestWhatsApp(lead)} disabled={waDraftLoading}
+                      style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 13px', borderRadius: 8, border: '0.5px solid var(--border)', background: 'var(--card)', color: 'var(--text2)', fontSize: 12, fontWeight: 600, cursor: waDraftLoading ? 'default' : 'pointer', opacity: waDraftLoading ? 0.65 : 1 }}>
+                      <i className={'ti ' + (waDraftLoading ? 'ti-loader-2' : 'ti-refresh')} style={{ fontSize: 14 }} /> {waDraftLoading ? '…' : 'Regenerate'}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <button onClick={() => suggestWhatsApp(lead)} disabled={waDraftLoading}
+                  style={{ width: '100%', padding: '10px', borderRadius: 8, border: '0.5px solid rgba(0,153,204,0.4)', background: 'rgba(0,153,204,0.08)', color: '#0099cc', fontSize: 12.5, fontWeight: 600, cursor: waDraftLoading ? 'default' : 'pointer', opacity: waDraftLoading ? 0.65 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  <i className={'ti ' + (waDraftLoading ? 'ti-loader-2' : 'ti-sparkles')} style={{ fontSize: 15 }} /> {waDraftLoading ? 'Thinking…' : 'Suggest WhatsApp message'}
+                </button>
+              )}
             </div>
           )}
 

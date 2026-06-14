@@ -26,6 +26,8 @@ Deno.serve(async (req) => {
       description = "",      // for action "quote": the project description
       library = [],          // for action "quote": [{ description, unit, default_rate, trade_section }]
       mode = "simple",       // for action "quote": "simple" | "advanced" | "boq"
+      conversation = [],     // for action "reply": [{ from: "customer"|"company", text }]
+      channel = "chat",      // for action "reply": "chat" | "whatsapp"
     } = body;
 
     const leadText = [
@@ -36,6 +38,11 @@ Deno.serve(async (req) => {
       lead.area ? `Area/Location: ${lead.area}` : "",
       lead.source ? `Source: ${lead.source}` : "",
     ].filter(Boolean).join("\n");
+
+    const convoText = (Array.isArray(conversation) ? conversation : [])
+      .slice(-12)
+      .map((m) => `${m.from === "company" ? "Us" : (lead.name || "Customer")}: ${m.text}`)
+      .join("\n");
 
     let system = "";
     let userPrompt = "";
@@ -69,10 +76,13 @@ ${description || "General interior fit-out work"}`;
 Lead:
 ${leadText || "No details provided."}`;
     } else {
-      system = `You are a helpful sales assistant for ${companyName}${companyCategory ? `, a ${companyCategory} business` : ""} in Dubai. Write a reply to a customer enquiry.
+      const isWa = channel === "whatsapp";
+      system = `You are a helpful sales assistant for ${companyName}${companyCategory ? `, a ${companyCategory} business` : ""} in Dubai. Write a ${isWa ? "WhatsApp " : ""}reply to a customer enquiry.
 Rules:
 - Warm, ${tone}, and concise (max 60 words).
-- Greet the customer by first name if given.
+- ${isWa ? "WhatsApp style: friendly and natural; at most one emoji." : "Professional chat style; no emojis."}
+- Greet the customer by first name only if there are no prior messages yet.
+- If a conversation is shown, continue it naturally and answer their latest message; do not repeat earlier greetings or info.
 - Acknowledge their need, give a helpful next step (free site visit / call / quote).
 - Never invent prices. Use AED if money is mentioned.
 - End by proposing a simple next step or asking one qualifying question.
@@ -83,12 +93,13 @@ Return ONLY compact JSON (no markdown) with keys:
 "reply" (the message text), "score" (integer 0-100), "temperature" ("hot"|"warm"|"cold"), "reason" (one short sentence).
 
 Lead:
-${leadText || "No details provided."}`;
+${leadText || "No details provided."}${convoText ? `\n\nConversation so far:\n${convoText}` : ""}`;
       } else {
-        userPrompt = `Write the reply message for this lead. Return ONLY the message text, nothing else.
+        userPrompt = `Write the next ${isWa ? "WhatsApp " : ""}reply message. Return ONLY the message text, nothing else.
 
 Lead:
-${leadText || "No details provided."}`;
+${leadText || "No details provided."}
+${convoText ? `\nConversation so far:\n${convoText}` : "\n(No messages yet — this is the first outreach.)"}`;
       }
     }
 
