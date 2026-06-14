@@ -200,18 +200,22 @@ export default function MeetingsPage({ onNavigate }) {
   return (
     <div style={{ color: C.text }}>
       <style>{MEET_CSS}</style>
-      {/* header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 46, height: 46, borderRadius: 14, background: GRAD, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 22px -6px rgba(99,102,241,.6)', flexShrink: 0 }}>
-            <i className="ti ti-calendar-event" style={{ fontSize: 24, color: '#fff' }} />
+      {/* gradient hero header */}
+      <div style={{ background: GRAD, borderRadius: 18, padding: 'clamp(16px,4vw,22px) clamp(18px,4vw,26px)', marginBottom: 16, position: 'relative', overflow: 'hidden', boxShadow: '0 16px 44px -18px rgba(99,102,241,.65)' }}>
+        <div style={{ position: 'absolute', top: -45, right: -30, width: 170, height: 170, borderRadius: '50%', background: 'rgba(255,255,255,0.13)' }} />
+        <div style={{ position: 'absolute', bottom: -55, left: 40, width: 130, height: 130, borderRadius: '50%', background: 'rgba(255,255,255,0.08)' }} />
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 13, minWidth: 0 }}>
+            <div style={{ width: 48, height: 48, borderRadius: 14, background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <i className="ti ti-calendar-event" style={{ fontSize: 25, color: '#fff' }} />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <h1 className="font-syne fw-700" style={{ fontSize: 'clamp(21px,5vw,27px)', margin: 0, color: '#fff', letterSpacing: '-0.5px' }}>Planner</h1>
+              <p style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.85)', margin: '2px 0 0' }}>Meetings, site visits &amp; follow-ups — synced with every lead.</p>
+            </div>
           </div>
-          <div>
-            <h1 className="font-syne fw-700 mtg-grad-text" style={{ fontSize: 'clamp(20px,5vw,25px)', margin: 0 }}>Meetings</h1>
-            <p style={{ fontSize: 13, color: C.t2, margin: '2px 0 0' }}>Calendar of meetings, site visits & follow-ups — synced with every lead.</p>
-          </div>
+          <button onClick={() => openNew()} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '11px 18px', borderRadius: 11, border: 'none', background: '#fff', color: '#4f46e5', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: '0 6px 16px -6px rgba(0,0,0,0.3)', flexShrink: 0 }}><i className="ti ti-plus" style={{ fontSize: 17 }} /> New</button>
         </div>
-        <button onClick={() => openNew()} className="mtg-btn-grad" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '11px 18px', borderRadius: 11, border: 'none', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}><i className="ti ti-plus" style={{ fontSize: 17 }} /> New</button>
       </div>
 
       {loading ? (

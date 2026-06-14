@@ -907,7 +907,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
       const signBlock = wantSign ? `
         <div style="padding:20px 30px 6px;margin-top:14px;border-top:0.5px solid #eee;display:flex;gap:30px;">
           <div style="flex:1;text-align:center;"><div style="font-size:9px;font-weight:700;color:#6b6b6b;margin-bottom:24px;">For ${cName}</div><div style="border-bottom:1px solid #1a1a1a;"></div><div style="font-size:8px;color:#999;margin-top:4px;">Authorized Signatory · Date · Stamp</div></div>
-          <div style="flex:1;text-align:center;"><div style="font-size:9px;font-weight:700;color:#6b6b6b;margin-bottom:24px;">Client Acceptance & Approval</div><div style="border-bottom:1px solid #1a1a1a;"></div><div style="font-size:8px;color:#999;margin-top:4px;">Name · Signature · Date</div></div>
+          <div style="flex:1;text-align:center;"><div style="font-size:9px;font-weight:700;color:#6b6b6b;margin-bottom:24px;">Client Acceptance & Approval</div><div style="border-bottom:1px solid #1a1a1a;"></div><div style="font-size:9px;color:#1a1a1a;font-weight:700;margin-top:4px;">${escapeHtml(q.client_name||'Client')}</div><div style="font-size:8px;color:#999;margin-top:1px;">Signature · Date</div></div>
         </div>` : ''
 
       const bankBlock = (wantBank && bankFields.length) ? `
@@ -1267,13 +1267,13 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
           <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, overflow:'hidden', marginBottom:14 }}>
             <div style={{ overflowX:'auto', WebkitOverflowScrolling:'touch' }}>
               <div style={{ minWidth:540 }}>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 60px 52px 74px 94px 30px', gap:7, padding:'9px 12px', background:subBg, fontSize:11, color:textSub, textTransform:'uppercase', letterSpacing:'.3px' }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 54px 46px 66px 86px 28px', gap:7, padding:'9px 12px', background:subBg, fontSize:11, color:textSub, textTransform:'uppercase', letterSpacing:'.3px' }}>
                   <span>Description</span><span>Unit</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span><span/>
                 </div>
                 {voItems.map((it, idx) => {
                   const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
                   return (
-                    <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 60px 52px 74px 94px 30px', gap:7, padding:'8px 12px', alignItems:'flex-start', borderTop:`1px solid ${border}` }}>
+                    <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 54px 46px 66px 86px 28px', gap:7, padding:'8px 12px', alignItems:'flex-start', borderTop:`1px solid ${border}` }}>
                       <textarea value={it.desc} onChange={e=>applyDesc(idx, e.target.value, true)} placeholder="Item description" rows={1}
                         ref={el=>{ if(el){ el.style.height='auto'; el.style.height=el.scrollHeight+'px' } }}
                         style={{ ...inputStyle, padding:'7px 8px', fontSize:12.5, resize:'none', overflow:'hidden', lineHeight:1.4 }}/>
@@ -1307,13 +1307,13 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
                 </div>
                 <div style={{ overflowX:'auto', WebkitOverflowScrolling:'touch' }}>
                   <div style={{ minWidth:520 }}>
-                    <div style={{ display:'grid', gridTemplateColumns:'1fr 56px 48px 70px 90px 28px', gap:7, padding:'7px 12px', fontSize:10.5, color:textMuted, textTransform:'uppercase', letterSpacing:'.3px' }}>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 50px 44px 62px 82px 26px', gap:7, padding:'7px 12px', fontSize:10.5, color:textMuted, textTransform:'uppercase', letterSpacing:'.3px' }}>
                       <span>Description</span><span>Unit</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span><span/>
                     </div>
                     {g.rows.map(({ it, idx }) => {
                       const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
                       return (
-                        <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 56px 48px 70px 90px 28px', gap:7, padding:'6px 12px', alignItems:'flex-start', borderTop:`1px solid ${border}` }}>
+                        <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 50px 44px 62px 82px 26px', gap:7, padding:'6px 12px', alignItems:'flex-start', borderTop:`1px solid ${border}` }}>
                           <textarea value={it.desc} onChange={e=>applyDesc(idx, e.target.value, true)} placeholder="Item description" rows={1}
                             ref={el=>{ if(el){ el.style.height='auto'; el.style.height=el.scrollHeight+'px' } }}
                             style={{ ...inputStyle, padding:'7px 8px', fontSize:12, resize:'none', overflow:'hidden', lineHeight:1.4 }}/>
@@ -1753,13 +1753,13 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
           <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, overflow:'hidden', marginBottom:14 }}>
             <div style={{ overflowX:'auto', WebkitOverflowScrolling:'touch' }}>
               <div style={{ minWidth:540 }}>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 60px 52px 74px 94px 30px', gap:7, padding:'9px 12px', background:subBg, fontSize:11, color:textSub, textTransform:'uppercase', letterSpacing:'.3px' }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 54px 46px 66px 86px 28px', gap:7, padding:'9px 12px', background:subBg, fontSize:11, color:textSub, textTransform:'uppercase', letterSpacing:'.3px' }}>
                   <span>Description</span><span>Unit</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span><span/>
                 </div>
                 {items.map((it, idx) => {
                   const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
                   return (
-                    <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 60px 52px 74px 94px 30px', gap:7, padding:'8px 12px', alignItems:'flex-start', borderTop:`1px solid ${border}` }}>
+                    <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 54px 46px 66px 86px 28px', gap:7, padding:'8px 12px', alignItems:'flex-start', borderTop:`1px solid ${border}` }}>
                       <textarea value={it.desc} onChange={e=>applyDesc(idx, e.target.value, false)} placeholder="Item description" rows={1}
                         ref={el=>{ if(el){ el.style.height='auto'; el.style.height=el.scrollHeight+'px' } }}
                         style={{ ...inputStyle, padding:'7px 8px', fontSize:12.5, resize:'none', overflow:'hidden', lineHeight:1.4 }}/>
@@ -1795,13 +1795,13 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
                 </div>
                 <div style={{ overflowX:'auto', WebkitOverflowScrolling:'touch' }}>
                   <div style={{ minWidth:520 }}>
-                    <div style={{ display:'grid', gridTemplateColumns:'1fr 56px 48px 70px 90px 28px', gap:7, padding:'7px 12px', fontSize:10.5, color:textMuted, textTransform:'uppercase', letterSpacing:'.3px' }}>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 50px 44px 62px 82px 26px', gap:7, padding:'7px 12px', fontSize:10.5, color:textMuted, textTransform:'uppercase', letterSpacing:'.3px' }}>
                       <span>Description</span><span>Unit</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span><span/>
                     </div>
                     {g.rows.map(({ it, idx }) => {
                       const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
                       return (
-                        <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 56px 48px 70px 90px 28px', gap:7, padding:'6px 12px', alignItems:'flex-start', borderTop:`1px solid ${border}` }}>
+                        <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 50px 44px 62px 82px 26px', gap:7, padding:'6px 12px', alignItems:'flex-start', borderTop:`1px solid ${border}` }}>
                           <textarea value={it.desc} onChange={e=>applyDesc(idx, e.target.value, false)} placeholder="Item description" rows={1}
                             ref={el=>{ if(el){ el.style.height='auto'; el.style.height=el.scrollHeight+'px' } }}
                             style={{ ...inputStyle, padding:'7px 8px', fontSize:12, resize:'none', overflow:'hidden', lineHeight:1.4 }}/>
