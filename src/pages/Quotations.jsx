@@ -994,12 +994,12 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
           </div>
         </div>
         ${timelineBlock}
-        ${bankBlock}
         ${wantFooter ? paymentCards + whyBlock + (!isVo ? `
           <div style="padding:18px 30px 0;">
             <div style="font-size:10px;color:${ACC};text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:7px;">— Terms & Conditions</div>
             <div style="font-size:8.5px;color:#888;line-height:1.7;white-space:pre-line;">${terms}</div>
           </div>` : '') : ''}
+        ${bankBlock}
         ${signBlock}
         <div style="background:#1a1a1a;color:#9a9a9a;font-size:8.5px;text-align:center;padding:9px;margin-top:18px;">${cName} &nbsp;·&nbsp; ${cPhone}${cEmail?' &nbsp;·&nbsp; '+cEmail:''} &nbsp;·&nbsp; ${tagline}</div>
       </div>`
@@ -1069,8 +1069,8 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
           <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding:6px 0 0;border-top:1.5px solid #1a1a1a;margin-top:4px;"><span>${isVo?'VO Total':'Grand Total'}</span><span style="color:${ACC};">AED ${n(tot)}</span></div>
         </div>
       </div>
-      ${bankHtml}
       ${footerHtml}
+      ${bankHtml}
       <div style="display:flex;justify-content:space-between;align-items:flex-end;padding-top:14px;">
         <div style="font-size:9.5px;color:#999;">Thank you for choosing ${cName}.</div>
         ${signHtml}
@@ -1266,15 +1266,17 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         {voMode === 'simple' && (
           <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, overflow:'hidden', marginBottom:14 }}>
             <div style={{ overflowX:'auto', WebkitOverflowScrolling:'touch' }}>
-              <div style={{ minWidth:440 }}>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 50px 40px 58px 78px 26px', gap:7, padding:'9px 12px', background:subBg, fontSize:11, color:textSub, textTransform:'uppercase', letterSpacing:'.3px' }}>
+              <div style={{ minWidth:540 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 60px 52px 74px 94px 30px', gap:7, padding:'9px 12px', background:subBg, fontSize:11, color:textSub, textTransform:'uppercase', letterSpacing:'.3px' }}>
                   <span>Description</span><span>Unit</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span><span/>
                 </div>
                 {voItems.map((it, idx) => {
                   const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
                   return (
-                    <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 50px 40px 58px 78px 26px', gap:7, padding:'8px 12px', alignItems:'center', borderTop:`1px solid ${border}` }}>
-                      <input list="qlib-list" value={it.desc} onChange={e=>applyDesc(idx, e.target.value, true)} placeholder="Item description" style={{ ...inputStyle, padding:'7px 8px', fontSize:12.5 }}/>
+                    <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 60px 52px 74px 94px 30px', gap:7, padding:'8px 12px', alignItems:'flex-start', borderTop:`1px solid ${border}` }}>
+                      <textarea value={it.desc} onChange={e=>applyDesc(idx, e.target.value, true)} placeholder="Item description" rows={1}
+                        ref={el=>{ if(el){ el.style.height='auto'; el.style.height=el.scrollHeight+'px' } }}
+                        style={{ ...inputStyle, padding:'7px 8px', fontSize:12.5, resize:'none', overflow:'hidden', lineHeight:1.4 }}/>
                       <select value={it.unit} onChange={e=>updateVoItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 4px', fontSize:11 }}>
                         {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
                       </select>
@@ -1304,15 +1306,17 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
                   <span style={{ fontSize:12, color:textSub }}>Subtotal: <span style={{ fontWeight:600, color:text }}>{fmt(g.subtotal)}</span></span>
                 </div>
                 <div style={{ overflowX:'auto', WebkitOverflowScrolling:'touch' }}>
-                  <div style={{ minWidth:430 }}>
-                    <div style={{ display:'grid', gridTemplateColumns:'1fr 48px 38px 56px 76px 24px', gap:7, padding:'7px 12px', fontSize:10.5, color:textMuted, textTransform:'uppercase', letterSpacing:'.3px' }}>
+                  <div style={{ minWidth:520 }}>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 56px 48px 70px 90px 28px', gap:7, padding:'7px 12px', fontSize:10.5, color:textMuted, textTransform:'uppercase', letterSpacing:'.3px' }}>
                       <span>Description</span><span>Unit</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span><span/>
                     </div>
                     {g.rows.map(({ it, idx }) => {
                       const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
                       return (
-                        <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 48px 38px 56px 76px 24px', gap:7, padding:'6px 12px', alignItems:'center', borderTop:`1px solid ${border}` }}>
-                          <input list="qlib-list" value={it.desc} onChange={e=>applyDesc(idx, e.target.value, true)} placeholder="Item description" style={{ ...inputStyle, padding:'7px 8px', fontSize:12 }}/>
+                        <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 56px 48px 70px 90px 28px', gap:7, padding:'6px 12px', alignItems:'flex-start', borderTop:`1px solid ${border}` }}>
+                          <textarea value={it.desc} onChange={e=>applyDesc(idx, e.target.value, true)} placeholder="Item description" rows={1}
+                            ref={el=>{ if(el){ el.style.height='auto'; el.style.height=el.scrollHeight+'px' } }}
+                            style={{ ...inputStyle, padding:'7px 8px', fontSize:12, resize:'none', overflow:'hidden', lineHeight:1.4 }}/>
                           <select value={it.unit} onChange={e=>updateVoItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 3px', fontSize:10.5 }}>
                             {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
                           </select>
@@ -1410,7 +1414,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
               <span style={{ fontSize:12, color:textSub }}>Subtotal: <span style={{ fontWeight:600, color:text }}>{fmt(g.subtotal)}</span></span>
             </div>
             <div style={{ overflowX:'auto', WebkitOverflowScrolling:'touch' }}>
-              <div style={{ minWidth:430 }}>
+              <div style={{ minWidth:520 }}>
                 {g.items.map((it,i)=>(
                   <div key={i} style={{ display:'grid', gridTemplateColumns:'1fr 50px 40px 64px 80px', gap:7, padding:'9px 13px', borderTop:`1px solid ${border}`, fontSize:13, color:text }}>
                     <span style={{ wordBreak:'break-word' }}>{it.desc}</span><span style={{ color:textSub, fontSize:12 }}>{it.unit||'—'}</span><span style={{ color:textSub, textAlign:'center' }}>{it.qty}</span>
@@ -1424,7 +1428,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         )) : (
           <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, overflow:'hidden', marginBottom:12 }}>
             <div style={{ overflowX:'auto', WebkitOverflowScrolling:'touch' }}>
-              <div style={{ minWidth:430 }}>
+              <div style={{ minWidth:520 }}>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 50px 40px 64px 80px', gap:7, padding:'9px 13px', background:subBg, fontSize:11, color:textSub, textTransform:'uppercase', letterSpacing:'.3px' }}>
                   <span>Description</span><span>Unit</span><span style={{ textAlign:'center' }}>Qty</span><span style={{ textAlign:'right' }}>Rate</span><span style={{ textAlign:'right' }}>Total</span>
                 </div>
@@ -1596,6 +1600,16 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     return (
       <div>
         {LibDatalist()}
+        <div style={{ display:'flex', alignItems:'center', gap:11, marginBottom:14 }}>
+          <button onClick={()=>{ if(!editId){clearDraft(); setDraftExists(false)} setView('list') }} title="Back to quotations"
+            style={{ width:34, height:34, borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:textSub, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+            <i className="ti ti-arrow-left" style={{ fontSize:17 }}/>
+          </button>
+          <div style={{ minWidth:0 }}>
+            <div className="font-syne fw-700" style={{ fontSize:18, color:text, lineHeight:1.2 }}>{editId ? 'Edit Quotation' : 'New Quotation'}</div>
+            <div style={{ fontSize:12, color:textMuted }}>Back to all quotations</div>
+          </div>
+        </div>
         {aiOpen && (
           <div onClick={()=>!aiBusy&&setAiOpen(false)} style={{ position:'fixed', inset:0, zIndex:2000, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
             <div onClick={e=>e.stopPropagation()} style={{ background:cardBg, borderRadius:16, width:'100%', maxWidth:480, padding:20, border:`1px solid ${border}` }}>
@@ -1738,15 +1752,17 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         {mode === 'simple' && (
           <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, overflow:'hidden', marginBottom:14 }}>
             <div style={{ overflowX:'auto', WebkitOverflowScrolling:'touch' }}>
-              <div style={{ minWidth:440 }}>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 50px 40px 58px 78px 26px', gap:7, padding:'9px 12px', background:subBg, fontSize:11, color:textSub, textTransform:'uppercase', letterSpacing:'.3px' }}>
+              <div style={{ minWidth:540 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 60px 52px 74px 94px 30px', gap:7, padding:'9px 12px', background:subBg, fontSize:11, color:textSub, textTransform:'uppercase', letterSpacing:'.3px' }}>
                   <span>Description</span><span>Unit</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span><span/>
                 </div>
                 {items.map((it, idx) => {
                   const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
                   return (
-                    <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 50px 40px 58px 78px 26px', gap:7, padding:'8px 12px', alignItems:'center', borderTop:`1px solid ${border}` }}>
-                      <input list="qlib-list" value={it.desc} onChange={e=>applyDesc(idx, e.target.value, false)} placeholder="Item description" style={{ ...inputStyle, padding:'7px 8px', fontSize:12.5 }}/>
+                    <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 60px 52px 74px 94px 30px', gap:7, padding:'8px 12px', alignItems:'flex-start', borderTop:`1px solid ${border}` }}>
+                      <textarea value={it.desc} onChange={e=>applyDesc(idx, e.target.value, false)} placeholder="Item description" rows={1}
+                        ref={el=>{ if(el){ el.style.height='auto'; el.style.height=el.scrollHeight+'px' } }}
+                        style={{ ...inputStyle, padding:'7px 8px', fontSize:12.5, resize:'none', overflow:'hidden', lineHeight:1.4 }}/>
                       <select value={it.unit} onChange={e=>updateItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 4px', fontSize:11 }}>
                         {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
                       </select>
@@ -1778,15 +1794,17 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
                   <span style={{ fontSize:12, color:textSub }}>Subtotal: <span style={{ fontWeight:600, color:text }}>{fmt(g.subtotal)}</span></span>
                 </div>
                 <div style={{ overflowX:'auto', WebkitOverflowScrolling:'touch' }}>
-                  <div style={{ minWidth:430 }}>
-                    <div style={{ display:'grid', gridTemplateColumns:'1fr 48px 38px 56px 76px 24px', gap:7, padding:'7px 12px', fontSize:10.5, color:textMuted, textTransform:'uppercase', letterSpacing:'.3px' }}>
+                  <div style={{ minWidth:520 }}>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 56px 48px 70px 90px 28px', gap:7, padding:'7px 12px', fontSize:10.5, color:textMuted, textTransform:'uppercase', letterSpacing:'.3px' }}>
                       <span>Description</span><span>Unit</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span><span/>
                     </div>
                     {g.rows.map(({ it, idx }) => {
                       const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
                       return (
-                        <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 48px 38px 56px 76px 24px', gap:7, padding:'6px 12px', alignItems:'center', borderTop:`1px solid ${border}` }}>
-                          <input list="qlib-list" value={it.desc} onChange={e=>applyDesc(idx, e.target.value, false)} placeholder="Item description" style={{ ...inputStyle, padding:'7px 8px', fontSize:12 }}/>
+                        <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 56px 48px 70px 90px 28px', gap:7, padding:'6px 12px', alignItems:'flex-start', borderTop:`1px solid ${border}` }}>
+                          <textarea value={it.desc} onChange={e=>applyDesc(idx, e.target.value, false)} placeholder="Item description" rows={1}
+                            ref={el=>{ if(el){ el.style.height='auto'; el.style.height=el.scrollHeight+'px' } }}
+                            style={{ ...inputStyle, padding:'7px 8px', fontSize:12, resize:'none', overflow:'hidden', lineHeight:1.4 }}/>
                           <select value={it.unit} onChange={e=>updateItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 3px', fontSize:10.5 }}>
                             {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
                           </select>
