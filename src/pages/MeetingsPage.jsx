@@ -187,12 +187,20 @@ export default function MeetingsPage({ onNavigate }) {
     catch (e) { console.error(e); toast.error('Delete failed') }
   }
 
-  // quick follow-up date set from client detail
-  async function setClientFollowup(leadId, date) {
+  // quick follow-up set from client detail — with a time it also schedules a timed agenda item
+  async function setClientFollowup(leadId, date, time, leadName) {
     try {
       await supabase.from('lead_submissions').update({ follow_up_date: date || null }).eq('id', leadId)
-      if (date) await supabase.from('lead_activity').insert({ lead_id: leadId, company_id: company.id, actor_name: company?.name || null, kind: 'follow_up', outcome: 'Scheduled', note: 'Next follow-up set', next_follow_up: date })
-      toast.success('Follow-up updated ✓'); await load(); openClientDetail(leadId)
+      if (date && time) {
+        await supabase.from('company_meetings').insert({
+          company_id: company.id, created_by_email: user?.email || null,
+          title: `Follow-up — ${leadName || 'Lead'}`, kind: 'call',
+          start_at: new Date(`${date}T${time}`).toISOString(), remind_minutes: 30,
+          status: 'scheduled', lead_id: leadId, lead_name: leadName || null,
+        })
+      }
+      if (date) await supabase.from('lead_activity').insert({ lead_id: leadId, company_id: company.id, actor_name: company?.name || null, kind: 'follow_up', outcome: 'Scheduled', note: time ? `Next follow-up ${date} ${time}` : 'Next follow-up set', next_follow_up: date })
+      toast.success(time ? 'Scheduled ✓' : 'Follow-up updated ✓'); await load(); openClientDetail(leadId)
     } catch (e) { console.error(e); toast.error('Could not update') }
   }
 
@@ -332,13 +340,14 @@ function DayPanel({ dateKey: dk, items, now, onOpenClient, onOpenMeeting, onNew,
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
           <span style={{ width: 34, height: 34, borderRadius: '50%', background: kd.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, flexShrink: 0, boxShadow: `0 4px 11px -3px ${kd.color}` }}>{av}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13.5, fontWeight: 700, color: C.text, textDecoration: it.done ? 'line-through' : 'none', wordBreak: 'break-word' }}>{it.title}</div>
-            {cd && <div style={{ marginTop: 5 }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: cd.color + '22', color: cd.color, fontSize: 11, fontWeight: 800, padding: '3px 10px', borderRadius: 99, border: `1px solid ${cd.color}66` }}><i className="ti ti-clock-hour-4" style={{ fontSize: 12 }} /> {cd.txt}</span>
-            </div>}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 5 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, justifyContent: 'space-between' }}>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: C.text, textDecoration: it.done ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.title}</div>
+              {cd
+                ? <span style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 3, background: cd.color + '22', color: cd.color, fontSize: 10.5, fontWeight: 800, padding: '2px 9px', borderRadius: 99, border: `1px solid ${cd.color}66` }}><i className="ti ti-clock-hour-4" style={{ fontSize: 11 }} /> {cd.txt}</span>
+                : <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, color: C.text }}>{fmtTime(it.time)}</span>}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', marginTop: 3 }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: kd.color, color: '#fff', fontSize: 9, fontWeight: 700, padding: '1px 7px', borderRadius: 99 }}><i className={'ti ' + kd.icon} style={{ fontSize: 10 }} /> {kd.label}</span>
-              {it.time && <span style={{ fontSize: 11.5, color: C.t2, fontWeight: 600 }}><i className="ti ti-clock" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {fmtTime(it.time)}</span>}
               {it.clientName && <span onClick={e => { e.stopPropagation(); it.clientId && onOpenClient(it.clientId) }} style={{ fontSize: 12, color: '#8b5cf6', fontWeight: 600 }}><i className="ti ti-user" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {it.clientName}</span>}
             </div>
             <div style={{ display: 'flex', gap: 11, flexWrap: 'wrap', marginTop: 4 }}>
@@ -387,7 +396,8 @@ function DayPanel({ dateKey: dk, items, now, onOpenClient, onOpenMeeting, onNew,
 /* ---------------- Client detail ---------------- */
 function ClientDetail({ lead, meetings, activity, onBack, onSchedule, onOpenMeeting, onSetFollowup, onOpenLead, C }) {
   const [fu, setFu] = useState(lead?.follow_up_date || '')
-  useEffect(() => { setFu(lead?.follow_up_date || '') }, [lead?.id])
+  const [fuTime, setFuTime] = useState('')
+  useEffect(() => { setFu(lead?.follow_up_date || ''); setFuTime('') }, [lead?.id])
   if (!lead) return (
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18 }}>
       <button onClick={onBack} style={linkBtn}>← Back</button>
@@ -421,11 +431,15 @@ function ClientDetail({ lead, meetings, activity, onBack, onSchedule, onOpenMeet
       </div>
 
       {/* next follow-up */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', marginBottom: 16, flexWrap: 'wrap' }}>
-        <i className="ti ti-flag" style={{ color: '#8b5cf6', fontSize: 16 }} />
-        <span style={{ fontSize: 12.5, fontWeight: 600 }}>Next follow-up</span>
-        <input type="date" value={fu} onChange={e => setFu(e.target.value)} style={{ ...field(C), width: 'auto', flex: '0 1 auto', padding: '7px 10px' }} />
-        <button onClick={() => onSetFollowup(lead.id, fu)} className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }}>Save</button>
+      <div style={{ background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <i className="ti ti-flag" style={{ color: '#8b5cf6', fontSize: 16 }} />
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: C.text }}>Next follow-up / meeting</span>
+          <input type="date" value={fu} onChange={e => setFu(e.target.value)} style={{ ...field(C), width: 'auto', flex: '0 1 auto', padding: '7px 10px' }} />
+          <input type="time" value={fuTime} onChange={e => setFuTime(e.target.value)} style={{ ...field(C), width: 'auto', flex: '0 1 auto', padding: '7px 10px' }} />
+          <button onClick={() => onSetFollowup(lead.id, fu, fuTime, lead.name)} className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }}>Save</button>
+        </div>
+        <div style={{ fontSize: 10.5, color: C.t3, marginTop: 6 }}>Add a time to schedule it as a timed agenda item (with countdown).</div>
       </div>
 
       {/* meetings */}

@@ -440,10 +440,12 @@ export default function LeadsPage() {
     if (!user?.email) { toast.error('Sign in required'); return }
     setMeetingSaving(true)
     try {
+      const kindLabel = { meeting: 'Meeting', site_visit: 'Site Visit', call: 'Call' }[f.kind || 'meeting'] || 'Meeting'
       const { error } = await supabase.from('company_meetings').insert({
         company_id: company.id,
         created_by_email: user.email,
-        title: `Meeting — ${lead.name || 'Lead'}`,
+        title: `${kindLabel} — ${lead.name || 'Lead'}`,
+        kind: f.kind || 'meeting',
         notes: f.notes || null,
         start_at: new Date(f.start).toISOString(),
         remind_minutes: parseInt(f.remind) || 0,
@@ -1132,14 +1134,21 @@ export default function LeadsPage() {
           </button>
 
           {meetingForm == null ? (
-            <button onClick={() => setMeetingForm({ start: '', remind: 30, notes: '' })}
+            <button onClick={() => setMeetingForm({ start: '', remind: 30, notes: '', kind: 'meeting' })}
               style={{ width: '100%', padding: '11px', borderRadius: 9, background: 'transparent', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.4)', cursor: 'pointer', fontSize: 13, fontWeight: 600, marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
               <i className="ti ti-calendar-plus" style={{ fontSize: 16 }} /> Schedule a meeting
             </button>
           ) : (
             <div style={{ border: '1px solid rgba(59,130,246,0.35)', borderRadius: 10, padding: 13, marginBottom: 14, background: 'rgba(59,130,246,0.05)' }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <i className="ti ti-calendar-event" style={{ fontSize: 15, color: '#3b82f6' }} /> Schedule meeting with {lead.name || 'lead'}
+                <i className="ti ti-calendar-event" style={{ fontSize: 15, color: '#3b82f6' }} /> Schedule with {lead.name || 'lead'}
+              </div>
+              <div style={{ fontSize: 10.5, color: 'var(--text2)', marginBottom: 5, fontWeight: 600 }}>Purpose</div>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 9, flexWrap: 'wrap' }}>
+                {[['meeting', 'Meeting', 'ti-calendar-event', '#3b82f6'], ['site_visit', 'Site Visit', 'ti-map-pin', '#f59e0b'], ['call', 'Call', 'ti-phone', '#22c55e']].map(([k, l, ic, c]) => {
+                  const on = (meetingForm.kind || 'meeting') === k
+                  return <button key={k} onClick={() => setMeetingForm(m => ({ ...m, kind: k }))} style={{ flex: '1 1 90px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '7px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600, background: on ? c + '1f' : 'transparent', color: on ? c : 'var(--text2)', border: `1px solid ${on ? c : 'var(--border)'}` }}><i className={'ti ' + ic} style={{ fontSize: 14 }} /> {l}</button>
+                })}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 8 }}>
                 <div>
