@@ -332,14 +332,13 @@ function DayPanel({ dateKey: dk, items, now, onOpenClient, onOpenMeeting, onNew,
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
           <span style={{ width: 34, height: 34, borderRadius: '50%', background: kd.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, flexShrink: 0, boxShadow: `0 4px 11px -3px ${kd.color}` }}>{av}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7, justifyContent: 'space-between' }}>
-              <div style={{ fontSize: 13.5, fontWeight: 700, color: C.text, textDecoration: it.done ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.title}</div>
-              {cd
-                ? <span style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 3, background: cd.color + '22', color: cd.color, fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 99, border: `1px solid ${cd.color}66` }}><i className="ti ti-clock-hour-4" style={{ fontSize: 11 }} /> {cd.txt}</span>
-                : <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, color: C.text }}>{fmtTime(it.time)}</span>}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', marginTop: 3 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 700, color: C.text, textDecoration: it.done ? 'line-through' : 'none', wordBreak: 'break-word' }}>{it.title}</div>
+            {cd && <div style={{ marginTop: 5 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: cd.color + '22', color: cd.color, fontSize: 11, fontWeight: 800, padding: '3px 10px', borderRadius: 99, border: `1px solid ${cd.color}66` }}><i className="ti ti-clock-hour-4" style={{ fontSize: 12 }} /> {cd.txt}</span>
+            </div>}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 5 }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: kd.color, color: '#fff', fontSize: 9, fontWeight: 700, padding: '1px 7px', borderRadius: 99 }}><i className={'ti ' + kd.icon} style={{ fontSize: 10 }} /> {kd.label}</span>
+              {it.time && <span style={{ fontSize: 11.5, color: C.t2, fontWeight: 600 }}><i className="ti ti-clock" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {fmtTime(it.time)}</span>}
               {it.clientName && <span onClick={e => { e.stopPropagation(); it.clientId && onOpenClient(it.clientId) }} style={{ fontSize: 12, color: '#8b5cf6', fontWeight: 600 }}><i className="ti ti-user" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {it.clientName}</span>}
             </div>
             <div style={{ display: 'flex', gap: 11, flexWrap: 'wrap', marginTop: 4 }}>
@@ -517,8 +516,9 @@ function MeetingModal({ modal, setModal, saving, onSave, onComplete, onDelete, C
 
         <label style={lbl(C)}>Title</label>
         <input autoFocus value={it.title || ''} onChange={e => set({ title: e.target.value })} placeholder="e.g. Kitchen design review" style={{ ...field(C), marginBottom: 12 }} />
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 12 }}>
-          <div style={{ minWidth: 0 }}><label style={lbl(C)}>Date & time</label><input type="datetime-local" value={it.start || ''} onChange={e => set({ start: e.target.value })} style={field(C)} /></div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 12 }}>
+          <div style={{ minWidth: 0 }}><label style={lbl(C)}>Date</label><input type="date" value={(it.start || '').slice(0, 10)} onChange={e => set({ start: e.target.value + 'T' + ((it.start || '').slice(11, 16) || '10:00') })} style={field(C)} /></div>
+          <div style={{ minWidth: 0 }}><label style={lbl(C)}>Time</label><input type="time" value={(it.start || '').slice(11, 16)} onChange={e => set({ start: ((it.start || '').slice(0, 10) || dateKey(new Date())) + 'T' + (e.target.value || '10:00') })} style={field(C)} /></div>
           <div style={{ minWidth: 0 }}><label style={lbl(C)}>Remind</label><select value={it.remind} onChange={e => set({ remind: e.target.value })} style={field(C)}>{REMIND.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
         </div>
         <label style={lbl(C)}>Location</label>
