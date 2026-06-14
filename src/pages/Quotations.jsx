@@ -142,6 +142,28 @@ const loadDraft  = () => { try { const r = localStorage.getItem(DRAFT_KEY); retu
 const saveDraft  = (d) => { try { localStorage.setItem(DRAFT_KEY, JSON.stringify(d)) } catch {} }
 const clearDraft = () => { try { localStorage.removeItem(DRAFT_KEY) } catch {} }
 
+// On-screen A4 preview: white sheet on a grey backdrop with dashed page-break
+// guides (~A4 page height) so you can see where each printed page ends.
+function A4Preview({ html }) {
+  const ref = useRef(null)
+  const [h, setH] = useState(0)
+  useEffect(() => { if (ref.current) setH(ref.current.offsetHeight) }, [html])
+  const PAGE_PX = 1100
+  const breaks = Math.max(0, Math.floor((h - 40) / PAGE_PX))
+  return (
+    <div style={{ background: '#4b4f55', padding: '18px 12px', borderRadius: 10, overflowX: 'auto' }}>
+      <div style={{ position: 'relative', width: 760, maxWidth: '100%', margin: '0 auto' }}>
+        <div ref={ref} style={{ background: '#fff', boxShadow: '0 4px 22px rgba(0,0,0,0.4)' }} dangerouslySetInnerHTML={{ __html: html }} />
+        {Array.from({ length: breaks }).map((_, i) => (
+          <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: (i + 1) * PAGE_PX, pointerEvents: 'none', borderTop: '2px dashed rgba(239,68,68,0.7)' }}>
+            <span style={{ position: 'absolute', right: 4, top: -10, background: '#ef4444', color: '#fff', fontSize: 9, fontWeight: 700, padding: '1px 7px', borderRadius: 4 }}>Page {i + 2}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function Quotations({ subRoute = '', setSubRoute, startAi = false }) {
   const { company, user } = useAuth()
   const toast = useToast()
@@ -1199,8 +1221,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
             {canPremium && <div style={{ fontSize:11, color:'#d97706', fontWeight:600 }}>Premium template</div>}
           </div>
         </div>
-        <div style={{ maxWidth:720, margin:'0 auto', boxShadow:'0 2px 16px rgba(0,0,0,0.12)', overflowX:'auto', background:'#fff' }}
-          dangerouslySetInnerHTML={{ __html: pageHtml }} />
+        <A4Preview html={pageHtml} />
         <div style={{ display:'flex', gap:8, justifyContent:'center', marginTop:16, flexWrap:'wrap' }}>
           <button onClick={()=>printQuote(q)} style={{ padding:'10px 18px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}><i className="ti ti-printer" style={{ fontSize:14, verticalAlign:'-2px', marginRight:5 }}/> Print / PDF</button>
           <button onClick={()=>whatsappQuote(q)} style={{ padding:'10px 18px', borderRadius:9, border:'none', background:'#22c55e', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer' }}><i className="ti ti-brand-whatsapp" style={{ fontSize:14, verticalAlign:'-2px', marginRight:5 }}/> Send via WhatsApp</button>
@@ -1233,8 +1254,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
             <div style={{ fontSize:11, color:'#d97706', fontWeight:600 }}>Variation Order · against {activeQuote.quote_number}</div>
           </div>
         </div>
-        <div style={{ maxWidth:720, margin:'0 auto', boxShadow:'0 2px 16px rgba(0,0,0,0.12)', overflowX:'auto', background:'#fff' }}
-          dangerouslySetInnerHTML={{ __html: pageHtml }} />
+        <A4Preview html={pageHtml} />
         <div style={{ display:'flex', gap:8, justifyContent:'center', marginTop:16, flexWrap:'wrap' }}>
           <button onClick={()=>printVo(v)} style={{ padding:'10px 18px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}><i className="ti ti-printer" style={{ fontSize:14, verticalAlign:'-2px', marginRight:5 }}/> Print / PDF</button>
         </div>
