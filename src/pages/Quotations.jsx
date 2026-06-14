@@ -933,6 +933,9 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
               ${t.duration?`<div style="font-size:9px;color:#888;margin-top:2px;">${escapeHtml(t.duration)}</div>`:''}
             </div>`).join('')}
           </div>
+          <div style="margin-top:12px;padding:8px 11px;background:${ACC}0d;border-left:2px solid ${ACC};border-radius:3px;font-size:8.5px;color:#777;line-height:1.6;font-style:italic;">
+            Note: The above timeline is indicative and provided for planning purposes only. Actual durations are estimates and may vary depending on the agreed payment schedule, number of working days, material availability, site readiness and required approvals — and shall not be treated as a binding or contractual commitment.
+          </div>
         </div>` : ''
 
       return `<div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;max-width:760px;margin:0 auto;background:#fff;">
