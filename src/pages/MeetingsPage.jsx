@@ -194,7 +194,8 @@ export default function MeetingsPage({ onNavigate }) {
     } catch (e) { console.error(e); toast.error('Could not update') }
   }
 
-  const C = { card: 'var(--card)', border: 'var(--border)', text: 'var(--text)', t2: 'var(--text2)', t3: 'var(--text3)', bg2: 'var(--bg2)' }
+  // Planner uses a fixed dark "workspace" palette (premium calendar look) regardless of app theme.
+  const C = { card: '#161d33', border: 'rgba(255,255,255,0.08)', text: '#eef2fb', t2: '#9aa6c4', t3: '#6b7693', bg2: '#0f1628' }
   const cells = monthMatrix(viewDate)
 
   return (
@@ -221,6 +222,7 @@ export default function MeetingsPage({ onNavigate }) {
       {loading ? (
         <div style={{ textAlign: 'center', padding: 50, color: C.t3 }}>Loading…</div>
       ) : (
+        <div style={{ background: 'linear-gradient(160deg,#0c1124 0%,#121a30 100%)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 18, padding: mobile ? 12 : 16, boxShadow: '0 24px 64px -28px rgba(0,0,0,0.7)' }}>
         <div style={{ display: 'flex', flexDirection: mobile ? 'column' : 'row', gap: 16, alignItems: 'flex-start' }}>
           {/* ===== Calendar ===== */}
           <div className="mtg-card mtg-glow" style={{ width: mobile ? '100%' : 360, flexShrink: 0, background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 16, position: 'relative', overflow: 'hidden' }}>
@@ -246,7 +248,7 @@ export default function MeetingsPage({ onNavigate }) {
                 const kinds = [...new Set(items.map(it => it.kind))].slice(0, 4)
                 return (
                   <button key={i} onClick={() => { setSelected(k); setOpenClient(null) }} className="mtg-cell"
-                    style={{ aspectRatio: '1', border: isSel ? 'none' : `1px solid ${isToday ? 'rgba(99,102,241,0.5)' : 'transparent'}`, background: isSel ? GRAD : (isToday ? 'rgba(99,102,241,0.08)' : 'transparent'), borderRadius: 10, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, padding: 2, position: 'relative', boxShadow: isSel ? '0 8px 20px -6px rgba(99,102,241,0.65)' : 'none' }}>
+                    style={{ aspectRatio: '1', border: isSel ? 'none' : `1px solid ${isToday ? 'rgba(99,130,246,0.55)' : 'transparent'}`, background: isSel ? '#3b82f6' : (isToday ? 'rgba(59,130,246,0.12)' : 'transparent'), borderRadius: 11, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, padding: 2, position: 'relative', boxShadow: isSel ? '0 8px 22px -5px rgba(59,130,246,0.7)' : 'none' }}>
                     <span style={{ fontSize: 12.5, fontWeight: isSel || isToday ? 800 : 500, color: isSel ? '#fff' : (isToday ? '#6366f1' : C.text) }}>{d.getDate()}</span>
                     <span style={{ display: 'flex', gap: 2, height: 5 }}>
                       {kinds.map(kn => { const c = (KINDS[kn] || KINDS.meeting).color; return <span key={kn} style={{ width: 5, height: 5, borderRadius: '50%', background: isSel ? '#fff' : c, boxShadow: isSel ? 'none' : `0 0 5px ${c}` }} /> })}
@@ -273,6 +275,7 @@ export default function MeetingsPage({ onNavigate }) {
                   onOpenMeeting={openEdit} onSetFollowup={setClientFollowup} onOpenLead={() => onNavigate && onNavigate('leads')} C={C} />
               : <DayPanel dateKey={selected} groups={dayGroups} onOpenClient={openClientDetail} onOpenMeeting={openEdit} onNew={() => openNew()} C={C} />}
           </div>
+        </div>
         </div>
       )}
 
@@ -317,7 +320,7 @@ function DayPanel({ dateKey: dk, groups, onOpenClient, onOpenMeeting, onNew, C }
                 {g.items.map((it, ii) => {
                   const kd = KINDS[it.kind] || KINDS.meeting
                   return (
-                    <div key={ii} onClick={() => it.meeting && onOpenMeeting(it.meeting)} className="mtg-row" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 13px', borderTop: `1px solid ${C.border}`, cursor: it.meeting ? 'pointer' : 'default', opacity: it.done ? 0.6 : 1 }}>
+                    <div key={ii} onClick={() => it.meeting && onOpenMeeting(it.meeting)} className="mtg-row" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 13px', borderTop: `1px solid ${C.border}`, borderLeft: `3px solid ${kd.color}`, cursor: it.meeting ? 'pointer' : 'default', opacity: it.done ? 0.6 : 1 }}>
                       <span style={{ width: 26, height: 26, borderRadius: 7, background: kd.color + '1f', color: kd.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><i className={'ti ' + kd.icon} style={{ fontSize: 14 }} /></span>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 13, fontWeight: 600, textDecoration: it.done ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.title}</div>
@@ -501,5 +504,5 @@ function MeetingModal({ modal, setModal, saving, onSave, onComplete, onDelete, C
 
 const navBtn = (C) => ({ width: 30, height: 30, borderRadius: 8, border: `1px solid ${C.border}`, background: 'transparent', color: C.text, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' })
 const linkBtn = { background: 'none', border: 'none', color: '#3b82f6', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: 0 }
-const field = (C) => ({ width: '100%', padding: '10px 12px', borderRadius: 9, border: `1px solid ${C.border}`, background: 'var(--bg2,rgba(127,127,127,0.05))', color: C.text, fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' })
+const field = (C) => ({ width: '100%', padding: '10px 12px', borderRadius: 9, border: `1px solid ${C.border}`, background: C.bg2, color: C.text, fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', colorScheme: 'dark' })
 const lbl = (C) => ({ fontSize: 12, color: C.t2, display: 'block', marginBottom: 5, fontWeight: 600 })
