@@ -308,13 +308,15 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   async function fetchVos(quotationId) {
     setVoLoading(true)
     const { data } = await supabase.from('quotation_variations').select('*')
-      .eq('quotation_id', quotationId).order('vo_number', { ascending: true })
+      .eq('quotation_id', quotationId).eq('company_id', company.id).order('vo_number', { ascending: true })
     setVos(data || []); setVoLoading(false)
   }
 
   // ---- Description Library: autocomplete fill + auto-grow ----
   function applyDesc(idx, val, isVo) {
-    const lib = libItems.find(li => li.description === val || (li.label && li.label === val))
+    const norm = s => (s || '').trim().toLowerCase()
+    const v = norm(val)
+    const lib = v ? libItems.find(li => norm(li.description) === v || (li.label && norm(li.label) === v)) : null
     const apply = (it) => {
       if (!lib) return { ...it, desc: val }
       const u = mapUnit(lib.unit)
@@ -471,7 +473,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   async function changeStatus(newStatus) {
     if (!activeQuote || newStatus === activeQuote.status) return
     setStatusBusy(true)
-    const { error } = await supabase.from('quotations').update({ status: newStatus }).eq('id', activeQuote.id)
+    const { error } = await supabase.from('quotations').update({ status: newStatus }).eq('id', activeQuote.id).eq('company_id', company.id)
     if (error) { toast.error('Status update failed'); setStatusBusy(false); return }
     const updated = { ...activeQuote, status: newStatus }
     setActiveQuote(updated)
@@ -482,7 +484,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   }
 
   async function doDelete(id) {
-    const { error } = await supabase.from('quotations').delete().eq('id', id)
+    const { error } = await supabase.from('quotations').delete().eq('id', id).eq('company_id', company.id)
     if (error) { toast.error('Delete failed'); return }
     toast.success('Quotation deleted')
     if (activeQuote?.id === id) { setActiveQuote(null); setView('list') }
@@ -661,7 +663,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
       }
       let savedQuoteNo = editId ? (activeQuote?.quote_number || '') : ''
       if (editId) {
-        const { error } = await supabase.from('quotations').update(payload).eq('id', editId)
+        const { error } = await supabase.from('quotations').update(payload).eq('id', editId).eq('company_id', company.id)
         if (error) throw error
         toast.success('Quotation updated ✓')
       } else {
@@ -739,7 +741,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         status: 'draft',
       }
       if (voEditId) {
-        const { error } = await supabase.from('quotation_variations').update(payload).eq('id', voEditId)
+        const { error } = await supabase.from('quotation_variations').update(payload).eq('id', voEditId).eq('company_id', company.id)
         if (error) throw error
         toast.success('Variation updated ✓')
       } else {
@@ -759,14 +761,14 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
 
   async function changeVoStatus(v, newStatus) {
     if ((v.status||'draft') === newStatus) return
-    const { error } = await supabase.from('quotation_variations').update({ status: newStatus }).eq('id', v.id)
+    const { error } = await supabase.from('quotation_variations').update({ status: newStatus }).eq('id', v.id).eq('company_id', company.id)
     if (error) { toast.error('Status update failed'); return }
     await fetchVos(activeQuote.id)
     toast.success('VO status updated')
   }
   async function deleteVo(v) {
     if (!window.confirm(`Delete VO-${String(v.vo_number).padStart(2,'0')}? This cannot be undone.`)) return
-    const { error } = await supabase.from('quotation_variations').delete().eq('id', v.id)
+    const { error } = await supabase.from('quotation_variations').delete().eq('id', v.id).eq('company_id', company.id)
     if (error) { toast.error('Delete failed'); return }
     await fetchVos(activeQuote.id)
     toast.success('Variation deleted')
@@ -1110,11 +1112,19 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   const inputStyle = { padding:'9px 11px', border:`1px solid ${border}`, borderRadius:8, fontSize:13, background:inputBg, color:text, outline:'none', width:'100%', boxSizing:'border-box' }
   const initials = nm => nm ? nm.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase() : '?'
 
-  const LibDatalist = () => (
-    <datalist id="qlib-list">
-      {libItems.map(li => <option key={li.id} value={li.description}>{li.label || ''}</option>)}
-    </datalist>
-  )
+  const LibDatalist = () => {
+    const seen = new Set()
+    const opts = libItems.filter(li => {
+      const k = (li.description || '').trim().toLowerCase()
+      if (!k || seen.has(k)) return false
+      seen.add(k); return true
+    })
+    return (
+      <datalist id="qlib-list">
+        {opts.map(li => <option key={li.id} value={li.description}>{li.label || ''}</option>)}
+      </datalist>
+    )
+  }
 
   // ============ PREVIEW ============
   if (view === 'preview' && activeQuote) {
