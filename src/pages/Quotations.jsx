@@ -98,6 +98,31 @@ function parsePaymentTpl(raw) {
   }
   return []
 }
+
+// Selectable quote colour templates (only the accent changes — clean & print-safe).
+const THEMES = {
+  gold:    { name: 'Gold',    accent: '#c9952a' },
+  royal:   { name: 'Royal',   accent: '#2563eb' },
+  emerald: { name: 'Emerald', accent: '#0f9d6b' },
+  slate:   { name: 'Slate',   accent: '#475569' },
+}
+const THEME_LIST = ['gold', 'royal', 'emerald', 'slate']
+function getTheme(key) { return THEMES[key] || THEMES.gold }
+
+const DEFAULT_PAYMENTS = [
+  { percent: 50, label: 'Advance', description: 'On confirmation' },
+  { percent: 40, label: 'Progress', description: 'During works' },
+  { percent: 10, label: 'Handover', description: 'On completion' },
+]
+
+function parseTimeline(raw) {
+  if (!raw) return []
+  let arr = raw
+  if (typeof raw === 'string') { try { arr = JSON.parse(raw) } catch { return [] } }
+  if (!Array.isArray(arr)) return []
+  return arr.map(x => ({ phase: String(x.phase || '').trim(), duration: String(x.duration || '').trim() }))
+    .filter(x => x.phase || x.duration)
+}
 // Work-type presets bundle (payment + terms + why-us) from quotation_templates.work_type_presets
 function parsePresetsTpl(raw) {
   if (!Array.isArray(raw)) return []
@@ -159,6 +184,8 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   const [showFooter, setShowFooter] = useState(true)
   const [showSignature, setShowSignature] = useState(true)
   const [showBank, setShowBank] = useState(false)
+  const [quoteTheme, setQuoteTheme] = useState('gold')
+  const [projTimeline, setProjTimeline] = useState([])
   const [addTradePick, setAddTradePick] = useState('')
   const [location, setLocation]       = useState('')
   const [preparedBy, setPreparedBy]   = useState('')
@@ -238,7 +265,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         setItems(Array.isArray(d.items) && d.items.length ? d.items : [blankItem()])
         setVatEnabled(d.vatEnabled ?? true)
         setDiscountType(d.discountType ?? null); setDiscountValue(d.discountValue ?? 0)
-        setNotes(d.notes || ''); setShowFooter(d.showFooter ?? true); setShowSignature(d.showSignature ?? true); setShowBank(d.showBank ?? false)
+        setNotes(d.notes || ''); setShowFooter(d.showFooter ?? true); setShowSignature(d.showSignature ?? true); setShowBank(d.showBank ?? false); setQuoteTheme(d.quoteTheme ?? 'gold'); setProjTimeline(d.projTimeline ?? [])
         setLocation(d.location || ''); setPreparedBy(d.preparedBy || ''); setClientEmail(d.clientEmail || '')
         setSourceLead(d.sourceLead || null)
         setWorkType(d.workType || defaultPresetName); setValidUntil(d.validUntil || '')
@@ -461,6 +488,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         payment_terms: q.payment_terms, why_choose_us: q.why_choose_us, terms: q.terms,
         work_type: q.work_type || null, valid_until: null,
         show_footer: q.show_footer ?? true, show_signature: q.show_signature ?? true, show_bank: q.show_bank ?? false,
+        quote_theme: q.quote_theme || 'gold', project_timeline: q.project_timeline || null,
         status: 'draft',
       }
       const { error } = await supabase.from('quotations').insert(payload)
@@ -503,6 +531,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     setVatEnabled(tpl?.default_vat_enabled ?? true)
     setDiscountType(null); setDiscountValue(0)
     setShowFooter(true); setShowSignature(true); setShowBank(tpl?.default_show_bank ?? false); setAddTradePick('')
+    setQuoteTheme(tpl?.default_quote_theme || 'gold'); setProjTimeline([])
     setLocation(''); setPreparedBy(''); setClientEmail(''); setSourceLead(null)
     setWorkType(defaultPresetName); setValidUntil('')
     setView('builder', 'builder')
@@ -539,6 +568,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     setVatEnabled(q.vat_enabled != null ? q.vat_enabled : (!!q.vat_amount || (tpl?.default_vat_enabled ?? true)))
     setDiscountType(q.discount_type || null); setDiscountValue(q.discount_value || 0)
     setShowFooter(q.show_footer ?? true); setShowSignature(q.show_signature ?? true); setShowBank(q.show_bank ?? (tpl?.default_show_bank ?? false))
+    setQuoteTheme(q.quote_theme || 'gold'); setProjTimeline(parseTimeline(q.project_timeline))
     setLocation(q.location || ''); setPreparedBy(q.prepared_by || ''); setClientEmail(q.client_email || ''); setSourceLead(null)
     setWorkType(q.work_type || defaultPresetName); setValidUntil(q.valid_until || '')
     setAddTradePick(''); setView('builder', 'builder')
@@ -600,11 +630,11 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     const hasContent = client || projectTitle.trim() || items.some(it => it.desc.trim())
     if (!hasContent) return
     const t = setTimeout(() => {
-      saveDraft({ mode, client, clientSearch, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, showBank, location, preparedBy, clientEmail, sourceLead })
+      saveDraft({ mode, client, clientSearch, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, showBank, quoteTheme, projTimeline, location, preparedBy, clientEmail, sourceLead })
       setDraftExists(true)
     }, 500)
     return () => clearTimeout(t)
-  }, [view, editId, mode, client, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, showBank, location, preparedBy, clientEmail, sourceLead])
+  }, [view, editId, mode, client, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, showBank, quoteTheme, projTimeline, location, preparedBy, clientEmail, sourceLead])
 
   function openBuilderPreview() {
     if (!client) { toast.error('Select a client first'); return }
@@ -659,6 +689,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         work_type: workType || null,
         valid_until: validUntil || null,
         show_footer: showFooter, show_signature: showSignature, show_bank: showBank,
+        quote_theme: quoteTheme, project_timeline: projTimeline.length ? projTimeline : null,
         status: sendNow ? 'sent' : 'draft',
       }
       let savedQuoteNo = editId ? (activeQuote?.quote_number || '') : ''
@@ -802,7 +833,10 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     const disc = Math.max(0, sub - (tot - vat))
     const n = v => Math.round(v).toLocaleString('en-AE')
 
+    const T = getTheme(q.quote_theme); const ACC = T.accent
+    const timeline = parseTimeline(q.project_timeline)
     const payments = parsePaymentTpl(q.payment_terms || tpl?.payment_schedule)
+    const pays = payments.length ? payments : DEFAULT_PAYMENTS
     const whys = parseWhyTpl(q.why_choose_us || tpl?.why_choose_us)
 
     const colgroup = `<colgroup><col style="width:26px"><col><col style="width:44px"><col style="width:36px"><col style="width:60px"><col style="width:72px"></colgroup>`
@@ -818,8 +852,8 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
       <td style="${td}text-align:right;">${n((Number(it.qty)||0)*(Number(it.rate)||0))}</td>
     </tr>`
 
-    const bandBg = canPremium ? '#c9952a' : '#1a1a1a'
-    const bandColor = canPremium ? '#1a1a1a' : '#fff'
+    const bandBg = ACC
+    const bandColor = '#fff'
 
     let bodyRows = ''
     if (isBoq) {
@@ -827,7 +861,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
       bodyRows = groups.map((g, gi) => `
         <tr><td colspan="6" style="background:${bandBg};color:${bandColor};font-size:10px;font-weight:700;padding:5px 10px;letter-spacing:1px;">${escapeHtml(String.fromCharCode(65+gi))} · ${escapeHtml(g.trade.toUpperCase())}</td></tr>
         ${g.items.map((it,i)=>rowHtml(it,i+1)).join('')}
-        <tr><td colspan="5" style="text-align:right;padding:6px 10px;background:#faf6ec;font-size:10px;font-weight:700;color:#6b6b6b;">${escapeHtml(g.trade)} Subtotal</td><td style="text-align:right;padding:6px 10px;background:#faf6ec;font-size:10px;font-weight:700;color:#c9952a;">AED ${n(g.subtotal)}</td></tr>
+        <tr><td colspan="5" style="text-align:right;padding:6px 10px;background:#faf6ec;font-size:10px;font-weight:700;color:#6b6b6b;">${escapeHtml(g.trade)} Subtotal</td><td style="text-align:right;padding:6px 10px;background:#faf6ec;font-size:10px;font-weight:700;color:${ACC};">AED ${n(g.subtotal)}</td></tr>
       `).join('')
     } else {
       bodyRows = qItems.map((it,i)=>rowHtml(it,i+1)).join('')
@@ -835,7 +869,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
 
     const logoBox = cLogo
       ? `<img src="${escapeHtml(cLogo)}" style="width:54px;height:54px;border-radius:11px;object-fit:cover;">`
-      : `<div style="width:54px;height:54px;border-radius:11px;background:#1a1a1a;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:22px;color:#c9952a;">${cName[0]||'C'}</div>`
+      : `<div style="width:54px;height:54px;border-radius:11px;background:#1a1a1a;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:22px;color:${ACC};">${cName[0]||'C'}</div>`
 
     const voDescBlock = isVo && voMeta.description ? `
       <div style="padding:0 30px 12px;">
@@ -846,12 +880,12 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
       </div>` : ''
 
     if (canPremium) {
-      const paymentCards = (!isVo && payments.length) ? `
+      const paymentCards = (!isVo) ? `
         <div style="padding:18px 30px 0;">
-          <div style="font-size:10px;color:#c9952a;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:10px;">— Payment Schedule</div>
+          <div style="font-size:10px;color:${ACC};text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:10px;">— Payment Schedule</div>
           <div style="display:flex;gap:8px;">
-            ${payments.map(p => `<div style="flex:1;border:0.5px solid #eee;border-top:2px solid #c9952a;padding:9px 10px;">
-              <div style="font-size:16px;font-weight:700;color:#c9952a;">${escapeHtml(p.percent)}%</div>
+            ${pays.map(p => `<div style="flex:1;border:0.5px solid #eee;border-top:2px solid ${ACC};padding:9px 10px;">
+              <div style="font-size:16px;font-weight:700;color:${ACC};">${escapeHtml(p.percent)}%</div>
               <div style="font-size:11px;font-weight:700;color:#1a1a1a;margin-top:1px;">AED ${n(tot*(Number(p.percent)||0)/100)}</div>
               <div style="font-size:9.5px;font-weight:700;margin-top:3px;">${escapeHtml(p.label||'')}</div>
               ${p.description?`<div style="font-size:8.5px;color:#888;margin-top:2px;line-height:1.4;">${escapeHtml(p.description)}</div>`:''}
@@ -861,10 +895,10 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
 
       const whyBlock = (!isVo && whys.length) ? `
         <div style="padding:18px 30px 0;">
-          <div style="font-size:10px;color:#c9952a;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:10px;">— Why Choose ${cName.split(' ').slice(0,2).join(' ')}</div>
+          <div style="font-size:10px;color:${ACC};text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:10px;">— Why Choose ${cName.split(' ').slice(0,2).join(' ')}</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px 16px;">
             ${whys.map(w => `<div style="display:flex;gap:7px;">
-              <span style="color:#c9952a;font-size:13px;font-weight:700;line-height:1.2;">✓</span>
+              <span style="color:${ACC};font-size:13px;font-weight:700;line-height:1.2;">✓</span>
               <div><div style="font-size:10px;font-weight:700;">${escapeHtml(w.title||'')}</div>${w.detail?`<div style="font-size:8.5px;color:#888;line-height:1.5;">${escapeHtml(w.detail)}</div>`:''}</div>
             </div>`).join('')}
           </div>
@@ -878,14 +912,29 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
 
       const bankBlock = (wantBank && bankFields.length) ? `
         <div style="padding:18px 30px 0;">
-          <div style="font-size:10px;color:#c9952a;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:10px;">— Bank Details</div>
-          <div style="border:0.5px solid #eee;border-left:2px solid #c9952a;border-radius:4px;padding:11px 14px;display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;">
+          <div style="font-size:10px;color:${ACC};text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:10px;">— Bank Details</div>
+          <div style="border:0.5px solid #eee;border-left:2px solid ${ACC};border-radius:4px;padding:11px 14px;display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;">
             ${bankFields.map(([k,v])=>`<div style="display:flex;gap:8px;font-size:10px;"><span style="color:#999;min-width:80px;">${k}</span><span style="font-weight:600;color:#1a1a1a;word-break:break-word;">${v}</span></div>`).join('')}
           </div>
         </div>` : ''
 
-      return `<div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;max-width:680px;margin:0 auto;background:#fff;">
-        <div style="height:5px;background:#c9952a;"></div>
+      const timelineBlock = (!isVo && timeline.length) ? `
+        <div style="padding:18px 30px 0;">
+          <div style="font-size:10px;color:${ACC};text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:12px;">— Project Timeline</div>
+          <div style="display:flex;gap:0;align-items:flex-start;">
+            ${timeline.map((t,i)=>`<div style="flex:1;padding:0 4px;">
+              <div style="display:flex;align-items:center;gap:5px;margin-bottom:7px;">
+                <div style="width:20px;height:20px;border-radius:50%;background:${ACC};color:#fff;font-size:9.5px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${i+1}</div>
+                ${i<timeline.length-1?`<div style="flex:1;height:2px;background:${ACC};opacity:.3;"></div>`:''}
+              </div>
+              <div style="font-size:10px;font-weight:700;color:#1a1a1a;line-height:1.3;">${escapeHtml(t.phase||'')}</div>
+              ${t.duration?`<div style="font-size:9px;color:#888;margin-top:2px;">${escapeHtml(t.duration)}</div>`:''}
+            </div>`).join('')}
+          </div>
+        </div>` : ''
+
+      return `<div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;max-width:760px;margin:0 auto;background:#fff;">
+        <div style="height:5px;background:${ACC};"></div>
         <div style="padding:22px 30px 0;">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
             <div style="display:flex;gap:13px;align-items:center;">
@@ -897,7 +946,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
               </div>
             </div>
             <div style="text-align:right;">
-              <div style="font-size:${isVo?'17px':'20px'};font-weight:700;color:#c9952a;letter-spacing:${isVo?'1px':'2px'};">${docLabel}</div>
+              <div style="font-size:${isVo?'17px':'20px'};font-weight:700;color:${ACC};letter-spacing:${isVo?'1px':'2px'};">${docLabel}</div>
               <div style="display:inline-block;margin-top:6px;background:#faf6ec;border:0.5px solid #e8d9b5;border-radius:5px;padding:5px 9px;text-align:left;">
                 <div style="font-size:9px;color:#6b6b6b;font-family:monospace;">${isVo?'VO':'Ref'} · ${refLabel}</div>
                 ${isVo?`<div style="font-size:9px;color:#6b6b6b;font-family:monospace;">Against · ${escapeHtml(q.quote_number||'')}</div>`:(q.client_uid?`<div style="font-size:9px;color:#6b6b6b;font-family:monospace;">UID · ${escapeHtml(q.client_uid)}</div>`:'')}
@@ -907,13 +956,13 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
             </div>
           </div>
           <div style="display:flex;gap:14px;margin-bottom:16px;">
-            <div style="flex:1;background:#faf9f7;border-left:2.5px solid #c9952a;padding:10px 13px;">
+            <div style="flex:1;background:#faf9f7;border-left:2.5px solid ${ACC};padding:10px 13px;">
               <div style="font-size:8.5px;color:#b08f3f;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:4px;">Bill To</div>
               <div style="font-size:12.5px;font-weight:700;word-break:break-word;">${escapeHtml(q.client_name||'')}</div>
               ${q.location?`<div style="font-size:10px;color:#6b6b6b;margin-top:2px;">${escapeHtml(q.location)}</div>`:''}
               ${q.client_phone?`<div style="font-size:10px;color:#6b6b6b;">${escapeHtml(q.client_phone)}</div>`:''}
             </div>
-            <div style="flex:1;background:#faf9f7;border-left:2.5px solid #c9952a;padding:10px 13px;">
+            <div style="flex:1;background:#faf9f7;border-left:2.5px solid ${ACC};padding:10px 13px;">
               <div style="font-size:8.5px;color:#b08f3f;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:4px;">Project</div>
               <div style="font-size:12.5px;font-weight:700;word-break:break-word;">${escapeHtml(q.project_title||'—')}</div>
               ${q.prepared_by?`<div style="font-size:10px;color:#6b6b6b;margin-top:2px;">Prepared by · ${escapeHtml(q.prepared_by)}</div>`:''}
@@ -941,13 +990,14 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
             <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:3px 0;color:#6b6b6b;"><span>${disc>0?'Gross Total':'Subtotal'}</span><span>AED ${n(sub)}</span></div>
             ${disc>0?`<div style="display:flex;justify-content:space-between;font-size:10.5px;padding:3px 0;color:#0f6e56;"><span>Discount</span><span>− ${n(disc)}</span></div>`:''}
             ${vat>0?`<div style="display:flex;justify-content:space-between;font-size:10.5px;padding:3px 0;color:#6b6b6b;"><span>VAT 5%</span><span>${n(vat)}</span></div>`:''}
-            <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding:7px 10px;margin-top:5px;background:#1a1a1a;color:#fff;border-radius:4px;"><span>${isVo?'VO Total':'Grand Total'}</span><span style="color:#c9952a;">AED ${n(tot)}</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding:7px 10px;margin-top:5px;background:#1a1a1a;color:#fff;border-radius:4px;"><span>${isVo?'VO Total':'Grand Total'}</span><span style="color:${ACC};">AED ${n(tot)}</span></div>
           </div>
         </div>
+        ${timelineBlock}
         ${bankBlock}
         ${wantFooter ? paymentCards + whyBlock + (!isVo ? `
           <div style="padding:18px 30px 0;">
-            <div style="font-size:10px;color:#c9952a;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:7px;">— Terms & Conditions</div>
+            <div style="font-size:10px;color:${ACC};text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:7px;">— Terms & Conditions</div>
             <div style="font-size:8.5px;color:#888;line-height:1.7;white-space:pre-line;">${terms}</div>
           </div>` : '') : ''}
         ${signBlock}
@@ -959,21 +1009,21 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
       ? payments.map(p => `${p.percent}% (AED ${n(tot*(Number(p.percent)||0)/100)})${p.label ? ' ' + p.label : ''}`).join(' · ')
       : '50% Advance · 40% On completion · 10% On handover'
     const footerHtml = (wantFooter && !isVo) ? `<div style="background:#faf8f3;border-radius:5px;padding:11px 13px;margin-bottom:14px;">
-        <div style="font-size:9px;color:#c9952a;text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:5px;">Payment Schedule</div>
+        <div style="font-size:9px;color:${ACC};text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:5px;">Payment Schedule</div>
         <div style="font-size:10.5px;color:#555;">${escapeHtml(paymentStr)}</div>
-        <div style="font-size:9px;color:#c9952a;text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin:9px 0 5px;">Terms</div>
+        <div style="font-size:9px;color:${ACC};text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin:9px 0 5px;">Terms</div>
         <div style="font-size:10px;color:#777;line-height:1.6;white-space:pre-line;">${terms}</div>
       </div>` : ''
     const signHtml = wantSign ? `<div style="text-align:center;"><div style="width:120px;border-bottom:1px solid #1a1a1a;margin-bottom:4px;height:30px;"></div><div style="font-size:9.5px;color:#6b6b6b;">Authorized Signature &amp; Stamp</div></div>` : '<div></div>'
     const bankHtml = (wantBank && bankFields.length) ? `<div style="background:#faf8f3;border-radius:5px;padding:11px 13px;margin-bottom:14px;">
-        <div style="font-size:9px;color:#c9952a;text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:6px;">Bank Details</div>
+        <div style="font-size:9px;color:${ACC};text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:6px;">Bank Details</div>
         ${bankFields.map(([k,v])=>`<div style="font-size:10.5px;color:#555;margin-bottom:2px;"><span style="color:#999;display:inline-block;min-width:86px;">${k}</span> <span style="font-weight:600;color:#1a1a1a;">${v}</span></div>`).join('')}
       </div>` : ''
 
     return `<div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;max-width:680px;margin:0 auto;padding:30px;background:#fff;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #c9952a;padding-bottom:14px;margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid ${ACC};padding-bottom:14px;margin-bottom:16px;">
         <div style="display:flex;gap:11px;align-items:center;">
-          ${cLogo?`<img src="${escapeHtml(cLogo)}" style="width:46px;height:46px;border-radius:9px;object-fit:cover;">`:`<div style="width:46px;height:46px;border-radius:9px;background:#c9952a;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;color:#fff;">${cName[0]||'C'}</div>`}
+          ${cLogo?`<img src="${escapeHtml(cLogo)}" style="width:46px;height:46px;border-radius:9px;object-fit:cover;">`:`<div style="width:46px;height:46px;border-radius:9px;background:${ACC};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;color:#fff;">${cName[0]||'C'}</div>`}
           <div>
             <div style="font-size:15px;font-weight:700;">${cName}</div>
             <div style="font-size:10px;color:#6b6b6b;">${tagline}</div>
@@ -981,14 +1031,14 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
           </div>
         </div>
         <div style="text-align:right;">
-          <div style="font-size:17px;font-weight:700;color:#c9952a;">${docLabel}</div>
+          <div style="font-size:17px;font-weight:700;color:${ACC};">${docLabel}</div>
           <div style="font-size:10px;color:#6b6b6b;margin-top:3px;font-family:monospace;">${isVo?'VO':'Ref'}: ${refLabel}</div>
           ${isVo?`<div style="font-size:10px;color:#6b6b6b;font-family:monospace;">Against: ${escapeHtml(q.quote_number||'')}</div>`:(q.client_uid?`<div style="font-size:10px;color:#6b6b6b;font-family:monospace;">UID: ${escapeHtml(q.client_uid)}</div>`:'')}
           <div style="font-size:10px;color:#6b6b6b;">Date: ${dateStr}</div>
           ${validStr?`<div style="font-size:10px;color:#6b6b6b;">Valid until: ${validStr}</div>`:''}
         </div>
       </div>
-      ${isVo && voMeta.description ? `<div style="background:#faf8f3;border-radius:5px;padding:9px 12px;margin-bottom:14px;"><div style="font-size:9px;color:#c9952a;text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:3px;">Variation Description</div><div style="font-size:10.5px;color:#555;">${escapeHtml(voMeta.description)}</div></div>` : ''}
+      ${isVo && voMeta.description ? `<div style="background:#faf8f3;border-radius:5px;padding:9px 12px;margin-bottom:14px;"><div style="font-size:9px;color:${ACC};text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:3px;">Variation Description</div><div style="font-size:10.5px;color:#555;">${escapeHtml(voMeta.description)}</div></div>` : ''}
       <div style="display:flex;justify-content:space-between;margin-bottom:16px;gap:14px;">
         <div style="min-width:0;"><div style="font-size:9px;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Bill To</div>
           <div style="font-size:12px;font-weight:700;word-break:break-word;">${escapeHtml(q.client_name||'')}</div>
@@ -1016,7 +1066,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
           <div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0;color:#6b6b6b;"><span>${disc>0?'Gross Total':'Subtotal'}</span><span>AED ${n(sub)}</span></div>
           ${disc>0?`<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0;color:#0f6e56;"><span>Discount</span><span>− ${n(disc)}</span></div>`:''}
           ${vat>0?`<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0;color:#6b6b6b;"><span>VAT 5%</span><span>${n(vat)}</span></div>`:''}
-          <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding:6px 0 0;border-top:1.5px solid #1a1a1a;margin-top:4px;"><span>${isVo?'VO Total':'Grand Total'}</span><span style="color:#c9952a;">AED ${n(tot)}</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding:6px 0 0;border-top:1.5px solid #1a1a1a;margin-top:4px;"><span>${isVo?'VO Total':'Grand Total'}</span><span style="color:${ACC};">AED ${n(tot)}</span></div>
         </div>
       </div>
       ${bankHtml}
@@ -1038,10 +1088,12 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         /* force background colours/gradients to print & save-to-PDF (premium theme stays) */
         * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
         html, body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        @page { size: A4; margin: 12mm; }
+        .__sheet { width: 210mm; max-width: 100%; margin: 18px auto; background:#fff; box-shadow:0 6px 30px rgba(0,0,0,0.18); }
         @media print {
           .__toolbar { display:none !important; }
           body { padding-top:0 !important; background:#fff !important; }
-          @page { margin: 10mm; }
+          .__sheet { width:auto; max-width:none; margin:0; box-shadow:none; }
         }
         .__toolbar { position:fixed; top:0; left:0; right:0; height:52px; z-index:9999; background:#0f1623; color:#fff; display:flex; align-items:center; justify-content:space-between; padding:0 16px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; box-shadow:0 2px 10px rgba(0,0,0,0.25); }
         .__toolbar .__t { font-size:14px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -1058,7 +1110,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
           <button class="__btn-close" onclick="window.close()">✕ Close</button>
         </span>
       </div>
-      ${html}
+      <div class="__sheet">${html}</div>
     </body></html>`)
     w.document.close()
   }
@@ -1835,6 +1887,39 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
               </div>
             </label>
           </div>
+        </div>
+
+        {/* Colour template + Project timeline */}
+        <div style={{ borderTop:`1px dashed ${border}`, paddingTop:13, marginBottom:14 }}>
+          <div style={{ fontSize:11, color:textMuted, textTransform:'uppercase', letterSpacing:'.4px', marginBottom:8 }}>Colour template</div>
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:16 }}>
+            {THEME_LIST.map(k => { const th = THEMES[k]; const on = quoteTheme === k; return (
+              <button key={k} onClick={()=>setQuoteTheme(k)} style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 12px', borderRadius:9, cursor:'pointer', border:`1.5px solid ${on?th.accent:border}`, background: on ? th.accent+'14' : cardBg }}>
+                <span style={{ width:16, height:16, borderRadius:'50%', background:th.accent, boxShadow:`0 0 0 2px ${th.accent}33` }}/>
+                <span style={{ fontSize:12.5, fontWeight:on?700:500, color: on?th.accent:textSub }}>{th.name}</span>
+                {on && <i className="ti ti-check" style={{ fontSize:13, color:th.accent }}/>}
+              </button>
+            )})}
+          </div>
+
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
+            <div style={{ fontSize:11, color:textMuted, textTransform:'uppercase', letterSpacing:'.4px' }}>Project timeline <span style={{ textTransform:'none' }}>(optional)</span></div>
+            <button onClick={()=>setProjTimeline(p=>[...p,{phase:'',duration:''}])} style={{ fontSize:12, color:'#0099cc', background:'none', border:'none', cursor:'pointer', fontWeight:600 }}><i className="ti ti-plus" style={{ fontSize:12, verticalAlign:'-1px' }}/> Add phase</button>
+          </div>
+          {projTimeline.length === 0 ? (
+            <div style={{ fontSize:11.5, color:textMuted, lineHeight:1.5 }}>Add phases (e.g. Design — 1 week, Execution — 3 weeks) to show a timeline on the PDF.</div>
+          ) : (
+            <div style={{ display:'flex', flexDirection:'column', gap:7 }}>
+              {projTimeline.map((t,i)=>(
+                <div key={i} style={{ display:'flex', gap:7, alignItems:'center' }}>
+                  <span style={{ width:22, height:22, borderRadius:'50%', background:isDark?'rgba(3,193,245,0.12)':'#e0f9ff', color:'#0099cc', fontSize:11, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>{i+1}</span>
+                  <input value={t.phase} onChange={e=>setProjTimeline(p=>p.map((x,j)=>j===i?{...x,phase:e.target.value}:x))} placeholder="Phase (e.g. Design)" style={{ ...inputStyle, flex:2 }}/>
+                  <input value={t.duration} onChange={e=>setProjTimeline(p=>p.map((x,j)=>j===i?{...x,duration:e.target.value}:x))} placeholder="Duration (e.g. 1 week)" style={{ ...inputStyle, flex:1 }}/>
+                  <button onClick={()=>setProjTimeline(p=>p.filter((_,j)=>j!==i))} style={{ width:30, height:30, borderRadius:7, border:`1px solid ${border}`, background:cardBg, color:'#ef4444', cursor:'pointer', flexShrink:0 }}><i className="ti ti-x" style={{ fontSize:14 }}/></button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
