@@ -66,12 +66,12 @@ export default function Organizer({ onNavigate }) {
 
   function openNew(type) {
     setModal({
-      item: { type, title: '', notes: '', start_at: '', due_date: '', alert_minutes_before: 30, is_done: false },
+      item: { type, title: '', notes: '', start_at: '', due_date: '', alert_minutes_before: 30, is_done: false, lead_id: null, lead_name: null, mom: '', followUp: '' },
       isNew: true,
     })
   }
   function openEdit(it) {
-    setModal({ item: { ...it, start_at: it.start_at ? it.start_at.slice(0,16) : '', due_date: it.due_date || '' }, isNew: false })
+    setModal({ item: { ...it, start_at: it.start_at ? it.start_at.slice(0,16) : '', due_date: it.due_date || '', mom: it.mom || '', followUp: '' }, isNew: false })
   }
 
   async function saveItem() {
@@ -89,6 +89,9 @@ export default function Organizer({ onNavigate }) {
         due_date: it.type === 'task' && it.due_date ? it.due_date : null,
         alert_minutes_before: it.type === 'meeting' ? (parseInt(it.alert_minutes_before) || 0) : null,
         is_done: !!it.is_done,
+        lead_id: it.lead_id || null,
+        lead_name: it.lead_name || null,
+        mom: it.type === 'meeting' ? (it.mom || null) : null,
         updated_at: new Date().toISOString(),
       }
       if (modal.isNew) {
@@ -98,8 +101,19 @@ export default function Organizer({ onNavigate }) {
         const { error } = await supabase.from('organizer_items').update(payload).eq('id', it.id)
         if (error) throw error
       }
+      // After-meeting: write the minutes + a follow-up date back to the linked lead.
+      if (it.type === 'meeting' && it.lead_id && it.followUp) {
+        try {
+          await supabase.from('lead_submissions').update({ follow_up_date: it.followUp }).eq('id', it.lead_id)
+          await supabase.from('lead_activity').insert({
+            lead_id: it.lead_id, company_id: companyId, actor_name: company?.name || null,
+            kind: 'follow_up', outcome: 'Meeting',
+            note: it.mom ? ('MOM: ' + it.mom) : 'Meeting follow-up', next_follow_up: it.followUp,
+          })
+        } catch (e) { console.error('mom follow-up writeback', e) }
+      }
       setModal(null)
-      showToast('Saved ✓')
+      showToast(it.lead_id && it.followUp ? 'Saved ✓ — follow-up set on lead' : 'Saved ✓')
       load()
     } catch (e) { console.error(e); showToast('Save failed') }
     finally { setSaving(false) }
@@ -229,6 +243,7 @@ export default function Organizer({ onNavigate }) {
                   <div style={{ display:'flex', gap:10, flexWrap:'wrap', marginTop:5 }}>
                     <span style={{ fontSize:10.5, fontWeight:700, color:t.color, background:t.color+'18', borderRadius:6, padding:'2px 7px' }}>{t.label}</span>
                     {it.type==='meeting' && it.start_at && <span style={{ fontSize:11.5, color:'var(--text3)' }}><i className="ti ti-clock" style={{ fontSize:12, verticalAlign:'-1px' }}/> {fmtDate(it.start_at)} · {fmtTime(it.start_at)}</span>}
+                    {it.lead_name && <span style={{ fontSize:11, color:'#3b82f6', fontWeight:600 }}><i className="ti ti-user" style={{ fontSize:12, verticalAlign:'-1px' }}/> {it.lead_name}</span>}
                     {it.type==='task' && it.due_date && <span style={{ fontSize:11.5, color:'var(--text3)' }}><i className="ti ti-flag" style={{ fontSize:12, verticalAlign:'-1px' }}/> Due {fmtDate(it.due_date)}</span>}
                   </div>
                 </div>
@@ -282,6 +297,26 @@ export default function Organizer({ onNavigate }) {
                     <option value={60}>1 hour</option>
                     <option value={1440}>1 day</option>
                   </select></div>
+              </div>
+            )}
+
+            {modal.item.type === 'meeting' && (
+              <div style={{ marginBottom:12 }}>
+                {modal.item.lead_name && (
+                  <div style={{ fontSize:11.5, color:'#3b82f6', background:'rgba(59,130,246,0.1)', border:'1px solid rgba(59,130,246,0.25)', borderRadius:8, padding:'6px 10px', marginBottom:10, display:'flex', alignItems:'center', gap:6 }}>
+                    <i className="ti ti-user" style={{ fontSize:13 }}/> Linked lead: <b>{modal.item.lead_name}</b>
+                  </div>
+                )}
+                <label style={lbl}>Minutes of meeting (fill after the meeting)</label>
+                <textarea value={modal.item.mom || ''} onChange={e => setModal(m => ({ ...m, item: { ...m.item, mom: e.target.value } }))}
+                  rows={2} placeholder="What was discussed, decisions, next steps…" style={{ ...input, resize:'vertical', minHeight:56, marginBottom: modal.item.lead_id ? 10 : 0 }}/>
+                {modal.item.lead_id && (
+                  <>
+                    <label style={lbl}>Set next follow-up for this lead</label>
+                    <input type="date" value={modal.item.followUp || ''} onChange={e => setModal(m => ({ ...m, item: { ...m.item, followUp: e.target.value } }))} style={input}/>
+                    <div style={{ fontSize:10.5, color:'var(--text3)', marginTop:4 }}>Saves the minutes + this follow-up date back to the lead's record.</div>
+                  </>
+                )}
               </div>
             )}
 

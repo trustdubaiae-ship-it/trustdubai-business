@@ -96,7 +96,7 @@ const SELECT_CHEVRON =
   "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>\")"
 
 export default function LeadsPage() {
-  const { company } = useAuth()
+  const { company, user } = useAuth()
   const toast = useToast()
   const fileRef = useRef(null)
   const [mainTab, setMainTab] = useState('trustdubai')
@@ -142,6 +142,8 @@ export default function LeadsPage() {
   const [aiReplyLoading, setAiReplyLoading] = useState(false)
   const [waDraft, setWaDraft] = useState(null)
   const [waDraftLoading, setWaDraftLoading] = useState(false)
+  const [meetingForm, setMeetingForm] = useState(null) // null | { start, remind, notes }
+  const [meetingSaving, setMeetingSaving] = useState(false)
   const [showNewTpl, setShowNewTpl] = useState(false)
   const [tplName, setTplName] = useState('')
   const [tplBody, setTplBody] = useState('')
@@ -335,10 +337,10 @@ export default function LeadsPage() {
     const { data } = lead.distId ? await q.eq('distribution_id', lead.distId) : await q.eq('lead_id', lead.subId)
     setTimeline(data || [])
     setTlLoading(false)
-    setChatMsgs([]); setChatText(''); setWaDraft(null)
+    setChatMsgs([]); setChatText(''); setWaDraft(null); setMeetingForm(null)
     loadChat(lead)
   }
-  function closeModal() { setOpenLead(null); setTimeline([]); setChatMsgs([]); setChatText(''); setWaDraft(null) }
+  function closeModal() { setOpenLead(null); setTimeline([]); setChatMsgs([]); setChatText(''); setWaDraft(null); setMeetingForm(null) }
 
   async function loadChat(lead) {
     if (!lead || !lead.subId || !lead.isPlatform) { setChatMsgs([]); return }
@@ -430,6 +432,31 @@ export default function LeadsPage() {
       else toast.error(aiError(data))
     } catch (e) { console.error('suggestWhatsApp', e); toast.error('Could not generate message') }
     finally { setWaDraftLoading(false) }
+  }
+
+  async function saveMeeting(lead) {
+    const f = meetingForm
+    if (!f?.start) { toast.error('Pick a date & time'); return }
+    if (!user?.email) { toast.error('Sign in required'); return }
+    setMeetingSaving(true)
+    try {
+      const { error } = await supabase.from('organizer_items').insert({
+        company_id: company.id != null ? String(company.id) : null,
+        owner_email: user.email,
+        type: 'meeting',
+        title: `Meeting — ${lead.name || 'Lead'}`,
+        notes: f.notes || null,
+        start_at: new Date(f.start).toISOString(),
+        alert_minutes_before: parseInt(f.remind) || 0,
+        is_done: false,
+        lead_id: lead.subId || null,
+        lead_name: lead.name || null,
+      })
+      if (error) throw error
+      setMeetingForm(null)
+      toast.success('Meeting scheduled ✓ — reminder set')
+    } catch (e) { console.error('saveMeeting', e); toast.error('Could not schedule meeting') }
+    finally { setMeetingSaving(false) }
   }
 
   useEffect(() => {
@@ -1104,6 +1131,46 @@ export default function LeadsPage() {
             style={{ width: '100%', padding: '11px', borderRadius: 9, background: '#0099cc', color: '#fff', border: 'none', cursor: creatingQuote ? 'default' : 'pointer', fontSize: 13, fontWeight: 600, marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, opacity: creatingQuote ? 0.7 : 1 }}>
             <i className="ti ti-file-invoice" style={{ fontSize: 16 }} /> {creatingQuote ? 'Preparing...' : 'Create Quotation for this lead'}
           </button>
+
+          {meetingForm == null ? (
+            <button onClick={() => setMeetingForm({ start: '', remind: 30, notes: '' })}
+              style={{ width: '100%', padding: '11px', borderRadius: 9, background: 'transparent', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.4)', cursor: 'pointer', fontSize: 13, fontWeight: 600, marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
+              <i className="ti ti-calendar-plus" style={{ fontSize: 16 }} /> Schedule a meeting
+            </button>
+          ) : (
+            <div style={{ border: '1px solid rgba(59,130,246,0.35)', borderRadius: 10, padding: 13, marginBottom: 14, background: 'rgba(59,130,246,0.05)' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <i className="ti ti-calendar-event" style={{ fontSize: 15, color: '#3b82f6' }} /> Schedule meeting with {lead.name || 'lead'}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                <div>
+                  <div style={{ fontSize: 10.5, color: 'var(--text2)', marginBottom: 4, fontWeight: 600 }}>Date & time</div>
+                  <input type="datetime-local" value={meetingForm.start} onChange={e => setMeetingForm(m => ({ ...m, start: e.target.value }))}
+                    style={{ width: '100%', padding: '8px 10px', ...inputStyle, fontSize: 12.5, boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 10.5, color: 'var(--text2)', marginBottom: 4, fontWeight: 600 }}>Remind before</div>
+                  <select value={meetingForm.remind} onChange={e => setMeetingForm(m => ({ ...m, remind: e.target.value }))}
+                    style={{ width: '100%', padding: '8px 10px', ...selectStyle, fontSize: 12.5, boxSizing: 'border-box' }}>
+                    <option value={0} style={optStyle}>No reminder</option>
+                    <option value={15} style={optStyle}>15 min</option>
+                    <option value={30} style={optStyle}>30 min</option>
+                    <option value={60} style={optStyle}>1 hour</option>
+                    <option value={1440} style={optStyle}>1 day</option>
+                  </select>
+                </div>
+              </div>
+              <input value={meetingForm.notes} onChange={e => setMeetingForm(m => ({ ...m, notes: e.target.value }))}
+                placeholder="Notes (location / agenda)..." style={{ width: '100%', padding: '8px 10px', ...inputStyle, fontSize: 12.5, boxSizing: 'border-box', marginBottom: 9 }} />
+              <div style={{ display: 'flex', gap: 7 }}>
+                <button onClick={() => setMeetingForm(null)} style={{ flex: '0 0 auto', padding: '8px 14px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+                <button onClick={() => saveMeeting(lead)} disabled={meetingSaving}
+                  style={{ flex: 1, padding: '8px 14px', borderRadius: 8, border: 'none', background: '#3b82f6', color: '#fff', fontSize: 12.5, fontWeight: 600, cursor: meetingSaving ? 'default' : 'pointer', opacity: meetingSaving ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  <i className="ti ti-check" style={{ fontSize: 14 }} /> {meetingSaving ? 'Saving…' : 'Schedule + set reminder'}
+                </button>
+              </div>
+            </div>
+          )}
 
           {lead.isPlatform && (
             <div style={{ border: '0.5px solid var(--border)', borderRadius: 10, padding: 13, marginBottom: 14 }}>
