@@ -1597,7 +1597,7 @@ export default function LeadsPage() {
 
   return (
     <div className="animate-in" style={{ color: 'var(--text)' }}>
-      <Modal />
+      {Modal()}
       {AddLeadModal()}
       <ShareModal />
       <input ref={fileRef} type="file" accept=".csv" onChange={handleCSV} style={{ display: 'none' }} />
