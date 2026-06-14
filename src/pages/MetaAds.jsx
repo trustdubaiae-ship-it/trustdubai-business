@@ -119,9 +119,6 @@ export default function MetaAds({ onBack, onNewAd, onManageConnection }) {
     </div>
   )
 
-  const WEBHOOK_URL = company?.lead_webhook_token ? `https://ribdorraxxhfbfkjhpie.supabase.co/functions/v1/incoming-lead?token=${company.lead_webhook_token}` : ''
-  const copyWebhook = () => { if (!WEBHOOK_URL) return; if (navigator.clipboard?.writeText) navigator.clipboard.writeText(WEBHOOK_URL).then(()=>toast.success('Copied ✓')).catch(()=>{}); else window.prompt('Copy this URL:', WEBHOOK_URL) }
-
   return (
     <div>
       {/* Header */}
@@ -142,24 +139,6 @@ export default function MetaAds({ onBack, onNewAd, onManageConnection }) {
           <i className="ti ti-plus" style={{ fontSize:15, verticalAlign:'-2px', marginRight:4 }}/> New Ad
         </button>
       </div>
-
-      {/* Lead auto-capture (Meta → Zapier per-company webhook) */}
-      {WEBHOOK_URL && (
-        <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:12, padding:'14px 16px', marginBottom:14 }}>
-          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
-            <i className="ti ti-webhook" style={{ fontSize:17, color:'#0099cc' }}/>
-            <div style={{ fontSize:14, fontWeight:700, color:text }}>Auto-Capture Leads</div>
-          </div>
-          <div style={{ fontSize:12, color:textSub, marginBottom:11, lineHeight:1.5 }}>Send your Meta Lead Ads here (via Zapier) — new leads land in My Leads automatically. This URL is private to your business.</div>
-          <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:10 }}>
-            <div style={{ flex:1, minWidth:0, fontFamily:'monospace', fontSize:11, color:text, background:subBg, border:`1px solid ${border}`, borderRadius:8, padding:'9px 11px', overflowX:'auto', whiteSpace:'nowrap' }}>{WEBHOOK_URL}</div>
-            <button onClick={copyWebhook} style={{ flexShrink:0, padding:'9px 14px', borderRadius:8, border:'none', background:'#0099cc', color:'#fff', fontSize:12.5, fontWeight:600, cursor:'pointer' }}>Copy</button>
-          </div>
-          <div style={{ fontSize:11, color:textSub, lineHeight:1.6 }}>
-            <b>Zapier:</b> Meta Lead Ads (New Lead) → Webhooks by Zapier (POST) → paste this URL → send <code>name, phone, email, external_id</code> + form answers.
-          </div>
-        </div>
-      )}
 
       {/* Stats */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:10, marginBottom:14 }}>
