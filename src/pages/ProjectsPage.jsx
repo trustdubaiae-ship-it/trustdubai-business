@@ -37,8 +37,28 @@ export default function ProjectsPage({ onNavigate }) {
 
   async function loadProjects() {
     setLoading(true)
+    await backfillFromQuotes()
     const { data } = await supabase.from('ops_projects').select('*').eq('company_id', company.id).order('created_at', { ascending: false }).limit(500)
     setProjects(data || []); setLoading(false)
+  }
+  // Auto-create a project for any approved quotation that doesn't have one yet.
+  async function backfillFromQuotes() {
+    try {
+      const { data: quotes } = await supabase.from('quotations')
+        .select('id,project_title,client_id,client_name,client_phone,total,location')
+        .eq('company_id', company.id).eq('status', 'approved').limit(500)
+      if (!quotes?.length) return
+      const { data: existing } = await supabase.from('ops_projects').select('quote_id').eq('company_id', company.id).not('quote_id', 'is', null)
+      const have = new Set((existing || []).map(p => p.quote_id))
+      const rows = quotes.filter(q => !have.has(q.id)).map(q => ({
+        company_id: company.id, quote_id: q.id,
+        name: q.project_title || `Project — ${q.client_name || 'Client'}`,
+        client_id: q.client_id || null, client_name: q.client_name || null, client_phone: q.client_phone || null,
+        status: 'planning', contract_value: Number(q.total) || 0, location: q.location || null,
+        created_by_email: user?.email || null,
+      }))
+      if (rows.length) await supabase.from('ops_projects').insert(rows)
+    } catch (e) { console.error('backfillFromQuotes', e) }
   }
   async function openProject(p) {
     setActive(p); setTab('overview'); setView('detail'); setMaterials([]); setExpenses([])
