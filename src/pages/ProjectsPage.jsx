@@ -169,7 +169,7 @@ export default function ProjectsPage({ onNavigate }) {
             </div>
           )}
 
-        {projModal && <ProjectModal />}
+        {projModal && ProjectModal()}
       </div>
     )
   }
@@ -274,7 +274,7 @@ export default function ProjectsPage({ onNavigate }) {
         </div>
       )}
 
-      {projModal && <ProjectModal />}
+      {projModal && ProjectModal()}
       {matForm && <FormModal title={matForm.id ? 'Edit material' : 'Add material'} onClose={() => setMatForm(null)} onSave={saveMaterial} saving={saving}>
         <label style={lbl}>Item</label><input autoFocus value={matForm.item} onChange={e => setMatForm(m => ({ ...m, item: e.target.value }))} style={{ ...input, marginBottom: 10 }} placeholder="e.g. MDF board 18mm" />
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
