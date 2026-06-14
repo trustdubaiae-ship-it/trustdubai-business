@@ -51,6 +51,26 @@ const SOURCE_CARDS = [
   { key:'own',      label:'Manual',      icon:'ti-user-plus',      color:'#8b5cf6' },
 ]
 
+const STATUS_FILTERS = [
+  { key:'new',             label:'New' },
+  { key:'qualified',       label:'Qualified' },
+  { key:'in_conversation', label:'Contacted' },
+  { key:'proposal_given',  label:'Quoted' },
+  { key:'won',             label:'Won' },
+  { key:'lost',            label:'Lost' },
+]
+
+function FilterChip({ label, onClear }) {
+  return (
+    <span style={{ display:'inline-flex', alignItems:'center', gap:5, background:'var(--card)', border:'0.5px solid var(--border)', borderRadius:99, padding:'4px 6px 4px 10px', fontSize:11.5, fontWeight:600, color:'var(--text)' }}>
+      {label}
+      <button onClick={onClear} title="Remove filter" style={{ display:'flex', alignItems:'center', justifyContent:'center', width:16, height:16, borderRadius:'50%', border:'none', background:'var(--bg2)', color:'var(--text2)', cursor:'pointer', padding:0 }}>
+        <i className="ti ti-x" style={{ fontSize:11 }} />
+      </button>
+    </span>
+  )
+}
+
 const LEAD_SOURCES = ['Meta Ads','WhatsApp','Instagram','Referral','Walk-in','Website','Direct Call','Holiday Home Operator','Other']
 
 const PROJECT_TYPES = ['Villa Renovation','Apartment Renovation','Office Fit-out','Retail Fit-out','Holiday Home Beautification','Bathroom Renovation','Kitchen Renovation','False Ceiling','Flooring & Tiling','Painting & Wallpaper','Full Interior Design','MEP Works','Swimming Pool Area','Landscape & Outdoor','Commercial Renovation','Showroom Fit-out','Restaurant Fit-out','Hotel Room Renovation','TV Wall Panel','Joinery & Custom Furniture','Gypsum & Partition','AC / HVAC Works','Waterproofing','Villa Extension','Majlis Design','Wardrobe & Closet','Home Automation','Tiling & Marble','Demolition & Civil Works','Other']
@@ -96,6 +116,7 @@ export default function LeadsPage() {
   useEffect(() => { try { localStorage.setItem('td_leadhub_view', view) } catch {} }, [view])
   const [search, setSearch] = useState('')
   const [fSource, setFSource] = useState('all')
+  const [fStatus, setFStatus] = useState('all')
   const [quickFilter, setQuickFilter] = useState('')
   const [mobileStage, setMobileStage] = useState('new')
   const [dragId, setDragId] = useState(null)
@@ -610,24 +631,31 @@ export default function LeadsPage() {
   const isTD = mainTab === 'trustdubai'
   const baseLeads = isTD ? tdLeads : myLeads
   const today = new Date().toISOString().split('T')[0]
+  // follow_up_date may be a date ('YYYY-MM-DD') or a timestamp — compare on the date part only
+  const dateOnly = (d) => (d || '').slice(0, 10)
 
   function matchesQuick(l) {
-    if (quickFilter === 'due') return l.follow_up_date === today && !['won','lost'].includes(l.status)
-    if (quickFilter === 'overdue') return l.follow_up_date && l.follow_up_date < today && !['won','lost'].includes(l.status)
+    const fu = dateOnly(l.follow_up_date)
+    if (quickFilter === 'due') return fu === today && !['won','lost'].includes(l.status)
+    if (quickFilter === 'overdue') return fu && fu < today && !['won','lost'].includes(l.status)
     if (quickFilter === 'hot') return l.temperature === 'hot' && !['won','lost'].includes(l.status)
     return true
   }
 
   const filtered = baseLeads.filter(l => {
     const q = search.trim().toLowerCase()
-    if (q && !(`${l.name || ''} ${l.phone || ''} ${l.email || ''}`.toLowerCase().includes(q))) return false
+    if (q) {
+      const hay = `${l.name || ''} ${l.phone || ''} ${l.email || ''} ${l.answers?.['Project Type'] || ''} ${l.answers?.Location || ''} ${l.answers?.Source || ''} ${l.answers?.['Budget (AED)'] || ''} ${l.notes || ''} ${l.answers?.Notes || ''}`.toLowerCase()
+      if (!hay.includes(q)) return false
+    }
     if (!isTD && fSource !== 'all' && mySource(l) !== fSource) return false
+    if (fStatus !== 'all' && l.status !== fStatus) return false
     if (!matchesQuick(l)) return false
     return true
   })
 
-  const dueToday = baseLeads.filter(l => l.follow_up_date === today && !['won','lost'].includes(l.status)).length
-  const overdue  = baseLeads.filter(l => l.follow_up_date && l.follow_up_date < today && !['won','lost'].includes(l.status)).length
+  const dueToday = baseLeads.filter(l => dateOnly(l.follow_up_date) === today && !['won','lost'].includes(l.status)).length
+  const overdue  = baseLeads.filter(l => { const fu = dateOnly(l.follow_up_date); return fu && fu < today && !['won','lost'].includes(l.status) }).length
   const hotCount = baseLeads.filter(l => l.temperature === 'hot' && !['won','lost'].includes(l.status)).length
   const wonCount = baseLeads.filter(l => l.status === 'won').length
   const wonRate  = baseLeads.length > 0 ? Math.round((wonCount / baseLeads.length) * 100) : 0
@@ -635,6 +663,8 @@ export default function LeadsPage() {
 
   function toggleSource(k) { setFSource(prev => prev === k ? 'all' : k) }
   function toggleQuick(k) { setQuickFilter(prev => prev === k ? '' : k) }
+  function clearAllFilters() { setSearch(''); setFSource('all'); setFStatus('all'); setQuickFilter('') }
+  const anyFilter = !!(search.trim() || (!isTD && fSource !== 'all') || fStatus !== 'all' || quickFilter)
   function nextStage(stage) {
     const i = PIPELINE.findIndex(p => p.stage === stage)
     if (i >= 0 && i < PIPELINE.length - 1) return PIPELINE[i + 1].stage
@@ -1339,11 +1369,15 @@ export default function LeadsPage() {
           </div>
         )}
 
-        {quickFilter && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg2)', borderRadius: 8, padding: '8px 13px', marginBottom: 12 }}>
-            <span style={{ fontSize: 12, color: 'var(--text2)' }}>Showing: <b style={{ color: 'var(--text)' }}>{QUICK_LABELS[quickFilter]}</b> · {filtered.length} {filtered.length === 1 ? 'lead' : 'leads'}</span>
-            <button onClick={() => setQuickFilter('')} style={{ marginLeft: 'auto', fontSize: 12, color: '#0099cc', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
-              <i className="ti ti-x" style={{ fontSize: 13 }} /> Show all
+        {anyFilter && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', background: 'var(--bg2)', borderRadius: 8, padding: '8px 13px', marginBottom: 12 }}>
+            <span style={{ fontSize: 12, color: 'var(--text2)' }}>{filtered.length} {filtered.length === 1 ? 'lead' : 'leads'}</span>
+            {quickFilter && <FilterChip label={QUICK_LABELS[quickFilter]} onClear={() => setQuickFilter('')} />}
+            {!isTD && fSource !== 'all' && <FilterChip label={'Source: ' + (SOURCE_CARDS.find(s => s.key === fSource)?.label || fSource)} onClear={() => setFSource('all')} />}
+            {fStatus !== 'all' && <FilterChip label={'Status: ' + (STATUS_FILTERS.find(s => s.key === fStatus)?.label || fStatus)} onClear={() => setFStatus('all')} />}
+            {search.trim() && <FilterChip label={'“' + search.trim() + '”'} onClear={() => setSearch('')} />}
+            <button onClick={clearAllFilters} style={{ marginLeft: 'auto', fontSize: 12, color: '#0099cc', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <i className="ti ti-x" style={{ fontSize: 13 }} /> Clear all
             </button>
           </div>
         )}
@@ -1368,8 +1402,13 @@ export default function LeadsPage() {
           <div style={{ display: 'flex', flexDirection: mobile ? 'column' : 'row', gap: 10, alignItems: mobile ? 'stretch' : 'center', marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--card)', border: '0.5px solid var(--border)', borderRadius: 8, padding: '8px 12px', flex: mobile ? 'none' : '1 1 200px', minWidth: 0 }}>
               <i className="ti ti-search" style={{ fontSize: 14, color: 'var(--text3)' }} />
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, phone, email..." style={{ border: 'none', background: 'none', outline: 'none', fontSize: 13, color: 'var(--text)', width: '100%', fontFamily: 'inherit' }} />
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, phone, project, location..." style={{ border: 'none', background: 'none', outline: 'none', fontSize: 13, color: 'var(--text)', width: '100%', fontFamily: 'inherit' }} />
             </div>
+            <select value={fStatus} onChange={e => setFStatus(e.target.value)} title="Filter by status"
+              style={{ ...selectStyle, padding: '9px 30px 9px 12px', flex: mobile ? 'none' : '0 0 auto' }}>
+              <option value="all" style={optStyle}>All statuses</option>
+              {STATUS_FILTERS.map(s => <option key={s.key} value={s.key} style={optStyle}>{s.label}</option>)}
+            </select>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <div style={{ display: 'flex', gap: 2, background: 'var(--bg2)', border: '0.5px solid var(--border)', borderRadius: 8, padding: 2, flex: mobile ? 1 : 'none', overflowX: 'auto' }}>
                 {[['board','ti-layout-kanban','Board'],['list','ti-list','List'],['flow','ti-route','Flow'],['galaxy','ti-orbit','Galaxy'],['embedding','ti-chart-dots','AI Map']].map(([v,ic,lbl]) => (
@@ -1407,7 +1446,7 @@ export default function LeadsPage() {
           { id: 'mine',       label: 'My Leads', count: myLeads.length, icon: 'ti-building-store' },
           { id: 'forms',      label: 'Forms',    count: forms.length,   icon: 'ti-forms' },
         ].map(t => (
-          <button key={t.id} onClick={() => { setMainTab(t.id); setFSource('all'); setSearch(''); setQuickFilter(''); closeEditor() }} style={{
+          <button key={t.id} onClick={() => { setMainTab(t.id); setFSource('all'); setFStatus('all'); setSearch(''); setQuickFilter(''); closeEditor() }} style={{
             padding: mobile ? '9px 9px' : '9px 16px', border: 'none', background: 'none', cursor: 'pointer',
             fontSize: mobile ? 12.5 : 13.5, fontWeight: 600, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap', flexShrink: 0,
             color: mainTab === t.id ? 'var(--primary)' : 'var(--text2)',
