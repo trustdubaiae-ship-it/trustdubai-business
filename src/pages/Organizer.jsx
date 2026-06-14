@@ -115,7 +115,7 @@ export default function Organizer({ onNavigate }) {
       setModal(null)
       showToast(it.lead_id && it.followUp ? 'Saved ✓ — follow-up set on lead' : 'Saved ✓')
       load()
-    } catch (e) { console.error(e); showToast('Save failed') }
+    } catch (e) { console.error(e); showToast('Save failed: ' + (e?.message || e)) }
     finally { setSaving(false) }
   }
 

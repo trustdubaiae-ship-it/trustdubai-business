@@ -455,7 +455,7 @@ export default function LeadsPage() {
       if (error) throw error
       setMeetingForm(null)
       toast.success('Meeting scheduled ✓ — reminder set')
-    } catch (e) { console.error('saveMeeting', e); toast.error('Could not schedule meeting') }
+    } catch (e) { console.error('saveMeeting', e); toast.error('Meeting save failed: ' + (e?.message || e)) }
     finally { setMeetingSaving(false) }
   }
 
