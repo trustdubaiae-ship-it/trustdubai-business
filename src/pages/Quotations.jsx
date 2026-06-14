@@ -455,6 +455,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         project_title: (q.project_title ? `${q.project_title} (Copy)` : 'Untitled (Copy)'),
         mode: q.mode, items: q.items,
         subtotal: q.subtotal, vat_amount: q.vat_amount, total: q.total,
+        discount_type: q.discount_type || null, discount_value: q.discount_value || 0, vat_enabled: q.vat_enabled ?? null,
         payment_terms: q.payment_terms, why_choose_us: q.why_choose_us, terms: q.terms,
         work_type: q.work_type || null, valid_until: null,
         show_footer: q.show_footer ?? true, show_signature: q.show_signature ?? true, show_bank: q.show_bank ?? false,
@@ -533,8 +534,8 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
       ? q.items.map(it => ({ desc:it.desc||'', unit:it.unit||'Nos', qty:it.qty??1, rate:it.rate??0, trade: it.trade || '' }))
       : [blankItem()])
     setNotes('')
-    setVatEnabled(!!q.vat_amount || (tpl?.default_vat_enabled ?? true))
-    setDiscountType(null); setDiscountValue(0)
+    setVatEnabled(q.vat_enabled != null ? q.vat_enabled : (!!q.vat_amount || (tpl?.default_vat_enabled ?? true)))
+    setDiscountType(q.discount_type || null); setDiscountValue(q.discount_value || 0)
     setShowFooter(q.show_footer ?? true); setShowSignature(q.show_signature ?? true); setShowBank(q.show_bank ?? (tpl?.default_show_bank ?? false))
     setLocation(q.location || ''); setPreparedBy(q.prepared_by || ''); setClientEmail(q.client_email || ''); setSourceLead(null)
     setWorkType(q.work_type || defaultPresetName); setValidUntil(q.valid_until || '')
@@ -649,6 +650,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
           ...((mode === 'boq' || mode === 'advanced') ? { trade: it.trade || 'Misc' } : {}),
         })),
         subtotal, vat_amount: vatAmount, total: grandTotal,
+        discount_type: discountType || null, discount_value: Number(discountValue) || 0, vat_enabled: vatEnabled,
         payment_terms: selectedPreset ? selectedPreset.payment : (tpl?.payment_schedule || null),
         why_choose_us: selectedPreset ? JSON.stringify(selectedPreset.whyUs) : (tpl?.why_choose_us || null),
         terms: selectedPreset ? (selectedPreset.terms || null) : (tpl?.default_terms || null),
