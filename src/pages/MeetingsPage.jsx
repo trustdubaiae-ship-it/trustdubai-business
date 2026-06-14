@@ -129,7 +129,7 @@ export default function MeetingsPage({ onNavigate }) {
   // ---- meeting modal ----
   function openNew(prefill = {}) {
     const d = prefill.date || (selected !== todayKey() ? selected : todayKey())
-    setModal({ isNew: true, item: { title: prefill.title || '', kind: prefill.kind || 'meeting', start: d + 'T10:00', remind: 30, location: '', notes: '', lead_id: prefill.lead_id || null, lead_name: prefill.lead_name || null } })
+    setModal({ isNew: true, item: { title: prefill.title || '', kind: prefill.kind || 'followup', start: d + 'T10:00', remind: 30, location: '', notes: '', lead_id: prefill.lead_id || null, lead_name: prefill.lead_name || null } })
   }
   function openEdit(mt) {
     const off = new Date(mt.start_at).getTimezoneOffset()
@@ -194,7 +194,7 @@ export default function MeetingsPage({ onNavigate }) {
       if (date && time) {
         await supabase.from('company_meetings').insert({
           company_id: company.id, created_by_email: user?.email || null,
-          title: `Follow-up — ${leadName || 'Lead'}`, kind: 'call',
+          title: `Follow-up — ${leadName || 'Lead'}`, kind: 'followup',
           start_at: new Date(`${date}T${time}`).toISOString(), remind_minutes: 30,
           status: 'scheduled', lead_id: leadId, lead_name: leadName || null,
         })
@@ -340,15 +340,17 @@ function DayPanel({ dateKey: dk, items, now, onOpenClient, onOpenMeeting, onNew,
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
           <span style={{ width: 34, height: 34, borderRadius: '50%', background: kd.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, flexShrink: 0, boxShadow: `0 4px 11px -3px ${kd.color}` }}>{av}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7, justifyContent: 'space-between' }}>
-              <div style={{ fontSize: 13.5, fontWeight: 700, color: C.text, textDecoration: it.done ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.title}</div>
-              {cd
-                ? <span style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 3, background: cd.color + '22', color: cd.color, fontSize: 10.5, fontWeight: 800, padding: '2px 9px', borderRadius: 99, border: `1px solid ${cd.color}66` }}><i className="ti ti-clock-hour-4" style={{ fontSize: 11 }} /> {cd.txt}</span>
-                : <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, color: C.text }}>{fmtTime(it.time)}</span>}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', marginTop: 3 }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: kd.color, color: '#fff', fontSize: 9, fontWeight: 700, padding: '1px 7px', borderRadius: 99 }}><i className={'ti ' + kd.icon} style={{ fontSize: 10 }} /> {kd.label}</span>
-              {it.clientName && <span onClick={e => { e.stopPropagation(); it.clientId && onOpenClient(it.clientId) }} style={{ fontSize: 12, color: '#8b5cf6', fontWeight: 600 }}><i className="ti ti-user" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {it.clientName}</span>}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, justifyContent: 'space-between' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: C.text, textDecoration: it.done ? 'line-through' : 'none', wordBreak: 'break-word' }}>{it.title}</div>
+                {it.clientName && <div onClick={e => { e.stopPropagation(); it.clientId && onOpenClient(it.clientId) }} style={{ fontSize: 12, color: '#8b5cf6', fontWeight: 600, marginTop: 3 }}><i className="ti ti-user" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {it.clientName}</div>}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, flexShrink: 0 }}>
+                {cd
+                  ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: cd.color + '22', color: cd.color, fontSize: 10.5, fontWeight: 800, padding: '2px 9px', borderRadius: 99, border: `1px solid ${cd.color}66`, whiteSpace: 'nowrap' }}><i className="ti ti-clock-hour-4" style={{ fontSize: 11 }} /> {cd.txt}</span>
+                  : <span style={{ fontSize: 12, fontWeight: 700, color: C.text, whiteSpace: 'nowrap' }}>{fmtTime(it.time)}</span>}
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: kd.color, color: '#fff', fontSize: 9, fontWeight: 700, padding: '1px 7px', borderRadius: 99, whiteSpace: 'nowrap' }}><i className={'ti ' + kd.icon} style={{ fontSize: 10 }} /> {kd.label}</span>
+              </div>
             </div>
             <div style={{ display: 'flex', gap: 11, flexWrap: 'wrap', marginTop: 4 }}>
               {it.meeting?.location && <span style={{ fontSize: 11, color: C.t2 }}><i className="ti ti-map-pin" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {it.meeting.location}</span>}
@@ -523,7 +525,7 @@ function MeetingModal({ modal, setModal, saving, onSave, onComplete, onDelete, C
         )}
 
         <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
-          {['meeting', 'site_visit', 'call'].map(k => { const v = KINDS[k]; const on = (it.kind || 'meeting') === k; return (
+          {['followup', 'site_visit', 'call'].map(k => { const v = KINDS[k]; const on = (it.kind || 'followup') === k; return (
             <button key={k} onClick={() => set({ kind: k })} style={{ flex: '1 1 90px', minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '8px', borderRadius: 9, cursor: 'pointer', fontSize: 12, fontWeight: 600, background: on ? v.color + '1f' : 'transparent', color: on ? v.color : C.t3, border: `1px solid ${on ? v.color : C.border}` }}><i className={'ti ' + v.icon} /> {v.label}</button>
           ) })}
         </div>
