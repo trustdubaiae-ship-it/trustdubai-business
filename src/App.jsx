@@ -15,6 +15,7 @@ import ControlWall from './pages/ControlWall'
 import ComingSoon from './pages/ComingSoon'
 import Organizer from './pages/Organizer'
 import MeetingsPage from './pages/MeetingsPage'
+import ProjectsPage from './pages/ProjectsPage'
 import MeetingBell from './components/MeetingBell'
 import AIAssistant from './pages/AIAssistant'
 import TrustDubaiLeads from './pages/TrustDubaiLeads'
@@ -229,9 +230,9 @@ function Portal() {
     metaads:            <ComingSoon feature="meta_ads" onNavigate={navigate} />,
     quoteapprovals:     <ComingSoon feature="quote_approvals" onNavigate={navigate} />,
     aiquote:            <Quotations key="q-ai" subRoute={subRoute} setSubRoute={setPageSub} startAi />,
-    projects:           <ComingSoon feature="projects" onNavigate={navigate} />,
-    materials:          <ComingSoon feature="material_requests" onNavigate={navigate} />,
-    expenses:           <ComingSoon feature="site_expenses" onNavigate={navigate} />,
+    projects:           <ProjectsPage onNavigate={navigate} />,
+    materials:          <ProjectsPage onNavigate={navigate} />,
+    expenses:           <ProjectsPage onNavigate={navigate} />,
     aiassistant:        <AIAssistant onNavigate={navigate} />,
     organizer:          <Organizer onNavigate={navigate} />,
     meetings:           <MeetingsPage onNavigate={navigate} />,

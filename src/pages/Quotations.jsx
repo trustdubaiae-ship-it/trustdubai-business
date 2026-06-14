@@ -419,6 +419,21 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
       })
     } catch { /* best-effort */ }
   }
+  // Quote approved → auto-create a Project (once per quote, best-effort).
+  async function createProjectFromQuote(q) {
+    try {
+      const { data: existing } = await supabase.from('projects').select('id').eq('quote_id', q.id).eq('company_id', company.id).maybeSingle()
+      if (existing) return
+      const { error } = await supabase.from('projects').insert({
+        company_id: company.id, quote_id: q.id,
+        name: q.project_title || `Project — ${q.client_name || 'Client'}`,
+        client_id: q.client_id || null, client_name: q.client_name || null, client_phone: q.client_phone || null,
+        status: 'planning', contract_value: Number(q.total) || 0,
+        location: q.location || null, created_by_email: user?.email || null,
+      })
+      if (!error) toast.success('Project created from this quote ✓')
+    } catch (e) { console.error('createProjectFromQuote', e) }
+  }
   // Quote approved → originating lead becomes Won (best-effort, owner-side).
   async function markLeadWon(q) {
     try {
@@ -529,7 +544,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     const updated = { ...activeQuote, status: newStatus }
     setActiveQuote(updated)
     setQuotes(prev => prev.map(x => x.id === updated.id ? updated : x))
-    if (newStatus === 'approved') await markLeadWon(updated)
+    if (newStatus === 'approved') { await markLeadWon(updated); await createProjectFromQuote(updated) }
     setStatusBusy(false)
     toast.success(newStatus === 'approved' ? 'Approved · lead moved to Won' : 'Status updated')
   }
