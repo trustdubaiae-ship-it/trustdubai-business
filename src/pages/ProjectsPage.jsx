@@ -32,6 +32,8 @@ export default function ProjectsPage({ onNavigate }) {
   const [expenses, setExpenses] = useState([])
   const [subs, setSubs] = useState([])
   const [subForm, setSubForm] = useState(null)
+  const [scope, setScope] = useState([])
+  const [scopeForm, setScopeForm] = useState(null)
   const [projModal, setProjModal] = useState(null)
   const [matForm, setMatForm] = useState(null)
   const [expForm, setExpForm] = useState(null)
@@ -70,12 +72,13 @@ export default function ProjectsPage({ onNavigate }) {
   }
   async function reloadChildren(pid) {
     const id = pid || active?.id; if (!id) return
-    const [m, e, s] = await Promise.all([
+    const [m, e, s, sc] = await Promise.all([
       supabase.from('material_requests').select('*').eq('project_id', id).order('created_at', { ascending: false }),
       supabase.from('site_expenses').select('*').eq('project_id', id).order('spent_on', { ascending: false }),
       supabase.from('project_subcontractors').select('*').eq('project_id', id).order('created_at', { ascending: false }),
+      supabase.from('project_scope').select('*').eq('project_id', id).order('created_at', { ascending: true }),
     ])
-    setMaterials(m.data || []); setExpenses(e.data || []); setSubs(s.data || [])
+    setMaterials(m.data || []); setExpenses(e.data || []); setSubs(s.data || []); setScope(sc.data || [])
   }
 
   function newProject() { setProjModal({ isNew: true, p: { name: '', client_name: '', client_phone: '', status: 'planning', contract_value: 0, start_date: '', end_date: '', location: '', notes: '', progress: 0 } }) }
@@ -146,6 +149,59 @@ export default function ProjectsPage({ onNavigate }) {
     } catch (e) { console.error(e); toast.error('Save failed: ' + (e?.message || e)) } finally { setSaving(false) }
   }
   async function delSub(id) { try { await supabase.from('project_subcontractors').delete().eq('id', id).eq('company_id', company.id); reloadChildren() } catch (e) { toast.error('Delete failed') } }
+
+  async function recomputeSubContract(subId, rows) {
+    if (!subId) return
+    const total = (rows || scope).filter(s => s.sub_id === subId).reduce((a, s) => a + (Number(s.sub_amount) || 0), 0)
+    await supabase.from('project_subcontractors').update({ contract_amount: total }).eq('id', subId).eq('company_id', company.id)
+  }
+  async function assignScope(item, subId, amount) {
+    try {
+      const sub_amount = amount != null ? (Number(amount) || 0) : (Number(item.sub_amount) || 0)
+      const prevSub = item.sub_id
+      await supabase.from('project_scope').update({ sub_id: subId || null, sub_amount }).eq('id', item.id).eq('company_id', company.id)
+      const next = scope.map(s => s.id === item.id ? { ...s, sub_id: subId || null, sub_amount } : s)
+      setScope(next)
+      if (subId) await recomputeSubContract(subId, next)
+      if (prevSub && prevSub !== subId) await recomputeSubContract(prevSub, next)
+      reloadChildren()
+    } catch (e) { console.error(e); toast.error('Assign failed') }
+  }
+  async function importScopeFromQuote() {
+    if (!active?.quote_id) { toast.error('This project has no linked quotation'); return }
+    try {
+      const { data: q } = await supabase.from('quotations').select('items').eq('id', active.quote_id).eq('company_id', company.id).maybeSingle()
+      const items = Array.isArray(q?.items) ? q.items : []
+      if (!items.length) { toast.error('Quotation has no line items'); return }
+      const rows = items.map(it => ({ company_id: company.id, project_id: active.id, description: it.desc || '', unit: it.unit || null, quantity: Number(it.qty) || 1, client_amount: (Number(it.qty) || 0) * (Number(it.rate) || 0), trade: it.trade || null })).filter(r => r.description)
+      if (rows.length) { const { error } = await supabase.from('project_scope').insert(rows); if (error) throw error }
+      toast.success(`Imported ${rows.length} scope items ✓`); reloadChildren()
+    } catch (e) { console.error(e); toast.error('Import failed: ' + (e?.message || e)) }
+  }
+  async function saveScopeItem() {
+    const x = scopeForm
+    if (!x.description?.trim()) { toast.error('Description is required'); return }
+    setSaving(true)
+    try {
+      const payload = { company_id: company.id, project_id: active.id, description: x.description.trim(), unit: x.unit || null, quantity: Number(x.quantity) || 1, client_amount: Number(x.client_amount) || 0, trade: x.trade || null }
+      if (x.id) { const { error } = await supabase.from('project_scope').update(payload).eq('id', x.id).eq('company_id', company.id); if (error) throw error }
+      else { const { error } = await supabase.from('project_scope').insert(payload); if (error) throw error }
+      setScopeForm(null); toast.success('Saved ✓'); reloadChildren()
+    } catch (e) { console.error(e); toast.error('Save failed') } finally { setSaving(false) }
+  }
+  async function delScopeItem(it) { try { await supabase.from('project_scope').delete().eq('id', it.id).eq('company_id', company.id); if (it.sub_id) await recomputeSubContract(it.sub_id, scope.filter(s => s.id !== it.id)); reloadChildren() } catch (e) { toast.error('Delete failed') } }
+  async function toggleContract(sub) {
+    try {
+      const signed = !sub.contract_signed
+      await supabase.from('project_subcontractors').update({ contract_signed: signed, contract_date: signed ? new Date().toISOString().slice(0, 10) : null }).eq('id', sub.id).eq('company_id', company.id)
+      reloadChildren()
+    } catch (e) { toast.error('Update failed') }
+  }
+  async function generateLPO(sub) {
+    let lpo = sub.lpo_number
+    if (!lpo) { lpo = 'LPO-' + String(Date.now()).slice(-6); await supabase.from('project_subcontractors').update({ lpo_number: lpo, lpo_date: new Date().toISOString().slice(0, 10) }).eq('id', sub.id).eq('company_id', company.id); reloadChildren() }
+    printLPO(company, active, sub, scope.filter(s => s.sub_id === sub.id), lpo, toast)
+  }
 
   const totalExpenses = expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0)
   const totalMaterials = materials.reduce((s, m) => s + (Number(m.est_cost) || 0), 0)
@@ -238,7 +294,7 @@ export default function ProjectsPage({ onNavigate }) {
 
       {/* tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
-        {[['overview', 'Overview', 'ti-layout'], ['subs', `Subcontractors (${subs.length})`, 'ti-users-group'], ['materials', `Materials (${materials.length})`, 'ti-package'], ['expenses', `Expenses (${expenses.length})`, 'ti-coin']].map(([k, l, ic]) => (
+        {[['overview', 'Overview', 'ti-layout'], ['scope', `Scope (${scope.length})`, 'ti-list-check'], ['subs', `Subcontractors (${subs.length})`, 'ti-users-group'], ['materials', `Materials (${materials.length})`, 'ti-package'], ['expenses', `Expenses (${expenses.length})`, 'ti-coin']].map(([k, l, ic]) => (
           <button key={k} onClick={() => setTab(k)} style={{ padding: '9px 15px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13.5, fontWeight: 600, whiteSpace: 'nowrap', color: tab === k ? 'var(--primary)' : 'var(--text2)', borderBottom: tab === k ? '2px solid var(--primary)' : '2px solid transparent', marginBottom: -1 }}><i className={'ti ' + ic} style={{ fontSize: 15, verticalAlign: '-2px', marginRight: 4 }} />{l}</button>
         ))}
       </div>
@@ -262,6 +318,43 @@ export default function ProjectsPage({ onNavigate }) {
           <label style={{ ...lbl, marginTop: 14 }}>Notes</label>
           <textarea value={active.notes || ''} onChange={e => setActive(a => ({ ...a, notes: e.target.value }))} onBlur={e => patchActive({ notes: e.target.value || null })} rows={3} style={{ ...input, resize: 'vertical', minHeight: 70 }} placeholder="Scope, site details, key dates…" />
           {active.quote_id && <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 10 }}><i className="ti ti-file-invoice" /> Linked to a quotation</div>}
+        </div>
+      )}
+
+      {tab === 'scope' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ fontSize: 12.5, color: 'var(--text2)' }}>Assign each scope line to a subcontractor with an amount.</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {active.quote_id && scope.length === 0 && <button onClick={importScopeFromQuote} className="btn btn-secondary btn-sm"><i className="ti ti-download" /> Import from quote</button>}
+              <button onClick={() => setScopeForm({ description: '', unit: '', quantity: 1, client_amount: 0, trade: '' })} className="btn btn-primary btn-sm"><i className="ti ti-plus" /> Add item</button>
+            </div>
+          </div>
+          {scope.length === 0 ? <div style={{ ...card, textAlign: 'center', color: 'var(--text3)', padding: '34px 16px' }}>{active.quote_id ? 'Import the scope from the linked quote, or add items manually.' : 'Add scope-of-work items.'}</div>
+            : <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {scope.map(it => { const assignedSub = subs.find(s => s.id === it.sub_id); return (
+                <div key={it.id} style={{ ...card, padding: '11px 13px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1, minWidth: 160 }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 600, wordBreak: 'break-word' }}>{it.description}</div>
+                      <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 2 }}>{it.quantity} {it.unit || ''}{it.trade ? ' · ' + it.trade : ''}{it.client_amount ? ' · client ' + AED(it.client_amount) : ''}</div>
+                    </div>
+                    <button onClick={() => setScopeForm({ ...it })} style={iconBtn}><i className="ti ti-edit" style={{ fontSize: 14 }} /></button>
+                    <button onClick={() => delScopeItem(it)} style={{ ...iconBtn, color: '#ef4444' }}><i className="ti ti-trash" style={{ fontSize: 14 }} /></button>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 9, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <span style={{ fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}><i className="ti ti-user-plus" style={{ fontSize: 13, verticalAlign: '-2px' }} /> Assign</span>
+                    <select value={it.sub_id || ''} onChange={e => assignScope(it, e.target.value || null, it.sub_amount)} style={{ ...input, width: 'auto', flex: '1 1 150px', padding: '6px 9px', fontSize: 12 }}>
+                      <option value="">— Unassigned —</option>
+                      {subs.map(s => <option key={s.id} value={s.id}>{s.name}{s.trade ? ' (' + s.trade + ')' : ''}</option>)}
+                    </select>
+                    <input type="number" value={it.sub_amount || 0} onChange={e => { const v = e.target.value; setScope(sc => sc.map(s => s.id === it.id ? { ...s, sub_amount: v } : s)) }} onBlur={e => assignScope(it, it.sub_id, e.target.value)} placeholder="Sub amount" style={{ ...input, width: 120, padding: '6px 9px', fontSize: 12 }} />
+                    {assignedSub && <span style={{ fontSize: 11, color: '#8b5cf6', fontWeight: 600 }}>→ {assignedSub.name}</span>}
+                  </div>
+                </div>
+              ) })}
+            </div>}
+          {subs.length === 0 && scope.length > 0 && <div style={{ fontSize: 11.5, color: '#f59e0b', marginTop: 10 }}><i className="ti ti-info-circle" /> Add subcontractors first (Subcontractors tab) to assign scope to them.</div>}
         </div>
       )}
 
@@ -291,6 +384,11 @@ export default function ProjectsPage({ onNavigate }) {
                     {[['Contract', AED(s.contract_amount), 'var(--text)'], ['Paid', AED(s.paid_amount), '#22c55e'], ['Balance', AED(bal), bal > 0 ? '#ef4444' : '#22c55e']].map(([k, v, c]) => (
                       <div key={k} style={{ background: 'var(--bg2)', borderRadius: 8, padding: '8px 10px' }}><div style={{ fontSize: 10, color: 'var(--text3)' }}>{k}</div><div style={{ fontSize: 13.5, fontWeight: 700, color: c }}>{v}</div></div>
                     ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <button onClick={() => generateLPO(s)} className="btn btn-secondary btn-sm"><i className="ti ti-file-text" style={{ verticalAlign: '-2px', marginRight: 4 }} />{s.lpo_number ? 'LPO · ' + s.lpo_number : 'Generate LPO'}</button>
+                    <button onClick={() => toggleContract(s)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, border: `1px solid ${s.contract_signed ? '#22c55e' : 'var(--border)'}`, background: s.contract_signed ? 'rgba(34,197,94,0.1)' : 'transparent', color: s.contract_signed ? '#22c55e' : 'var(--text2)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}><i className={'ti ' + (s.contract_signed ? 'ti-circle-check-filled' : 'ti-writing-sign')} /> {s.contract_signed ? 'Contract signed' : 'Mark contract signed'}</button>
+                    {scope.filter(x => x.sub_id === s.id).length > 0 && <span style={{ fontSize: 11, color: 'var(--text3)' }}>{scope.filter(x => x.sub_id === s.id).length} scope items assigned</span>}
                   </div>
                 </div>
               ) })}
@@ -382,6 +480,15 @@ export default function ProjectsPage({ onNavigate }) {
         <label style={lbl}>Status</label><select value={subForm.status} onChange={e => setSubForm(s => ({ ...s, status: e.target.value }))} style={{ ...input, marginBottom: 10 }}>{Object.entries(SSTATUS).map(([k, v]) => <option key={k} value={k}>{v.l}</option>)}</select>
         <label style={lbl}>Notes / scope detail</label><input value={subForm.notes} onChange={e => setSubForm(s => ({ ...s, notes: e.target.value }))} style={input} placeholder="Scope of work…" />
       </FormModal>}
+      {scopeForm && <FormModal title={scopeForm.id ? 'Edit scope item' : 'Add scope item'} onClose={() => setScopeForm(null)} onSave={saveScopeItem} saving={saving}>
+        <label style={lbl}>Description</label><input autoFocus value={scopeForm.description} onChange={e => setScopeForm(s => ({ ...s, description: e.target.value }))} style={{ ...input, marginBottom: 10 }} placeholder="e.g. Gypsum false ceiling — living room" />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
+          <div><label style={lbl}>Qty</label><input type="number" value={scopeForm.quantity} onChange={e => setScopeForm(s => ({ ...s, quantity: e.target.value }))} style={input} /></div>
+          <div><label style={lbl}>Unit</label><input value={scopeForm.unit} onChange={e => setScopeForm(s => ({ ...s, unit: e.target.value }))} style={input} placeholder="m² / Nos" /></div>
+          <div><label style={lbl}>Trade</label><select value={scopeForm.trade} onChange={e => setScopeForm(s => ({ ...s, trade: e.target.value }))} style={input}><option value="">—</option>{TRADES.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
+        </div>
+        <label style={lbl}>Client amount (AED) <span style={{ fontWeight: 400, color: 'var(--text3)' }}>— from the quote (revenue)</span></label><input type="number" value={scopeForm.client_amount} onChange={e => setScopeForm(s => ({ ...s, client_amount: e.target.value }))} style={input} />
+      </FormModal>}
     </div>
   )
 
@@ -427,4 +534,47 @@ function FormModal({ title, children, onClose, onSave, saving, onDelete }) {
       </div>
     </div>
   )
+}
+
+// ----- LPO (Local Purchase Order) print document -----
+function printLPO(company, project, sub, items, lpo, toast) {
+  const esc = s => String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+  const n = v => Math.round(Number(v) || 0).toLocaleString('en-AE')
+  const total = items.reduce((a, s) => a + (Number(s.sub_amount) || 0), 0)
+  const rows = items.map((s, i) => `<tr>
+      <td style="padding:7px 8px;border-bottom:.5px solid #eee;font-size:11px;color:#999;">${i + 1}</td>
+      <td style="padding:7px 8px;border-bottom:.5px solid #eee;font-size:11px;">${esc(s.description)}</td>
+      <td style="padding:7px 8px;border-bottom:.5px solid #eee;font-size:11px;text-align:center;color:#777;">${esc(s.quantity || '')} ${esc(s.unit || '')}</td>
+      <td style="padding:7px 8px;border-bottom:.5px solid #eee;font-size:11px;text-align:right;">AED ${n(s.sub_amount)}</td></tr>`).join('')
+  const body = `<div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;padding:30px;background:#fff;">
+    <div style="height:5px;background:#0099cc;margin:-30px -30px 18px;"></div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #0099cc;padding-bottom:12px;margin-bottom:16px;">
+      <div><div style="font-size:17px;font-weight:700;">${esc(company?.name || 'Company')}</div><div style="font-size:11px;color:#666;">${esc(company?.phone || '')}</div></div>
+      <div style="text-align:right;"><div style="font-size:18px;font-weight:700;color:#0099cc;letter-spacing:1px;">LOCAL PURCHASE ORDER</div>
+        <div style="font-size:11px;color:#666;font-family:monospace;">${esc(lpo)}</div>
+        <div style="font-size:11px;color:#666;">Date: ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;gap:16px;margin-bottom:16px;">
+      <div style="flex:1;background:#f6fafc;border-left:2.5px solid #0099cc;padding:10px 13px;"><div style="font-size:9px;color:#0077a3;text-transform:uppercase;letter-spacing:1px;font-weight:700;">To · Subcontractor</div><div style="font-size:13px;font-weight:700;margin-top:2px;">${esc(sub.name)}</div><div style="font-size:11px;color:#666;">${esc(sub.trade || '')}${sub.phone ? ' · ' + esc(sub.phone) : ''}</div></div>
+      <div style="flex:1;background:#f6fafc;border-left:2.5px solid #0099cc;padding:10px 13px;"><div style="font-size:9px;color:#0077a3;text-transform:uppercase;letter-spacing:1px;font-weight:700;">Project</div><div style="font-size:13px;font-weight:700;margin-top:2px;">${esc(project.name)}</div><div style="font-size:11px;color:#666;">${esc(project.location || '')}</div></div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:14px;">
+      <thead><tr style="background:#1a1a1a;color:#fff;"><th style="padding:7px 8px;text-align:left;font-size:10px;">#</th><th style="padding:7px 8px;text-align:left;font-size:10px;">Scope of Work</th><th style="padding:7px 8px;text-align:center;font-size:10px;">Qty</th><th style="padding:7px 8px;text-align:right;font-size:10px;">Amount</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="4" style="padding:14px;text-align:center;color:#999;font-size:11px;">No scope assigned to this subcontractor yet.</td></tr>'}</tbody>
+    </table>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:18px;"><div style="width:240px;"><div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding:8px 10px;background:#1a1a1a;color:#fff;border-radius:4px;"><span>Total</span><span style="color:#0099cc;">AED ${n(total)}</span></div></div></div>
+    <div style="font-size:9px;color:#888;line-height:1.7;margin-bottom:20px;"><b>Terms:</b> Work to be completed per the project schedule and to the satisfaction of ${esc(company?.name || 'the company')}. Payment as per agreed milestones. Materials &amp; workmanship as per approved specifications. This LPO is subject to the signed subcontract agreement.</div>
+    <div style="display:flex;gap:30px;margin-top:26px;">
+      <div style="flex:1;text-align:center;"><div style="border-bottom:1px solid #1a1a1a;height:30px;"></div><div style="font-size:9px;color:#666;margin-top:4px;">For ${esc(company?.name || 'Company')}</div></div>
+      <div style="flex:1;text-align:center;"><div style="border-bottom:1px solid #1a1a1a;height:30px;"></div><div style="font-size:9px;color:#666;margin-top:4px;">Accepted — ${esc(sub.name)}</div></div>
+    </div>
+  </div>`
+  const w = window.open('', '_blank')
+  if (!w) { toast?.error?.('Allow pop-ups to print the LPO'); return }
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(lpo)}</title>
+    <style>*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}@page{size:A4;margin:12mm}.__bar{position:fixed;top:0;left:0;right:0;height:48px;background:#0f1623;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-family:sans-serif;z-index:99}@media print{.__bar{display:none}.__sheet{box-shadow:none!important;margin:0!important}}.__bar button{padding:7px 14px;border:none;border-radius:7px;font-weight:600;cursor:pointer}</style>
+    </head><body style="margin:0;background:#eef2f6;padding-top:48px;">
+    <div class="__bar"><span style="font-size:14px;font-weight:600;">${esc(lpo)} · ${esc(sub.name)}</span><span><button onclick="window.print()" style="background:#0099cc;color:#fff;">Print / PDF</button> <button onclick="window.close()" style="background:rgba(255,255,255,.15);color:#fff;margin-left:8px;">Close</button></span></div>
+    <div class="__sheet" style="max-width:760px;margin:16px auto;background:#fff;box-shadow:0 6px 28px rgba(0,0,0,.28);">${body}</div></body></html>`)
+  w.document.close()
 }
