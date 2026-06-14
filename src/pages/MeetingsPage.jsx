@@ -70,6 +70,7 @@ export default function MeetingsPage({ onNavigate }) {
   const [clientActivity, setClientActivity] = useState([])
   const [modal, setModal] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [syncOpen, setSyncOpen] = useState(false)
 
   useEffect(() => { const r = () => setVw(window.innerWidth); window.addEventListener('resize', r); return () => window.removeEventListener('resize', r) }, [])
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(t) }, [])
@@ -207,6 +208,9 @@ export default function MeetingsPage({ onNavigate }) {
   // Planner follows the app theme (light / dark) via CSS variables.
   const C = { card: 'var(--card)', border: 'var(--border)', text: 'var(--text)', t2: 'var(--text2)', t3: 'var(--text3)', bg2: 'var(--bg2)' }
   const cells = monthMatrix(viewDate)
+  const feedUrl = company?.calendar_token ? `https://ribdorraxxhfbfkjhpie.supabase.co/functions/v1/calendar-feed?token=${company.calendar_token}` : ''
+  const webcalUrl = feedUrl.replace(/^https?:\/\//, 'webcal://')
+  const copySync = () => { if (navigator.clipboard?.writeText) navigator.clipboard.writeText(feedUrl).then(() => toast.success('Link copied ✓')).catch(() => {}); else window.prompt('Copy this link:', feedUrl) }
 
   return (
     <div style={{ color: C.text }}>
@@ -225,9 +229,39 @@ export default function MeetingsPage({ onNavigate }) {
               <p style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.85)', margin: '2px 0 0' }}>Meetings, site visits &amp; follow-ups — synced with every lead.</p>
             </div>
           </div>
-          <button onClick={() => openNew()} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '11px 18px', borderRadius: 11, border: 'none', background: '#fff', color: '#4f46e5', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: '0 6px 16px -6px rgba(0,0,0,0.3)', flexShrink: 0 }}><i className="ti ti-plus" style={{ fontSize: 17 }} /> New</button>
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+            <button onClick={() => setSyncOpen(true)} title="Sync to your phone calendar" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '11px 14px', borderRadius: 11, border: '1px solid rgba(255,255,255,0.45)', background: 'rgba(255,255,255,0.15)', color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: 'pointer' }}><i className="ti ti-device-mobile" style={{ fontSize: 16 }} /> Sync</button>
+            <button onClick={() => openNew()} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '11px 18px', borderRadius: 11, border: 'none', background: '#fff', color: '#4f46e5', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: '0 6px 16px -6px rgba(0,0,0,0.3)' }}><i className="ti ti-plus" style={{ fontSize: 17 }} /> New</button>
+          </div>
         </div>
       </div>
+
+      {syncOpen && (
+        <div onClick={() => setSyncOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, width: '100%', maxWidth: 480, padding: 22, maxHeight: '92vh', overflowY: 'auto', color: C.text }}>
+            <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}><i className="ti ti-device-mobile" style={{ color: '#3b82f6' }} /> Sync to your phone</div>
+            <p style={{ fontSize: 12.5, color: C.t2, marginBottom: 14, lineHeight: 1.6 }}>Subscribe once in your phone's Calendar — every Planner meeting then appears on your phone and refreshes automatically, with your phone's own reminders.</p>
+            {!feedUrl ? (
+              <div style={{ fontSize: 12.5, color: '#ef4444', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 10, padding: '11px 13px' }}>Run the <b>calendar_token</b> SQL + deploy the <b>calendar-feed</b> function first, then refresh.</div>
+            ) : (
+              <>
+                <div style={{ fontFamily: 'monospace', fontSize: 11, background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, padding: '9px 11px', overflowX: 'auto', whiteSpace: 'nowrap', marginBottom: 10 }}>{feedUrl}</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+                  <a href={webcalUrl} style={{ flex: 1, minWidth: 150, textAlign: 'center', padding: '10px', borderRadius: 9, background: '#3b82f6', color: '#fff', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}><i className="ti ti-calendar-plus" style={{ verticalAlign: '-2px', marginRight: 5 }} />Add to phone calendar</a>
+                  <button onClick={copySync} style={{ flex: '0 0 auto', padding: '10px 14px', borderRadius: 9, border: `1px solid ${C.border}`, background: C.bg2, color: C.text, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}><i className="ti ti-copy" style={{ verticalAlign: '-2px', marginRight: 5 }} />Copy link</button>
+                </div>
+                <div style={{ fontSize: 12, color: C.t2, lineHeight: 1.7 }}>
+                  <div style={{ fontWeight: 700, color: C.text, marginBottom: 4 }}>How to add:</div>
+                  <div><b>iPhone:</b> open this page on your phone → tap <b>“Add to phone calendar”</b> → Subscribe.</div>
+                  <div><b>Android / Google:</b> Copy link → Google Calendar (web) → <i>Other calendars → From URL</i> → paste.</div>
+                  <div style={{ marginTop: 6, color: C.t3 }}>Calendar refreshes every few hours automatically. Keep this link private.</div>
+                </div>
+              </>
+            )}
+            <button onClick={() => setSyncOpen(false)} style={{ marginTop: 16, width: '100%', padding: '11px', borderRadius: 10, border: `1px solid ${C.border}`, background: 'transparent', color: C.t2, fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>Close</button>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: 50, color: C.t3 }}>Loading…</div>
