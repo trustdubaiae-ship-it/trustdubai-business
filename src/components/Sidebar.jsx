@@ -38,6 +38,7 @@ export const MENU = [
   { section: 'LEAD HUB' },
   { id:'leadengine', icon:'ti-bolt',           label:'Lead Engine',      perm:'view_leads' },
   { id:'leads',      icon:'ti-forms',          label:'Lead Hub',         perm:'view_leads', featureKey:'lead_email' },
+  { id:'meetings',   icon:'ti-calendar-event', label:'Planner',          perm:'view_leads' },
   { id:'metaads',    icon:'ti-ad-2',           label:'Meta Ads',         perm:'view_leads', addon:'crm', soon:true },
 
   { section: 'SALES & QUOTES' },
@@ -56,7 +57,6 @@ export const MENU = [
 
   { section: 'AI & CRM' },
   { id:'aiassistant', icon:'ti-robot',          label:'AI Assistant',   perm:'view_dashboard', addon:'ai' },
-  { id:'meetings',    icon:'ti-calendar-event', label:'Planner',        perm:'view_leads' },
   { id:'organizer',   icon:'ti-calendar-bolt',  label:'My Organizer',   perm:'view_dashboard' },
 
   { section: 'REPUTATION' },

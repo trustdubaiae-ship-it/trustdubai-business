@@ -176,6 +176,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   const [suggestions, setSuggestions] = useState([])
   const [showSug, setShowSug] = useState(false)
   const [projectTitle, setProjectTitle] = useState('')
+  const [clientPrefix, setClientPrefix] = useState('Mr.')
   const [items, setItems]     = useState([blankItem()])
   const [vatEnabled, setVatEnabled]   = useState(true)
   const [discountType, setDiscountType] = useState(null)
@@ -260,7 +261,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
       if (d) {
         setEditId(null)
         setMode(d.mode === 'boq' && canBoq ? 'boq' : (d.mode === 'advanced' && canAdvanced ? 'advanced' : 'simple'))
-        setClient(d.client || null); setClientSearch(d.clientSearch || '')
+        setClient(d.client || null); setClientSearch(d.clientSearch || ''); setClientPrefix(d.clientPrefix ?? 'Mr.')
         setProjectTitle(d.projectTitle || '')
         setItems(Array.isArray(d.items) && d.items.length ? d.items : [blankItem()])
         setVatEnabled(d.vatEnabled ?? true)
@@ -479,7 +480,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         company_id: company.id,
         quote_number: `${prefix}-${String(seq).padStart(3,'0')}`,
         client_id: q.client_id, client_uid: q.client_uid, source_uid: q.source_uid || q.client_uid,
-        client_name: q.client_name, client_phone: q.client_phone || null, client_email: q.client_email || null,
+        client_name: q.client_name, client_phone: q.client_phone || null, client_email: q.client_email || null, client_prefix: q.client_prefix || 'Mr.',
         location: q.location || null, prepared_by: q.prepared_by || null,
         project_title: (q.project_title ? `${q.project_title} (Copy)` : 'Untitled (Copy)'),
         mode: q.mode, items: q.items,
@@ -526,7 +527,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
 
   function openBuilder() {
     setEditId(null); setMode('simple')
-    setClient(null); setClientSearch(''); setSuggestions([]); setShowSug(false)
+    setClient(null); setClientSearch(''); setSuggestions([]); setShowSug(false); setClientPrefix('Mr.')
     setProjectTitle(''); setItems([blankItem()]); setNotes('')
     setVatEnabled(tpl?.default_vat_enabled ?? true)
     setDiscountType(null); setDiscountValue(0)
@@ -541,7 +542,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     if (!d) { setDraftExists(false); return }
     setEditId(null)
     setMode(d.mode === 'boq' && canBoq ? 'boq' : (d.mode === 'advanced' && canAdvanced ? 'advanced' : 'simple'))
-    setClient(d.client || null); setClientSearch(d.clientSearch || '')
+    setClient(d.client || null); setClientSearch(d.clientSearch || ''); setClientPrefix(d.clientPrefix ?? 'Mr.')
     setSuggestions([]); setShowSug(false)
     setProjectTitle(d.projectTitle || '')
     setItems(Array.isArray(d.items) && d.items.length ? d.items : [blankItem()])
@@ -559,7 +560,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     setEditId(q.id)
     setMode(q.mode === 'boq' && canBoq ? 'boq' : (q.mode === 'advanced' && canAdvanced ? 'advanced' : 'simple'))
     setClient(q.client_id ? { id:q.client_id, uid:q.client_uid, name:q.client_name, phone:q.client_phone, email:q.client_email } : null)
-    setClientSearch(q.client_name || ''); setSuggestions([]); setShowSug(false)
+    setClientSearch(q.client_name || ''); setSuggestions([]); setShowSug(false); setClientPrefix(q.client_prefix || 'Mr.')
     setProjectTitle(q.project_title || '')
     setItems(Array.isArray(q.items) && q.items.length
       ? q.items.map(it => ({ desc:it.desc||'', unit:it.unit||'Nos', qty:it.qty??1, rate:it.rate??0, trade: it.trade || '' }))
@@ -630,11 +631,11 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     const hasContent = client || projectTitle.trim() || items.some(it => it.desc.trim())
     if (!hasContent) return
     const t = setTimeout(() => {
-      saveDraft({ mode, client, clientSearch, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, showBank, quoteTheme, projTimeline, location, preparedBy, clientEmail, sourceLead })
+      saveDraft({ mode, client, clientSearch, clientPrefix, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, showBank, quoteTheme, projTimeline, location, preparedBy, clientEmail, sourceLead })
       setDraftExists(true)
     }, 500)
     return () => clearTimeout(t)
-  }, [view, editId, mode, client, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, showBank, quoteTheme, projTimeline, location, preparedBy, clientEmail, sourceLead])
+  }, [view, editId, mode, client, clientPrefix, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, showBank, quoteTheme, projTimeline, location, preparedBy, clientEmail, sourceLead])
 
   function openBuilderPreview() {
     if (!client) { toast.error('Select a client first'); return }
@@ -673,6 +674,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
       const payload = {
         client_id: client.id, client_uid: client.uid, source_uid: client.uid,
         client_name: client.name, client_phone: client.phone || null,
+        client_prefix: clientPrefix || null,
         client_email: (clientEmail.trim() || client.email || null),
         location: location.trim() || null,
         prepared_by: preparedBy.trim() || null,
@@ -859,9 +861,9 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     if (isBoq) {
       const groups = groupByTrade(qItems, tradeList)
       bodyRows = groups.map((g, gi) => `
-        <tr><td colspan="6" style="background:${bandBg};color:${bandColor};font-size:10px;font-weight:700;padding:5px 10px;letter-spacing:1px;">${escapeHtml(String.fromCharCode(65+gi))} · ${escapeHtml(g.trade.toUpperCase())}</td></tr>
+        <tr><td colspan="6" style="background:linear-gradient(135deg, ${ACC}, ${ACC}cc);color:#fff;font-size:10px;font-weight:700;padding:7px 12px;letter-spacing:1.2px;">${escapeHtml(String.fromCharCode(65+gi))} &nbsp;&middot;&nbsp; ${escapeHtml(g.trade.toUpperCase())}</td></tr>
         ${g.items.map((it,i)=>rowHtml(it,i+1)).join('')}
-        <tr><td colspan="5" style="text-align:right;padding:6px 10px;background:#faf6ec;font-size:10px;font-weight:700;color:#6b6b6b;">${escapeHtml(g.trade)} Subtotal</td><td style="text-align:right;padding:6px 10px;background:#faf6ec;font-size:10px;font-weight:700;color:${ACC};">AED ${n(g.subtotal)}</td></tr>
+        <tr><td colspan="5" style="text-align:right;padding:7px 12px;background:${ACC}12;font-size:10px;font-weight:700;color:#555;border-top:0.5px solid ${ACC}55;">${escapeHtml(g.trade)} Subtotal</td><td style="text-align:right;padding:7px 12px;background:${ACC}12;font-size:10.5px;font-weight:800;color:${ACC};border-top:0.5px solid ${ACC}55;">AED ${n(g.subtotal)}</td></tr>
       `).join('')
     } else {
       bodyRows = qItems.map((it,i)=>rowHtml(it,i+1)).join('')
@@ -907,7 +909,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
       const signBlock = wantSign ? `
         <div style="padding:20px 30px 6px;margin-top:14px;border-top:0.5px solid #eee;display:flex;gap:30px;">
           <div style="flex:1;text-align:center;"><div style="font-size:9px;font-weight:700;color:#6b6b6b;margin-bottom:24px;">For ${cName}</div><div style="border-bottom:1px solid #1a1a1a;"></div><div style="font-size:8px;color:#999;margin-top:4px;">Authorized Signatory · Date · Stamp</div></div>
-          <div style="flex:1;text-align:center;"><div style="font-size:9px;font-weight:700;color:#6b6b6b;margin-bottom:24px;">Client Acceptance & Approval</div><div style="border-bottom:1px solid #1a1a1a;"></div><div style="font-size:9px;color:#1a1a1a;font-weight:700;margin-top:4px;">${escapeHtml(q.client_name||'Client')}</div><div style="font-size:8px;color:#999;margin-top:1px;">Signature · Date</div></div>
+          <div style="flex:1;text-align:center;"><div style="font-size:9px;font-weight:700;color:#6b6b6b;margin-bottom:24px;">Client Acceptance & Approval</div><div style="border-bottom:1px solid #1a1a1a;"></div><div style="font-size:9px;color:#1a1a1a;font-weight:700;margin-top:4px;">${q.client_prefix?escapeHtml(q.client_prefix)+' ':''}${escapeHtml(q.client_name||'Client')}</div><div style="font-size:8px;color:#999;margin-top:1px;">Signature · Date</div></div>
         </div>` : ''
 
       const bankBlock = (wantBank && bankFields.length) ? `
@@ -958,7 +960,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
           <div style="display:flex;gap:14px;margin-bottom:16px;">
             <div style="flex:1;background:#faf9f7;border-left:2.5px solid ${ACC};padding:10px 13px;">
               <div style="font-size:8.5px;color:#b08f3f;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:4px;">Bill To</div>
-              <div style="font-size:12.5px;font-weight:700;word-break:break-word;">${escapeHtml(q.client_name||'')}</div>
+              <div style="font-size:12.5px;font-weight:700;word-break:break-word;">${q.client_prefix?escapeHtml(q.client_prefix)+' ':''}${escapeHtml(q.client_name||'')}</div>
               ${q.location?`<div style="font-size:10px;color:#6b6b6b;margin-top:2px;">${escapeHtml(q.location)}</div>`:''}
               ${q.client_phone?`<div style="font-size:10px;color:#6b6b6b;">${escapeHtml(q.client_phone)}</div>`:''}
             </div>
@@ -994,12 +996,13 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
           </div>
         </div>
         ${timelineBlock}
-        ${wantFooter ? paymentCards + whyBlock + (!isVo ? `
+        ${wantFooter ? paymentCards : ''}
+        ${bankBlock}
+        ${wantFooter ? whyBlock + (!isVo ? `
           <div style="padding:18px 30px 0;">
             <div style="font-size:10px;color:${ACC};text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:7px;">— Terms & Conditions</div>
             <div style="font-size:8.5px;color:#888;line-height:1.7;white-space:pre-line;">${terms}</div>
           </div>` : '') : ''}
-        ${bankBlock}
         ${signBlock}
         <div style="background:#1a1a1a;color:#9a9a9a;font-size:8.5px;text-align:center;padding:9px;margin-top:18px;">${cName} &nbsp;·&nbsp; ${cPhone}${cEmail?' &nbsp;·&nbsp; '+cEmail:''} &nbsp;·&nbsp; ${tagline}</div>
       </div>`
@@ -1041,7 +1044,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
       ${isVo && voMeta.description ? `<div style="background:#faf8f3;border-radius:5px;padding:9px 12px;margin-bottom:14px;"><div style="font-size:9px;color:${ACC};text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:3px;">Variation Description</div><div style="font-size:10.5px;color:#555;">${escapeHtml(voMeta.description)}</div></div>` : ''}
       <div style="display:flex;justify-content:space-between;margin-bottom:16px;gap:14px;">
         <div style="min-width:0;"><div style="font-size:9px;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Bill To</div>
-          <div style="font-size:12px;font-weight:700;word-break:break-word;">${escapeHtml(q.client_name||'')}</div>
+          <div style="font-size:12px;font-weight:700;word-break:break-word;">${q.client_prefix?escapeHtml(q.client_prefix)+' ':''}${escapeHtml(q.client_name||'')}</div>
           ${q.location?`<div style="font-size:11px;color:#6b6b6b;">${escapeHtml(q.location)}</div>`:''}
           <div style="font-size:11px;color:#6b6b6b;">${escapeHtml(q.client_phone||'')}</div>
           ${q.client_email?`<div style="font-size:11px;color:#6b6b6b;word-break:break-word;">${escapeHtml(q.client_email)}</div>`:''}</div>
@@ -1671,7 +1674,13 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         </button>
 
         <div style={{ marginBottom:12, position:'relative' }}>
-          <label style={{ fontSize:12, color:textSub, display:'block', marginBottom:5 }}>Select client <span style={{ color:'#dc2626' }}>*</span></label>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, marginBottom:5 }}>
+            <label style={{ fontSize:12, color:textSub }}>Select client <span style={{ color:'#dc2626' }}>*</span></label>
+            <select value={clientPrefix} onChange={e=>setClientPrefix(e.target.value)} title="Title shown before the client name on the quote"
+              style={{ ...inputStyle, width:'auto', padding:'5px 8px', fontSize:12 }}>
+              {[['Mr.','Mr.'],['Mrs.','Mrs.'],['Ms.','Ms.'],['M/s','M/s'],['Dr.','Dr.'],['No title','']].map(([lbl,val]) => <option key={lbl} value={val} style={{ background:inputBg, color:text }}>{lbl}</option>)}
+            </select>
+          </div>
           {client ? (
             <div style={{ background:cardBg, border:`1px solid #0099cc`, borderRadius:8, padding:'10px 12px', display:'flex', alignItems:'center', gap:10 }}>
               <div style={{ width:32, height:32, borderRadius:8, background:isDark?'rgba(3,193,245,0.12)':'#e0f9ff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:600, color:'#0077a3' }}>{initials(client.name)}</div>

@@ -276,7 +276,7 @@ export default function MeetingsPage({ onNavigate }) {
         </div>
       )}
 
-      {modal && <MeetingModal modal={modal} setModal={setModal} saving={saving} onSave={saveMeeting} onComplete={completeMeeting} onDelete={removeMeeting} C={C} />}
+      {modal && <MeetingModal modal={modal} setModal={setModal} saving={saving} onSave={saveMeeting} onComplete={completeMeeting} onDelete={removeMeeting} C={C} leads={leads} />}
     </div>
   )
 }
@@ -427,14 +427,38 @@ function Section({ title, children, C }) {
 function Empty({ children, C }) { return <div style={{ fontSize: 12.5, color: C.t3, padding: '6px 0' }}>{children}</div> }
 
 /* ---------------- Meeting modal ---------------- */
-function MeetingModal({ modal, setModal, saving, onSave, onComplete, onDelete, C }) {
+function MeetingModal({ modal, setModal, saving, onSave, onComplete, onDelete, C, leads }) {
   const it = modal.item
   const set = (patch) => setModal(m => ({ ...m, item: { ...m.item, ...patch } }))
+  const [q, setQ] = useState('')
+  const matches = q.trim().length >= 1 ? (leads || []).filter(l => (l.name || '').toLowerCase().includes(q.trim().toLowerCase())).slice(0, 6) : []
   return (
     <div onClick={() => setModal(null)} style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, width: '100%', maxWidth: 480, padding: 22, maxHeight: '92vh', overflowY: 'auto' }}>
         <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}><i className="ti ti-calendar-event" style={{ color: '#3b82f6' }} /> {modal.isNew ? 'New' : 'Edit'}</div>
-        {it.lead_name && <div style={{ fontSize: 12, color: '#8b5cf6', background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.25)', borderRadius: 8, padding: '7px 11px', marginBottom: 12 }}><i className="ti ti-user" /> {it.lead_name}</div>}
+        <label style={lbl(C)}>Who is this with? <span style={{ fontWeight: 400, color: C.t3 }}>(client / lead)</span></label>
+        {it.lead_id ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: 8, padding: '8px 11px', marginBottom: 12 }}>
+            <i className="ti ti-user" style={{ color: '#8b5cf6' }} />
+            <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: C.text, minWidth: 0 }}>{it.lead_name}</span>
+            <button onClick={() => set({ lead_id: null, lead_name: null })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.t3 }}><i className="ti ti-x" style={{ fontSize: 15 }} /></button>
+          </div>
+        ) : (
+          <div style={{ position: 'relative', marginBottom: 12 }}>
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Type a client / lead name…" style={field(C)} />
+            {matches.length > 0 && (
+              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: C.card, border: `1px solid ${C.border}`, borderRadius: 9, boxShadow: '0 8px 24px rgba(0,0,0,0.18)', zIndex: 30, overflow: 'hidden', maxHeight: 220, overflowY: 'auto' }}>
+                {matches.map(l => (
+                  <div key={l.id} onClick={() => { set({ lead_id: l.id, lead_name: l.name, title: it.title || `Meeting — ${l.name}` }); setQ('') }}
+                    style={{ padding: '9px 12px', cursor: 'pointer', borderBottom: `1px solid ${C.border}` }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{l.name}</div>
+                    {l.phone && <div style={{ fontSize: 11, color: C.t3 }}>{l.phone}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
           {['meeting', 'site_visit', 'call'].map(k => { const v = KINDS[k]; const on = (it.kind || 'meeting') === k; return (
