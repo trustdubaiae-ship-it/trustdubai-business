@@ -30,7 +30,7 @@ export default function MeetingBell({ navigate, isPlatinum }) {
       for (const it of meetingBuckets(items).today) {
         const start = new Date(it.start_at).getTime()
         const minsUntil = (start - now) / 60000
-        const windowMin = Number(it.alert_minutes_before) || 0
+        const windowMin = Number(it.remind_minutes) || 0
         // fire when within the remind-before window (or at start), but not long past
         if (minsUntil <= windowMin && minsUntil >= -2 && !notified.current.has(it.id)) {
           notified.current.add(it.id)

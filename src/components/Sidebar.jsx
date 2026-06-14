@@ -56,7 +56,8 @@ export const MENU = [
 
   { section: 'AI & CRM' },
   { id:'aiassistant', icon:'ti-robot',          label:'AI Assistant',   perm:'view_dashboard', addon:'ai' },
-  { id:'organizer',   icon:'ti-calendar-event', label:'My Organizer',   perm:'view_dashboard' },
+  { id:'meetings',    icon:'ti-calendar-event', label:'Meetings',       perm:'view_leads' },
+  { id:'organizer',   icon:'ti-calendar-bolt',  label:'My Organizer',   perm:'view_dashboard' },
 
   { section: 'REPUTATION' },
   { id:'trust',   icon:'ti-shield-check', label:'Trust Score', perm:'view_dashboard' },

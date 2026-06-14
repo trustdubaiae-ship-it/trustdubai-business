@@ -1,10 +1,12 @@
-// Shared helpers for meeting reminders (organizer_items where type = 'meeting').
-// Used by the top-bar MeetingBell, the dashboard banner and the Organizer.
+// Shared helpers for the company Meetings module (table: company_meetings).
+// Used by the top-bar MeetingBell, the dashboard banner and the Meetings page.
 import { supabase } from './supabase'
 
 export function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x }
 
-// Split upcoming (not-done) meetings into today / tomorrow / later, plus overdue-today.
+function isOpen(it) { return it && it.start_at && it.status !== 'done' && it.status !== 'cancelled' }
+
+// Split open (scheduled) meetings into today / tomorrow / later.
 export function meetingBuckets(items) {
   const now = new Date()
   const t0 = startOfDay(now)
@@ -12,7 +14,7 @@ export function meetingBuckets(items) {
   const t2 = new Date(t0); t2.setDate(t2.getDate() + 2)
   const today = [], tomorrow = [], later = []
   for (const it of items || []) {
-    if (it.type !== 'meeting' || !it.start_at || it.is_done) continue
+    if (!isOpen(it)) continue
     const s = new Date(it.start_at)
     if (s >= t0 && s < t1) today.push(it)
     else if (s >= t1 && s < t2) tomorrow.push(it)
@@ -29,10 +31,9 @@ export function upcomingTodayCount(items) {
 
 export async function fetchMeetings() {
   const { data, error } = await supabase
-    .from('organizer_items')
-    .select('id,title,notes,start_at,alert_minutes_before,is_done,type')
-    .eq('type', 'meeting').eq('is_done', false)
-    .not('start_at', 'is', null)
+    .from('company_meetings')
+    .select('id,title,notes,location,start_at,remind_minutes,status,lead_id,lead_name')
+    .neq('status', 'cancelled')
     .order('start_at', { ascending: true })
   if (error) { console.error('fetchMeetings', error); return [] }
   return data || []

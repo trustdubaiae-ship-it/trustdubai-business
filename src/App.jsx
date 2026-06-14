@@ -14,6 +14,7 @@ import RevenueEngine from './pages/RevenueEngine'
 import ControlWall from './pages/ControlWall'
 import ComingSoon from './pages/ComingSoon'
 import Organizer from './pages/Organizer'
+import MeetingsPage from './pages/MeetingsPage'
 import MeetingBell from './components/MeetingBell'
 import AIAssistant from './pages/AIAssistant'
 import TrustDubaiLeads from './pages/TrustDubaiLeads'
@@ -57,6 +58,7 @@ const PAGE_PERM = {
   expenses:           'view_profile',
   aiassistant:        'view_dashboard',
   organizer:          'view_dashboard',
+  meetings:           'view_leads',
   inbox:              'view_dashboard',
   notifications:      'view_dashboard',
   profile:            'view_profile',
@@ -83,7 +85,7 @@ const PAGE_PERM = {
   settings:           'view_profile',
 }
 
-const LIMITED_PAGES = ['controlwall', 'dashboard', 'menu', 'inbox', 'profile', 'portfolio', 'faq', 'notifications', 'team', 'documents', 'quoteSettings', 'leadform', 'tdleads', 'metaads', 'quoteapprovals', 'aiquote', 'projects', 'materials', 'expenses', 'aiassistant', 'organizer']
+const LIMITED_PAGES = ['controlwall', 'dashboard', 'menu', 'inbox', 'profile', 'portfolio', 'faq', 'notifications', 'team', 'documents', 'quoteSettings', 'leadform', 'tdleads', 'metaads', 'quoteapprovals', 'aiquote', 'projects', 'materials', 'expenses', 'aiassistant', 'organizer', 'meetings']
 
 // --- Refresh persistence (URL hash) ---
 // activePage is mirrored in the URL hash (e.g. #leads) so a page refresh
@@ -91,7 +93,7 @@ const LIMITED_PAGES = ['controlwall', 'dashboard', 'menu', 'inbox', 'profile', '
 // views (list/builder/detail) can also persist a sub-route, e.g. #quotations/builder,
 // so a refresh keeps them on the same view instead of resetting to the list.
 const VALID_PAGES = [
-  'controlwall', 'dashboard', 'menu', 'revenueengine', 'inbox', 'profile', 'reviews', 'portfolio', 'analytics', 'leads', 'leadengine', 'leadform', 'tdleads', 'metaads', 'quotations', 'invoices', 'ledger', 'quoteSettings', 'quotelibrary', 'quoteapprovals', 'aiquote', 'projects', 'materials', 'expenses', 'aiassistant', 'organizer',
+  'controlwall', 'dashboard', 'menu', 'revenueengine', 'inbox', 'profile', 'reviews', 'portfolio', 'analytics', 'leads', 'leadengine', 'leadform', 'tdleads', 'metaads', 'quotations', 'invoices', 'ledger', 'quoteSettings', 'quotelibrary', 'quoteapprovals', 'aiquote', 'projects', 'materials', 'expenses', 'aiassistant', 'organizer', 'meetings',
   'sponsored', 'staff', 'team', 'documents', 'faq', 'notifications', 'trust',
   'controlpanel', 'verification', 'verificationStatus', 'plans', 'settings',
 ]
@@ -232,6 +234,7 @@ function Portal() {
     expenses:           <ComingSoon feature="site_expenses" onNavigate={navigate} />,
     aiassistant:        <AIAssistant onNavigate={navigate} />,
     organizer:          <Organizer onNavigate={navigate} />,
+    meetings:           <MeetingsPage onNavigate={navigate} />,
     quotations:         <Quotations subRoute={subRoute} setSubRoute={setPageSub} />,
     invoices:           <Invoices subRoute={subRoute} setSubRoute={setPageSub} />,
     ledger:             <Ledger />,
@@ -252,7 +255,7 @@ function Portal() {
   }
 
   const pageTitles = {
-    controlwall:'Command Center', dashboard:'Command Center', menu:'All Features', revenueengine:'Revenue Engine', leadform:'Lead Form', tdleads:'Tritova Leads', metaads:'Meta Ads', quoteapprovals:'Quote Approvals', aiquote:'AI Quote Builder', projects:'Projects', materials:'Material Requests', expenses:'Site Expenses', aiassistant:'AI Assistant', organizer:'My Organizer', inbox:'Inbox', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
+    controlwall:'Command Center', dashboard:'Command Center', menu:'All Features', revenueengine:'Revenue Engine', leadform:'Lead Form', tdleads:'Tritova Leads', metaads:'Meta Ads', quoteapprovals:'Quote Approvals', aiquote:'AI Quote Builder', projects:'Projects', materials:'Material Requests', expenses:'Site Expenses', aiassistant:'AI Assistant', organizer:'My Organizer', meetings:'Meetings', inbox:'Inbox', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
     analytics:'Analytics', leads:'Lead Form', leadengine:'Lead Engine', quotations:'Quotations', invoices:'Invoices', ledger:'Ledger', quoteSettings:'Quote Settings', quotelibrary:'Description Library', sponsored:'Sponsored Placement', staff:'Staff & Access',
     team:'Our Team', documents:'Document Verification', faq:'FAQ Management', notifications:'Notifications', trust:'Trust Score', controlpanel:'Control Panel',
     verification:'Control Panel', verificationStatus:'Control Panel', plans:'Control Panel', settings:'Control Panel',

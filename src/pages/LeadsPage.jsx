@@ -440,15 +440,14 @@ export default function LeadsPage() {
     if (!user?.email) { toast.error('Sign in required'); return }
     setMeetingSaving(true)
     try {
-      const { error } = await supabase.from('organizer_items').insert({
-        company_id: company.id != null ? String(company.id) : null,
-        owner_email: user.email,
-        type: 'meeting',
+      const { error } = await supabase.from('company_meetings').insert({
+        company_id: company.id,
+        created_by_email: user.email,
         title: `Meeting — ${lead.name || 'Lead'}`,
         notes: f.notes || null,
         start_at: new Date(f.start).toISOString(),
-        alert_minutes_before: parseInt(f.remind) || 0,
-        is_done: false,
+        remind_minutes: parseInt(f.remind) || 0,
+        status: 'scheduled',
         lead_id: lead.subId || null,
         lead_name: lead.name || null,
       })
