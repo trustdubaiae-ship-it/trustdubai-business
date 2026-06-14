@@ -308,28 +308,34 @@ function DayPanel({ dateKey: dk, items, onOpenClient, onOpenMeeting, onNew, C })
           {items.map((it, i) => {
             const kd = KINDS[it.kind] || KINDS.meeting
             const open = () => it.meeting ? onOpenMeeting(it.meeting) : (it.clientId && onOpenClient(it.clientId))
+            const av = ((it.clientName || it.title || '?').trim()[0] || '?').toUpperCase()
             return (
-              <div key={i} onClick={open} className="mtg-row" style={{ display: 'flex', gap: 12, padding: '12px 14px', background: C.bg2, border: `1px solid ${C.border}`, borderLeft: `3px solid ${kd.color}`, borderRadius: 12, cursor: 'pointer', alignItems: 'flex-start', opacity: it.done ? 0.72 : 1 }}>
-                {/* time rail */}
-                <div style={{ width: 48, flexShrink: 0, textAlign: 'center' }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 800, color: it.time ? C.text : C.t3 }}>{it.time ? fmtTime(it.time) : '—'}</div>
-                  {!it.time && <div style={{ fontSize: 9, color: C.t3, marginTop: 1 }}>all day</div>}
+              <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'stretch' }}>
+                {/* time column (left) */}
+                <div style={{ width: 56, flexShrink: 0, textAlign: 'right', paddingTop: 12 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 800, color: it.time ? C.text : C.t3, lineHeight: 1.15 }}>{it.time ? fmtTime(it.time) : 'All'}</div>
+                  <div style={{ fontSize: 9, color: C.t3 }}>{it.time ? '' : 'day'}</div>
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: kd.color + '1f', color: kd.color, fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99 }}><i className={'ti ' + kd.icon} style={{ fontSize: 12 }} /> {kd.label}</span>
-                    {it.done && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: 'rgba(34,197,94,0.16)', color: '#22c55e', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99 }}><i className="ti ti-check" style={{ fontSize: 11 }} /> Done</span>}
+                {/* colored card */}
+                <div onClick={open} className="mtg-row" style={{ flex: 1, minWidth: 0, background: kd.color + '14', border: `1px solid ${kd.color}3a`, borderLeft: `3px solid ${kd.color}`, borderRadius: 12, padding: '11px 13px', cursor: 'pointer', opacity: it.done ? 0.7 : 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <span style={{ width: 34, height: 34, borderRadius: '50%', background: kd.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, flexShrink: 0, boxShadow: `0 4px 11px -3px ${kd.color}` }}>{av}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, justifyContent: 'space-between' }}>
+                        <div style={{ fontSize: 13.5, fontWeight: 700, color: C.text, textDecoration: it.done ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.title}</div>
+                        <span style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 3, background: kd.color, color: '#fff', fontSize: 9.5, fontWeight: 700, padding: '2px 8px', borderRadius: 99 }}><i className={'ti ' + kd.icon} style={{ fontSize: 11 }} /> {kd.label}</span>
+                      </div>
+                      {it.clientName && <div onClick={e => { e.stopPropagation(); it.clientId && onOpenClient(it.clientId) }} style={{ fontSize: 12, color: '#8b5cf6', fontWeight: 600, marginTop: 2 }}><i className="ti ti-user" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {it.clientName}</div>}
+                      <div style={{ display: 'flex', gap: 11, flexWrap: 'wrap', marginTop: 4 }}>
+                        {it.meeting?.location && <span style={{ fontSize: 11, color: C.t2 }}><i className="ti ti-map-pin" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {it.meeting.location}</span>}
+                        {it.meeting?.remind_minutes ? <span style={{ fontSize: 11, color: C.t2 }}><i className="ti ti-bell" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {remindTxt(it.meeting.remind_minutes)}</span> : null}
+                        {it.done && <span style={{ fontSize: 11, color: '#22c55e', fontWeight: 600 }}><i className="ti ti-circle-check-filled" style={{ fontSize: 12, verticalAlign: '-1px' }} /> Done</span>}
+                      </div>
+                      {it.meeting?.notes && <div style={{ fontSize: 11.5, color: C.t2, marginTop: 6, lineHeight: 1.5, wordBreak: 'break-word' }}>{it.meeting.notes}</div>}
+                      {it.meeting?.mom && <div style={{ fontSize: 11, color: C.t2, marginTop: 5, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 9px', lineHeight: 1.5, wordBreak: 'break-word' }}><b style={{ color: C.text }}>MOM:</b> {it.meeting.mom}</div>}
+                    </div>
                   </div>
-                  <div style={{ fontSize: 13.5, fontWeight: 700, color: C.text, textDecoration: it.done ? 'line-through' : 'none', wordBreak: 'break-word' }}>{it.title}</div>
-                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 4 }}>
-                    {it.clientName && <span onClick={e => { e.stopPropagation(); it.clientId && onOpenClient(it.clientId) }} style={{ fontSize: 11.5, color: '#8b5cf6', fontWeight: 600 }}><i className="ti ti-user" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {it.clientName}</span>}
-                    {it.meeting?.location && <span style={{ fontSize: 11.5, color: C.t3 }}><i className="ti ti-map-pin" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {it.meeting.location}</span>}
-                    {it.meeting?.remind_minutes ? <span style={{ fontSize: 11.5, color: C.t3 }}><i className="ti ti-bell" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {remindTxt(it.meeting.remind_minutes)}</span> : null}
-                  </div>
-                  {it.meeting?.notes && <div style={{ fontSize: 11.5, color: C.t2, marginTop: 6, lineHeight: 1.5, wordBreak: 'break-word' }}>{it.meeting.notes}</div>}
-                  {it.meeting?.mom && <div style={{ fontSize: 11, color: C.t2, marginTop: 5, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 9px', lineHeight: 1.5, wordBreak: 'break-word' }}><b style={{ color: C.text }}>MOM:</b> {it.meeting.mom}</div>}
                 </div>
-                <i className="ti ti-chevron-right" style={{ color: C.t3, fontSize: 16, flexShrink: 0, marginTop: 2 }} />
               </div>
             )
           })}
