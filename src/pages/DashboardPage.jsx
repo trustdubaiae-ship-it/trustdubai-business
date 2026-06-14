@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 import { MENU } from '../components/Sidebar'
 import { can } from '../lib/permissions'
+import MeetingBanner from '../components/MeetingBanner'
 
 /* =========================================================================
    Tritova Business — COMMAND CENTER
@@ -356,6 +357,8 @@ export default function DashboardPage({ onNavigate, theme }) {
   return (
     <div className="cc-root" style={{ color:C.text, width:'100%', maxWidth:1500, margin:'0 auto' }}>
       <style>{CC_CSS}</style>
+
+      <MeetingBanner onNavigate={onNavigate} />
 
       {/* HEADER */}
       <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', flexWrap:'wrap', gap:12, marginBottom:18 }}>

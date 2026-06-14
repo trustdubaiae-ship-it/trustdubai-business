@@ -14,6 +14,7 @@ import RevenueEngine from './pages/RevenueEngine'
 import ControlWall from './pages/ControlWall'
 import ComingSoon from './pages/ComingSoon'
 import Organizer from './pages/Organizer'
+import MeetingBell from './components/MeetingBell'
 import AIAssistant from './pages/AIAssistant'
 import TrustDubaiLeads from './pages/TrustDubaiLeads'
 import ProfilePage from './pages/ProfilePage'
@@ -396,6 +397,8 @@ function Portal() {
               style={{ cursor:'pointer', width:30, height:30, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)', flexShrink:0 }}>
               <i className={`ti ${theme==='dark'?'ti-sun':'ti-moon'}`} style={{ fontSize:17 }}/>
             </div>
+
+            <MeetingBell navigate={navigate} isPlatinum={isPlatinum} />
 
             <div onClick={() => navigate('notifications')} title={unreadCount>0 ? `${unreadCount} unread notification${unreadCount>1?'s':''}` : 'Notifications'} style={{ position:'relative', cursor:'pointer', flexShrink:0 }}>
               <i className="ti ti-bell" style={{ fontSize:18, color: unreadCount>0 ? '#0099cc' : (isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)') }}/>
