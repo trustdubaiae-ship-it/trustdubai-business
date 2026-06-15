@@ -34,6 +34,8 @@ export default function ProjectsPage({ onNavigate }) {
   const [subForm, setSubForm] = useState(null)
   const [scope, setScope] = useState([])
   const [scopeForm, setScopeForm] = useState(null)
+  const [assignDrafts, setAssignDrafts] = useState({}) // per-scope-id { sub_id, sub_amount } before committing
+  const [editScopeId, setEditScopeId] = useState(null) // which already-assigned scope is being re-edited
   const [projModal, setProjModal] = useState(null)
   const [matForm, setMatForm] = useState(null)
   const [expForm, setExpForm] = useState(null)
@@ -207,6 +209,19 @@ export default function ProjectsPage({ onNavigate }) {
       if (prevSub && prevSub !== subId) await recomputeSubContract(prevSub, next)
       reloadChildren()
     } catch (e) { console.error(e); toast.error('Assign failed') }
+  }
+  // Commit an assignment only when a subcontractor AND a positive amount are given.
+  async function doAssign(item, draft) {
+    if (!draft.sub_id) { toast.error('Select a subcontractor first'); return }
+    if (!(Number(draft.sub_amount) > 0)) { toast.error('Enter the amount before assigning'); return }
+    await assignScope(item, draft.sub_id, draft.sub_amount)
+    setAssignDrafts(d => { const n = { ...d }; delete n[item.id]; return n })
+    setEditScopeId(null)
+  }
+  async function unassign(item) {
+    await assignScope(item, null, 0)
+    setAssignDrafts(d => { const n = { ...d }; delete n[item.id]; return n })
+    setEditScopeId(null)
   }
   async function importScopeFromQuote() {
     if (!active?.quote_id) { toast.error('This project has no linked quotation'); return }
@@ -424,15 +439,33 @@ export default function ProjectsPage({ onNavigate }) {
                     <button onClick={() => setScopeForm({ ...it })} style={iconBtn}><i className="ti ti-edit" style={{ fontSize: 14 }} /></button>
                     <button onClick={() => delScopeItem(it)} style={{ ...iconBtn, color: '#ef4444' }}><i className="ti ti-trash" style={{ fontSize: 14 }} /></button>
                   </div>
-                  <div style={{ display: 'flex', gap: 8, marginTop: 9, flexWrap: 'wrap', alignItems: 'center' }}>
-                    <span style={{ fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}><i className="ti ti-user-plus" style={{ fontSize: 13, verticalAlign: '-2px' }} /> Assign</span>
-                    <select value={it.sub_id || ''} onChange={e => assignScope(it, e.target.value || null, it.sub_amount)} style={{ ...input, width: 'auto', flex: '1 1 150px', padding: '6px 9px', fontSize: 12 }}>
-                      <option value="">— Unassigned —</option>
-                      {subs.map(s => <option key={s.id} value={s.id}>{s.name}{s.trade ? ' (' + s.trade + ')' : ''}</option>)}
-                    </select>
-                    <input type="number" value={it.sub_amount || 0} onChange={e => { const v = e.target.value; setScope(sc => sc.map(s => s.id === it.id ? { ...s, sub_amount: v } : s)) }} onBlur={e => assignScope(it, it.sub_id, e.target.value)} placeholder="Sub amount" style={{ ...input, width: 120, padding: '6px 9px', fontSize: 12 }} />
-                    {assignedSub && <span style={{ fontSize: 11, color: '#8b5cf6', fontWeight: 600 }}>→ {assignedSub.name}</span>}
-                  </div>
+                  {(() => {
+                    const isAssigned = !!it.sub_id
+                    const editing = editScopeId === it.id
+                    if (isAssigned && !editing) {
+                      return (
+                        <div style={{ display: 'flex', gap: 8, marginTop: 9, flexWrap: 'wrap', alignItems: 'center' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#8b5cf6', background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.25)', borderRadius: 99, padding: '5px 11px' }}><i className="ti ti-user-check" style={{ fontSize: 14 }} /> {assignedSub ? assignedSub.name : 'Subcontractor'} · {AED(it.sub_amount)}</span>
+                          <button onClick={() => { setEditScopeId(it.id); setAssignDrafts(d => ({ ...d, [it.id]: { sub_id: it.sub_id, sub_amount: it.sub_amount } })) }} style={{ ...iconBtn, width: 'auto', height: 28, padding: '0 11px', fontSize: 12, fontWeight: 600 }}><i className="ti ti-switch-horizontal" style={{ fontSize: 13, verticalAlign: '-2px', marginRight: 3 }} /> Change</button>
+                          <button onClick={() => unassign(it)} style={{ ...iconBtn, width: 'auto', height: 28, padding: '0 11px', fontSize: 12, fontWeight: 600, color: '#ef4444' }}><i className="ti ti-user-minus" style={{ fontSize: 13, verticalAlign: '-2px', marginRight: 3 }} /> Remove</button>
+                        </div>
+                      )
+                    }
+                    const draft = assignDrafts[it.id] || { sub_id: '', sub_amount: '' }
+                    const setDraft = patch => setAssignDrafts(d => ({ ...d, [it.id]: { ...draft, ...patch } }))
+                    return (
+                      <div style={{ display: 'flex', gap: 8, marginTop: 9, flexWrap: 'wrap', alignItems: 'center' }}>
+                        <span style={{ fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}><i className="ti ti-user-plus" style={{ fontSize: 13, verticalAlign: '-2px' }} /> Assign</span>
+                        <select value={draft.sub_id} onChange={e => setDraft({ sub_id: e.target.value })} style={{ ...input, width: 'auto', flex: '1 1 150px', padding: '6px 9px', fontSize: 12 }}>
+                          <option value="">— Select subcontractor —</option>
+                          {subs.map(s => <option key={s.id} value={s.id}>{s.name}{s.trade ? ' (' + s.trade + ')' : ''}</option>)}
+                        </select>
+                        <input type="number" value={draft.sub_amount} onChange={e => setDraft({ sub_amount: e.target.value })} placeholder="Amount (AED)" style={{ ...input, width: 130, padding: '6px 9px', fontSize: 12 }} />
+                        <button onClick={() => doAssign(it, draft)} style={{ height: 30, padding: '0 14px', borderRadius: 8, border: 'none', background: '#8b5cf6', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}><i className="ti ti-check" style={{ fontSize: 14, verticalAlign: '-2px', marginRight: 3 }} /> Assign</button>
+                        {editing && <button onClick={() => { setEditScopeId(null); setAssignDrafts(d => { const n = { ...d }; delete n[it.id]; return n }) }} style={{ ...iconBtn, width: 'auto', height: 30, padding: '0 11px', fontSize: 12, fontWeight: 600 }}>Cancel</button>}
+                      </div>
+                    )
+                  })()}
                 </div>
               ) })}
             </div>}
