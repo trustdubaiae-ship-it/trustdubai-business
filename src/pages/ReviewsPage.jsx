@@ -305,7 +305,7 @@ export default function ReviewsPage() {
               <button
                 className="btn btn-primary"
                 style={{ flex: 1, justifyContent: 'center' }}
-                onClick={() => { setShowUpgradePopup(false); window.open('https://wa.me/971503856786?text=Hi, I would like to upgrade my Tritova plan', '_blank') }}
+                onClick={() => { setShowUpgradePopup(false); window.open('https://wa.me/971503856786?text=Hi, I would like to upgrade my Quvera plan', '_blank') }}
               >
                 Upgrade Now
               </button>

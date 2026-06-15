@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 
 const TIERS = {
-  listed:    { label: 'Listed',    color: '#3b82f6', icon: 'ti-circle',         desc: 'Registered on Tritova' },
+  listed:    { label: 'Listed',    color: '#3b82f6', icon: 'ti-circle',         desc: 'Registered on Quvera' },
   verified:  { label: 'Verified',  color: '#10b981', icon: 'ti-rosette-discount-check', desc: 'License & phone verified' },
   trusted:   { label: 'Trusted',   color: '#d97706', icon: 'ti-trophy',         desc: 'Verified + strong reviews' },
   top_rated: { label: 'Top Rated', color: '#8b5cf6', icon: 'ti-diamond',        desc: 'Top performer in category' },
@@ -72,7 +72,7 @@ export default function TrustScorePage() {
     <div className="animate-in">
       <div style={{ marginBottom: 20 }}>
         <h1 className="font-syne fw-700" style={{ fontSize: 24, marginBottom: 4 }}>Trust Score</h1>
-        <p className="text-secondary" style={{ fontSize: 14 }}>Your credibility rating on Tritova — higher score means more leads.</p>
+        <p className="text-secondary" style={{ fontSize: 14 }}>Your credibility rating on Quvera — higher score means more leads.</p>
       </div>
 
       <div className="grid-2">

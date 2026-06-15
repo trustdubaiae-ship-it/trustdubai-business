@@ -171,7 +171,7 @@ function DocForm({ company, doc, existing, onClose, onSaved }) {
     if (!docNumber.trim()) { setError('Document number is required'); return }
     if (!docExpiry) { setError('Expiry date is required'); return }
     if (!fileUrl) { setError('Please upload the document file'); return }
-    if (!agreed) { setError('Please confirm and agree to the Tritova Policy'); return }
+    if (!agreed) { setError('Please confirm and agree to the Quvera Policy'); return }
     setSaving(true)
     const payload = {
       company_id: company.id,

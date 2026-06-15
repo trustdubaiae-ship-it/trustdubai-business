@@ -141,7 +141,7 @@ export default function LoginNotificationPopup({ onOpenPage }) {
                         <div style={{ fontSize:13, fontWeight:600, color:'#0f172a', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{n.title}</div>
                         {n.message && <div style={{ fontSize:11, color:'#64748b', marginTop:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{n.message}</div>}
                         <div style={{ fontSize:9.5, color:'#94a3b8', marginTop:2 }}>
-                          {isLead ? '📩 New Lead' : (n.sender_type==='admin' ? '📢 Tritova' : '👥 Internal')}
+                          {isLead ? '📩 New Lead' : (n.sender_type==='admin' ? '📢 Quvera' : '👥 Internal')}
                           {n.priority==='high' && <span style={{ color:'#dc2626', fontWeight:600 }}> · High</span>}
                           {' · '}{new Date(n.created_at).toLocaleDateString('en-GB')}
                         </div>

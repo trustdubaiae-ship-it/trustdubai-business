@@ -10,11 +10,11 @@ import { useState, useEffect } from 'react'
 const FEATURES = {
   trustdubai_leads: {
     icon: 'ti-brand-trustpilot',
-    title: 'Tritova Leads',
+    title: 'Quvera Leads',
     tag: 'Lead Hub',
-    desc: 'A dedicated tab for leads delivered directly from the Tritova platform — separate from your own captured leads.',
+    desc: 'A dedicated tab for leads delivered directly from the Quvera platform — separate from your own captured leads.',
     points: [
-      'Platform leads in one focused view (All · Tritova · Own)',
+      'Platform leads in one focused view (All · Quvera · Own)',
       'Auto-delivered from your public profile enquiries',
       'Quick accept / contact / convert actions',
     ],

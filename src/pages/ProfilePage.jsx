@@ -106,7 +106,7 @@ export default function ProfilePage() {
         status: 'pending',
       })
       if (error) throw error
-      toast.success('Category request sent to Tritova for review.')
+      toast.success('Category request sent to Quvera for review.')
       setShowRequest(false)
       setReqName('')
       setReqNote('')
@@ -180,7 +180,7 @@ export default function ProfilePage() {
       <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>
           <h1 className="font-syne fw-700" style={{ fontSize: 24, marginBottom: 4 }}>Company Profile</h1>
-          <p className="text-secondary" style={{ fontSize: 14 }}>Manage how your business appears on Tritova</p>
+          <p className="text-secondary" style={{ fontSize: 14 }}>Manage how your business appears on Quvera</p>
         </div>
         <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
           {saving ? <><span className="spinner" style={{ width: 14, height: 14 }} />Saving...</> : <><Save size={15} />Save Changes</>}
@@ -296,7 +296,7 @@ export default function ProfilePage() {
                       </button>
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 8 }}>
-                      Tritova will review your request. Approved categories become available to all businesses.
+                      Quvera will review your request. Approved categories become available to all businesses.
                     </div>
                   </div>
                 )}

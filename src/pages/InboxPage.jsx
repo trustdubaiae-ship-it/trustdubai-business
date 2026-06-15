@@ -117,7 +117,7 @@ export default function InboxPage() {
             Inbox{unreadCount>0 && <span style={{ fontSize:13, color:BRAND, fontWeight:700, marginLeft:7 }}>{unreadCount} unread</span>}
           </h1>
           <p style={{ fontSize:13, color:'var(--text2)', marginTop:4 }}>
-            Messages between {company?.name || 'your company'} and Tritova
+            Messages between {company?.name || 'your company'} and Quvera
           </p>
         </div>
         <button onClick={() => setShowCompose(true)}
@@ -151,7 +151,7 @@ export default function InboxPage() {
             <i className="ti ti-mail-off" style={{ fontSize:28, color:BRAND }}/>
           </div>
           <div style={{ fontSize:15, fontWeight:600, color:'var(--text)', marginBottom:4 }}>No messages {filter !== 'all' ? `in "${filter}"` : 'yet'}</div>
-          <p style={{ fontSize:13, color:'var(--text3)', margin:'0 0 18px' }}>Need help or have a question? Reach out to the Tritova team.</p>
+          <p style={{ fontSize:13, color:'var(--text3)', margin:'0 0 18px' }}>Need help or have a question? Reach out to the Quvera team.</p>
           <button onClick={() => setShowCompose(true)}
             style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'9px 18px', borderRadius:9, border:'none', color:'#fff', fontWeight:600, fontSize:13, background:BRAND, cursor:'pointer' }}>
             <i className="ti ti-pencil-plus" style={{ fontSize:15 }}/> New message
@@ -195,7 +195,7 @@ export default function InboxPage() {
                   <div style={{ fontSize:11, color:'var(--text3)', marginTop:6, display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
                     <span style={{ display:'inline-flex', alignItems:'center', gap:4, fontWeight:600, color:iconFg }}>
                       <i className={`ti ${fromAdmin ? 'ti-speakerphone' : 'ti-building-store'}`} style={{ fontSize:12 }}/>
-                      {fromAdmin ? 'Tritova' : 'Sent by you'}
+                      {fromAdmin ? 'Quvera' : 'Sent by you'}
                     </span>
                     {m.category && <span>· {CAT_LABEL[m.category] || m.category}</span>}
                     {replyCount > 0 && <span>· {replyCount} repl{replyCount>1?'ies':'y'}</span>}
@@ -285,7 +285,7 @@ function ThreadModal({ thread, company, staff, mobile, onClose, onReplied }) {
                 border:'0.5px solid var(--border)', borderRadius:14, padding:'10px 13px' }}>
                 <div style={{ fontSize:11, fontWeight:700, color: fromAdmin ? '#d97706' : BRAND, marginBottom:4, display:'flex', alignItems:'center', gap:5 }}>
                   <i className={`ti ${fromAdmin ? 'ti-speakerphone' : (m.sender_type==='system' ? 'ti-settings' : 'ti-building-store')}`} style={{ fontSize:12 }}/>
-                  {fromAdmin ? 'Tritova' : (m.sender_type==='system' ? 'System' : 'You')}
+                  {fromAdmin ? 'Quvera' : (m.sender_type==='system' ? 'System' : 'You')}
                 </div>
                 {m.body && <div style={{ fontSize:13.5, color:'var(--text)', whiteSpace:'pre-wrap', lineHeight:1.5 }}>{m.body}</div>}
                 <div style={{ fontSize:10, color:'var(--text3)', marginTop:6 }}>{new Date(m.created_at).toLocaleString('en-GB', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}</div>
@@ -297,7 +297,7 @@ function ThreadModal({ thread, company, staff, mobile, onClose, onReplied }) {
         {/* Reply box */}
         <div style={{ borderTop:'0.5px solid var(--border)', padding:'14px 18px', paddingBottom:mobile?`calc(14px + env(safe-area-inset-bottom))`:14, background:'var(--card)', borderRadius:mobile?0:'0 0 16px 16px' }}>
           <textarea value={reply} onChange={e => setReply(e.target.value)} rows={2}
-            placeholder="Type your reply to Tritova…"
+            placeholder="Type your reply to Quvera…"
             style={{ width:'100%', border:'1px solid var(--border)', background:'var(--bg2)', color:'var(--text)', borderRadius:10, padding:'10px 12px', fontSize:13.5, boxSizing:'border-box', resize:'vertical', fontFamily:'inherit', outline:'none', marginBottom:err?6:10 }} />
           {err && <p style={{ fontSize:12, color:'#ef4444', margin:'0 0 10px' }}>{err}</p>}
           <button onClick={sendReply} disabled={sending}
@@ -310,7 +310,7 @@ function ThreadModal({ thread, company, staff, mobile, onClose, onReplied }) {
   )
 }
 
-/* ---------- Compose new message to Tritova ---------- */
+/* ---------- Compose new message to Quvera ---------- */
 function ComposeModal({ company, staff, mobile, onClose, onSent }) {
   const [category, setCategory] = useState('support')
   const [subject, setSubject]   = useState('')
@@ -343,7 +343,7 @@ function ComposeModal({ company, staff, mobile, onClose, onSent }) {
       <div onClick={e => e.stopPropagation()} style={{ background:'var(--card)', borderRadius:mobile?0:16, width:mobile?'100%':460, minHeight:mobile?'100%':'auto', border:'0.5px solid var(--border)' }}>
 
         <div style={{ position:'sticky', top:0, zIndex:5, background:'var(--card)', padding:'14px 18px', paddingTop:mobile?`calc(14px + ${SAFE_TOP})`:14, borderBottom:'0.5px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center', borderRadius:mobile?0:'16px 16px 0 0' }}>
-          <h4 style={{ fontWeight:700, color:'var(--text)', margin:0, fontSize:16 }}>Message Tritova</h4>
+          <h4 style={{ fontWeight:700, color:'var(--text)', margin:0, fontSize:16 }}>Message Quvera</h4>
           <button onClick={onClose} style={{ background:'none', border:'none', fontSize:20, color:'var(--text3)', cursor:'pointer', lineHeight:1 }}><i className="ti ti-x"/></button>
         </div>
 
@@ -364,7 +364,7 @@ function ComposeModal({ company, staff, mobile, onClose, onSent }) {
 
           <button onClick={send} disabled={sending}
             style={{ width:'100%', padding:'11px', borderRadius:10, border:'none', color:'#fff', fontWeight:600, fontSize:13, background:BRAND, cursor:'pointer', opacity:sending?0.6:1, display:'flex', alignItems:'center', justifyContent:'center', gap:7 }}>
-            <i className="ti ti-send" style={{ fontSize:15 }}/> {sending ? 'Sending…' : 'Send to Tritova'}
+            <i className="ti ti-send" style={{ fontSize:15 }}/> {sending ? 'Sending…' : 'Send to Quvera'}
           </button>
         </div>
       </div>

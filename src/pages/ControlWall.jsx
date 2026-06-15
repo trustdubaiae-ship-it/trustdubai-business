@@ -4,7 +4,7 @@ import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 
 /* =========================================================================
-   Tritova Business — CONTROL WALL
+   Quvera Business — CONTROL WALL
    One full-screen board = Command Center + Revenue Engine (this company only).
    • Scale-to-fit: designed on a fixed 1600x900 canvas, auto-scaled to ANY
      screen (TV / desktop / laptop / tablet / phone) — no scroll ever.
@@ -18,7 +18,7 @@ const BASE_W = 1600, BASE_H = 900
 const pick = (o, ks) => { for (const k of ks) if (o && o[k]!==undefined && o[k]!==null && o[k]!=='') return o[k]; return null }
 const norm = v => String(v||'').trim().toLowerCase()
 const normStatus = raw => { const s=norm(raw); if(!s)return'new'; if(/contact|reach|call/.test(s))return'contacted'; if(/quot|propos|estimat|sent/.test(s))return'quoted'; if(/negoti|discuss/.test(s))return'negotiation'; if(/won|success|convert|deal/.test(s)&&!/lost/.test(s))return'won'; if(/lost|reject|dead|drop|junk|spam/.test(s))return'lost'; return'new' }
-const normSource = raw => { const s=norm(raw); if(!s)return'Other'; if(/meta|facebook|fb|insta|ig/.test(s))return'Meta Ads'; if(/whats|wa\b/.test(s))return'WhatsApp'; if(/trustdubai|trust dubai|td\b/.test(s))return'TrustDubai'; if(/form|web|site|landing/.test(s))return'Form'; if(/manual|admin|direct|walk/.test(s))return'Manual'; if(/google|ppc/.test(s))return'Google'; return raw?String(raw).charAt(0).toUpperCase()+String(raw).slice(1):'Other' }
+const normSource = raw => { const s=norm(raw); if(!s)return'Other'; if(/meta|facebook|fb|insta|ig/.test(s))return'Meta Ads'; if(/whats|wa\b/.test(s))return'WhatsApp'; if(/trustdubai|trust dubai|td\b/.test(s))return'Quvera'; if(/form|web|site|landing/.test(s))return'Form'; if(/manual|admin|direct|walk/.test(s))return'Manual'; if(/google|ppc/.test(s))return'Google'; return raw?String(raw).charAt(0).toUpperCase()+String(raw).slice(1):'Other' }
 const normTemp = raw => { const s=norm(raw); if(/hot|high/.test(s))return'hot'; if(/warm|med/.test(s))return'warm'; if(/cold|low/.test(s))return'cold'; return '' }
 const normCat = raw => { const s=norm(raw); if(/resid|home|villa|apart/.test(s))return'Residential'; if(/commerc|office|retail|shop/.test(s))return'Commercial'; if(/indus|ware|factory/.test(s))return'Industrial'; if(/reno|fitout|fit-out|refurb/.test(s))return'Renovation'; return raw?String(raw).charAt(0).toUpperCase()+String(raw).slice(1):'Other' }
 const parseBudget = raw => { if(raw==null)return 0; const d=String(raw).replace(/[, ]/g,'').match(/\d+/g); return d?Math.max(...d.map(Number)):0 }
@@ -27,7 +27,7 @@ const daysBetween = (a,b) => Math.floor((a-b)/864e5)
 const pctChange = (n,p) => p===0 ? (n>0?100:0) : Math.round(((n-p)/p)*100)
 const timeAgo = s => { if(!s)return''; const d=(Date.now()-new Date(s).getTime())/1000; if(d<60)return'just now'; if(d<3600)return`${Math.floor(d/60)}m ago`; if(d<86400)return`${Math.floor(d/3600)}h ago`; if(d<604800)return`${Math.floor(d/86400)}d ago`; return new Date(s).toLocaleDateString() }
 const fmtN = n => (n||0).toLocaleString()
-const aiScore = l => { let s=0; const t=normTemp(pick(l,['temperature','temp','priority'])); s+=t==='hot'?40:t==='warm'?25:t==='cold'?10:15; const c=pick(l,['created_at','createdAt']); const dys=c?daysBetween(Date.now(),new Date(c).getTime()):999; s+=dys<=3?25:dys<=7?20:dys<=14?15:dys<=30?10:5; const src=normSource(pick(l,['source','lead_source'])); s+=(src==='Meta Ads'||src==='Form'||src==='TrustDubai')?20:src==='WhatsApp'?15:src==='Manual'?10:12; const b=parseBudget(pick(l,['budget','budget_range','amount'])); s+=b>=1e5?15:b>=5e4?12:b>=2e4?8:b>0?5:6; return Math.min(100,s) }
+const aiScore = l => { let s=0; const t=normTemp(pick(l,['temperature','temp','priority'])); s+=t==='hot'?40:t==='warm'?25:t==='cold'?10:15; const c=pick(l,['created_at','createdAt']); const dys=c?daysBetween(Date.now(),new Date(c).getTime()):999; s+=dys<=3?25:dys<=7?20:dys<=14?15:dys<=30?10:5; const src=normSource(pick(l,['source','lead_source'])); s+=(src==='Meta Ads'||src==='Form'||src==='Quvera')?20:src==='WhatsApp'?15:src==='Manual'?10:12; const b=parseBudget(pick(l,['budget','budget_range','amount'])); s+=b>=1e5?15:b>=5e4?12:b>=2e4?8:b>0?5:6; return Math.min(100,s) }
 
 /* --------------------------- chart atoms ------------------------------- */
 function Spark({ data, color, w=120, h=30 }) {
@@ -210,7 +210,7 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme, e
 
     // sources / categories
     const srcMap={}; leads.forEach(l=>{ const s=normSource(pick(l,['source','lead_source'])); srcMap[s]=(srcMap[s]||0)+1 })
-    const SRC_C={'Meta Ads':'#3b82f6','WhatsApp':'#22c55e','TrustDubai':'#16a34a','Manual':'#f59e0b','Form':'#8b5cf6','Google':'#06b6d4','Other':'#94a3b8'}
+    const SRC_C={'Meta Ads':'#3b82f6','WhatsApp':'#22c55e','Quvera':'#16a34a','Manual':'#f59e0b','Form':'#8b5cf6','Google':'#06b6d4','Other':'#94a3b8'}
     const sources=Object.entries(srcMap).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([label,value])=>({label,value,color:SRC_C[label]||'#94a3b8'}))
     const catMap={}; leads.forEach(l=>{ const c=normCat(pick(l,['project_type','category','service'])); catMap[c]=(catMap[c]||0)+1 })
     const CAT_C={Residential:'#3b82f6',Commercial:'#22c55e',Industrial:'#8b5cf6',Renovation:'#f59e0b',Other:'#94a3b8'}
@@ -578,7 +578,7 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme, e
             <Title right={<span style={{ fontSize:9, color:G.green, display:'flex', alignItems:'center', gap:3 }}><span style={{ width:6, height:6, borderRadius:'50%', background:G.green }}/>Live</span>}>Live Lead Feed</Title>
             <div style={{ flex:1, display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:7, overflow:'hidden' }}>
               {d.liveLeads.length===0 ? <div style={{ color:C.text3, fontSize:11, gridColumn:'1/-1', textAlign:'center', alignSelf:'center' }}>No recent leads</div> :
-              d.liveLeads.map((l,i)=>{ const col={'Meta Ads':G.blue,'WhatsApp':G.green,'TrustDubai':'#16a34a','Form':G.purple,'Manual':G.amber,'Google':G.cyan,'Other':C.text3}[l.src]||C.text3; return (
+              d.liveLeads.map((l,i)=>{ const col={'Meta Ads':G.blue,'WhatsApp':G.green,'Quvera':'#16a34a','Form':G.purple,'Manual':G.amber,'Google':G.cyan,'Other':C.text3}[l.src]||C.text3; return (
                 <div key={i} style={{ background:C.card2, border:`1px solid ${C.border}`, borderRadius:8, padding:'6px 7px', display:'flex', flexDirection:'column', gap:2, minWidth:0 }}>
                   <span style={{ width:20, height:20, borderRadius:6, background:col+'22', color:col, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><i className="ti ti-bolt" style={{ fontSize:11 }}/></span>
                   <div style={{ fontSize:9, fontWeight:700, color:C.text, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{l.src}</div>

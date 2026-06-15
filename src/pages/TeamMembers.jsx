@@ -239,7 +239,7 @@ function MemberForm({ company, member, onClose, onSaved }) {
     if (!eidExpiry) { setError('EID expiry date is required'); return }
     if (!eidFront) { setError('EID front photo is required'); return }
     if (!eidBack) { setError('EID back photo is required'); return }
-    if (!agreed) { setError('Please confirm and agree to the Tritova Policy'); return }
+    if (!agreed) { setError('Please confirm and agree to the Quvera Policy'); return }
     setSaving(true)
     const payload = {
       company_id: company.id,

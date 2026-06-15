@@ -4,7 +4,7 @@ import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 
 /* =========================================================================
-   Tritova Business — REVENUE ENGINE (company-specific sales dashboard)
+   Quvera Business — REVENUE ENGINE (company-specific sales dashboard)
    Same look & theme as the Admin Revenue Engine (self-contained green theme,
    light + dark via `theme` prop, fully responsive). Data is THIS company only.
    ========================================================================= */
@@ -44,7 +44,7 @@ const normSource = (raw) => {
   const s = norm(raw); if (!s) return 'Other'
   if (/meta|facebook|fb|insta|ig/.test(s)) return 'Meta'
   if (/whats|wa\b/.test(s)) return 'WhatsApp'
-  if (/form|web|site|landing|trustdubai/.test(s)) return 'TrustDubai'
+  if (/form|web|site|landing|trustdubai/.test(s)) return 'Quvera'
   if (/manual|admin|direct|walk/.test(s)) return 'Manual'
   if (/google|ads|ppc/.test(s)) return 'Google'
   return raw ? String(raw).charAt(0).toUpperCase() + String(raw).slice(1) : 'Other'
@@ -62,7 +62,7 @@ const aiScore = (lead) => {
   const t = normTemp(fTemp(lead)); s += t==='hot'?40 : t==='warm'?25 : t==='cold'?10 : 15
   const c = fCreated(lead); const days = c ? daysBetween(Date.now(), new Date(c).getTime()) : 999
   s += days<=3?25 : days<=7?20 : days<=14?15 : days<=30?10 : 5
-  const src = normSource(fSource(lead)); s += (src==='Meta'||src==='TrustDubai')?20 : src==='WhatsApp'?15 : src==='Manual'?10 : 12
+  const src = normSource(fSource(lead)); s += (src==='Meta'||src==='Quvera')?20 : src==='WhatsApp'?15 : src==='Manual'?10 : 12
   const b = parseBudget(fBudget(lead)); s += b>=100000?15 : b>=50000?12 : b>=20000?8 : b>0?5 : 6
   return Math.min(100, s)
 }
@@ -324,7 +324,7 @@ export default function RevenueEngine({ onNavigate, theme = 'dark' }) {
       <div className="re-header">
         <div>
           <h1 className="re-title">Revenue Engine <span className="re-badge">CRM</span></h1>
-          <p className="re-subtitle">Your sales pipeline & lead performance on Tritova.</p>
+          <p className="re-subtitle">Your sales pipeline & lead performance on Quvera.</p>
         </div>
         <button className="re-refresh" onClick={load} disabled={loading}>
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2"><path d={Ic.refresh} /></svg>

@@ -78,7 +78,7 @@ export default function NotificationsCard({ cardStyle, C, onOpenPage }) {
                   <span style={{ fontSize:7.5, fontWeight:600, padding:'1px 6px', borderRadius:99, background:st.bg, color:st.fg, whiteSpace:'nowrap' }}>{st.label}</span>
                 </div>
                 <div style={{ fontSize:8.5, color:text3, marginTop:1 }}>
-                  {n.sender_type === 'admin' ? 'Tritova' : 'Internal'} · {new Date(n.created_at).toLocaleDateString('en-GB')}
+                  {n.sender_type === 'admin' ? 'Quvera' : 'Internal'} · {new Date(n.created_at).toLocaleDateString('en-GB')}
                 </div>
               </div>
             </div>

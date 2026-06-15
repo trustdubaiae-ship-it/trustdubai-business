@@ -180,7 +180,7 @@ export default function MetaConnect({ onBack, onConnected }) {
             </div>
             <h2 style={{ fontSize:18, fontWeight:700, color:text, margin:'0 0 6px' }}>Connect your Meta account</h2>
             <p style={{ fontSize:13, color:textSub, margin:'0 0 20px', lineHeight:1.6, maxWidth:380, marginLeft:'auto', marginRight:'auto' }}>
-              Link your Facebook &amp; Instagram page to capture lead ads automatically — every new lead lands straight in your Tritova Lead Hub.
+              Link your Facebook &amp; Instagram page to capture lead ads automatically — every new lead lands straight in your Quvera Lead Hub.
             </p>
             <button onClick={connectMeta} disabled={busy} style={{ padding:'13px 26px', borderRadius:10, border:'none', background:'#0099cc', color:'#fff', fontSize:14, fontWeight:600, cursor:'pointer' }}>
               <i className="ti ti-brand-facebook" style={{ fontSize:16, verticalAlign:'-2px', marginRight:6 }}/>
@@ -192,7 +192,7 @@ export default function MetaConnect({ onBack, onConnected }) {
           <div style={{ background:subBg, borderRadius:14, padding:18 }}>
             <div style={{ fontSize:12, fontWeight:700, color:textSub, textTransform:'uppercase', letterSpacing:'.4px', marginBottom:14 }}>How it works</div>
             {[
-              ['ti-login', 'Sign in with Facebook', 'Securely authorize Tritova to access your Page leads.'],
+              ['ti-login', 'Sign in with Facebook', 'Securely authorize Quvera to access your Page leads.'],
               ['ti-briefcase', 'Choose your page', 'Pick which Facebook/Instagram page to connect.'],
               ['ti-bolt', 'Leads auto-import', 'New lead-ad submissions appear in your Lead Hub instantly.'],
               ['ti-chart-line', 'Track & follow up', 'Manage, qualify and convert every lead in one place.'],

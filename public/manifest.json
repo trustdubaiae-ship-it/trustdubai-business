@@ -1,7 +1,7 @@
 {
-  "name": "Tritova Business",
-  "short_name": "Tritova Business",
-  "description": "Manage your business profile, leads, quotations and reviews on Tritova.",
+  "name": "Quvera Business",
+  "short_name": "Quvera Business",
+  "description": "Manage your business profile, leads, quotations and reviews on Quvera.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

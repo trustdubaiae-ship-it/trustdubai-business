@@ -14,10 +14,11 @@ export default function LoginPage({ onRegister }) {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #0d1117 0%, #161b22 100%)', padding: 20 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32 }}>
-        <div style={{ width: 44, height: 44, background: 'linear-gradient(135deg, #e8b84b, #c9952a)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 18, color: '#0d1117' }}>T</div>
+        <div style={{ width: 44, height: 44, background: 'linear-gradient(135deg, #e8b84b, #c9952a)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 18, color: '#0d1117' }}>Q</div>
         <div>
-          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 18, color: '#fff' }}>Tritova</div>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 18, color: '#fff' }}>Quvera</div>
           <div style={{ fontSize: 11, color: '#6e7681', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Business Portal</div>
+          <div style={{ fontSize: 10, color: '#a8893f', letterSpacing: '0.04em', marginTop: 2 }}>Find. Verify. Trust.</div>
         </div>
       </div>
 
@@ -38,16 +39,16 @@ export default function LoginPage({ onRegister }) {
         </button>
 
         <div style={{ background: 'rgba(232,184,75,0.08)', border: '1px solid rgba(232,184,75,0.2)', borderRadius: 8, padding: '12px 14px', fontSize: 12.5, color: '#9b8a5a', lineHeight: 1.6, marginBottom: 20 }}>
-          🔐 Only approved company accounts can access this portal. Contact Tritova if you need access.
+          🔐 Only approved company accounts can access this portal. Contact Quvera if you need access.
         </div>
 
         <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 20, textAlign: 'center' }}>
-          <p style={{ fontSize: 13, color: '#6e7681', marginBottom: 12 }}>New to Tritova?</p>
+          <p style={{ fontSize: 13, color: '#6e7681', marginBottom: 12 }}>New to Quvera?</p>
           <button onClick={onRegister} style={{ width: '100%', padding: '12px 20px', background: 'transparent', border: '1px solid rgba(232,184,75,0.3)', borderRadius: 10, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, color: '#e8b84b' }}>
             🏢 Register Your Business
           </button>
           <p style={{ fontSize: 12.5, color: '#6e7681', marginTop: 14, lineHeight: 1.6 }}>
-            Already listed on Tritova?{' '}
+            Already listed on Quvera?{' '}
             <span onClick={() => window.open('https://trustdubai.ae/claim-company', '_blank')} style={{ color: '#e8b84b', cursor: 'pointer', fontWeight: 600 }}>Claim your company</span>
           </p>
         </div>

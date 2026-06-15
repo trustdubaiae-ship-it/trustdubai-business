@@ -43,8 +43,8 @@ Deno.serve(async (req) => {
 
   const stamp = icsDate(new Date());
   const out: string[] = [
-    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Tritova//Planner//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
-    fold(`X-WR-CALNAME:${esc(co.name || "Tritova")} Planner`), fold(`NAME:${esc(co.name || "Tritova")} Planner`),
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Quvera//Planner//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
+    fold(`X-WR-CALNAME:${esc(co.name || "Quvera")} Planner`), fold(`NAME:${esc(co.name || "Quvera")} Planner`),
     "REFRESH-INTERVAL;VALUE=DURATION:PT1H", "X-PUBLISHED-TTL:PT1H",
   ];
   for (const m of rows || []) {

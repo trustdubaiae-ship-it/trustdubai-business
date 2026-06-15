@@ -7,7 +7,7 @@ import { can } from '../lib/permissions'
 import MeetingBanner from '../components/MeetingBanner'
 
 /* =========================================================================
-   Tritova Business — COMMAND CENTER
+   Quvera Business — COMMAND CENTER
    Same look & theme as the Admin Command Center (self-contained green theme,
    light + dark via `theme` prop, fully responsive). Data is THIS company only.
    ========================================================================= */
@@ -129,7 +129,7 @@ const normSource = raw => {
   const s = norm(raw); if(!s) return 'Other'
   if (/meta|facebook|fb|insta|ig/.test(s)) return 'Meta'
   if (/whats|wa\b/.test(s)) return 'WhatsApp'
-  if (/form|web|site|landing|trustdubai/.test(s)) return 'TrustDubai'
+  if (/form|web|site|landing|trustdubai/.test(s)) return 'Quvera'
   if (/manual|admin|direct|walk/.test(s)) return 'Manual'
   if (/google|ads|ppc/.test(s)) return 'Google'
   return raw ? String(raw).charAt(0).toUpperCase()+String(raw).slice(1) : 'Other'
@@ -186,7 +186,7 @@ export default function DashboardPage({ onNavigate, theme }) {
     try { const res=await fetch(_profileQr); const blob=await res.blob(); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`${(company?.name||'profile').replace(/[^a-z0-9]+/gi,'-').toLowerCase()}-qr.png`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url) }
     catch (e) { window.open(_profileQr,'_blank') }
   }
-  function shareProfileWhatsApp() { const text=`Check out ${company?.name||'our'} verified profile on Tritova: ${_publicLink}`; window.open('https://wa.me/?text='+encodeURIComponent(text),'_blank') }
+  function shareProfileWhatsApp() { const text=`Check out ${company?.name||'our'} verified profile on Quvera: ${_publicLink}`; window.open('https://wa.me/?text='+encodeURIComponent(text),'_blank') }
 
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState({ trust:0, reviews:0, avgRating:'0.0', views:0, leads:0, hot:0, followDue:0, won:0, newReviews:0, profilePct:0 })
@@ -364,7 +364,7 @@ export default function DashboardPage({ onNavigate, theme }) {
       <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', flexWrap:'wrap', gap:12, marginBottom:18 }}>
         <div style={{ minWidth:0 }}>
           <h1 style={{ fontSize: mobile?20:24, fontWeight:800, color:C.text, margin:0 }}>Welcome back, {adminName}! 👋</h1>
-          <p style={{ fontSize:13, color:C.text2, marginTop:4 }}>Here's how your business is performing on Tritova.</p>
+          <p style={{ fontSize:13, color:C.text2, marginTop:4 }}>Here's how your business is performing on Quvera.</p>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
           <div style={{ display:'flex', alignItems:'center', gap:6, background:C.card, border:`1px solid ${C.border}`, borderRadius:10, padding:'8px 12px' }}>
@@ -607,7 +607,7 @@ export default function DashboardPage({ onNavigate, theme }) {
                 <div style={{ textAlign:'center', padding:'24px 8px' }}>
                   <div style={{ width:52,height:52,borderRadius:'50%',background:'rgba(245,158,11,0.12)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 14px' }}><i className="ti ti-link-off" style={{ fontSize:24, color:'#d97706' }}/></div>
                   <div style={{ fontSize:14, fontWeight:600, color:C.text, marginBottom:6 }}>Your public link isn't ready yet</div>
-                  <div style={{ fontSize:12.5, color:C.text2, lineHeight:1.6, marginBottom:18 }}>Complete your business profile to get a shareable Tritova profile URL & QR.</div>
+                  <div style={{ fontSize:12.5, color:C.text2, lineHeight:1.6, marginBottom:18 }}>Complete your business profile to get a shareable Quvera profile URL & QR.</div>
                   <button onClick={()=>{ setShareOpen(false); onNavigate&&onNavigate('profile') }} style={{ padding:'10px 18px', borderRadius:9, border:'none', background:C.green, color:'#fff', fontWeight:600, fontSize:13, cursor:'pointer' }}>Complete profile →</button>
                 </div>
               ) : (<>
@@ -615,7 +615,7 @@ export default function DashboardPage({ onNavigate, theme }) {
                   <div style={{ background:'#fff', padding:14, borderRadius:14, border:`1px solid ${C.border}` }}>
                     <img src={_profileQr} alt="Profile QR" width={200} height={200} style={{ display:'block', width:200, height:200 }}/>
                   </div>
-                  <div style={{ fontSize:11.5, color:C.text3, marginTop:10, textAlign:'center', maxWidth:320, lineHeight:1.5 }}>Customers scan this to view your <b style={{ color:C.text2 }}>verified Tritova profile</b> — reviews, work, trust score & contact.</div>
+                  <div style={{ fontSize:11.5, color:C.text3, marginTop:10, textAlign:'center', maxWidth:320, lineHeight:1.5 }}>Customers scan this to view your <b style={{ color:C.text2 }}>verified Quvera profile</b> — reviews, work, trust score & contact.</div>
                 </div>
                 <div style={{ fontSize:10, color:C.text3, textTransform:'uppercase', marginBottom:6, letterSpacing:'.3px' }}>Profile link</div>
                 <div style={{ display:'flex', gap:8, marginBottom:14 }}>
