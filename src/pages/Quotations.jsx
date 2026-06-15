@@ -649,9 +649,19 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         ...((mode === 'boq' || mode === 'advanced') ? { trade: it.trade || 'Misc' } : {}),
       })).filter(it => it.desc)
       if (!mapped.length) { toast.error('AI returned no usable items'); return }
-      setItems(mapped)
+      // when editing an existing quote (or items already exist), ADD to them — never rebuild the whole quote
+      const hasReal = items.some(it => (it.desc || '').trim())
+      if (editId || hasReal) {
+        const existing = items.filter(it => (it.desc || '').trim())
+        setItems([...existing, ...mapped])
+        const trades = [...new Set(mapped.map(m => m.trade).filter(Boolean))]
+        const where = (mode === 'boq' || mode === 'advanced') && trades.length ? ` under: ${trades.join(', ')}` : ''
+        toast.success(`AI added ${mapped.length} new item${mapped.length > 1 ? 's' : ''}${where} — existing items kept ✓`)
+      } else {
+        setItems(mapped)
+        toast.success(`AI drafted ${mapped.length} items ✓ — review & edit rates`)
+      }
       setAiOpen(false); setAiDesc('')
-      toast.success(`AI drafted ${mapped.length} items ✓ — review & edit rates`)
     } catch (e) { toast.error('AI failed: ' + (e.message || 'unknown')) } finally { setAiBusy(false) }
   }
 
