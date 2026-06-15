@@ -8,11 +8,14 @@ create table if not exists public.project_milestones (
   title       text not null,
   target_date date,
   status      text default 'pending',   -- pending / in_progress / done
+  weight      numeric default 0,        -- % of the whole project this stage represents
   sort        int  default 0,
   done_on     date,
   note        text,
   created_at  timestamptz default now()
 );
+-- for tables created before the weight column existed:
+alter table public.project_milestones add column if not exists weight numeric default 0;
 create index if not exists project_milestones_company_idx on public.project_milestones(company_id);
 create index if not exists project_milestones_project_idx on public.project_milestones(project_id);
 

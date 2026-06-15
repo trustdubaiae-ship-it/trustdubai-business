@@ -16,8 +16,20 @@ const MSTATUS = { requested: { l: 'Requested', c: '#64748b' }, approved: { l: 'A
 const ECAT = { labour: { l: 'Labour', c: '#8b5cf6' }, material: { l: 'Material', c: '#0099cc' }, transport: { l: 'Transport', c: '#f59e0b' }, misc: { l: 'Misc', c: '#64748b' } }
 const SSTATUS = { ongoing: { l: 'Ongoing', c: '#0099cc' }, completed: { l: 'Completed', c: '#22c55e' }, on_hold: { l: 'On Hold', c: '#f59e0b' } }
 const MILESTONE_ST = { pending: { l: 'Pending', c: '#64748b', ic: 'ti-circle' }, in_progress: { l: 'In progress', c: '#0099cc', ic: 'ti-progress' }, done: { l: 'Done', c: '#22c55e', ic: 'ti-circle-check-filled' } }
-// default interior fit-out stages, offered as a one-click starter
-const DEFAULT_STAGES = ['Site survey & measurement', 'Design & drawing approval', 'Demolition / site prep', 'MEP first fix', 'Gypsum & false ceiling', 'Flooring & tiling', 'Joinery & carpentry', 'Painting & finishes', 'MEP second fix & fixtures', 'Snagging', 'Handover']
+// default interior fit-out stages with typical weights (sum = 100%)
+const DEFAULT_STAGES = [
+  { title: 'Site survey & measurement', weight: 3 },
+  { title: 'Design & drawing approval', weight: 7 },
+  { title: 'Demolition / site prep', weight: 5 },
+  { title: 'MEP first fix', weight: 12 },
+  { title: 'Gypsum & false ceiling', weight: 15 },
+  { title: 'Flooring & tiling', weight: 15 },
+  { title: 'Joinery & carpentry', weight: 20 },
+  { title: 'Painting & finishes', weight: 10 },
+  { title: 'MEP second fix & fixtures', weight: 8 },
+  { title: 'Snagging', weight: 3 },
+  { title: 'Handover', weight: 2 },
+]
 const TRADES = ['MEP', 'Electrical', 'Plumbing', 'HVAC', 'Gypsum / Ceiling', 'Tiles / Flooring', 'Joinery', 'Painting', 'Civil', 'Glass / Aluminium', 'Furniture', 'Other']
 const AED = n => 'AED ' + Math.round(Number(n) || 0).toLocaleString('en-AE')
 const fmtD = d => d ? new Date(d).toLocaleDateString('en-AE', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'
@@ -266,10 +278,21 @@ export default function ProjectsPage({ onNavigate }) {
   }
 
   // ----- milestones / timeline -----
+  // weighted % — each stage carries its own weight; falls back to equal weighting if none set
+  function weightedPct(rows) {
+    const list = rows || milestones
+    if (!list.length) return 0
+    const totalW = list.reduce((a, m) => a + (Number(m.weight) || 0), 0)
+    if (totalW > 0) {
+      const doneW = list.filter(m => m.status === 'done').reduce((a, m) => a + (Number(m.weight) || 0), 0)
+      return Math.round((doneW / totalW) * 100)
+    }
+    return Math.round((list.filter(m => m.status === 'done').length / list.length) * 100)
+  }
   async function syncProgressFromMilestones(rows) {
     const list = rows || milestones
     if (!list.length) return
-    const pct = Math.round((list.filter(m => m.status === 'done').length / list.length) * 100)
+    const pct = weightedPct(list)
     if (active && pct !== (active.progress || 0)) patchActive({ progress: pct })
   }
   async function saveMilestone() {
@@ -277,7 +300,7 @@ export default function ProjectsPage({ onNavigate }) {
     if (!x.title?.trim()) { toast.error('Milestone title is required'); return }
     setSaving(true)
     try {
-      const payload = { company_id: company.id, project_id: active.id, title: x.title.trim(), target_date: x.target_date || null, status: x.status || 'pending', note: x.note || null, sort: Number(x.sort) || 0 }
+      const payload = { company_id: company.id, project_id: active.id, title: x.title.trim(), target_date: x.target_date || null, status: x.status || 'pending', weight: Number(x.weight) || 0, note: x.note || null, sort: Number(x.sort) || 0 }
       if (x.status === 'done' && !x.done_on) payload.done_on = new Date().toISOString().slice(0, 10)
       if (x.id) { const { error } = await supabase.from('project_milestones').update(payload).eq('id', x.id).eq('company_id', company.id); if (error) throw error }
       else { payload.sort = milestones.length; const { error } = await supabase.from('project_milestones').insert(payload); if (error) throw error }
@@ -302,7 +325,7 @@ export default function ProjectsPage({ onNavigate }) {
   }
   async function seedDefaultStages() {
     try {
-      const rows = DEFAULT_STAGES.map((t, i) => ({ company_id: company.id, project_id: active.id, title: t, status: 'pending', sort: i }))
+      const rows = DEFAULT_STAGES.map((s, i) => ({ company_id: company.id, project_id: active.id, title: s.title, weight: s.weight, status: 'pending', sort: i }))
       const { error } = await supabase.from('project_milestones').insert(rows); if (error) throw error
       toast.success('Added 11 default stages ✓'); reloadChildren()
     } catch (e) { console.error(e); toast.error('Failed: ' + (e?.message || e)) }
@@ -469,15 +492,16 @@ export default function ProjectsPage({ onNavigate }) {
 
       {tab === 'timeline' && (() => {
         const done = milestones.filter(m => m.status === 'done').length
-        const pct = milestones.length ? Math.round((done / milestones.length) * 100) : 0
+        const pct = weightedPct(milestones)
+        const totalW = milestones.reduce((a, m) => a + (Number(m.weight) || 0), 0)
         const today = new Date().toISOString().slice(0, 10)
         return (
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-              <div style={{ fontSize: 12.5, color: 'var(--text2)' }}>{done}/{milestones.length} stages done · <b style={{ color: '#22c55e' }}>{pct}%</b> complete</div>
+              <div style={{ fontSize: 12.5, color: 'var(--text2)' }}>{done}/{milestones.length} stages done · <b style={{ color: '#22c55e' }}>{pct}%</b> complete{totalW > 0 && Math.round(totalW) !== 100 ? <span style={{ color: '#f59e0b' }}> · weights = {Math.round(totalW)}% (aim for 100%)</span> : ''}</div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {milestones.length === 0 && <button onClick={seedDefaultStages} className="btn btn-secondary btn-sm"><i className="ti ti-sparkles" /> Add default stages</button>}
-                <button onClick={() => setMsForm({ title: '', target_date: '', status: 'pending', note: '' })} className="btn btn-primary btn-sm"><i className="ti ti-plus" /> Add stage</button>
+                <button onClick={() => setMsForm({ title: '', target_date: '', status: 'pending', weight: '', note: '' })} className="btn btn-primary btn-sm"><i className="ti ti-plus" /> Add stage</button>
               </div>
             </div>
             {milestones.length > 0 && <div style={{ height: 8, background: 'var(--bg2)', borderRadius: 99, overflow: 'hidden', marginBottom: 18 }}><div style={{ width: pct + '%', height: '100%', background: 'linear-gradient(90deg,#22c55e,#16a34a)', borderRadius: 99, transition: 'width .3s ease' }} /></div>}
@@ -494,7 +518,7 @@ export default function ProjectsPage({ onNavigate }) {
                       <div style={{ ...card, flex: 1, padding: '11px 13px', borderColor: overdue ? 'rgba(239,68,68,0.4)' : 'var(--border)' }}>
                         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
                           <div style={{ flex: 1, minWidth: 150 }}>
-                            <div style={{ fontSize: 13.5, fontWeight: 700, textDecoration: m.status === 'done' ? 'line-through' : 'none', opacity: m.status === 'done' ? 0.7 : 1 }}>{m.title}</div>
+                            <div style={{ fontSize: 13.5, fontWeight: 700, textDecoration: m.status === 'done' ? 'line-through' : 'none', opacity: m.status === 'done' ? 0.7 : 1, display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>{m.title}{Number(m.weight) > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, color: '#8b5cf6', background: 'rgba(139,92,246,0.12)', borderRadius: 99, padding: '1px 7px' }}>{Math.round(Number(m.weight))}%</span>}</div>
                             <div style={{ fontSize: 11.5, color: overdue ? '#ef4444' : 'var(--text3)', marginTop: 2 }}>
                               {m.target_date ? <><i className="ti ti-calendar" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {fmtD(m.target_date)}{overdue ? ' · overdue' : ''}</> : 'No target date'}
                               {m.status === 'done' && m.done_on ? ' · done ' + fmtD(m.done_on) : ''}
@@ -741,8 +765,9 @@ export default function ProjectsPage({ onNavigate }) {
         <label style={lbl}>Stage / milestone</label><input autoFocus value={msForm.title} onChange={e => setMsForm(s => ({ ...s, title: e.target.value }))} style={{ ...input, marginBottom: 10 }} placeholder="e.g. Gypsum & false ceiling" />
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
           <div><label style={lbl}>Target date</label><input type="date" value={msForm.target_date} onChange={e => setMsForm(s => ({ ...s, target_date: e.target.value }))} style={input} /></div>
-          <div><label style={lbl}>Status</label><select value={msForm.status} onChange={e => setMsForm(s => ({ ...s, status: e.target.value }))} style={input}>{Object.entries(MILESTONE_ST).map(([k, v]) => <option key={k} value={k}>{v.l}</option>)}</select></div>
+          <div><label style={lbl}>Weight (% of project)</label><input type="number" value={msForm.weight} onChange={e => setMsForm(s => ({ ...s, weight: e.target.value }))} style={input} placeholder="e.g. 20" /></div>
         </div>
+        <label style={lbl}>Status</label><select value={msForm.status} onChange={e => setMsForm(s => ({ ...s, status: e.target.value }))} style={{ ...input, marginBottom: 10 }}>{Object.entries(MILESTONE_ST).map(([k, v]) => <option key={k} value={k}>{v.l}</option>)}</select>
         <label style={lbl}>Note</label><input value={msForm.note || ''} onChange={e => setMsForm(s => ({ ...s, note: e.target.value }))} style={input} placeholder="Optional detail…" />
       </FormModal>}
       {subForm && <FormModal title={subForm.id ? 'Edit subcontractor' : 'Add subcontractor'} onClose={() => setSubForm(null)} onSave={saveSub} saving={saving}>
