@@ -229,6 +229,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   const [location, setLocation]       = useState('')
   const [preparedBy, setPreparedBy]   = useState('')
   const [clientEmail, setClientEmail] = useState('')
+  const [clientTrn, setClientTrn] = useState('')
   const [previewDraft, setPreviewDraft] = useState(null)
   const [sourceLead, setSourceLead] = useState(null)
   const [workType, setWorkType] = useState('')
@@ -305,7 +306,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         setVatEnabled(d.vatEnabled ?? true)
         setDiscountType(d.discountType ?? null); setDiscountValue(d.discountValue ?? 0)
         setNotes(d.notes || ''); setShowFooter(d.showFooter ?? true); setShowSignature(d.showSignature ?? true); setShowBank(d.showBank ?? false); setQuoteTheme(d.quoteTheme ?? 'gold'); setProjTimeline(d.projTimeline ?? [])
-        setLocation(d.location || ''); setPreparedBy(d.preparedBy || ''); setClientEmail(d.clientEmail || '')
+        setLocation(d.location || ''); setPreparedBy(d.preparedBy || ''); setClientEmail(d.clientEmail || ''); setClientTrn(d.clientTrn || '')
         setSourceLead(d.sourceLead || null)
         setWorkType(d.workType || defaultPresetName); setValidUntil(d.validUntil || '')
       }
@@ -586,7 +587,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     setDiscountType(null); setDiscountValue(0)
     setShowFooter(true); setShowSignature(true); setShowBank(tpl?.default_show_bank ?? false); setAddTradePick('')
     setQuoteTheme(tpl?.default_quote_theme || 'gold'); setProjTimeline([])
-    setLocation(''); setPreparedBy(''); setClientEmail(''); setSourceLead(null)
+    setLocation(''); setPreparedBy(''); setClientEmail(''); setClientTrn(''); setSourceLead(null)
     setWorkType(defaultPresetName); setValidUntil('')
     setView('builder', 'builder')
   }
@@ -623,7 +624,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     setDiscountType(q.discount_type || null); setDiscountValue(q.discount_value || 0)
     setShowFooter(q.show_footer ?? true); setShowSignature(q.show_signature ?? true); setShowBank(q.show_bank ?? (tpl?.default_show_bank ?? false))
     setQuoteTheme(q.quote_theme || 'gold'); setProjTimeline(parseTimeline(q.project_timeline))
-    setLocation(q.location || ''); setPreparedBy(q.prepared_by || ''); setClientEmail(q.client_email || ''); setSourceLead(null)
+    setLocation(q.location || ''); setPreparedBy(q.prepared_by || ''); setClientEmail(q.client_email || ''); setClientTrn(q.client_trn || ''); setSourceLead(null)
     setWorkType(q.work_type || defaultPresetName); setValidUntil((q.valid_until || '').slice(0, 10))
     setAddTradePick(''); setView('builder', 'builder')
   }
@@ -695,11 +696,11 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     const hasContent = client || projectTitle.trim() || items.some(it => it.desc.trim())
     if (!hasContent) return
     const t = setTimeout(() => {
-      saveDraft({ mode, client, clientSearch, clientPrefix, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, showBank, quoteTheme, projTimeline, location, preparedBy, clientEmail, sourceLead })
+      saveDraft({ mode, client, clientSearch, clientPrefix, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, showBank, quoteTheme, projTimeline, location, preparedBy, clientEmail, clientTrn, sourceLead })
       setDraftExists(true)
     }, 500)
     return () => clearTimeout(t)
-  }, [view, editId, mode, client, clientPrefix, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, showBank, quoteTheme, projTimeline, location, preparedBy, clientEmail, sourceLead])
+  }, [view, editId, mode, client, clientPrefix, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, showBank, quoteTheme, projTimeline, location, preparedBy, clientEmail, clientTrn, sourceLead])
 
   function openBuilderPreview() {
     if (!client) { toast.error('Select a client first'); return }
@@ -710,6 +711,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
       quote_number: editId ? (activeQuote?.quote_number || 'DRAFT') : 'DRAFT',
       client_uid: client.uid, client_name: client.name, client_phone: client.phone || '',
       client_email: clientEmail.trim() || client.email || '',
+      client_trn: clientTrn.trim() || null,
       location: location.trim() || '', prepared_by: preparedBy.trim() || '',
       project_title: projectTitle.trim() || '', mode,
       items: validItems.map(it => ({
@@ -742,6 +744,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         client_name: client.name, client_phone: client.phone || null,
         client_prefix: clientPrefix || null,
         client_email: (clientEmail.trim() || client.email || null),
+        client_trn: clientTrn.trim() || null,
         location: location.trim() || null,
         prepared_by: preparedBy.trim() || null,
         project_title: projectTitle.trim() || null, mode,
@@ -1039,6 +1042,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
               <div style="font-size:12.5px;font-weight:700;word-break:break-word;">${q.client_prefix?escapeHtml(q.client_prefix)+' ':''}${escapeHtml(q.client_name||'')}</div>
               ${q.location?`<div style="font-size:10px;color:#6b6b6b;margin-top:2px;">${escapeHtml(q.location)}</div>`:''}
               ${q.client_phone?`<div style="font-size:10px;color:#6b6b6b;">${escapeHtml(q.client_phone)}</div>`:''}
+              ${q.client_trn?`<div style="font-size:10px;color:#6b6b6b;">TRN: ${escapeHtml(q.client_trn)}</div>`:''}
             </div>
             <div style="flex:1;background:#faf9f7;border-left:2.5px solid ${ACC};padding:10px 13px;">
               <div style="font-size:8.5px;color:#b08f3f;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:4px;">Project</div>
@@ -1124,7 +1128,8 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
           <div style="font-size:12px;font-weight:700;word-break:break-word;">${q.client_prefix?escapeHtml(q.client_prefix)+' ':''}${escapeHtml(q.client_name||'')}</div>
           ${q.location?`<div style="font-size:11px;color:#6b6b6b;">${escapeHtml(q.location)}</div>`:''}
           <div style="font-size:11px;color:#6b6b6b;">${escapeHtml(q.client_phone||'')}</div>
-          ${q.client_email?`<div style="font-size:11px;color:#6b6b6b;word-break:break-word;">${escapeHtml(q.client_email)}</div>`:''}</div>
+          ${q.client_email?`<div style="font-size:11px;color:#6b6b6b;word-break:break-word;">${escapeHtml(q.client_email)}</div>`:''}
+          ${q.client_trn?`<div style="font-size:11px;color:#6b6b6b;">TRN: ${escapeHtml(q.client_trn)}</div>`:''}</div>
         <div style="text-align:right;min-width:0;"><div style="font-size:9px;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Project</div>
           <div style="font-size:12px;font-weight:700;word-break:break-word;">${escapeHtml(q.project_title||'—')}</div>
           ${q.prepared_by?`<div style="font-size:11px;color:#6b6b6b;">Prepared by · ${escapeHtml(q.prepared_by)}</div>`:''}</div>
@@ -1814,6 +1819,10 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
           <div style={{ minWidth:0 }}>
             <label style={{ fontSize:11, color:textMuted, display:'block', marginBottom:3 }}>Client email</label>
             <input value={clientEmail} onChange={e=>setClientEmail(e.target.value)} placeholder="client@email.com" style={{ ...inputStyle, fontSize:12.5 }}/>
+          </div>
+          <div style={{ minWidth:0 }}>
+            <label style={{ fontSize:11, color:textMuted, display:'block', marginBottom:3 }}>Client TRN <span style={{ color:textMuted }}>(optional)</span></label>
+            <input value={clientTrn} onChange={e=>setClientTrn(e.target.value)} placeholder="Tax Registration No." style={{ ...inputStyle, fontSize:12.5 }}/>
           </div>
         </div>
 

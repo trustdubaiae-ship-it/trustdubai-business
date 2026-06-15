@@ -107,6 +107,7 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
         invoice_number: `${prefix}-${String(seq).padStart(3, '0')}`,
         quotation_id: q.id, quote_number: q.quote_number,
         client_id: q.client_id, client_uid: q.client_uid, client_name: q.client_name, client_phone: q.client_phone, client_email: q.client_email,
+        client_trn: q.client_trn || null,
         project_title: q.project_title, location: q.location,
         kind, milestone_label, mode, items, vat_enabled, subtotal, vat_amount, total,
         issue_date: issueDate || todayStr(), due_date: dueDate || null,
@@ -220,6 +221,7 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
             <div style="font-size:12.5px;font-weight:700;">${escapeHtml(inv.client_name || '')}</div>
             ${inv.location ? `<div style="font-size:10px;color:#6b6b6b;">${escapeHtml(inv.location)}</div>` : ''}
             ${inv.client_phone ? `<div style="font-size:10px;color:#6b6b6b;">${escapeHtml(inv.client_phone)}</div>` : ''}
+            ${inv.client_trn ? `<div style="font-size:10px;color:#6b6b6b;">TRN: ${escapeHtml(inv.client_trn)}</div>` : ''}
           </div>
           <div style="flex:1;background:#faf9f7;border-left:2.5px solid #c9952a;padding:10px 13px;">
             <div style="font-size:8.5px;color:#b08f3f;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:4px;">Project</div>
