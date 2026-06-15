@@ -446,6 +446,10 @@ export default function ProjectsPage({ onNavigate }) {
               <span style={{ background: 'rgba(255,255,255,.18)', color: '#fff', fontSize: 10.5, fontWeight: 700, padding: '3px 10px', borderRadius: 99, border: '1px solid rgba(255,255,255,.25)' }}>{st.label}</span>
             </div>
             <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,.78)', marginTop: 2 }}><i className="ti ti-user" style={{ fontSize: 13, verticalAlign: '-1px' }} /> {active.client_name || 'No client'}{active.location ? ' · ' + active.location : ''}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 9, maxWidth: 420 }}>
+              <div style={{ flex: 1, height: 8, background: 'rgba(255,255,255,.18)', borderRadius: 99, overflow: 'hidden' }}><div style={{ width: (active.progress || 0) + '%', height: '100%', background: 'linear-gradient(90deg,#34d399,#22c55e)', borderRadius: 99, transition: 'width .35s ease' }} /></div>
+              <span style={{ fontSize: 12.5, fontWeight: 800, color: '#fff', flexShrink: 0 }}>{active.progress || 0}%</span>
+            </div>
           </div>
           <button onClick={() => editProject(active)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '9px 15px', borderRadius: 10, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(255,255,255,.12)', color: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}><i className="ti ti-edit" /> Edit</button>
           <button onClick={() => deleteProject(active.id)} style={{ width: 36, height: 36, borderRadius: 10, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(239,68,68,0.25)', color: '#fff', cursor: 'pointer', flexShrink: 0 }}><i className="ti ti-trash" style={{ fontSize: 15 }} /></button>
@@ -478,7 +482,7 @@ export default function ProjectsPage({ onNavigate }) {
               </select>
             </div>
             <div>
-              <label style={lbl}>Progress · {active.progress || 0}%</label>
+              <label style={lbl}>Progress · {active.progress || 0}%{milestones.length > 0 ? ' · auto from Timeline' : ''}</label>
               <input type="range" min={0} max={100} step={5} value={active.progress || 0} onChange={e => setActive(a => ({ ...a, progress: Number(e.target.value) }))} onMouseUp={e => patchActive({ progress: Number(e.target.value) })} onTouchEnd={e => patchActive({ progress: Number(e.target.value) })} style={{ width: '100%' }} />
             </div>
             <div><label style={lbl}>Start date</label><input type="date" value={active.start_date || ''} onChange={e => patchActive({ start_date: e.target.value || null })} style={input} /></div>
