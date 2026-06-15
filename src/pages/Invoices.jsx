@@ -86,7 +86,7 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
       const q = selQuote
       const schedule = parseSchedule(q.payment_terms)
       let kind = 'full', milestone_label = null, items = [], subtotal = 0, vat_amount = 0, total = 0
-      let mode = q.mode || 'simple', vat_enabled = !!q.vat_amount
+      let mode = q.mode || 'simple', vat_enabled = (q.vat_enabled != null ? q.vat_enabled : !!q.vat_amount)
       if (invType === 'full') {
         items = Array.isArray(q.items) ? q.items : []
         subtotal = Number(q.subtotal || 0); vat_amount = Number(q.vat_amount || 0); total = Number(q.total || 0)
@@ -136,6 +136,12 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
   async function addPayment() {
     const amt = Number(payAmount) || 0
     if (amt <= 0) { toast.error('Enter a valid amount'); return }
+    const alreadyPaid = parsePayments(active.payments).reduce((s, p) => s + (Number(p.amount) || 0), 0)
+    const balance = (Number(active.total) || 0) - alreadyPaid
+    const fmtN = v => 'AED ' + Math.round(Number(v) || 0).toLocaleString('en-AE')
+    if (amt > balance + 0.5) {
+      if (!window.confirm(`This payment (${fmtN(amt)}) is more than the outstanding balance (${fmtN(balance)}). Record it anyway?`)) return
+    }
     const newP = [...parsePayments(active.payments), { amount: amt, date: payDate || todayStr(), method: payMethod.trim() || 'Cash', note: payNote.trim() || '' }]
     if (await savePayments(active, newP)) { setPayAmount(''); setPayMethod(''); setPayNote(''); toast.success('Payment recorded ✓') }
   }
