@@ -602,13 +602,13 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     setItems(Array.isArray(q.items) && q.items.length
       ? q.items.map(it => ({ desc:it.desc||'', unit:it.unit||'Nos', qty:it.qty??1, rate:it.rate??0, trade: it.trade || '' }))
       : [blankItem()])
-    setNotes('')
+    setNotes(q.notes || '')
     setVatEnabled(q.vat_enabled != null ? q.vat_enabled : (!!q.vat_amount || (tpl?.default_vat_enabled ?? true)))
     setDiscountType(q.discount_type || null); setDiscountValue(q.discount_value || 0)
     setShowFooter(q.show_footer ?? true); setShowSignature(q.show_signature ?? true); setShowBank(q.show_bank ?? (tpl?.default_show_bank ?? false))
     setQuoteTheme(q.quote_theme || 'gold'); setProjTimeline(parseTimeline(q.project_timeline))
     setLocation(q.location || ''); setPreparedBy(q.prepared_by || ''); setClientEmail(q.client_email || ''); setSourceLead(null)
-    setWorkType(q.work_type || defaultPresetName); setValidUntil(q.valid_until || '')
+    setWorkType(q.work_type || defaultPresetName); setValidUntil((q.valid_until || '').slice(0, 10))
     setAddTradePick(''); setView('builder', 'builder')
   }
 
@@ -694,7 +694,9 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
       why_choose_us: selectedPreset ? JSON.stringify(selectedPreset.whyUs) : (tpl?.why_choose_us || null),
       terms: selectedPreset ? selectedPreset.terms : (tpl?.default_terms || null),
       work_type: workType || null, valid_until: validUntil || null,
+      notes: notes.trim() || null,
       show_footer: showFooter, show_signature: showSignature, show_bank: showBank,
+      quote_theme: quoteTheme, project_timeline: projTimeline.length ? projTimeline : null,
       created_at: new Date().toISOString(),
     }
     setPreviewDraft(tempQuote)
@@ -727,6 +729,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         terms: selectedPreset ? (selectedPreset.terms || null) : (tpl?.default_terms || null),
         work_type: workType || null,
         valid_until: validUntil || null,
+        notes: notes.trim() || null,
         show_footer: showFooter, show_signature: showSignature, show_bank: showBank,
         quote_theme: quoteTheme, project_timeline: projTimeline.length ? projTimeline : null,
         status: sendNow ? 'sent' : 'draft',
@@ -735,6 +738,8 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
       if (editId) {
         const { error } = await supabase.from('quotations').update(payload).eq('id', editId).eq('company_id', company.id)
         if (error) throw error
+        // keep the linked project's contract value in sync (no-op if no project exists for this quote)
+        await supabase.from('ops_projects').update({ contract_value: Number(grandTotal) || 0, updated_at: new Date().toISOString() }).eq('quote_id', editId).eq('company_id', company.id)
         toast.success('Quotation updated ✓')
       } else {
         const { data: seq, error: seqErr } = await supabase.rpc('fn_next_quote_seq', { p_company_id: company.id })
@@ -877,6 +882,10 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     const payments = parsePaymentTpl(q.payment_terms || tpl?.payment_schedule)
     const pays = payments.length ? payments : DEFAULT_PAYMENTS
     const whys = parseWhyTpl(q.why_choose_us || tpl?.why_choose_us)
+    const noteStr = escapeHtml(q.notes || '')
+    const notesBlock = noteStr ? `<div style="padding:14px 30px 0;">
+      <div style="font-size:10px;color:${ACC};text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:7px;">— Notes</div>
+      <div style="font-size:9px;color:#666;line-height:1.7;white-space:pre-line;">${noteStr}</div></div>` : ''
 
     const colgroup = `<colgroup><col style="width:26px"><col><col style="width:44px"><col style="width:36px"><col style="width:60px"><col style="width:72px"></colgroup>`
     const td = 'padding:7px 8px;font-size:10.5px;border-bottom:0.5px solid #ededed;'
@@ -1043,6 +1052,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
             <div style="font-size:10px;color:${ACC};text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:7px;">— Terms & Conditions</div>
             <div style="font-size:8.5px;color:#888;line-height:1.7;white-space:pre-line;">${terms}</div>
           </div>` : '') : ''}
+        ${notesBlock}
         ${signBlock}
         <div style="background:#1a1a1a;color:#9a9a9a;font-size:8.5px;text-align:center;padding:9px;margin-top:18px;">${cName} &nbsp;·&nbsp; ${cPhone}${cEmail?' &nbsp;·&nbsp; '+cEmail:''} &nbsp;·&nbsp; ${tagline}</div>
       </div>`

@@ -96,8 +96,8 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
         total = Math.round(Number(q.total || 0) * pct / 100)
         vat_amount = Math.round(Number(q.vat_amount || 0) * pct / 100)
         subtotal = total - vat_amount
-        kind = 'milestone'; milestone_label = `${m?.label || 'Payment'} (${pct}%)`; mode = 'simple'; vat_enabled = false
-        items = [{ desc: `${m?.label || 'Payment'} — ${pct}% of ${q.quote_number}`, unit: 'Lump Sum', qty: 1, rate: total }]
+        kind = 'milestone'; milestone_label = `${m?.label || 'Payment'} (${pct}%)`; mode = 'simple'; vat_enabled = Number(vat_amount) > 0
+        items = [{ desc: `${m?.label || 'Payment'} — ${pct}% of ${q.quote_number}`, unit: 'Lump Sum', qty: 1, rate: subtotal }]
       }
       const { data: seq, error: seqErr } = await supabase.rpc('fn_next_invoice_seq', { p_company_id: company.id })
       if (seqErr) throw seqErr
@@ -125,7 +125,7 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
       const status = statusOf(inv.total, newPayments)
       const phase = newPayments.length > 0 ? 'tax' : 'proforma'   // first payment converts Proforma → Tax Invoice
       const { data, error } = await supabase.from('invoices')
-        .update({ payments: newPayments, status, phase }).eq('id', inv.id).select()
+        .update({ payments: newPayments, status, phase }).eq('id', inv.id).eq('company_id', company.id).select()
       if (error) { toast.error('Update failed: ' + error.message); return false }
       if (!data || data.length === 0) { toast.error('Could not save — update not allowed for this invoice (RLS?)'); return false }
       const updated = { ...inv, payments: newPayments, status, phase }
@@ -145,7 +145,7 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
   }
   async function deleteInvoice(inv) {
     if (!window.confirm('Delete this invoice? This cannot be undone.')) return
-    const { error } = await supabase.from('invoices').delete().eq('id', inv.id)
+    const { error } = await supabase.from('invoices').delete().eq('id', inv.id).eq('company_id', company.id)
     if (error) { toast.error('Delete failed'); return }
     toast.success('Invoice deleted')
     if (active?.id === inv.id) { setActive(null); setView('list') }
@@ -162,6 +162,7 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
     const items = Array.isArray(inv.items) ? inv.items : []
     const n = v => Math.round(Number(v) || 0).toLocaleString('en-AE')
     const sub = Number(inv.subtotal || 0), vat = Number(inv.vat_amount || 0), tot = Number(inv.total || 0)
+    const disc = Math.max(0, Math.round(sub - (tot - vat)))   // discount = gross subtotal − (total − VAT), so Subtotal − Discount + VAT = Total
     const payments = parsePayments(inv.payments)
     const paid = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0)
     const bal = Math.max(0, tot - paid)
@@ -234,6 +235,7 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
       <div style="padding:16px 30px 0;display:flex;justify-content:flex-end;">
         <div style="width:260px;">
           <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:3px 0;color:#6b6b6b;"><span>Subtotal</span><span>AED ${n(sub)}</span></div>
+          ${disc > 0 ? `<div style="display:flex;justify-content:space-between;font-size:10.5px;padding:3px 0;color:#b91c1c;"><span>Discount</span><span>− AED ${n(disc)}</span></div>` : ''}
           ${vat > 0 ? `<div style="display:flex;justify-content:space-between;font-size:10.5px;padding:3px 0;color:#6b6b6b;"><span>VAT 5%</span><span>${n(vat)}</span></div>` : ''}
           <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding:7px 10px;margin-top:5px;background:#1a1a1a;color:#fff;border-radius:4px;"><span>Invoice Total</span><span style="color:#c9952a;">AED ${n(tot)}</span></div>
           <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:5px 0 2px;color:#0f6e56;"><span>Paid</span><span>− AED ${n(paid)}</span></div>
