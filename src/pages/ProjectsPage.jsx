@@ -40,6 +40,7 @@ export default function ProjectsPage({ onNavigate }) {
   const [payModal, setPayModal] = useState(null)   // the sub whose payment ledger is open
   const [payList, setPayList] = useState([])
   const [payForm, setPayForm] = useState(null)
+  const [invoices, setInvoices] = useState([])     // invoices linked to this project (client cash-in lives here)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => { if (company?.id) loadProjects() }, [company?.id])
@@ -75,6 +76,7 @@ export default function ProjectsPage({ onNavigate }) {
   }
   async function reloadChildren(pid) {
     const id = pid || active?.id; if (!id) return
+    const proj = projects.find(x => x.id === id) || active
     const [m, e, s, sc] = await Promise.all([
       supabase.from('material_requests').select('*').eq('project_id', id).order('created_at', { ascending: false }),
       supabase.from('site_expenses').select('*').eq('project_id', id).order('spent_on', { ascending: false }),
@@ -82,6 +84,11 @@ export default function ProjectsPage({ onNavigate }) {
       supabase.from('project_scope').select('*').eq('project_id', id).order('created_at', { ascending: true }),
     ])
     setMaterials(m.data || []); setExpenses(e.data || []); setSubs(s.data || []); setScope(sc.data || [])
+    // Client cash-in lives in the Invoices module — pull the linked invoices (single source of truth).
+    let inv = []
+    if (proj?.quote_id) { const { data } = await supabase.from('invoices').select('id,invoice_number,total,payments,status,kind,milestone_label,issue_date,due_date').eq('company_id', company.id).eq('quotation_id', proj.quote_id).order('issue_date', { ascending: false }); inv = data || [] }
+    else if (proj?.client_id) { const { data } = await supabase.from('invoices').select('id,invoice_number,total,payments,status,kind,milestone_label,issue_date,due_date').eq('company_id', company.id).eq('client_id', proj.client_id).order('issue_date', { ascending: false }); inv = data || [] }
+    setInvoices(inv)
   }
 
   function newProject() { setProjModal({ isNew: true, p: { name: '', client_name: '', client_phone: '', status: 'planning', contract_value: 0, start_date: '', end_date: '', location: '', notes: '', progress: 0 } }) }
@@ -245,6 +252,12 @@ export default function ProjectsPage({ onNavigate }) {
   const totalCost = totalSubs + totalExpenses
   const margin = value - totalCost
   const marginPct = value > 0 ? Math.round((margin / value) * 100) : 0
+  // client cash-in (from linked invoices)
+  const invPaid = inv => (Array.isArray(inv.payments) ? inv.payments : []).reduce((a, p) => a + (Number(p.amount) || 0), 0)
+  const totalInvoiced = invoices.reduce((s, i) => s + (Number(i.total) || 0), 0)
+  const clientReceived = invoices.reduce((s, i) => s + invPaid(i), 0)
+  const clientOutstanding = Math.max(0, value - clientReceived)   // vs the contract value
+  const netCash = clientReceived - subsPaid - totalExpenses        // actual money position
 
   const card = { background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: 16 }
   const heroBg = 'linear-gradient(135deg, #0a2540 0%, #0d6e8f 45%, #6d28d9 130%)'
@@ -363,7 +376,7 @@ export default function ProjectsPage({ onNavigate }) {
 
       {/* tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
-        {[['overview', 'Overview', 'ti-layout'], ['scope', `Scope (${scope.length})`, 'ti-list-check'], ['subs', `Subcontractors (${subs.length})`, 'ti-users-group'], ['materials', `Materials (${materials.length})`, 'ti-package'], ['expenses', `Expenses (${expenses.length})`, 'ti-coin']].map(([k, l, ic]) => (
+        {[['overview', 'Overview', 'ti-layout'], ['scope', `Scope (${scope.length})`, 'ti-list-check'], ['subs', `Subcontractors (${subs.length})`, 'ti-users-group'], ['payments', `Client payments (${invoices.length})`, 'ti-cash'], ['materials', `Materials (${materials.length})`, 'ti-package'], ['expenses', `Expenses (${expenses.length})`, 'ti-coin']].map(([k, l, ic]) => (
           <button key={k} onClick={() => setTab(k)} style={{ padding: '9px 15px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13.5, fontWeight: 600, whiteSpace: 'nowrap', color: tab === k ? 'var(--primary)' : 'var(--text2)', borderBottom: tab === k ? '2px solid var(--primary)' : '2px solid transparent', marginBottom: -1 }}><i className={'ti ' + ic} style={{ fontSize: 15, verticalAlign: '-2px', marginRight: 4 }} />{l}</button>
         ))}
       </div>
@@ -513,6 +526,63 @@ export default function ProjectsPage({ onNavigate }) {
                 </div>
               ) })}
             </div>}
+        </div>
+      )}
+
+      {tab === 'payments' && (
+        <div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px,1fr))', gap: 10, marginBottom: 14 }}>
+            <StatTile icon="ti-wallet" label="Contract value" value={AED(value)} color="#0099cc" />
+            <StatTile icon="ti-file-invoice" label="Invoiced" value={AED(totalInvoiced)} color="#8b5cf6" />
+            <StatTile icon="ti-cash" label="Received" value={AED(clientReceived)} color="#22c55e" />
+            <StatTile icon="ti-clock-dollar" label="Outstanding" value={AED(clientOutstanding)} color="#ef4444" />
+          </div>
+          <div style={{ ...card, padding: '12px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', background: `linear-gradient(135deg, ${netCash >= 0 ? '#22c55e' : '#ef4444'}14, transparent)` }}>
+            <i className={'ti ' + (netCash >= 0 ? 'ti-trending-up' : 'ti-trending-down')} style={{ fontSize: 22, color: netCash >= 0 ? '#22c55e' : '#ef4444' }} />
+            <div style={{ flex: 1, minWidth: 140 }}>
+              <div style={{ fontSize: 11.5, color: 'var(--text2)' }}>Net cash position <span style={{ color: 'var(--text3)' }}>(received − sub paid − site spend)</span></div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: netCash >= 0 ? '#22c55e' : '#ef4444' }}>{AED(netCash)}</div>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'right' }}>Paid to subs {AED(subsPaid)}<br />Site spend {AED(totalExpenses)}</div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ fontSize: 12.5, color: 'var(--text2)' }}>Receipts come from the linked invoices — managed in the Invoices module.</div>
+            <button onClick={() => onNavigate && onNavigate('invoices')} className="btn btn-primary btn-sm"><i className="ti ti-external-link" style={{ verticalAlign: '-2px', marginRight: 4 }} /> Open Invoices</button>
+          </div>
+          {invoices.length === 0 ? (
+            <div style={{ ...card, textAlign: 'center', color: 'var(--text3)', padding: '34px 16px' }}>
+              <i className="ti ti-file-invoice" style={{ fontSize: 28, display: 'block', marginBottom: 8 }} />
+              No invoices raised for this project yet.<br />
+              <span style={{ fontSize: 12 }}>Create one from the approved quote in the Invoices page — payments recorded there show up here.</span>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+              {invoices.map(iv => {
+                const paid = invPaid(iv); const tot = Number(iv.total) || 0; const bal = Math.max(0, tot - paid)
+                const ist = iv.status === 'paid' ? { c: '#22c55e', l: 'Paid' } : iv.status === 'partial' ? { c: '#f59e0b', l: 'Partial' } : { c: '#ef4444', l: 'Unpaid' }
+                return (
+                  <div key={iv.id} onClick={() => onNavigate && onNavigate('invoices')} style={{ ...card, padding: '12px 14px', cursor: 'pointer' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      <div style={{ flex: 1, minWidth: 150 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 14, fontWeight: 700 }}>{iv.invoice_number}</span>
+                          <Badge c={ist.c}>{ist.l}</Badge>
+                          {iv.milestone_label && <span style={{ fontSize: 11, color: 'var(--text3)' }}>{iv.milestone_label}</span>}
+                        </div>
+                        <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 2 }}>Issued {fmtD(iv.issue_date)}{iv.due_date ? ' · due ' + fmtD(iv.due_date) : ''}</div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 15, fontWeight: 700 }}>{AED(tot)}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text3)' }}><span style={{ color: '#22c55e' }}>{AED(paid)} paid</span>{bal > 0 ? ` · ${AED(bal)} due` : ''}</div>
+                      </div>
+                    </div>
+                    {tot > 0 && <div style={{ height: 5, background: 'var(--bg2)', borderRadius: 99, overflow: 'hidden', marginTop: 9 }}><div style={{ width: Math.min(100, (paid / tot) * 100) + '%', height: '100%', background: ist.c, borderRadius: 99 }} /></div>}
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
 

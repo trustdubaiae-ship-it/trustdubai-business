@@ -1,0 +1,4 @@
+-- SUPERSEDED — do NOT run.
+-- Client cash-in is NOT a separate table. It already lives in the Invoices
+-- module (public.invoices.payments jsonb + status). Projects read received /
+-- outstanding from the invoices linked by quotation_id. No migration needed.
