@@ -15,6 +15,9 @@ const PSTATUS = {
 const MSTATUS = { requested: { l: 'Requested', c: '#64748b' }, approved: { l: 'Approved', c: '#0099cc' }, ordered: { l: 'Ordered', c: '#f59e0b' }, received: { l: 'Received', c: '#22c55e' } }
 const ECAT = { labour: { l: 'Labour', c: '#8b5cf6' }, material: { l: 'Material', c: '#0099cc' }, transport: { l: 'Transport', c: '#f59e0b' }, misc: { l: 'Misc', c: '#64748b' } }
 const SSTATUS = { ongoing: { l: 'Ongoing', c: '#0099cc' }, completed: { l: 'Completed', c: '#22c55e' }, on_hold: { l: 'On Hold', c: '#f59e0b' } }
+const MILESTONE_ST = { pending: { l: 'Pending', c: '#64748b', ic: 'ti-circle' }, in_progress: { l: 'In progress', c: '#0099cc', ic: 'ti-progress' }, done: { l: 'Done', c: '#22c55e', ic: 'ti-circle-check-filled' } }
+// default interior fit-out stages, offered as a one-click starter
+const DEFAULT_STAGES = ['Site survey & measurement', 'Design & drawing approval', 'Demolition / site prep', 'MEP first fix', 'Gypsum & false ceiling', 'Flooring & tiling', 'Joinery & carpentry', 'Painting & finishes', 'MEP second fix & fixtures', 'Snagging', 'Handover']
 const TRADES = ['MEP', 'Electrical', 'Plumbing', 'HVAC', 'Gypsum / Ceiling', 'Tiles / Flooring', 'Joinery', 'Painting', 'Civil', 'Glass / Aluminium', 'Furniture', 'Other']
 const AED = n => 'AED ' + Math.round(Number(n) || 0).toLocaleString('en-AE')
 const fmtD = d => d ? new Date(d).toLocaleDateString('en-AE', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'
@@ -43,6 +46,8 @@ export default function ProjectsPage({ onNavigate }) {
   const [payList, setPayList] = useState([])
   const [payForm, setPayForm] = useState(null)
   const [invoices, setInvoices] = useState([])     // invoices linked to this project (client cash-in lives here)
+  const [milestones, setMilestones] = useState([])
+  const [msForm, setMsForm] = useState(null)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => { if (company?.id) loadProjects() }, [company?.id])
@@ -79,13 +84,14 @@ export default function ProjectsPage({ onNavigate }) {
   async function reloadChildren(pid) {
     const id = pid || active?.id; if (!id) return
     const proj = projects.find(x => x.id === id) || active
-    const [m, e, s, sc] = await Promise.all([
+    const [m, e, s, sc, ms] = await Promise.all([
       supabase.from('material_requests').select('*').eq('project_id', id).order('created_at', { ascending: false }),
       supabase.from('site_expenses').select('*').eq('project_id', id).order('spent_on', { ascending: false }),
       supabase.from('project_subcontractors').select('*').eq('project_id', id).order('created_at', { ascending: false }),
       supabase.from('project_scope').select('*').eq('project_id', id).order('created_at', { ascending: true }),
+      supabase.from('project_milestones').select('*').eq('project_id', id).order('sort', { ascending: true }).order('created_at', { ascending: true }),
     ])
-    setMaterials(m.data || []); setExpenses(e.data || []); setSubs(s.data || []); setScope(sc.data || [])
+    setMaterials(m.data || []); setExpenses(e.data || []); setSubs(s.data || []); setScope(sc.data || []); setMilestones(ms.data || [])
     // Client cash-in lives in the Invoices module — pull the linked invoices (single source of truth).
     let inv = []
     if (proj?.quote_id) { const { data } = await supabase.from('invoices').select('id,invoice_number,total,payments,status,kind,milestone_label,issue_date,due_date').eq('company_id', company.id).eq('quotation_id', proj.quote_id).order('issue_date', { ascending: false }); inv = data || [] }
@@ -259,6 +265,49 @@ export default function ProjectsPage({ onNavigate }) {
     printLPO(company, active, sub, scope.filter(s => s.sub_id === sub.id), lpo, toast)
   }
 
+  // ----- milestones / timeline -----
+  async function syncProgressFromMilestones(rows) {
+    const list = rows || milestones
+    if (!list.length) return
+    const pct = Math.round((list.filter(m => m.status === 'done').length / list.length) * 100)
+    if (active && pct !== (active.progress || 0)) patchActive({ progress: pct })
+  }
+  async function saveMilestone() {
+    const x = msForm
+    if (!x.title?.trim()) { toast.error('Milestone title is required'); return }
+    setSaving(true)
+    try {
+      const payload = { company_id: company.id, project_id: active.id, title: x.title.trim(), target_date: x.target_date || null, status: x.status || 'pending', note: x.note || null, sort: Number(x.sort) || 0 }
+      if (x.status === 'done' && !x.done_on) payload.done_on = new Date().toISOString().slice(0, 10)
+      if (x.id) { const { error } = await supabase.from('project_milestones').update(payload).eq('id', x.id).eq('company_id', company.id); if (error) throw error }
+      else { payload.sort = milestones.length; const { error } = await supabase.from('project_milestones').insert(payload); if (error) throw error }
+      setMsForm(null); toast.success('Saved ✓'); await reloadChildren()
+    } catch (e) { console.error(e); toast.error('Save failed: ' + (e?.message || e)) } finally { setSaving(false) }
+  }
+  async function delMilestone(id) {
+    try {
+      await supabase.from('project_milestones').delete().eq('id', id).eq('company_id', company.id)
+      const next = milestones.filter(m => m.id !== id); setMilestones(next); syncProgressFromMilestones(next)
+    } catch (e) { toast.error('Delete failed') }
+  }
+  async function cycleMilestone(m) {
+    const order = ['pending', 'in_progress', 'done']
+    const status = order[(order.indexOf(m.status) + 1) % order.length]
+    const patch = { status, done_on: status === 'done' ? new Date().toISOString().slice(0, 10) : null }
+    try {
+      await supabase.from('project_milestones').update(patch).eq('id', m.id).eq('company_id', company.id)
+      const next = milestones.map(x => x.id === m.id ? { ...x, ...patch } : x)
+      setMilestones(next); syncProgressFromMilestones(next)
+    } catch (e) { toast.error('Update failed') }
+  }
+  async function seedDefaultStages() {
+    try {
+      const rows = DEFAULT_STAGES.map((t, i) => ({ company_id: company.id, project_id: active.id, title: t, status: 'pending', sort: i }))
+      const { error } = await supabase.from('project_milestones').insert(rows); if (error) throw error
+      toast.success('Added 11 default stages ✓'); reloadChildren()
+    } catch (e) { console.error(e); toast.error('Failed: ' + (e?.message || e)) }
+  }
+
   const totalExpenses = expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0)
   const totalMaterials = materials.reduce((s, m) => s + (Number(m.est_cost) || 0), 0)
   const totalSubs = subs.reduce((s, x) => s + (Number(x.contract_amount) || 0), 0)
@@ -391,7 +440,7 @@ export default function ProjectsPage({ onNavigate }) {
 
       {/* tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
-        {[['overview', 'Overview', 'ti-layout'], ['scope', `Scope (${scope.length})`, 'ti-list-check'], ['subs', `Subcontractors (${subs.length})`, 'ti-users-group'], ['payments', `Client payments (${invoices.length})`, 'ti-cash'], ['materials', `Materials (${materials.length})`, 'ti-package'], ['expenses', `Expenses (${expenses.length})`, 'ti-coin']].map(([k, l, ic]) => (
+        {[['overview', 'Overview', 'ti-layout'], ['timeline', `Timeline (${milestones.length})`, 'ti-timeline-event'], ['scope', `Scope (${scope.length})`, 'ti-list-check'], ['subs', `Subcontractors (${subs.length})`, 'ti-users-group'], ['payments', `Client payments (${invoices.length})`, 'ti-cash'], ['materials', `Materials (${materials.length})`, 'ti-package'], ['expenses', `Expenses (${expenses.length})`, 'ti-coin']].map(([k, l, ic]) => (
           <button key={k} onClick={() => setTab(k)} style={{ padding: '9px 15px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13.5, fontWeight: 600, whiteSpace: 'nowrap', color: tab === k ? 'var(--primary)' : 'var(--text2)', borderBottom: tab === k ? '2px solid var(--primary)' : '2px solid transparent', marginBottom: -1 }}><i className={'ti ' + ic} style={{ fontSize: 15, verticalAlign: '-2px', marginRight: 4 }} />{l}</button>
         ))}
       </div>
@@ -417,6 +466,54 @@ export default function ProjectsPage({ onNavigate }) {
           {active.quote_id && <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 10 }}><i className="ti ti-file-invoice" /> Linked to a quotation</div>}
         </div>
       )}
+
+      {tab === 'timeline' && (() => {
+        const done = milestones.filter(m => m.status === 'done').length
+        const pct = milestones.length ? Math.round((done / milestones.length) * 100) : 0
+        const today = new Date().toISOString().slice(0, 10)
+        return (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ fontSize: 12.5, color: 'var(--text2)' }}>{done}/{milestones.length} stages done · <b style={{ color: '#22c55e' }}>{pct}%</b> complete</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {milestones.length === 0 && <button onClick={seedDefaultStages} className="btn btn-secondary btn-sm"><i className="ti ti-sparkles" /> Add default stages</button>}
+                <button onClick={() => setMsForm({ title: '', target_date: '', status: 'pending', note: '' })} className="btn btn-primary btn-sm"><i className="ti ti-plus" /> Add stage</button>
+              </div>
+            </div>
+            {milestones.length > 0 && <div style={{ height: 8, background: 'var(--bg2)', borderRadius: 99, overflow: 'hidden', marginBottom: 18 }}><div style={{ width: pct + '%', height: '100%', background: 'linear-gradient(90deg,#22c55e,#16a34a)', borderRadius: 99, transition: 'width .3s ease' }} /></div>}
+            {milestones.length === 0 ? <div style={{ ...card, textAlign: 'center', color: 'var(--text3)', padding: '34px 16px' }}><i className="ti ti-timeline-event" style={{ fontSize: 28, display: 'block', marginBottom: 8 }} />No stages yet. Add the default fit-out stages or create your own.</div>
+              : <div style={{ position: 'relative', paddingLeft: 8 }}>
+                {milestones.map((m, i) => {
+                  const ms = MILESTONE_ST[m.status] || MILESTONE_ST.pending
+                  const overdue = m.status !== 'done' && m.target_date && m.target_date < today
+                  const last = i === milestones.length - 1
+                  return (
+                    <div key={m.id} style={{ position: 'relative', display: 'flex', gap: 13, paddingBottom: last ? 0 : 16 }}>
+                      {!last && <div style={{ position: 'absolute', left: 14, top: 30, bottom: 0, width: 2, background: 'var(--border)' }} />}
+                      <button onClick={() => cycleMilestone(m)} title="Click to advance status" style={{ width: 30, height: 30, borderRadius: '50%', border: `2px solid ${ms.c}`, background: m.status === 'done' ? ms.c : 'var(--card)', color: m.status === 'done' ? '#fff' : ms.c, cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1, padding: 0 }}><i className={'ti ' + ms.ic} style={{ fontSize: 15 }} /></button>
+                      <div style={{ ...card, flex: 1, padding: '11px 13px', borderColor: overdue ? 'rgba(239,68,68,0.4)' : 'var(--border)' }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
+                          <div style={{ flex: 1, minWidth: 150 }}>
+                            <div style={{ fontSize: 13.5, fontWeight: 700, textDecoration: m.status === 'done' ? 'line-through' : 'none', opacity: m.status === 'done' ? 0.7 : 1 }}>{m.title}</div>
+                            <div style={{ fontSize: 11.5, color: overdue ? '#ef4444' : 'var(--text3)', marginTop: 2 }}>
+                              {m.target_date ? <><i className="ti ti-calendar" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {fmtD(m.target_date)}{overdue ? ' · overdue' : ''}</> : 'No target date'}
+                              {m.status === 'done' && m.done_on ? ' · done ' + fmtD(m.done_on) : ''}
+                              {m.note ? ' · ' + m.note : ''}
+                            </div>
+                          </div>
+                          <span style={{ display: 'inline-flex' }}><Badge c={ms.c}>{ms.l}</Badge></span>
+                          <button onClick={() => setMsForm({ ...m, target_date: m.target_date || '' })} style={iconBtn}><i className="ti ti-edit" style={{ fontSize: 14 }} /></button>
+                          <button onClick={() => delMilestone(m.id)} style={{ ...iconBtn, color: '#ef4444' }}><i className="ti ti-trash" style={{ fontSize: 14 }} /></button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>}
+            {milestones.length > 0 && <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 12 }}><i className="ti ti-info-circle" /> Click a circle to advance Pending → In progress → Done. Project progress updates automatically.</div>}
+          </div>
+        )
+      })()}
 
       {tab === 'scope' && (
         <div>
@@ -639,6 +736,14 @@ export default function ProjectsPage({ onNavigate }) {
           <div><label style={lbl}>Amount (AED)</label><input type="number" autoFocus value={expForm.amount} onChange={e => setExpForm(x => ({ ...x, amount: e.target.value }))} style={input} /></div>
           <div><label style={lbl}>Date</label><input type="date" value={expForm.spent_on} onChange={e => setExpForm(x => ({ ...x, spent_on: e.target.value }))} style={input} /></div>
         </div>
+      </FormModal>}
+      {msForm && <FormModal title={msForm.id ? 'Edit stage' : 'Add stage'} onClose={() => setMsForm(null)} onSave={saveMilestone} saving={saving}>
+        <label style={lbl}>Stage / milestone</label><input autoFocus value={msForm.title} onChange={e => setMsForm(s => ({ ...s, title: e.target.value }))} style={{ ...input, marginBottom: 10 }} placeholder="e.g. Gypsum & false ceiling" />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+          <div><label style={lbl}>Target date</label><input type="date" value={msForm.target_date} onChange={e => setMsForm(s => ({ ...s, target_date: e.target.value }))} style={input} /></div>
+          <div><label style={lbl}>Status</label><select value={msForm.status} onChange={e => setMsForm(s => ({ ...s, status: e.target.value }))} style={input}>{Object.entries(MILESTONE_ST).map(([k, v]) => <option key={k} value={k}>{v.l}</option>)}</select></div>
+        </div>
+        <label style={lbl}>Note</label><input value={msForm.note || ''} onChange={e => setMsForm(s => ({ ...s, note: e.target.value }))} style={input} placeholder="Optional detail…" />
       </FormModal>}
       {subForm && <FormModal title={subForm.id ? 'Edit subcontractor' : 'Add subcontractor'} onClose={() => setSubForm(null)} onSave={saveSub} saving={saving}>
         <label style={lbl}>Name</label><input autoFocus value={subForm.name} onChange={e => setSubForm(s => ({ ...s, name: e.target.value }))} style={{ ...input, marginBottom: 10 }} placeholder="e.g. Al Noor MEP Works" />
