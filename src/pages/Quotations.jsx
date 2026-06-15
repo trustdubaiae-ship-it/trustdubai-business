@@ -147,8 +147,24 @@ const clearDraft = () => { try { localStorage.removeItem(DRAFT_KEY) } catch {} }
 function A4Preview({ html }) {
   const ref = useRef(null)
   const [h, setH] = useState(0)
-  useEffect(() => { if (ref.current) setH(ref.current.offsetHeight) }, [html])
   const PAGE_PX = 1100
+  useEffect(() => {
+    const node = ref.current
+    if (!node) return
+    // mirror print pagination: push any top-level box that would straddle a page boundary onto the next page
+    Array.from(node.children).forEach(b => {
+      const top = b.offsetTop, height = b.offsetHeight
+      if (height > 0 && height < PAGE_PX) {
+        const startPage = Math.floor(top / PAGE_PX)
+        const endPage = Math.floor((top + height - 1) / PAGE_PX)
+        if (endPage > startPage) {
+          const cur = parseFloat(getComputedStyle(b).marginTop) || 0
+          b.style.marginTop = (cur + ((startPage + 1) * PAGE_PX - top)) + 'px'
+        }
+      }
+    })
+    setH(node.offsetHeight)
+  }, [html])
   const breaks = Math.max(0, Math.floor((h - 40) / PAGE_PX))
   return (
     <div style={{ background: '#4b4f55', padding: '18px 12px', borderRadius: 10, overflowX: 'auto' }}>
@@ -894,13 +910,13 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     const pays = payments.length ? payments : DEFAULT_PAYMENTS
     const whys = parseWhyTpl(q.why_choose_us || tpl?.why_choose_us)
     const noteStr = escapeHtml(q.notes || '')
-    const notesBlock = noteStr ? `<div style="padding:14px 30px 0;">
+    const notesBlock = noteStr ? `<div style="padding:14px 30px 0;page-break-inside:avoid;break-inside:avoid;">
       <div style="font-size:10px;color:${ACC};text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:7px;">— Notes</div>
       <div style="font-size:9px;color:#666;line-height:1.7;white-space:pre-line;">${noteStr}</div></div>` : ''
 
     const colgroup = `<colgroup><col style="width:26px"><col><col style="width:44px"><col style="width:36px"><col style="width:60px"><col style="width:72px"></colgroup>`
     const td = 'padding:7px 8px;font-size:10.5px;border-bottom:0.5px solid #ededed;'
-    const tdDesc = `${td}word-break:break-word;overflow-wrap:anywhere;`
+    const tdDesc = `${td}word-break:break-word;overflow-wrap:anywhere;white-space:pre-line;`
 
     const rowHtml = (it, i) => `<tr>
       <td style="${td}color:#999;">${i}</td>
@@ -940,7 +956,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
 
     if (canPremium) {
       const paymentCards = (!isVo) ? `
-        <div style="padding:18px 30px 0;">
+        <div style="padding:18px 30px 0;page-break-inside:avoid;break-inside:avoid;">
           <div style="font-size:10px;color:${ACC};text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:10px;">— Payment Schedule</div>
           <div style="display:flex;gap:8px;">
             ${pays.map(p => `<div style="flex:1;border:0.5px solid #eee;border-top:2px solid ${ACC};padding:9px 10px;">
@@ -953,7 +969,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         </div>` : ''
 
       const whyBlock = (!isVo && whys.length) ? `
-        <div style="padding:18px 30px 0;">
+        <div style="padding:18px 30px 0;page-break-inside:avoid;break-inside:avoid;">
           <div style="font-size:10px;color:${ACC};text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:10px;">— Why Choose ${cName.split(' ').slice(0,2).join(' ')}</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px 16px;">
             ${whys.map(w => `<div style="display:flex;gap:7px;">
@@ -964,13 +980,13 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         </div>` : ''
 
       const signBlock = wantSign ? `
-        <div style="padding:20px 30px 6px;margin-top:14px;border-top:0.5px solid #eee;display:flex;gap:30px;">
+        <div style="padding:20px 30px 6px;margin-top:14px;border-top:0.5px solid #eee;display:flex;gap:30px;page-break-inside:avoid;break-inside:avoid;">
           <div style="flex:1;text-align:center;"><div style="font-size:9px;font-weight:700;color:#6b6b6b;margin-bottom:24px;">For ${cName}</div><div style="border-bottom:1px solid #1a1a1a;"></div><div style="font-size:8px;color:#999;margin-top:4px;">Authorized Signatory · Date · Stamp</div></div>
           <div style="flex:1;text-align:center;"><div style="font-size:9px;font-weight:700;color:#6b6b6b;margin-bottom:24px;">Client Acceptance & Approval</div><div style="border-bottom:1px solid #1a1a1a;"></div><div style="font-size:9px;color:#1a1a1a;font-weight:700;margin-top:4px;">${q.client_prefix?escapeHtml(q.client_prefix)+' ':''}${escapeHtml(q.client_name||'Client')}</div><div style="font-size:8px;color:#999;margin-top:1px;">Signature · Date</div></div>
         </div>` : ''
 
       const bankBlock = (wantBank && bankFields.length) ? `
-        <div style="padding:18px 30px 0;">
+        <div style="padding:18px 30px 0;page-break-inside:avoid;break-inside:avoid;">
           <div style="font-size:10px;color:${ACC};text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:10px;">— Bank Details</div>
           <div style="border:0.5px solid #eee;border-left:2px solid ${ACC};border-radius:4px;padding:11px 14px;display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;">
             ${bankFields.map(([k,v])=>`<div style="display:flex;gap:8px;font-size:10px;"><span style="color:#999;min-width:80px;">${k}</span><span style="font-weight:600;color:#1a1a1a;word-break:break-word;">${v}</span></div>`).join('')}
@@ -978,7 +994,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         </div>` : ''
 
       const timelineBlock = (!isVo && timeline.length) ? `
-        <div style="padding:18px 30px 0;">
+        <div style="padding:18px 30px 0;page-break-inside:avoid;break-inside:avoid;">
           <div style="font-size:10px;color:${ACC};text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:12px;">— Project Timeline</div>
           <div style="display:flex;gap:0;align-items:flex-start;">
             ${timeline.map((t,i)=>`<div style="flex:1;padding:0 4px;">
@@ -1059,7 +1075,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         ${wantFooter ? paymentCards : ''}
         ${bankBlock}
         ${wantFooter ? whyBlock + (!isVo ? `
-          <div style="padding:18px 30px 0;">
+          <div style="padding:18px 30px 0;page-break-inside:avoid;break-inside:avoid;">
             <div style="font-size:10px;color:${ACC};text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:7px;">— Terms & Conditions</div>
             <div style="font-size:8.5px;color:#888;line-height:1.7;white-space:pre-line;">${terms}</div>
           </div>` : '') : ''}
@@ -1072,7 +1088,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     const paymentStr = payments.length
       ? payments.map(p => `${p.percent}% (AED ${n(tot*(Number(p.percent)||0)/100)})${p.label ? ' ' + p.label : ''}`).join(' · ')
       : '50% Advance · 40% On completion · 10% On handover'
-    const footerHtml = (wantFooter && !isVo) ? `<div style="background:#faf8f3;border-radius:5px;padding:11px 13px;margin-bottom:14px;">
+    const footerHtml = (wantFooter && !isVo) ? `<div style="background:#faf8f3;border-radius:5px;padding:11px 13px;margin-bottom:14px;page-break-inside:avoid;break-inside:avoid;">
         <div style="font-size:9px;color:${ACC};text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:5px;">Payment Schedule</div>
         <div style="font-size:10.5px;color:#555;">${escapeHtml(paymentStr)}</div>
         <div style="font-size:9px;color:${ACC};text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin:9px 0 5px;">Terms</div>

@@ -3,7 +3,7 @@
 // client, or a client's full history (added date, past meetings, MOMs, next
 // follow-up, activity timeline). Everything stays in sync with the lead log:
 // meetings + MOM + follow-ups write back to lead_submissions / lead_activity.
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../lib/toast'
@@ -34,6 +34,9 @@ const MEET_CSS = `
 .mtg-btn-grad{background:${GRAD};background-size:160% 160%;transition:background-position .4s, box-shadow .2s, transform .1s;box-shadow:0 6px 18px -6px rgba(99,102,241,.6)}
 .mtg-btn-grad:hover{background-position:100% 100%;transform:translateY(-1px)}
 .mtg-glow{box-shadow:0 10px 34px -14px rgba(99,102,241,.4)}
+@keyframes nowPulse{0%,100%{opacity:1;box-shadow:0 0 6px #ff2d55,0 0 12px #ff2d55}50%{opacity:.65;box-shadow:0 0 10px #ff2d55,0 0 22px #ff2d55}}
+.mtg-nowline{background:#ff2d55;animation:nowPulse 1.8s ease-in-out infinite}
+.mtg-nowdot{background:#ff2d55;box-shadow:0 0 8px #ff2d55,0 0 16px #ff2d55}
 `
 
 function pad(n) { return String(n).padStart(2, '0') }
@@ -353,6 +356,21 @@ function countdown(target, now) {
 
 function DayPanel({ dateKey: dk, items, now, onOpenClient, onOpenMeeting, onNew, C }) {
   const total = items.length
+  const slotsRef = useRef(null)
+  const [lineTop, setLineTop] = useState(null)
+  const isToday = dk === todayKey()
+  // position a live "now" line through the time slots (today only, within 8 AM – 10 PM)
+  useLayoutEffect(() => {
+    if (!isToday) { setLineTop(null); return }
+    const d = new Date(now); const cur = d.getHours() + d.getMinutes() / 60
+    const slot = SLOTS.find(s => cur >= s.s && cur < s.e)
+    const wrap = slotsRef.current
+    if (!slot || !wrap) { setLineTop(null); return }
+    const row = wrap.querySelector(`[data-slot="${slot.label}"]`)
+    if (!row) { setLineTop(null); return }
+    const frac = (cur - slot.s) / (slot.e - slot.s)
+    setLineTop(row.offsetTop + frac * row.offsetHeight)
+  }, [now, items, dk, isToday])
   const remindTxt = (m) => m ? (m >= 1440 ? '1 day before' : m + ' min before') : ''
   const allDay = items.filter(it => !it.time)
   const timed = items.filter(it => it.time)
@@ -400,7 +418,7 @@ function DayPanel({ dateKey: dk, items, now, onOpenClient, onOpenMeeting, onNew,
   }
 
   const slotRow = (label, list, key) => (
-    <div key={key} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '9px 0', borderTop: `1px solid ${C.border}` }}>
+    <div key={key} data-slot={label} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '9px 0', borderTop: `1px solid ${C.border}` }}>
       <div style={{ width: 66, flexShrink: 0, paddingTop: 4, fontSize: 11, fontWeight: 700, color: list.length ? C.text : C.t3, textAlign: 'right', whiteSpace: 'nowrap' }}>{label}</div>
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
         {list.length ? list.map((it, i) => card(it, i)) : <div style={{ fontSize: 11, color: C.t3, opacity: 0.4, padding: '5px 0' }}>—</div>}
@@ -420,10 +438,17 @@ function DayPanel({ dateKey: dk, items, now, onOpenClient, onOpenMeeting, onNew,
           <i className="ti ti-plus" /> Add
         </button>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column' }}>
+      <div ref={slotsRef} style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
         {allDay.length > 0 && slotRow('All day', allDay, 'allday')}
         {SLOTS.map(s => slotRow(s.label, bucket[s.label] || [], s.label))}
         {other.length > 0 && slotRow('Other', other, 'other')}
+        {lineTop != null && (
+          <div style={{ position: 'absolute', left: 0, right: 0, top: lineTop, height: 0, zIndex: 6, pointerEvents: 'none', display: 'flex', alignItems: 'center' }}>
+            <span style={{ position: 'absolute', left: 40, transform: 'translateX(-50%)', background: '#ff2d55', color: '#fff', fontSize: 9.5, fontWeight: 800, padding: '1px 7px', borderRadius: 99, whiteSpace: 'nowrap', boxShadow: '0 0 8px #ff2d55' }}>{fmtTime(now)}</span>
+            <span className="mtg-nowdot" style={{ position: 'absolute', left: 66, width: 8, height: 8, borderRadius: '50%', marginLeft: -4 }} />
+            <div className="mtg-nowline" style={{ position: 'absolute', left: 66, right: 0, height: 2, borderRadius: 2 }} />
+          </div>
+        )}
       </div>
     </div>
   )
