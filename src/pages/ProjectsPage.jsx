@@ -37,6 +37,9 @@ export default function ProjectsPage({ onNavigate }) {
   const [projModal, setProjModal] = useState(null)
   const [matForm, setMatForm] = useState(null)
   const [expForm, setExpForm] = useState(null)
+  const [payModal, setPayModal] = useState(null)   // the sub whose payment ledger is open
+  const [payList, setPayList] = useState([])
+  const [payForm, setPayForm] = useState(null)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => { if (company?.id) loadProjects() }, [company?.id])
@@ -142,13 +145,44 @@ export default function ProjectsPage({ onNavigate }) {
     if (!x.name?.trim()) { toast.error('Subcontractor name is required'); return }
     setSaving(true)
     try {
-      const payload = { company_id: company.id, project_id: active.id, name: x.name.trim(), trade: x.trade || null, phone: x.phone || null, contract_amount: Number(x.contract_amount) || 0, paid_amount: Number(x.paid_amount) || 0, status: x.status || 'ongoing', notes: x.notes || null }
+      // contract_amount comes from assigned scope, paid_amount from the payment ledger — not edited here.
+      const payload = { company_id: company.id, project_id: active.id, name: x.name.trim(), trade: x.trade || null, phone: x.phone || null, status: x.status || 'ongoing', notes: x.notes || null }
       if (x.id) { const { error } = await supabase.from('project_subcontractors').update(payload).eq('id', x.id).eq('company_id', company.id); if (error) throw error }
       else { const { error } = await supabase.from('project_subcontractors').insert(payload); if (error) throw error }
       setSubForm(null); toast.success('Saved ✓'); reloadChildren()
     } catch (e) { console.error(e); toast.error('Save failed: ' + (e?.message || e)) } finally { setSaving(false) }
   }
-  async function delSub(id) { try { await supabase.from('project_subcontractors').delete().eq('id', id).eq('company_id', company.id); reloadChildren() } catch (e) { toast.error('Delete failed') } }
+  async function delSub(id) { try { await supabase.from('sub_payments').delete().eq('sub_id', id).eq('company_id', company.id); await supabase.from('project_subcontractors').delete().eq('id', id).eq('company_id', company.id); reloadChildren() } catch (e) { toast.error('Delete failed') } }
+
+  // ----- subcontractor payment ledger -----
+  async function openPayments(sub) {
+    setPayModal(sub); setPayForm(null); setPayList([])
+    const { data } = await supabase.from('sub_payments').select('*').eq('sub_id', sub.id).eq('company_id', company.id).order('paid_on', { ascending: false })
+    setPayList(data || [])
+  }
+  async function recomputeSubPaid(subId, rows) {
+    const total = (rows || []).reduce((a, p) => a + (Number(p.amount) || 0), 0)
+    await supabase.from('project_subcontractors').update({ paid_amount: total }).eq('id', subId).eq('company_id', company.id)
+    setSubs(ss => ss.map(s => s.id === subId ? { ...s, paid_amount: total } : s))
+  }
+  async function savePayment() {
+    const x = payForm
+    if (!(Number(x.amount) > 0)) { toast.error('Enter an amount'); return }
+    setSaving(true)
+    try {
+      const payload = { company_id: company.id, project_id: active.id, sub_id: payModal.id, amount: Number(x.amount) || 0, paid_on: x.paid_on || null, method: x.method || null, reference: x.reference || null, note: x.note || null }
+      if (x.id) { const { error } = await supabase.from('sub_payments').update(payload).eq('id', x.id).eq('company_id', company.id); if (error) throw error }
+      else { const { error } = await supabase.from('sub_payments').insert(payload); if (error) throw error }
+      const { data } = await supabase.from('sub_payments').select('*').eq('sub_id', payModal.id).eq('company_id', company.id).order('paid_on', { ascending: false })
+      setPayList(data || []); await recomputeSubPaid(payModal.id, data || []); setPayForm(null); toast.success('Payment saved ✓')
+    } catch (e) { console.error(e); toast.error('Save failed: ' + (e?.message || e)) } finally { setSaving(false) }
+  }
+  async function delPayment(id) {
+    try {
+      await supabase.from('sub_payments').delete().eq('id', id).eq('company_id', company.id)
+      const next = payList.filter(p => p.id !== id); setPayList(next); await recomputeSubPaid(payModal.id, next)
+    } catch (e) { toast.error('Delete failed') }
+  }
 
   async function recomputeSubContract(subId, rows) {
     if (!subId) return
@@ -213,6 +247,27 @@ export default function ProjectsPage({ onNavigate }) {
   const marginPct = value > 0 ? Math.round((margin / value) * 100) : 0
 
   const card = { background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: 16 }
+  const heroBg = 'linear-gradient(135deg, #0a2540 0%, #0d6e8f 45%, #6d28d9 130%)'
+  const FX = `
+    .fx-proj{transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease;position:relative;overflow:hidden}
+    .fx-proj:hover{transform:translateY(-3px);box-shadow:0 14px 32px rgba(0,0,0,.20);border-color:rgba(0,153,204,.55)}
+    .fx-stat{transition:transform .15s ease,box-shadow .15s ease}
+    .fx-stat:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(0,0,0,.12)}
+    .fx-hero{position:relative;overflow:hidden}
+    .fx-hero::after{content:'';position:absolute;top:-60px;right:-40px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.22),transparent 70%);pointer-events:none}
+    .fx-hero::before{content:'';position:absolute;bottom:-80px;left:30%;width:240px;height:240px;border-radius:50%;background:radial-gradient(circle,rgba(109,40,217,.35),transparent 70%);pointer-events:none}
+  `
+  // futuristic stat tile — gradient wash + accent + icon
+  const StatTile = ({ icon, label, value, color }) => (
+    <div className="fx-stat" style={{ position: 'relative', overflow: 'hidden', borderRadius: 14, padding: '14px 15px', background: `linear-gradient(135deg, ${color}1f, ${color}07)`, border: `1px solid ${color}2e` }}>
+      <div style={{ position: 'absolute', top: -14, right: -10, width: 60, height: 60, borderRadius: '50%', background: color + '14' }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, position: 'relative' }}>
+        <span style={{ width: 28, height: 28, borderRadius: 8, background: color + '24', color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><i className={'ti ' + icon} style={{ fontSize: 15 }} /></span>
+        <span style={{ fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}>{label}</span>
+      </div>
+      <div style={{ fontSize: 20, fontWeight: 800, marginTop: 8, color, position: 'relative', letterSpacing: '-.3px' }}>{value}</div>
+    </div>
+  )
   const input = { width: '100%', padding: '9px 11px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg2,rgba(127,127,127,0.05))', color: 'var(--text)', fontSize: 13.5, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }
   const lbl = { fontSize: 11.5, color: 'var(--text2)', display: 'block', marginBottom: 5, fontWeight: 600 }
   const Badge = ({ c, children }) => <span style={{ background: c + '1f', color: c, fontSize: 10.5, fontWeight: 700, padding: '2px 9px', borderRadius: 99 }}>{children}</span>
@@ -220,21 +275,26 @@ export default function ProjectsPage({ onNavigate }) {
   // ===== LIST =====
   if (view === 'list') {
     const totals = { value: projects.reduce((s, p) => s + (Number(p.contract_value) || 0), 0), ongoing: projects.filter(p => p.status === 'ongoing').length }
+    const totalCompleted = projects.filter(p => p.status === 'completed').length
     return (
       <div style={{ color: 'var(--text)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
-          <div>
-            <h1 className="font-syne fw-700" style={{ fontSize: 23, margin: 0, display: 'flex', alignItems: 'center', gap: 9 }}><i className="ti ti-briefcase" style={{ color: '#0099cc' }} /> Projects</h1>
-            <p style={{ fontSize: 13, color: 'var(--text2)', margin: '4px 0 0' }}>Track jobs, materials & site expenses — profit at a glance.</p>
+        <style>{FX}</style>
+        <div className="fx-hero" style={{ borderRadius: 18, padding: '22px 24px', marginBottom: 16, background: heroBg, color: '#fff' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', position: 'relative' }}>
+            <div>
+              <h1 className="font-syne fw-700" style={{ fontSize: 24, margin: 0, display: 'flex', alignItems: 'center', gap: 10, letterSpacing: '-.4px' }}><i className="ti ti-briefcase" /> Projects</h1>
+              <p style={{ fontSize: 13, color: 'rgba(255,255,255,.78)', margin: '5px 0 0' }}>Track jobs, scope, subcontractors & site spend — profit at a glance.</p>
+            </div>
+            <button onClick={newProject} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '11px 18px', borderRadius: 11, border: 'none', background: '#fff', color: '#0a2540', fontWeight: 700, fontSize: 14, cursor: 'pointer', boxShadow: '0 6px 18px rgba(0,0,0,.22)' }}><i className="ti ti-plus" style={{ fontSize: 16 }} /> New project</button>
           </div>
-          <button onClick={newProject} className="btn btn-primary"><i className="ti ti-plus" style={{ verticalAlign: '-2px', marginRight: 4 }} /> New project</button>
         </div>
 
         {projects.length > 0 && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px,1fr))', gap: 10, marginBottom: 16 }}>
-            {[['Projects', projects.length], ['Ongoing', totals.ongoing], ['Total value', AED(totals.value)]].map(([k, v]) => (
-              <div key={k} style={{ ...card, padding: '12px 14px' }}><div style={{ fontSize: 11, color: 'var(--text2)' }}>{k}</div><div style={{ fontSize: 19, fontWeight: 700, marginTop: 2 }}>{v}</div></div>
-            ))}
+            <StatTile icon="ti-stack-2" label="Total projects" value={projects.length} color="#0099cc" />
+            <StatTile icon="ti-progress" label="Ongoing" value={totals.ongoing} color="#f59e0b" />
+            <StatTile icon="ti-circle-check" label="Completed" value={totalCompleted} color="#22c55e" />
+            <StatTile icon="ti-wallet" label="Total value" value={AED(totals.value)} color="#8b5cf6" />
           </div>
         )}
 
@@ -251,15 +311,16 @@ export default function ProjectsPage({ onNavigate }) {
               {projects.map(p => {
                 const st = PSTATUS[p.status] || PSTATUS.planning
                 return (
-                  <div key={p.id} onClick={() => openProject(p)} style={{ ...card, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div key={p.id} className="fx-proj" onClick={() => openProject(p)} style={{ ...card, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 18 }}>
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, background: `linear-gradient(90deg, ${st.color}, ${st.color}55)` }} />
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
                       <div style={{ fontSize: 15, fontWeight: 700, wordBreak: 'break-word' }}>{p.name}</div>
                       <Badge c={st.color}>{st.label}</Badge>
                     </div>
                     {p.client_name && <div style={{ fontSize: 12.5, color: 'var(--text2)' }}><i className="ti ti-user" style={{ fontSize: 13, verticalAlign: '-1px' }} /> {p.client_name}</div>}
-                    <div style={{ fontSize: 16, fontWeight: 700, color: '#0099cc' }}>{AED(p.contract_value)}</div>
-                    <div style={{ height: 6, background: 'var(--bg2)', borderRadius: 99, overflow: 'hidden' }}><div style={{ width: (p.progress || 0) + '%', height: '100%', background: st.color }} /></div>
-                    <div style={{ fontSize: 11, color: 'var(--text3)', display: 'flex', justifyContent: 'space-between' }}><span>{p.progress || 0}% done</span><span>{fmtD(p.end_date)}</span></div>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: '#0099cc', letterSpacing: '-.3px' }}>{AED(p.contract_value)}</div>
+                    <div style={{ height: 7, background: 'var(--bg2)', borderRadius: 99, overflow: 'hidden' }}><div style={{ width: (p.progress || 0) + '%', height: '100%', background: `linear-gradient(90deg, ${st.color}, ${st.color}aa)`, borderRadius: 99, transition: 'width .3s ease' }} /></div>
+                    <div style={{ fontSize: 11, color: 'var(--text3)', display: 'flex', justifyContent: 'space-between' }}><span>{p.progress || 0}% done</span><span><i className="ti ti-flag" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {fmtD(p.end_date)}</span></div>
                   </div>
                 )
               })}
@@ -275,21 +336,29 @@ export default function ProjectsPage({ onNavigate }) {
   const st = PSTATUS[active.status] || PSTATUS.planning
   return (
     <div style={{ color: 'var(--text)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginBottom: 14, flexWrap: 'wrap' }}>
-        <button onClick={() => { setView('list'); setActive(null) }} style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--text2)', cursor: 'pointer', flexShrink: 0 }}><i className="ti ti-arrow-left" style={{ fontSize: 16 }} /></button>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <h1 className="font-syne fw-700" style={{ fontSize: 20, margin: 0, wordBreak: 'break-word' }}>{active.name}</h1>
-          <div style={{ fontSize: 12.5, color: 'var(--text2)' }}>{active.client_name || 'No client'}{active.location ? ' · ' + active.location : ''}</div>
+      <style>{FX}</style>
+      <div className="fx-hero" style={{ borderRadius: 18, padding: '18px 20px', marginBottom: 16, background: heroBg, color: '#fff' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 11, flexWrap: 'wrap', position: 'relative' }}>
+          <button onClick={() => { setView('list'); setActive(null) }} style={{ width: 36, height: 36, borderRadius: 10, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(255,255,255,.12)', color: '#fff', cursor: 'pointer', flexShrink: 0 }}><i className="ti ti-arrow-left" style={{ fontSize: 16 }} /></button>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
+              <h1 className="font-syne fw-700" style={{ fontSize: 21, margin: 0, wordBreak: 'break-word', letterSpacing: '-.4px' }}>{active.name}</h1>
+              <span style={{ background: 'rgba(255,255,255,.18)', color: '#fff', fontSize: 10.5, fontWeight: 700, padding: '3px 10px', borderRadius: 99, border: '1px solid rgba(255,255,255,.25)' }}>{st.label}</span>
+            </div>
+            <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,.78)', marginTop: 2 }}><i className="ti ti-user" style={{ fontSize: 13, verticalAlign: '-1px' }} /> {active.client_name || 'No client'}{active.location ? ' · ' + active.location : ''}</div>
+          </div>
+          <button onClick={() => editProject(active)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '9px 15px', borderRadius: 10, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(255,255,255,.12)', color: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}><i className="ti ti-edit" /> Edit</button>
+          <button onClick={() => deleteProject(active.id)} style={{ width: 36, height: 36, borderRadius: 10, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(239,68,68,0.25)', color: '#fff', cursor: 'pointer', flexShrink: 0 }}><i className="ti ti-trash" style={{ fontSize: 15 }} /></button>
         </div>
-        <button onClick={() => editProject(active)} className="btn btn-secondary btn-sm"><i className="ti ti-edit" /> Edit</button>
-        <button onClick={() => deleteProject(active.id)} style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.08)', color: '#ef4444', cursor: 'pointer', flexShrink: 0 }}><i className="ti ti-trash" style={{ fontSize: 15 }} /></button>
       </div>
 
       {/* budget summary */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px,1fr))', gap: 10, marginBottom: 16 }}>
-        {[['Contract value', AED(value), '#0099cc'], ['Subcontractors', AED(totalSubs), '#8b5cf6'], ['Site expenses', AED(totalExpenses), '#f59e0b'], ['Total cost', AED(totalCost), '#ef4444'], [margin >= 0 ? 'Profit' : 'Loss', AED(Math.abs(margin)) + (value > 0 ? ` · ${marginPct}%` : ''), margin >= 0 ? '#22c55e' : '#ef4444']].map(([k, v, c]) => (
-          <div key={k} style={{ ...card, padding: '12px 14px' }}><div style={{ fontSize: 11, color: 'var(--text2)' }}>{k}</div><div style={{ fontSize: 18, fontWeight: 700, marginTop: 2, color: c }}>{v}</div></div>
-        ))}
+        <StatTile icon="ti-wallet" label="Contract value" value={AED(value)} color="#0099cc" />
+        <StatTile icon="ti-users-group" label="Subcontractors" value={AED(totalSubs)} color="#8b5cf6" />
+        <StatTile icon="ti-coin" label="Site expenses" value={AED(totalExpenses)} color="#f59e0b" />
+        <StatTile icon="ti-receipt" label="Total cost" value={AED(totalCost)} color="#ef4444" />
+        <StatTile icon={margin >= 0 ? 'ti-trending-up' : 'ti-trending-down'} label={margin >= 0 ? 'Profit' : 'Loss'} value={AED(Math.abs(margin)) + (value > 0 ? ` · ${marginPct}%` : '')} color={margin >= 0 ? '#22c55e' : '#ef4444'} />
       </div>
 
       {/* tabs */}
@@ -362,7 +431,7 @@ export default function ProjectsPage({ onNavigate }) {
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
             <div style={{ fontSize: 12.5, color: 'var(--text2)' }}>Contracts: <b style={{ color: '#8b5cf6' }}>{AED(totalSubs)}</b> · Paid: <b style={{ color: '#22c55e' }}>{AED(subsPaid)}</b> · Balance: <b style={{ color: '#ef4444' }}>{AED(totalSubs - subsPaid)}</b></div>
-            <button onClick={() => setSubForm({ name: '', trade: 'MEP', phone: '', contract_amount: 0, paid_amount: 0, status: 'ongoing', notes: '' })} className="btn btn-primary btn-sm"><i className="ti ti-plus" /> Add subcontractor</button>
+            <button onClick={() => setSubForm({ name: '', trade: 'MEP', phone: '', status: 'ongoing', notes: '' })} className="btn btn-primary btn-sm"><i className="ti ti-plus" /> Add subcontractor</button>
           </div>
           {subs.length === 0 ? <div style={{ ...card, textAlign: 'center', color: 'var(--text3)', padding: '34px 16px' }}>No subcontractors yet. Add MEP, Gypsum, Tiles…</div>
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
@@ -386,6 +455,7 @@ export default function ProjectsPage({ onNavigate }) {
                     ))}
                   </div>
                   <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <button onClick={() => openPayments(s)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(34,197,94,0.3)', background: 'rgba(34,197,94,0.1)', color: '#22c55e', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}><i className="ti ti-cash" /> Payments</button>
                     <button onClick={() => generateLPO(s)} className="btn btn-secondary btn-sm"><i className="ti ti-file-text" style={{ verticalAlign: '-2px', marginRight: 4 }} />{s.lpo_number ? 'LPO · ' + s.lpo_number : 'Generate LPO'}</button>
                     <button onClick={() => toggleContract(s)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, border: `1px solid ${s.contract_signed ? '#22c55e' : 'var(--border)'}`, background: s.contract_signed ? 'rgba(34,197,94,0.1)' : 'transparent', color: s.contract_signed ? '#22c55e' : 'var(--text2)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}><i className={'ti ' + (s.contract_signed ? 'ti-circle-check-filled' : 'ti-writing-sign')} /> {s.contract_signed ? 'Contract signed' : 'Mark contract signed'}</button>
                     {scope.filter(x => x.sub_id === s.id).length > 0 && <span style={{ fontSize: 11, color: 'var(--text3)' }}>{scope.filter(x => x.sub_id === s.id).length} scope items assigned</span>}
@@ -473,13 +543,66 @@ export default function ProjectsPage({ onNavigate }) {
           <div><label style={lbl}>Trade / scope</label><select value={subForm.trade} onChange={e => setSubForm(s => ({ ...s, trade: e.target.value }))} style={input}>{TRADES.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
           <div><label style={lbl}>Phone</label><input value={subForm.phone} onChange={e => setSubForm(s => ({ ...s, phone: e.target.value }))} style={input} /></div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-          <div><label style={lbl}>Contract amount (AED)</label><input type="number" value={subForm.contract_amount} onChange={e => setSubForm(s => ({ ...s, contract_amount: e.target.value }))} style={input} /></div>
-          <div><label style={lbl}>Paid so far (AED)</label><input type="number" value={subForm.paid_amount} onChange={e => setSubForm(s => ({ ...s, paid_amount: e.target.value }))} style={input} /></div>
-        </div>
         <label style={lbl}>Status</label><select value={subForm.status} onChange={e => setSubForm(s => ({ ...s, status: e.target.value }))} style={{ ...input, marginBottom: 10 }}>{Object.entries(SSTATUS).map(([k, v]) => <option key={k} value={k}>{v.l}</option>)}</select>
         <label style={lbl}>Notes / scope detail</label><input value={subForm.notes} onChange={e => setSubForm(s => ({ ...s, notes: e.target.value }))} style={input} placeholder="Scope of work…" />
+        <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 12, lineHeight: 1.6, background: 'var(--bg2)', borderRadius: 9, padding: '9px 11px' }}><i className="ti ti-info-circle" style={{ color: '#0099cc' }} /> Contract amount auto-fills when you assign Scope-of-Work lines. Record payments from the <b>Payments</b> button on the card.</div>
       </FormModal>}
+      {payModal && (() => {
+        const sub = subs.find(s => s.id === payModal.id) || payModal
+        const contract = Number(sub.contract_amount) || 0
+        const paid = payList.reduce((a, p) => a + (Number(p.amount) || 0), 0)
+        const bal = contract - paid
+        return (
+          <div onClick={() => { setPayModal(null); setPayForm(null) }} style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 18, width: '100%', maxWidth: 480, padding: 22, maxHeight: '92vh', overflowY: 'auto', color: 'var(--text)' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
+                <div>
+                  <div style={{ fontSize: 17, fontWeight: 700 }}>{sub.name}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text2)' }}>Payment ledger{sub.trade ? ' · ' + sub.trade : ''}</div>
+                </div>
+                <button onClick={() => { setPayModal(null); setPayForm(null) }} style={{ ...iconBtn, width: 30, height: 30 }}><i className="ti ti-x" style={{ fontSize: 15 }} /></button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 14 }}>
+                {[['Contract', AED(contract), 'var(--text)'], ['Paid', AED(paid), '#22c55e'], ['Balance', AED(bal), bal > 0 ? '#ef4444' : '#22c55e']].map(([k, v, c]) => (
+                  <div key={k} style={{ background: 'var(--bg2)', borderRadius: 9, padding: '9px 11px' }}><div style={{ fontSize: 10, color: 'var(--text3)' }}>{k}</div><div style={{ fontSize: 14, fontWeight: 700, color: c }}>{v}</div></div>
+                ))}
+              </div>
+              {!payForm && <button onClick={() => setPayForm({ amount: bal > 0 ? bal : '', paid_on: new Date().toISOString().slice(0, 10), method: 'Bank', reference: '', note: '' })} className="btn btn-primary btn-sm" style={{ width: '100%', marginBottom: 12 }}><i className="ti ti-plus" /> Record a payment</button>}
+              {payForm && (
+                <div style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 13, marginBottom: 12, background: 'var(--bg2)' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                    <div><label style={lbl}>Amount (AED)</label><input type="number" autoFocus value={payForm.amount} onChange={e => setPayForm(p => ({ ...p, amount: e.target.value }))} style={input} /></div>
+                    <div><label style={lbl}>Date</label><input type="date" value={payForm.paid_on} onChange={e => setPayForm(p => ({ ...p, paid_on: e.target.value }))} style={input} /></div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                    <div><label style={lbl}>Method</label><select value={payForm.method} onChange={e => setPayForm(p => ({ ...p, method: e.target.value }))} style={input}>{['Bank', 'Cash', 'Cheque', 'Online'].map(m => <option key={m} value={m}>{m}</option>)}</select></div>
+                    <div><label style={lbl}>Reference</label><input value={payForm.reference} onChange={e => setPayForm(p => ({ ...p, reference: e.target.value }))} style={input} placeholder="Cheque / txn no" /></div>
+                  </div>
+                  <label style={lbl}>Note</label><input value={payForm.note} onChange={e => setPayForm(p => ({ ...p, note: e.target.value }))} style={{ ...input, marginBottom: 10 }} placeholder="e.g. 1st milestone" />
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => setPayForm(null)} style={{ flex: 1, padding: 9, borderRadius: 9, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+                    <button onClick={savePayment} disabled={saving} style={{ flex: 1, padding: 9, borderRadius: 9, border: 'none', background: '#22c55e', color: '#fff', fontWeight: 600, fontSize: 13, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}>{saving ? 'Saving…' : 'Save payment'}</button>
+                  </div>
+                </div>
+              )}
+              {payList.length === 0 ? <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 13, padding: '20px 10px' }}>No payments recorded yet.</div>
+                : <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                  {payList.map(p => (
+                    <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 11px', borderRadius: 10, border: '1px solid var(--border)' }}>
+                      <div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(34,197,94,0.12)', color: '#22c55e', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><i className="ti ti-cash" style={{ fontSize: 16 }} /></div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: '#22c55e' }}>{AED(p.amount)}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text3)' }}>{fmtD(p.paid_on)}{p.method ? ' · ' + p.method : ''}{p.reference ? ' · ' + p.reference : ''}{p.note ? ' · ' + p.note : ''}</div>
+                      </div>
+                      <button onClick={() => setPayForm({ ...p, paid_on: p.paid_on || '' })} style={iconBtn}><i className="ti ti-edit" style={{ fontSize: 14 }} /></button>
+                      <button onClick={() => delPayment(p.id)} style={{ ...iconBtn, color: '#ef4444' }}><i className="ti ti-trash" style={{ fontSize: 14 }} /></button>
+                    </div>
+                  ))}
+                </div>}
+            </div>
+          </div>
+        )
+      })()}
       {scopeForm && <FormModal title={scopeForm.id ? 'Edit scope item' : 'Add scope item'} onClose={() => setScopeForm(null)} onSave={saveScopeItem} saving={saving}>
         <label style={lbl}>Description</label><input autoFocus value={scopeForm.description} onChange={e => setScopeForm(s => ({ ...s, description: e.target.value }))} style={{ ...input, marginBottom: 10 }} placeholder="e.g. Gypsum false ceiling — living room" />
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
