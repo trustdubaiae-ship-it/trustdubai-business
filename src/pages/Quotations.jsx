@@ -653,7 +653,8 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
       const hasReal = items.some(it => (it.desc || '').trim())
       if (editId || hasReal) {
         const existing = items.filter(it => (it.desc || '').trim())
-        setItems([...existing, ...mapped])
+        const flagged = mapped.map(it => ({ ...it, _new: true }))   // highlight as added-this-session
+        setItems([...existing, ...flagged])
         const trades = [...new Set(mapped.map(m => m.trade).filter(Boolean))]
         const where = (mode === 'boq' || mode === 'advanced') && trades.length ? ` under: ${trades.join(', ')}` : ''
         toast.success(`AI added ${mapped.length} new item${mapped.length > 1 ? 's' : ''}${where} — existing items kept ✓`)
@@ -1826,10 +1827,13 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
                 {items.map((it, idx) => {
                   const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
                   return (
-                    <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 54px 46px 66px 86px 28px', gap:7, padding:'8px 12px', alignItems:'flex-start', borderTop:`1px solid ${border}` }}>
-                      <textarea value={it.desc} onChange={e=>applyDesc(idx, e.target.value, false)} placeholder="Item description" rows={1}
-                        ref={el=>{ if(el){ el.style.height='auto'; el.style.height=el.scrollHeight+'px' } }}
-                        style={{ ...inputStyle, padding:'7px 8px', fontSize:12.5, resize:'none', overflow:'hidden', lineHeight:1.4 }}/>
+                    <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 54px 46px 66px 86px 28px', gap:7, padding:'8px 12px', alignItems:'flex-start', borderTop:`1px solid ${border}`, ...(it._new ? { background:isDark?'rgba(34,197,94,0.10)':'#ecfdf5', boxShadow:'inset 3px 0 0 #22c55e' } : {}) }}>
+                      <div style={{ position:'relative', minWidth:0 }}>
+                        {it._new && <span style={{ position:'absolute', top:-7, left:-1, fontSize:8, fontWeight:700, color:'#fff', background:'#22c55e', padding:'1px 5px', borderRadius:99, zIndex:1, letterSpacing:'.3px' }}>NEW</span>}
+                        <textarea value={it.desc} onChange={e=>applyDesc(idx, e.target.value, false)} placeholder="Item description" rows={1}
+                          ref={el=>{ if(el){ el.style.height='auto'; el.style.height=el.scrollHeight+'px' } }}
+                          style={{ ...inputStyle, width:'100%', boxSizing:'border-box', padding:'7px 8px', fontSize:12.5, resize:'none', overflow:'hidden', lineHeight:1.4 }}/>
+                      </div>
                       <select value={it.unit} onChange={e=>updateItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 4px', fontSize:11 }}>
                         {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
                       </select>
@@ -1868,10 +1872,13 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
                     {g.rows.map(({ it, idx }) => {
                       const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
                       return (
-                        <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 50px 44px 62px 82px 26px', gap:7, padding:'6px 12px', alignItems:'flex-start', borderTop:`1px solid ${border}` }}>
-                          <textarea value={it.desc} onChange={e=>applyDesc(idx, e.target.value, false)} placeholder="Item description" rows={1}
-                            ref={el=>{ if(el){ el.style.height='auto'; el.style.height=el.scrollHeight+'px' } }}
-                            style={{ ...inputStyle, padding:'7px 8px', fontSize:12, resize:'none', overflow:'hidden', lineHeight:1.4 }}/>
+                        <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 50px 44px 62px 82px 26px', gap:7, padding:'6px 12px', alignItems:'flex-start', borderTop:`1px solid ${border}`, ...(it._new ? { background:isDark?'rgba(34,197,94,0.10)':'#ecfdf5', boxShadow:'inset 3px 0 0 #22c55e' } : {}) }}>
+                          <div style={{ position:'relative', minWidth:0 }}>
+                            {it._new && <span style={{ position:'absolute', top:-7, left:-1, fontSize:8, fontWeight:700, color:'#fff', background:'#22c55e', padding:'1px 5px', borderRadius:99, zIndex:1, letterSpacing:'.3px' }}>NEW</span>}
+                            <textarea value={it.desc} onChange={e=>applyDesc(idx, e.target.value, false)} placeholder="Item description" rows={1}
+                              ref={el=>{ if(el){ el.style.height='auto'; el.style.height=el.scrollHeight+'px' } }}
+                              style={{ ...inputStyle, width:'100%', boxSizing:'border-box', padding:'7px 8px', fontSize:12, resize:'none', overflow:'hidden', lineHeight:1.4 }}/>
+                          </div>
                           <select value={it.unit} onChange={e=>updateItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 3px', fontSize:10.5 }}>
                             {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
                           </select>
