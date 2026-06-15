@@ -63,6 +63,12 @@ export default function ProjectsPage({ onNavigate }) {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => { if (company?.id) loadProjects() }, [company?.id])
+  // keep project progress in sync with milestone completion (weighted) — covers every edit path
+  useEffect(() => {
+    if (view !== 'detail' || !active || !milestones.length) return
+    const pct = weightedPct(milestones)
+    if (pct !== (Number(active.progress) || 0)) patchActive({ progress: pct })
+  }, [milestones, active?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadProjects() {
     setLoading(true)
@@ -289,12 +295,6 @@ export default function ProjectsPage({ onNavigate }) {
     }
     return Math.round((list.filter(m => m.status === 'done').length / list.length) * 100)
   }
-  async function syncProgressFromMilestones(rows) {
-    const list = rows || milestones
-    if (!list.length) return
-    const pct = weightedPct(list)
-    if (active && pct !== (active.progress || 0)) patchActive({ progress: pct })
-  }
   async function saveMilestone() {
     const x = msForm
     if (!x.title?.trim()) { toast.error('Milestone title is required'); return }
@@ -310,7 +310,7 @@ export default function ProjectsPage({ onNavigate }) {
   async function delMilestone(id) {
     try {
       await supabase.from('project_milestones').delete().eq('id', id).eq('company_id', company.id)
-      const next = milestones.filter(m => m.id !== id); setMilestones(next); syncProgressFromMilestones(next)
+      const next = milestones.filter(m => m.id !== id); setMilestones(next)
     } catch (e) { toast.error('Delete failed') }
   }
   async function cycleMilestone(m) {
@@ -320,7 +320,7 @@ export default function ProjectsPage({ onNavigate }) {
     try {
       await supabase.from('project_milestones').update(patch).eq('id', m.id).eq('company_id', company.id)
       const next = milestones.map(x => x.id === m.id ? { ...x, ...patch } : x)
-      setMilestones(next); syncProgressFromMilestones(next)
+      setMilestones(next)
     } catch (e) { toast.error('Update failed') }
   }
   async function seedDefaultStages() {
@@ -345,6 +345,8 @@ export default function ProjectsPage({ onNavigate }) {
   const clientReceived = invoices.reduce((s, i) => s + invPaid(i), 0)
   const clientOutstanding = Math.max(0, value - clientReceived)   // vs the contract value
   const netCash = clientReceived - subsPaid - totalExpenses        // actual money position
+  const workPct = milestones.length ? weightedPct(milestones) : (Number(active?.progress) || 0)
+  const paymentPct = value > 0 ? Math.min(100, Math.round((clientReceived / value) * 100)) : 0
 
   const card = { background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: 16 }
   const heroBg = 'linear-gradient(135deg, #0a2540 0%, #0d6e8f 45%, #6d28d9 130%)'
@@ -446,10 +448,6 @@ export default function ProjectsPage({ onNavigate }) {
               <span style={{ background: 'rgba(255,255,255,.18)', color: '#fff', fontSize: 10.5, fontWeight: 700, padding: '3px 10px', borderRadius: 99, border: '1px solid rgba(255,255,255,.25)' }}>{st.label}</span>
             </div>
             <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,.78)', marginTop: 2 }}><i className="ti ti-user" style={{ fontSize: 13, verticalAlign: '-1px' }} /> {active.client_name || 'No client'}{active.location ? ' · ' + active.location : ''}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 9, maxWidth: 420 }}>
-              <div style={{ flex: 1, height: 8, background: 'rgba(255,255,255,.18)', borderRadius: 99, overflow: 'hidden' }}><div style={{ width: (active.progress || 0) + '%', height: '100%', background: 'linear-gradient(90deg,#34d399,#22c55e)', borderRadius: 99, transition: 'width .35s ease' }} /></div>
-              <span style={{ fontSize: 12.5, fontWeight: 800, color: '#fff', flexShrink: 0 }}>{active.progress || 0}%</span>
-            </div>
           </div>
           <button onClick={() => editProject(active)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '9px 15px', borderRadius: 10, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(255,255,255,.12)', color: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}><i className="ti ti-edit" /> Edit</button>
           <button onClick={() => deleteProject(active.id)} style={{ width: 36, height: 36, borderRadius: 10, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(239,68,68,0.25)', color: '#fff', cursor: 'pointer', flexShrink: 0 }}><i className="ti ti-trash" style={{ fontSize: 15 }} /></button>
@@ -463,6 +461,23 @@ export default function ProjectsPage({ onNavigate }) {
         <StatTile icon="ti-coin" label="Site expenses" value={AED(totalExpenses)} color="#f59e0b" />
         <StatTile icon="ti-receipt" label="Total cost" value={AED(totalCost)} color="#ef4444" />
         <StatTile icon={margin >= 0 ? 'ti-trending-up' : 'ti-trending-down'} label={margin >= 0 ? 'Profit' : 'Loss'} value={AED(Math.abs(margin)) + (value > 0 ? ` · ${marginPct}%` : '')} color={margin >= 0 ? '#22c55e' : '#ef4444'} />
+      </div>
+
+      {/* live progress bars — work (from timeline) + payment (from invoices) */}
+      <div style={{ ...card, marginBottom: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px,1fr))', gap: 16 }}>
+        {[
+          { ic: 'ti-progress-check', label: 'Work progress', sub: milestones.length ? `${milestones.filter(m => m.status === 'done').length}/${milestones.length} stages` : 'No stages yet', pct: workPct, color: '#22c55e' },
+          { ic: 'ti-cash', label: 'Payment received', sub: `${AED(clientReceived)} of ${AED(value)}`, pct: paymentPct, color: '#0099cc' },
+        ].map(b => (
+          <div key={b.label}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 7 }}>
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 6 }}><i className={'ti ' + b.ic} style={{ color: b.color, fontSize: 15 }} /> {b.label}</span>
+              <span style={{ fontSize: 16, fontWeight: 800, color: b.color }}>{b.pct}%</span>
+            </div>
+            <div style={{ height: 9, background: 'var(--bg2)', borderRadius: 99, overflow: 'hidden' }}><div style={{ width: b.pct + '%', height: '100%', background: `linear-gradient(90deg, ${b.color}, ${b.color}aa)`, borderRadius: 99, transition: 'width .35s ease' }} /></div>
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 5 }}>{b.sub}</div>
+          </div>
+        ))}
       </div>
 
       {/* tabs */}
