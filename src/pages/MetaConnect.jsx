@@ -54,37 +54,38 @@ export default function MetaConnect({ onBack, onConnected }) {
     setConn(data || null); setLoading(false)
   }
 
-  // REAL Meta connect — Facebook Login → exchange token server-side → store page + subscribe leadgen.
-  async function connectMeta() {
-    setBusy(true)
+  // Runs AFTER the user authorizes in the popup (async work is fine here).
+  async function handleFbResponse(response) {
+    const token = response?.authResponse?.accessToken
+    if (!token) { toast.error('Facebook sign-in cancelled'); setBusy(false); return }
     try {
-      const FB = await loadFbSdk()
-      if (!FB) { toast.error('Facebook SDK not ready, please retry'); setBusy(false); return }
+      const { data, error } = await supabase.functions.invoke('meta-oauth-exchange', {
+        body: { company_id: company.id, token },
+      })
+      if (error)     { toast.error('Connect failed: ' + error.message); setBusy(false); return }
+      if (!data?.ok) { toast.error('Connect failed: ' + (data?.error || 'unknown')); setBusy(false); return }
 
-      FB.login(async (response) => {
-        try {
-          const token = response?.authResponse?.accessToken
-          if (!token) { toast.error('Facebook sign-in cancelled'); setBusy(false); return }
-
-          const { data, error } = await supabase.functions.invoke('meta-oauth-exchange', {
-            body: { company_id: company.id, token },
-          })
-          if (error)        { toast.error('Connect failed: ' + error.message); setBusy(false); return }
-          if (!data?.ok)    { toast.error('Connect failed: ' + (data?.error || 'unknown')); setBusy(false); return }
-
-          const pages = data.connected || []
-          const subscribed = pages.filter(p => p.subscribed).length
-          toast.success(`Connected ${pages.length} page(s)` + (subscribed ? ` · ${subscribed} ready for leads` : ''))
-          await load()
-          setBusy(false)
-          if (onConnected) onConnected()
-        } catch (e) {
-          toast.error('Connect failed'); setBusy(false)
-        }
-      }, { scope: FB_SCOPES })
+      const pages = data.connected || []
+      const subscribed = pages.filter(p => p.subscribed).length
+      toast.success(`Connected ${pages.length} page(s)` + (subscribed ? ` · ${subscribed} ready for leads` : ''))
+      await load()
+      setBusy(false)
+      if (onConnected) onConnected()
     } catch (e) {
-      toast.error('Could not start Facebook sign-in'); setBusy(false)
+      toast.error('Connect failed'); setBusy(false)
     }
+  }
+
+  // REAL Meta connect. IMPORTANT: FB.login must be called synchronously inside the
+  // click handler (no await before it) or the browser blocks the popup.
+  function connectMeta() {
+    if (!window.FB) {
+      toast.error('Facebook is still loading — please try again in a moment')
+      loadFbSdk()
+      return
+    }
+    setBusy(true)
+    window.FB.login(handleFbResponse, { scope: FB_SCOPES, return_scopes: true })
   }
 
   async function disconnect() {
