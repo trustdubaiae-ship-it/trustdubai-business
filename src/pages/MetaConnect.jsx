@@ -85,7 +85,7 @@ export default function MetaConnect({ onBack, onConnected }) {
       return
     }
     setBusy(true)
-    window.FB.login(handleFbResponse, { scope: FB_SCOPES, return_scopes: true })
+    window.FB.login(function (response) { handleFbResponse(response) }, { scope: FB_SCOPES, return_scopes: true })
   }
 
   async function disconnect() {
