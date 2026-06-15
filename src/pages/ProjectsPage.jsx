@@ -40,6 +40,7 @@ export default function ProjectsPage({ onNavigate }) {
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
   const [projects, setProjects] = useState([])
   const [recvByProject, setRecvByProject] = useState({}) // projectId -> client amount received (from invoices)
+  const [summary, setSummary] = useState(null)           // company-wide rollup for the dashboard
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState('list')
   const [active, setActive] = useState(null)
@@ -87,7 +88,30 @@ export default function ProjectsPage({ onNavigate }) {
         recv[p.id] = matched.reduce((s, iv) => s + sumPay(iv), 0)
       })
       setRecvByProject(recv)
-    } catch (e) { console.error('recvByProject', e) }
+      // company-wide rollup for the dashboard
+      const [{ data: allSubs }, { data: allExp }] = await Promise.all([
+        supabase.from('project_subcontractors').select('name,contract_amount,paid_amount').eq('company_id', company.id).limit(5000),
+        supabase.from('site_expenses').select('amount').eq('company_id', company.id).limit(5000),
+      ])
+      const num = v => Number(v) || 0
+      const totalContract = projs.reduce((s, p) => s + num(p.contract_value), 0)
+      const totalReceived = Object.values(recv).reduce((s, v) => s + num(v), 0)
+      const subContract = (allSubs || []).reduce((s, x) => s + num(x.contract_amount), 0)
+      const subPaid = (allSubs || []).reduce((s, x) => s + num(x.paid_amount), 0)
+      const siteSpend = (allExp || []).reduce((s, x) => s + num(x.amount), 0)
+      const totalCost = subContract + siteSpend
+      // top subcontractors by outstanding balance (merge same names across projects)
+      const map = {}
+      ;(allSubs || []).forEach(x => { const k = (x.name || '').trim().toLowerCase(); if (!k) return; const m = map[k] || { name: x.name, contract: 0, paid: 0 }; m.contract += num(x.contract_amount); m.paid += num(x.paid_amount); map[k] = m })
+      const topSubs = Object.values(map).map(m => ({ ...m, balance: m.contract - m.paid })).sort((a, b) => b.balance - a.balance).slice(0, 5)
+      setSummary({
+        totalContract, totalReceived, totalOutstanding: Math.max(0, totalContract - totalReceived),
+        subContract, subPaid, subBalance: subContract - subPaid, siteSpend, totalCost,
+        profit: totalContract - totalCost,
+        counts: { total: projs.length, ongoing: projs.filter(p => p.status === 'ongoing').length, completed: projs.filter(p => p.status === 'completed').length, planning: projs.filter(p => p.status === 'planning').length, on_hold: projs.filter(p => p.status === 'on_hold').length },
+        topSubs,
+      })
+    } catch (e) { console.error('summary', e) }
   }
   // Auto-create a project for any approved quotation that doesn't have one yet.
   async function backfillFromQuotes() {
@@ -404,14 +428,48 @@ export default function ProjectsPage({ onNavigate }) {
           </div>
         </div>
 
-        {projects.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px,1fr))', gap: 10, marginBottom: 16 }}>
-            <StatTile icon="ti-stack-2" label="Total projects" value={projects.length} color="#0099cc" />
-            <StatTile icon="ti-progress" label="Ongoing" value={totals.ongoing} color="#f59e0b" />
-            <StatTile icon="ti-circle-check" label="Completed" value={totalCompleted} color="#22c55e" />
-            <StatTile icon="ti-wallet" label="Total value" value={AED(totals.value)} color="#8b5cf6" />
-          </div>
-        )}
+        {projects.length > 0 && (() => {
+          const s = summary || { totalContract: totals.value, totalReceived: 0, totalOutstanding: totals.value, totalCost: 0, profit: totals.value, subBalance: 0, siteSpend: 0, counts: { total: projects.length, ongoing: totals.ongoing, completed: totalCompleted, planning: 0, on_hold: 0 }, topSubs: [] }
+          const mPct = s.totalContract > 0 ? Math.round((s.profit / s.totalContract) * 100) : 0
+          return (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(155px,1fr))', gap: 10, marginBottom: 10 }}>
+                <StatTile icon="ti-wallet" label="Total value" value={AED(s.totalContract)} color="#0099cc" />
+                <StatTile icon="ti-cash" label="Received" value={AED(s.totalReceived)} color="#22c55e" />
+                <StatTile icon="ti-clock-dollar" label="Outstanding" value={AED(s.totalOutstanding)} color="#f59e0b" />
+                <StatTile icon="ti-receipt" label="Total cost" value={AED(s.totalCost)} color="#ef4444" />
+                <StatTile icon={s.profit >= 0 ? 'ti-trending-up' : 'ti-trending-down'} label={s.profit >= 0 ? 'Profit' : 'Loss'} value={AED(Math.abs(s.profit)) + (s.totalContract > 0 ? ` · ${mPct}%` : '')} color={s.profit >= 0 ? '#22c55e' : '#ef4444'} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(270px,1fr))', gap: 10 }}>
+                <div style={{ ...card, padding: '13px 15px' }}>
+                  <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text2)', marginBottom: 10 }}><i className="ti ti-chart-pie" style={{ color: '#0099cc' }} /> Project status</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
+                    {[['Total', s.counts.total, 'var(--text)'], ['Ongoing', s.counts.ongoing, '#0099cc'], ['Completed', s.counts.completed, '#22c55e'], ['Planning', s.counts.planning, '#64748b'], ['On hold', s.counts.on_hold, '#f59e0b']].map(([k, v, c]) => (
+                      <div key={k}><div style={{ fontSize: 20, fontWeight: 800, color: c }}>{v}</div><div style={{ fontSize: 10.5, color: 'var(--text3)' }}>{k}</div></div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: 14, marginTop: 12, paddingTop: 11, borderTop: '1px solid var(--border)' }}>
+                    <div><div style={{ fontSize: 13.5, fontWeight: 700, color: '#8b5cf6' }}>{AED(s.subBalance)}</div><div style={{ fontSize: 10.5, color: 'var(--text3)' }}>Owed to subs</div></div>
+                    <div><div style={{ fontSize: 13.5, fontWeight: 700, color: '#f59e0b' }}>{AED(s.siteSpend)}</div><div style={{ fontSize: 10.5, color: 'var(--text3)' }}>Site spend</div></div>
+                  </div>
+                </div>
+                <div style={{ ...card, padding: '13px 15px' }}>
+                  <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text2)', marginBottom: 10 }}><i className="ti ti-users-group" style={{ color: '#8b5cf6' }} /> Top subcontractors · balance owed</div>
+                  {s.topSubs.length === 0 ? <div style={{ fontSize: 12, color: 'var(--text3)', padding: '8px 0' }}>No subcontractors yet.</div>
+                    : <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {s.topSubs.map((t, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                          <span style={{ width: 22, height: 22, borderRadius: 6, background: 'rgba(139,92,246,0.12)', color: '#8b5cf6', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{i + 1}</span>
+                          <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.name}</div>
+                          <div style={{ textAlign: 'right' }}><div style={{ fontSize: 12.5, fontWeight: 700, color: t.balance > 0 ? '#ef4444' : '#22c55e' }}>{AED(t.balance)}</div></div>
+                        </div>
+                      ))}
+                    </div>}
+                </div>
+              </div>
+            </div>
+          )
+        })()}
 
         {loading ? <div style={{ textAlign: 'center', padding: 40, color: 'var(--text3)' }}>Loading…</div>
           : projects.length === 0 ? (
