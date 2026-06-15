@@ -39,6 +39,7 @@ export default function ProjectsPage({ onNavigate }) {
   const toast = useToast()
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
   const [projects, setProjects] = useState([])
+  const [recvByProject, setRecvByProject] = useState({}) // projectId -> client amount received (from invoices)
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState('list')
   const [active, setActive] = useState(null)
@@ -74,7 +75,19 @@ export default function ProjectsPage({ onNavigate }) {
     setLoading(true)
     await backfillFromQuotes()
     const { data } = await supabase.from('ops_projects').select('*').eq('company_id', company.id).order('created_at', { ascending: false }).limit(500)
-    setProjects(data || []); setLoading(false)
+    const projs = data || []
+    setProjects(projs); setLoading(false)
+    // received per project from linked invoices (for the card payment bar)
+    try {
+      const { data: invs } = await supabase.from('invoices').select('quotation_id,client_id,payments').eq('company_id', company.id).limit(2000)
+      const sumPay = iv => (Array.isArray(iv.payments) ? iv.payments : []).reduce((a, x) => a + (Number(x.amount) || 0), 0)
+      const recv = {}
+      projs.forEach(p => {
+        const matched = (invs || []).filter(iv => (p.quote_id && iv.quotation_id === p.quote_id) || (!p.quote_id && p.client_id && iv.client_id === p.client_id))
+        recv[p.id] = matched.reduce((s, iv) => s + sumPay(iv), 0)
+      })
+      setRecvByProject(recv)
+    } catch (e) { console.error('recvByProject', e) }
   }
   // Auto-create a project for any approved quotation that doesn't have one yet.
   async function backfillFromQuotes() {
@@ -421,8 +434,18 @@ export default function ProjectsPage({ onNavigate }) {
                     </div>
                     {p.client_name && <div style={{ fontSize: 12.5, color: 'var(--text2)' }}><i className="ti ti-user" style={{ fontSize: 13, verticalAlign: '-1px' }} /> {p.client_name}</div>}
                     <div style={{ fontSize: 18, fontWeight: 800, color: '#0099cc', letterSpacing: '-.3px' }}>{AED(p.contract_value)}</div>
-                    <div style={{ height: 7, background: 'var(--bg2)', borderRadius: 99, overflow: 'hidden' }}><div style={{ width: (p.progress || 0) + '%', height: '100%', background: `linear-gradient(90deg, ${st.color}, ${st.color}aa)`, borderRadius: 99, transition: 'width .3s ease' }} /></div>
-                    <div style={{ fontSize: 11, color: 'var(--text3)', display: 'flex', justifyContent: 'space-between' }}><span>{p.progress || 0}% done</span><span><i className="ti ti-flag" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {fmtD(p.end_date)}</span></div>
+                    {(() => {
+                      const recv = Number(recvByProject[p.id]) || 0
+                      const payPct = Number(p.contract_value) > 0 ? Math.min(100, Math.round((recv / Number(p.contract_value)) * 100)) : 0
+                      return (
+                        <>
+                          <div style={{ height: 7, background: 'var(--bg2)', borderRadius: 99, overflow: 'hidden' }}><div style={{ width: (p.progress || 0) + '%', height: '100%', background: `linear-gradient(90deg, ${st.color}, ${st.color}aa)`, borderRadius: 99, transition: 'width .3s ease' }} /></div>
+                          <div style={{ fontSize: 11, color: 'var(--text3)', display: 'flex', justifyContent: 'space-between' }}><span><i className="ti ti-progress-check" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {p.progress || 0}% work</span><span><i className="ti ti-flag" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {fmtD(p.end_date)}</span></div>
+                          <div style={{ height: 7, background: 'var(--bg2)', borderRadius: 99, overflow: 'hidden', marginTop: 2 }}><div style={{ width: payPct + '%', height: '100%', background: 'linear-gradient(90deg,#0099cc,#0099ccaa)', borderRadius: 99, transition: 'width .3s ease' }} /></div>
+                          <div style={{ fontSize: 11, color: 'var(--text3)', display: 'flex', justifyContent: 'space-between' }}><span><i className="ti ti-cash" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {payPct}% paid</span><span>{AED(recv)}</span></div>
+                        </>
+                      )
+                    })()}
                   </div>
                 )
               })}
@@ -495,10 +518,6 @@ export default function ProjectsPage({ onNavigate }) {
               <select value={active.status} onChange={e => patchActive({ status: e.target.value })} style={input}>
                 {Object.entries(PSTATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
               </select>
-            </div>
-            <div>
-              <label style={lbl}>Progress · {active.progress || 0}%{milestones.length > 0 ? ' · auto from Timeline' : ''}</label>
-              <input type="range" min={0} max={100} step={5} value={active.progress || 0} onChange={e => setActive(a => ({ ...a, progress: Number(e.target.value) }))} onMouseUp={e => patchActive({ progress: Number(e.target.value) })} onTouchEnd={e => patchActive({ progress: Number(e.target.value) })} style={{ width: '100%' }} />
             </div>
             <div><label style={lbl}>Start date</label><input type="date" value={active.start_date || ''} onChange={e => patchActive({ start_date: e.target.value || null })} style={input} /></div>
             <div><label style={lbl}>Target end</label><input type="date" value={active.end_date || ''} onChange={e => patchActive({ end_date: e.target.value || null })} style={input} /></div>
