@@ -259,25 +259,19 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
       <div style="background:#1a1a1a;color:#9a9a9a;font-size:8.5px;text-align:center;padding:9px;margin-top:20px;">${cName} · ${cPhone}${trn ? ' · TRN ' + trn : ''}</div>
     </div>`
   }
-  // Print from a hidden iframe → straight to the Print / Save-as-PDF dialog (no blank pop-up).
+  // Open a print window whose <title> = the filename (browsers use the printed
+  // window's title for the Save-as-PDF name). Auto-prints and auto-closes.
   function printInvoice(inv) {
     const fname = `${inv.invoice_number || 'Invoice'}${inv.client_name ? ' ' + inv.client_name : ''}`
-    const doc = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(fname)}</title>
-      <style>* { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } @page{ size:A4; margin:10mm } html,body{ margin:0; background:#fff }</style>
-      </head><body>${buildInvoiceHTML(inv)}</body></html>`
-    const iframe = document.createElement('iframe')
-    iframe.setAttribute('aria-hidden', 'true')
-    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;'
-    iframe.onload = () => {
-      const win = iframe.contentWindow
-      let done = false
-      const cleanup = () => { if (done) return; done = true; try { iframe.remove() } catch (e) {} }
-      try { win.onafterprint = cleanup } catch (e) {}
-      setTimeout(() => { try { win.focus(); win.print() } catch (e) {} }, 300)
-      setTimeout(cleanup, 60000)
-    }
-    iframe.srcdoc = doc
-    document.body.appendChild(iframe)
+    const w = window.open('', '_blank')
+    if (!w) { toast.error('Allow pop-ups for Print / PDF'); return }
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(fname)}</title>
+      <style>@page{ size:A4; margin:10mm } * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; } html,body{ margin:0; background:#fff }</style>
+      </head><body>${buildInvoiceHTML(inv)}<script>
+        window.onload=function(){ setTimeout(function(){ try{ window.focus(); window.print(); }catch(e){} }, 350); };
+        window.onafterprint=function(){ window.close(); };
+      <\/script></body></html>`)
+    w.document.close()
   }
   function whatsappInvoice(inv) {
     const payments = parsePayments(inv.payments)

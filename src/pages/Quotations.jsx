@@ -92,8 +92,11 @@ function parseWhyTpl(raw) {
   return String(raw).split('\n').filter(l => l.trim()).map(l => ({ title: l.trim(), detail: '' }))
 }
 function parsePaymentTpl(raw) {
-  if (Array.isArray(raw) && raw.length) {
-    return raw.map(x => (typeof x === 'object'
+  // payment_terms can come back as a real array (jsonb) OR a JSON string (text column).
+  let arr = raw
+  if (typeof raw === 'string') { try { arr = JSON.parse(raw) } catch { return [] } }
+  if (Array.isArray(arr) && arr.length) {
+    return arr.map(x => (x && typeof x === 'object'
       ? { percent: Number(x.percent) || 0, label: x.label || '', description: x.description || '' }
       : { percent: 0, label: String(x), description: '' }))
   }
@@ -787,6 +790,10 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     if (validItems.length === 0) { toast.error('Add at least one line item'); return }
     setSaving(true)
     try {
+      // Normalise the payment schedule to a clean array, then store it as a JSON
+      // string (same as why_choose_us) so it round-trips reliably on edit/preview.
+      const payTermsArr = payTerms.length ? payTerms
+        : (selectedPreset?.payment?.length ? selectedPreset.payment : parsePaymentTpl(tpl?.payment_schedule))
       const payload = {
         client_id: client.id, client_uid: client.uid, source_uid: client.uid,
         client_name: client.name, client_phone: client.phone || null,
@@ -803,7 +810,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         })),
         subtotal, vat_amount: vatAmount, total: grandTotal,
         discount_type: discountType || null, discount_value: Number(discountValue) || 0, vat_enabled: vatEnabled,
-        payment_terms: payTerms.length ? payTerms : (selectedPreset?.payment || tpl?.payment_schedule || null),
+        payment_terms: JSON.stringify(Array.isArray(payTermsArr) ? payTermsArr : []),
         why_choose_us: selectedPreset ? JSON.stringify(selectedPreset.whyUs) : (tpl?.why_choose_us || null),
         terms: quoteTerms.trim() || (selectedPreset?.terms || tpl?.default_terms || null),
         work_type: workType || null,
@@ -1225,30 +1232,19 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     </div>`
   }
 
-  // Print straight from a hidden iframe → goes directly to the browser's
-  // Print / Save-as-PDF dialog. No blank pop-up window, no extra toolbar click.
+  // Open a print window whose own <title> = the filename (browsers use the printed
+  // window's title for the Save-as-PDF name — the only reliable way). It auto-prints
+  // and auto-closes, so there's no toolbar or extra click.
   function printDoc(html, title) {
-    const safeTitle = escapeHtml(title || 'Document')
-    const doc = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${safeTitle}</title>
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <style>
-        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
-        html, body { margin:0; background:#fff; }
-        @page { size: A4; margin: 12mm; }
-      </style></head><body>${html}</body></html>`
-    const iframe = document.createElement('iframe')
-    iframe.setAttribute('aria-hidden', 'true')
-    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;'
-    iframe.onload = () => {
-      const win = iframe.contentWindow
-      let done = false
-      const cleanup = () => { if (done) return; done = true; try { iframe.remove() } catch (e) {} }
-      try { win.onafterprint = cleanup } catch (e) {}
-      setTimeout(() => { try { win.focus(); win.print() } catch (e) {} }, 300)
-      setTimeout(cleanup, 60000)   // fallback cleanup if afterprint never fires
-    }
-    iframe.srcdoc = doc
-    document.body.appendChild(iframe)
+    const w = window.open('', '_blank')
+    if (!w) { toast.error('Allow pop-ups for Print / PDF'); return }
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title || 'Document')}</title>
+      <style>@page{ size:A4; margin:12mm } * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; } html,body{ margin:0; background:#fff }</style>
+      </head><body>${html}<script>
+        window.onload=function(){ setTimeout(function(){ try{ window.focus(); window.print(); }catch(e){} }, 350); };
+        window.onafterprint=function(){ window.close(); };
+      <\/script></body></html>`)
+    w.document.close()
   }
   // Default PDF filename = quote ref + revision + client, e.g. "SJID006-rev01 Mr XXX"
   function pdfName(q) {
