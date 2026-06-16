@@ -8,6 +8,7 @@ const STATUS_STYLE = {
   partial: { label: 'Partial', color: '#92400e', bg: '#fef9ed' },
   paid:    { label: 'Paid',    color: '#0f6e56', bg: '#e1f5ee' },
 }
+const PAY_METHODS = ['Cash', 'Bank Transfer', 'Card', 'Cheque', 'Online']
 const todayStr = () => new Date().toISOString().slice(0, 10)
 const fmt = n => 'AED ' + Math.round(Number(n) || 0).toLocaleString('en-AE')
 const num = n => Math.round(Number(n) || 0).toLocaleString('en-AE')
@@ -53,7 +54,8 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
   const [active, setActive] = useState(null)
   const [payAmount, setPayAmount] = useState('')
   const [payDate, setPayDate] = useState(todayStr())
-  const [payMethod, setPayMethod] = useState('')
+  const [payMethod, setPayMethod] = useState('Cash')
+  const [payRef, setPayRef] = useState('')
   const [payNote, setPayNote] = useState('')
 
   useEffect(() => {
@@ -77,7 +79,7 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
   }
 
   function openCreate() { setSelQuote(null); setInvType('full'); setIssueDate(todayStr()); setDueDate(''); setQuoteSearch(''); fetchApprovedQuotes(); setView('create') }
-  function openDetail(inv) { setActive(inv); setPayAmount(''); setPayMethod(''); setPayNote(''); setPayDate(todayStr()); setView('detail') }
+  function openDetail(inv) { setActive(inv); setPayAmount(''); setPayMethod('Cash'); setPayRef(''); setPayNote(''); setPayDate(todayStr()); setView('detail') }
 
   async function createInvoice() {
     if (!selQuote) { toast.error('Select an approved quote'); return }
@@ -143,8 +145,8 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
     if (amt > balance + 0.5) {
       if (!window.confirm(`This payment (${fmtN(amt)}) is more than the outstanding balance (${fmtN(balance)}). Record it anyway?`)) return
     }
-    const newP = [...parsePayments(active.payments), { amount: amt, date: payDate || todayStr(), method: payMethod.trim() || 'Cash', note: payNote.trim() || '' }]
-    if (await savePayments(active, newP)) { setPayAmount(''); setPayMethod(''); setPayNote(''); toast.success('Payment recorded ✓') }
+    const newP = [...parsePayments(active.payments), { amount: amt, date: payDate || todayStr(), method: payMethod || 'Cash', reference: payRef.trim() || '', note: payNote.trim() || '' }]
+    if (await savePayments(active, newP)) { setPayAmount(''); setPayMethod('Cash'); setPayRef(''); setPayNote(''); toast.success('Payment recorded ✓') }
   }
   async function removePayment(idx) {
     const newP = parsePayments(active.payments).filter((_, i) => i !== idx)
@@ -185,7 +187,7 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
     </tr>`).join('')
     const payRows = payments.map(p => `<tr>
       <td style="${td}">${dateStr(p.date)}</td>
-      <td style="${td}">${escapeHtml(p.method || '')}${p.note ? ' · ' + escapeHtml(p.note) : ''}</td>
+      <td style="${td}">${escapeHtml(p.method || '')}${p.reference ? ' · Ref ' + escapeHtml(p.reference) : ''}${p.note ? ' · ' + escapeHtml(p.note) : ''}</td>
       <td style="${td}text-align:right;color:#0f6e56;">AED ${n(p.amount)}</td>
     </tr>`).join('')
     const logoBox = cLogo
@@ -425,7 +427,7 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
           {payments.length === 0 && <div style={{ fontSize: 12, color: textMuted, marginBottom: 10 }}>No payments recorded yet.</div>}
           {payments.map((p, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, padding: '6px 0', borderBottom: `1px solid ${border}` }}>
-              <div style={{ flex: 1 }}><span style={{ fontWeight: 600, color: text }}>{fmt(p.amount)}</span> <span style={{ color: textSub }}>· {p.method}</span>{p.note ? <span style={{ color: textMuted }}> · {p.note}</span> : ''}</div>
+              <div style={{ flex: 1 }}><span style={{ fontWeight: 600, color: text }}>{fmt(p.amount)}</span> <span style={{ color: textSub }}>· {p.method}</span>{p.reference ? <span style={{ color: textMuted }}> · Ref {p.reference}</span> : ''}{p.note ? <span style={{ color: textMuted }}> · {p.note}</span> : ''}</div>
               <span style={{ fontSize: 11, color: textMuted }}>{p.date ? new Date(p.date).toLocaleDateString('en-GB') : ''}</span>
               <i className="ti ti-x" onClick={() => removePayment(i)} style={{ fontSize: 14, color: textMuted, cursor: 'pointer' }} />
             </div>
@@ -435,9 +437,12 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                 <input type="number" value={payAmount} onChange={e => setPayAmount(e.target.value)} placeholder={`Amount (bal ${num(bal)})`} style={inputStyle} />
                 <input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} style={inputStyle} />
-                <input value={payMethod} onChange={e => setPayMethod(e.target.value)} placeholder="Method (Cash, Bank…)" style={inputStyle} />
-                <input value={payNote} onChange={e => setPayNote(e.target.value)} placeholder="Note (optional)" style={inputStyle} />
+                <select value={payMethod} onChange={e => setPayMethod(e.target.value)} style={inputStyle} title="How did the client pay?">
+                  {PAY_METHODS.map(m => <option key={m} value={m} style={{ background: inputBg, color: text }}>{m}</option>)}
+                </select>
+                <input value={payRef} onChange={e => setPayRef(e.target.value)} placeholder="Reference (txn/cheque no.)" style={inputStyle} />
               </div>
+              <input value={payNote} onChange={e => setPayNote(e.target.value)} placeholder="Note (optional)" style={{ ...inputStyle, marginBottom: 8 }} />
               {payVal > 0 && vatFrac > 0 && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', background: isDark ? 'rgba(0,153,204,0.08)' : '#f0faff', border: `1px solid ${isDark ? 'rgba(0,153,204,0.25)' : '#bae6fd'}`, borderRadius: 8, padding: '7px 11px', marginBottom: 8, fontSize: 12 }}>
                   <span style={{ color: textSub }}>Of {fmt(payVal)} received:</span>

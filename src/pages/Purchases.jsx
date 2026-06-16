@@ -34,7 +34,7 @@ function statusOf(total, paid) {
 const blankPurchase = () => ({
   id: null, supplier_id: '', supplier_name: '', supplier_trn: '', invoice_number: '',
   invoice_date: todayStr(), category: 'Material', description: '',
-  project_id: '', project_name: '', purchased_by: '',
+  client_id: '', client_name: '', purchased_by: '',
   amount: '', hasVat: true, amountType: 'gross', method: 'Cash', payment_remark: '', paid: '', notes: '',
 })
 const blankSupplier = () => ({ id: null, name: '', trn: '', phone: '', email: '', address: '', notes: '' })
@@ -48,7 +48,7 @@ export default function Purchases() {
   const [tab, setTab] = useState('purchases')         // purchases | suppliers
   const [purchases, setPurchases] = useState([])
   const [suppliers, setSuppliers] = useState([])
-  const [projects, setProjects] = useState([])
+  const [clients, setClients] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
 
@@ -68,14 +68,14 @@ export default function Purchases() {
   async function load() {
     setLoading(true)
     try {
-      const [pRes, sRes, prjRes] = await Promise.all([
+      const [pRes, sRes, cRes] = await Promise.all([
         supabase.from('purchase_invoices').select('*').eq('company_id', company.id).order('invoice_date', { ascending: false }),
         supabase.from('suppliers').select('*').eq('company_id', company.id).order('name'),
-        supabase.from('ops_projects').select('id, name').eq('company_id', company.id).order('created_at', { ascending: false }),
+        supabase.from('clients').select('id, name').eq('company_id', company.id).order('name'),
       ])
       setPurchases(pRes.data || [])
       setSuppliers(sRes.data || [])
-      setProjects(prjRes.data || [])
+      setClients(cRes.data || [])
     } catch (e) { /* keep usable */ } finally { setLoading(false) }
   }
 
@@ -86,20 +86,22 @@ export default function Purchases() {
       id: p.id, supplier_id: p.supplier_id || '', supplier_name: p.supplier_name || '', supplier_trn: p.supplier_trn || '',
       invoice_number: p.invoice_number || '', invoice_date: (p.invoice_date || '').slice(0, 10) || todayStr(),
       category: p.category || 'Material', description: p.description || '',
-      project_id: p.project_id || '', project_name: p.project_name || '', purchased_by: p.purchased_by || '',
+      client_id: p.client_id || '', client_name: p.client_name || '', purchased_by: p.purchased_by || '',
       amount: String(p.subtotal ?? ''), hasVat: Number(p.vat_amount) > 0, amountType: 'net',
       method: p.method || 'Cash', payment_remark: p.payment_remark || '',
       paid: p.paid ? String(p.paid) : '', notes: p.notes || '',
     })
     setPModal(true)
   }
-  function pickSupplier(id) {
-    const s = suppliers.find(x => x.id === id)
-    setPForm(f => ({ ...f, supplier_id: id, supplier_name: s ? s.name : f.supplier_name, supplier_trn: s ? (s.trn || '') : f.supplier_trn }))
+  // Type-or-pick fields (single input + datalist): match a typed name to a saved
+  // row so we keep its id, else treat it as free text (id cleared).
+  function setSupplierName(val) {
+    const s = suppliers.find(x => x.name === val)
+    setPForm(f => ({ ...f, supplier_name: val, supplier_id: s ? s.id : '', supplier_trn: s ? (s.trn || '') : f.supplier_trn }))
   }
-  function pickProject(id) {
-    const p = projects.find(x => x.id === id)
-    setPForm(f => ({ ...f, project_id: id, project_name: p ? p.name : f.project_name }))
+  function setClientName(val) {
+    const c = clients.find(x => x.name === val)
+    setPForm(f => ({ ...f, client_name: val, client_id: c ? c.id : '' }))
   }
   async function savePurchase() {
     if (!pForm.supplier_name.trim()) { toast.error('Enter or pick a supplier'); return }
@@ -113,7 +115,7 @@ export default function Purchases() {
         supplier_trn: pForm.supplier_trn.trim() || null, invoice_number: pForm.invoice_number.trim() || null,
         invoice_date: pForm.invoice_date || todayStr(), category: pForm.category || 'Material',
         description: pForm.description.trim() || null, subtotal: net, vat_rate: pForm.hasVat ? VAT_RATE : 0, vat_amount: vat, total,
-        project_id: pForm.project_id || null, project_name: pForm.project_name.trim() || null, purchased_by: pForm.purchased_by.trim() || null,
+        client_id: pForm.client_id || null, client_name: pForm.client_name.trim() || null, purchased_by: pForm.purchased_by.trim() || null,
         method: pForm.method || 'Cash', payment_remark: pForm.payment_remark.trim() || null,
         paid, status: statusOf(total, paid), notes: pForm.notes.trim() || null,
       }
@@ -253,7 +255,7 @@ export default function Purchases() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13.5, fontWeight: 600, color: text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.supplier_name || '—'}</div>
                       <div style={{ fontSize: 11.5, color: textSub, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {[p.category, p.project_name, p.invoice_number, p.method, p.purchased_by].filter(Boolean).join(' · ') || '—'}{Number(p.vat_amount) > 0 ? ` · VAT ${fmt(p.vat_amount)}` : ''}
+                        {[p.category, p.client_name, p.invoice_number, p.method, p.purchased_by].filter(Boolean).join(' · ') || '—'}{Number(p.vat_amount) > 0 ? ` · VAT ${fmt(p.vat_amount)}` : ''}
                       </div>
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -323,16 +325,11 @@ export default function Purchases() {
               <button onClick={() => setPModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: textMuted, fontSize: 18 }}><i className="ti ti-x" /></button>
             </div>
             <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 11 }}>
-              {/* supplier */}
+              {/* supplier — one field: type or pick a saved supplier */}
               <div>
-                <label style={{ fontSize: 11, color: textMuted, display: 'block', marginBottom: 3 }}>Supplier</label>
-                {suppliers.length > 0 && (
-                  <select value={pForm.supplier_id} onChange={e => pickSupplier(e.target.value)} style={{ ...inputStyle, marginBottom: 6 }}>
-                    <option value="">— Pick a saved supplier or type below —</option>
-                    {suppliers.map(s => <option key={s.id} value={s.id} style={{ background: inputBg, color: text }}>{s.name}{s.trn ? ` (TRN ${s.trn})` : ''}</option>)}
-                  </select>
-                )}
-                <input value={pForm.supplier_name} onChange={e => setPForm(f => ({ ...f, supplier_id: '', supplier_name: e.target.value }))} placeholder="Supplier / vendor name" style={inputStyle} />
+                <label style={{ fontSize: 11, color: textMuted, display: 'block', marginBottom: 3 }}>Supplier {pForm.supplier_id && <span style={{ color: '#0f6e56' }}>· saved ✓</span>}</label>
+                <input list="purchase-supplier-dl" value={pForm.supplier_name} onChange={e => setSupplierName(e.target.value)} placeholder="Type or pick a supplier…" style={inputStyle} />
+                <datalist id="purchase-supplier-dl">{suppliers.map(s => <option key={s.id} value={s.name} />)}</datalist>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div><label style={{ fontSize: 11, color: textMuted, display: 'block', marginBottom: 3 }}>Bill / invoice no.</label><input value={pForm.invoice_number} onChange={e => setPForm(f => ({ ...f, invoice_number: e.target.value }))} placeholder="e.g. ACE-2291" style={inputStyle} /></div>
@@ -345,16 +342,11 @@ export default function Purchases() {
                 <div><label style={{ fontSize: 11, color: textMuted, display: 'block', marginBottom: 3 }}>Amount (AED)</label><input type="number" value={pForm.amount} onChange={e => setPForm(f => ({ ...f, amount: e.target.value }))} placeholder="0" style={inputStyle} /></div>
               </div>
               <div><label style={{ fontSize: 11, color: textMuted, display: 'block', marginBottom: 3 }}>Description <span>(optional)</span></label><input value={pForm.description} onChange={e => setPForm(f => ({ ...f, description: e.target.value }))} placeholder="What did you buy?" style={inputStyle} /></div>
-              {/* Project / purpose — what was this purchase for */}
+              {/* For client / job — who/what this purchase was for */}
               <div>
-                <label style={{ fontSize: 11, color: textMuted, display: 'block', marginBottom: 3 }}>For project / purpose <span>(optional)</span></label>
-                {projects.length > 0 && (
-                  <select value={pForm.project_id} onChange={e => pickProject(e.target.value)} style={{ ...inputStyle, marginBottom: 6 }}>
-                    <option value="">— Pick a project or type below —</option>
-                    {projects.map(p => <option key={p.id} value={p.id} style={{ background: inputBg, color: text }}>{p.name}</option>)}
-                  </select>
-                )}
-                <input value={pForm.project_name} onChange={e => setPForm(f => ({ ...f, project_id: '', project_name: e.target.value }))} placeholder="e.g. Villa 12 Fit-out · or Office stock" style={inputStyle} />
+                <label style={{ fontSize: 11, color: textMuted, display: 'block', marginBottom: 3 }}>For client / job <span>(optional)</span> {pForm.client_id && <span style={{ color: '#0f6e56' }}>· client ✓</span>}</label>
+                <input list="purchase-client-dl" value={pForm.client_name} onChange={e => setClientName(e.target.value)} placeholder="Type or pick a client · or e.g. Office stock" style={inputStyle} />
+                <datalist id="purchase-client-dl">{clients.map(c => <option key={c.id} value={c.name} />)}</datalist>
               </div>
               {/* VAT */}
               <div style={{ background: pForm.hasVat ? (isDark ? 'rgba(0,153,204,0.08)' : '#f0faff') : subBg, border: `1px solid ${pForm.hasVat ? BLUE : border}`, borderRadius: 9, padding: '10px 12px' }}>

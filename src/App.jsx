@@ -90,6 +90,10 @@ const PAGE_PERM = {
 
 const LIMITED_PAGES = ['controlwall', 'dashboard', 'menu', 'inbox', 'profile', 'portfolio', 'faq', 'notifications', 'team', 'documents', 'quoteSettings', 'leadform', 'tdleads', 'metaads', 'quoteapprovals', 'aiquote', 'projects', 'materials', 'expenses', 'aiassistant', 'organizer', 'meetings']
 
+// Pages that render their OWN one-step back button (list ↔ builder/detail).
+// On these we hide the topbar back so there's never two back buttons.
+const SELF_BACK_PAGES = ['quotations', 'aiquote', 'invoices']
+
 // --- Refresh persistence (URL hash) ---
 // activePage is mirrored in the URL hash (e.g. #leads) so a page refresh
 // restores the same page instead of resetting to the Command Center. Pages with internal
@@ -358,9 +362,14 @@ function Portal() {
               <i className="ti ti-menu-2" />
             </button>
 
-            {/* Single global back lives inside each page (one step back). The topbar's
-                All-Features grid icon + sidebar handle jumping to the menu, so we don't
-                duplicate a second back button here. */}
+            {/* Back to All Features — shown on pages WITHOUT their own back button,
+                so every page has exactly one back (multi-view pages use their own). */}
+            {activePage !== 'menu' && !SELF_BACK_PAGES.includes(activePage) && (
+              <button onClick={() => navigate('menu')} aria-label="Back to All Features" title="Back to All Features"
+                style={{ display:'flex', alignItems:'center', justifyContent:'center', width:32, height:32, borderRadius:9, border:`0.5px solid var(--border)`, background:'var(--bg2)', color:'var(--text)', cursor:'pointer', flexShrink:0 }}>
+                <i className="ti ti-arrow-left" style={{ fontSize:17 }}/>
+              </button>
+            )}
 
             <div style={{ width:34, height:34, borderRadius:9, background:'linear-gradient(135deg,#e8b84b,#c9952a)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:14, color:'#0d1117', flexShrink:0 }}>
               {company?.name?.[0]?.toUpperCase()||'?'}

@@ -14,8 +14,23 @@ const yearKey  = d => (d || '').slice(0, 4)
 
 const INCOME_CATS  = ['Sale / Service', 'Advance', 'Other income']
 const EXPENSE_CATS = ['Material', 'Labour', 'Subcontractor', 'Rent', 'Salary', 'Transport', 'Utilities', 'Marketing', 'Tools / Equipment', 'Govt / Fees', 'Bank charges', 'Misc']
-const METHODS      = ['Cash', 'Bank', 'Card', 'Cheque', 'Online']
+const METHODS      = ['Cash', 'Bank Transfer', 'Card', 'Cheque', 'Online']
 const VAT_RATE     = 5
+
+// Normalise any method label (from invoices, purchases, manual, sub-payments)
+// into one bucket so the dashboard can total cash vs bank vs card etc.
+const METHOD_KEYS  = ['Cash', 'Bank', 'Card', 'Cheque', 'Online', 'Other']
+const METHOD_ICON  = { Cash: 'ti-coin', Bank: 'ti-building-bank', Card: 'ti-credit-card', Cheque: 'ti-checkbox', Online: 'ti-world', Other: 'ti-dots' }
+function normMethod(m) {
+  const s = (m || '').toLowerCase()
+  if (!s) return 'Other'
+  if (s.includes('cash')) return 'Cash'
+  if (s.includes('bank') || s.includes('transfer')) return 'Bank'
+  if (s.includes('card')) return 'Card'
+  if (s.includes('cheque') || s.includes('check')) return 'Cheque'
+  if (s.includes('online')) return 'Online'
+  return 'Other'
+}
 
 const SOURCE_BADGE = {
   invoice:  { label: 'Invoice',  color: '#185fa5', bg: '#e6f1fb' },
@@ -52,6 +67,8 @@ export default function Ledger() {
   const [rows, setRows]       = useState([])         // unified transactions
   const [invoiceVat, setInvoiceVat] = useState([])   // [{ date, vat }] issued-invoice output VAT
   const [trn, setTrn]         = useState('')
+  const [clients, setClients] = useState([])         // for the income party search
+  const [suppliers, setSuppliers] = useState([])     // for the expense party search
   const [loading, setLoading] = useState(true)
 
   const [period, setPeriod]   = useState('month')    // month | lastMonth | year | all
@@ -73,13 +90,15 @@ export default function Ledger() {
   async function load() {
     setLoading(true)
     try {
-      const [invRes, projRes, seRes, spRes, piRes, tplRes] = await Promise.all([
+      const [invRes, projRes, seRes, spRes, piRes, tplRes, clRes, supRes] = await Promise.all([
         supabase.from('invoices').select('invoice_number, client_name, project_title, issue_date, vat_enabled, vat_amount, total, payments, status').eq('company_id', company.id),
         supabase.from('ops_projects').select('id, name').eq('company_id', company.id),
         supabase.from('site_expenses').select('id, project_id, category, description, amount, spent_on').eq('company_id', company.id),
         supabase.from('sub_payments').select('id, project_id, amount, paid_on, method, reference, note').eq('company_id', company.id),
-        supabase.from('purchase_invoices').select('id, supplier_name, invoice_number, invoice_date, category, description, project_name, method, subtotal, vat_amount, total').eq('company_id', company.id),
+        supabase.from('purchase_invoices').select('id, supplier_name, invoice_number, invoice_date, category, description, client_name, method, subtotal, vat_amount, total').eq('company_id', company.id),
         supabase.from('quotation_templates').select('trn_number').eq('company_id', company.id).maybeSingle(),
+        supabase.from('clients').select('name').eq('company_id', company.id).order('name'),
+        supabase.from('suppliers').select('name').eq('company_id', company.id).order('name'),
       ])
       // ledger_entries may not exist until the migration is run — handle gracefully
       let entries = []
@@ -87,6 +106,8 @@ export default function Ledger() {
       if (entRes.error) setHasTable(false); else { entries = entRes.data || []; setHasTable(true) }
 
       setTrn(tplRes.data?.trn_number || '')
+      setClients((clRes.data || []).map(c => c.name).filter(Boolean))
+      setSuppliers((supRes.data || []).map(s => s.name).filter(Boolean))
       const projMap = {}
       ;(projRes.data || []).forEach(p => { projMap[p.id] = p.name })
 
@@ -136,7 +157,7 @@ export default function Ledger() {
         out.push({
           id: `pi-${x.id}`, source: 'purchase', kind: 'expense', date: x.invoice_date || '',
           party: x.supplier_name || 'Supplier', category: x.category || 'Purchase',
-          description: [x.project_name, x.invoice_number, x.description].filter(Boolean).join(' · ') || 'Purchase bill', method: x.method || '', reference: x.invoice_number || '',
+          description: [x.client_name, x.invoice_number, x.description].filter(Boolean).join(' · ') || 'Purchase bill', method: x.method || '', reference: x.invoice_number || '',
           net: Number(x.subtotal) || 0, vat: Number(x.vat_amount) || 0, total: Number(x.total) || (Number(x.subtotal) || 0), editable: false,
         })
       })
@@ -170,6 +191,12 @@ export default function Ledger() {
     + pRows.filter(r => r.kind === 'income' && r.source === 'manual').reduce((s, r) => s + r.vat, 0)
   const inputVat  = pRows.filter(r => r.kind === 'expense').reduce((s, r) => s + r.vat, 0)
   const netVat    = outputVat - inputVat
+
+  // method-wise money in/out for the period (cash vs bank vs card …)
+  const byMethod = {}
+  METHOD_KEYS.forEach(k => { byMethod[k] = { in: 0, out: 0 } })
+  pRows.forEach(r => { byMethod[normMethod(r.method)][r.kind === 'income' ? 'in' : 'out'] += r.total })
+  const activeMethods = METHOD_KEYS.filter(k => byMethod[k].in || byMethod[k].out)
 
   // ---------- list (period + type + search) ----------
   let list = pRows
@@ -335,6 +362,35 @@ export default function Ledger() {
         <div style={{ fontSize: 10.5, color: textMuted, marginTop: 9, lineHeight: 1.5 }}>Output VAT is from invoices issued in this period (5%). Input VAT is from VAT-marked expense entries. Indicative only — confirm with your accountant before filing.</div>
       </div>
 
+      {/* Payment-method breakdown */}
+      {activeMethods.length > 0 && (
+        <div style={{ ...card, marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10 }}>
+            <i className="ti ti-wallet" style={{ fontSize: 16, color: '#0099cc' }} />
+            <span style={{ fontSize: 13.5, fontWeight: 700, color: text }}>By payment method <span style={{ fontWeight: 400, color: textMuted }}>· {periodLabel}</span></span>
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <div style={{ minWidth: 300 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 8, padding: '0 0 6px', fontSize: 10.5, color: textMuted, textTransform: 'uppercase', letterSpacing: '.3px', borderBottom: `1px solid ${border}` }}>
+                <span>Method</span><span style={{ textAlign: 'right' }}>In</span><span style={{ textAlign: 'right' }}>Out</span>
+              </div>
+              {activeMethods.map(k => (
+                <div key={k} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 8, padding: '7px 0', fontSize: 12.5, borderBottom: `1px solid ${border}` }}>
+                  <span style={{ color: text, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}><i className={`ti ${METHOD_ICON[k] || 'ti-coin'}`} style={{ fontSize: 14, color: textSub }} />{k}</span>
+                  <span style={{ textAlign: 'right', color: byMethod[k].in ? GREEN : textMuted }}>{byMethod[k].in ? fmt(byMethod[k].in) : '—'}</span>
+                  <span style={{ textAlign: 'right', color: byMethod[k].out ? RED : textMuted }}>{byMethod[k].out ? fmt(byMethod[k].out) : '—'}</span>
+                </div>
+              ))}
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 8, padding: '8px 0 0', fontSize: 12.5, fontWeight: 700 }}>
+                <span style={{ color: text }}>Total</span>
+                <span style={{ textAlign: 'right', color: GREEN }}>{fmt(income)}</span>
+                <span style={{ textAlign: 'right', color: RED }}>{fmt(expense)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Filters */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search party, category, description, ref…" style={{ ...inputStyle, flex: 1, minWidth: 200, width: 'auto' }} />
@@ -421,7 +477,8 @@ export default function Ledger() {
               </div>
               <div>
                 <label style={{ fontSize: 11, color: textMuted, display: 'block', marginBottom: 3 }}>{form.kind === 'income' ? 'Client / received from' : 'Vendor / paid to'}</label>
-                <input value={form.party} onChange={e => setForm(f => ({ ...f, party: e.target.value }))} placeholder={form.kind === 'income' ? 'e.g. Al Noor Interiors' : 'e.g. ACE Hardware'} style={inputStyle} />
+                <input list="ledger-party-dl" value={form.party} onChange={e => setForm(f => ({ ...f, party: e.target.value }))} placeholder={form.kind === 'income' ? 'Type or pick a client…' : 'Type or pick a supplier…'} style={inputStyle} />
+                <datalist id="ledger-party-dl">{(form.kind === 'income' ? clients : suppliers).map((nm, i) => <option key={i} value={nm} />)}</datalist>
               </div>
               <div>
                 <label style={{ fontSize: 11, color: textMuted, display: 'block', marginBottom: 3 }}>Description <span>(optional)</span></label>
