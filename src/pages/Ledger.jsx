@@ -187,6 +187,19 @@ export default function Ledger() {
   const expense = pRows.filter(r => r.kind === 'expense').reduce((s, r) => s + r.total, 0)
   const netCash = income - expense
 
+  // All-time running balance = money the company actually holds (ignores the period filter),
+  // split by where it sits — cash in hand (petty cash) vs bank vs other methods.
+  const allIncome  = rows.filter(r => r.kind === 'income').reduce((s, r) => s + r.total, 0)
+  const allExpense = rows.filter(r => r.kind === 'expense').reduce((s, r) => s + r.total, 0)
+  const balanceAll = allIncome - allExpense
+  const allByMethod = {}
+  METHOD_KEYS.forEach(k => { allByMethod[k] = { in: 0, out: 0 } })
+  rows.forEach(r => { allByMethod[normMethod(r.method)][r.kind === 'income' ? 'in' : 'out'] += r.total })
+  const balOf  = k => allByMethod[k].in - allByMethod[k].out
+  const balCash  = balOf('Cash')
+  const balBank  = balOf('Bank')
+  const balOther = balOf('Card') + balOf('Cheque') + balOf('Online') + balOf('Other')
+
   const outputVat = invoiceVat.filter(v => inPeriod(v.date)).reduce((s, v) => s + v.vat, 0)
     + pRows.filter(r => r.kind === 'income' && r.source === 'manual').reduce((s, r) => s + r.vat, 0)
   const inputVat  = pRows.filter(r => r.kind === 'expense').reduce((s, r) => s + r.vat, 0)
@@ -332,8 +345,40 @@ export default function Ledger() {
         <div style={card}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: textMuted }}><i className="ti ti-scale" /> Net profit</div>
           <div style={{ fontSize: 20, fontWeight: 700, color: netCash >= 0 ? GREEN : RED, marginTop: 4 }}>{netCash < 0 ? '− ' : ''}{fmt(Math.abs(netCash))}</div>
-          <div style={{ fontSize: 10.5, color: textMuted, marginTop: 2 }}>Income − Expenses</div>
+          <div style={{ fontSize: 10.5, color: textMuted, marginTop: 2 }}>{periodLabel} · Income − Expenses</div>
         </div>
+      </div>
+
+      {/* Money in hand — all-time balance split into cash (petty cash) vs bank vs other */}
+      <div style={{ ...card, marginBottom: 14, borderLeft: '3px solid #0f6e56' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+            <i className="ti ti-wallet" style={{ fontSize: 17, color: '#0f6e56' }} />
+            <span style={{ fontSize: 13.5, fontWeight: 700, color: text }}>Money in hand <span style={{ fontWeight: 400, color: textMuted }}>· all time</span></span>
+          </div>
+          <span style={{ fontSize: 10.5, color: textMuted }}>What the company actually holds now</span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+          <div style={{ background: subBg, borderRadius: 10, padding: '10px 12px' }}>
+            <div style={{ fontSize: 11, color: textMuted, display: 'flex', alignItems: 'center', gap: 5 }}><i className="ti ti-coin" style={{ color: '#d97706' }} /> Cash in hand <span style={{ fontSize: 9.5 }}>· petty cash</span></div>
+            <div style={{ fontSize: 19, fontWeight: 800, color: balCash >= 0 ? GREEN : RED, marginTop: 3 }}>{balCash < 0 ? '− ' : ''}{fmt(Math.abs(balCash))}</div>
+          </div>
+          <div style={{ background: subBg, borderRadius: 10, padding: '10px 12px' }}>
+            <div style={{ fontSize: 11, color: textMuted, display: 'flex', alignItems: 'center', gap: 5 }}><i className="ti ti-building-bank" style={{ color: '#0099cc' }} /> Bank balance</div>
+            <div style={{ fontSize: 19, fontWeight: 800, color: balBank >= 0 ? GREEN : RED, marginTop: 3 }}>{balBank < 0 ? '− ' : ''}{fmt(Math.abs(balBank))}</div>
+          </div>
+          {balOther !== 0 && (
+            <div style={{ background: subBg, borderRadius: 10, padding: '10px 12px' }}>
+              <div style={{ fontSize: 11, color: textMuted, display: 'flex', alignItems: 'center', gap: 5 }}><i className="ti ti-credit-card" style={{ color: '#7c3aed' }} /> Other <span style={{ fontSize: 9.5 }}>· card/cheque/online</span></div>
+              <div style={{ fontSize: 19, fontWeight: 800, color: balOther >= 0 ? GREEN : RED, marginTop: 3 }}>{balOther < 0 ? '− ' : ''}{fmt(Math.abs(balOther))}</div>
+            </div>
+          )}
+          <div style={{ background: balanceAll >= 0 ? (isDark ? 'rgba(15,110,86,0.16)' : '#ecfdf5') : (isDark ? 'rgba(220,38,38,0.14)' : '#fef2f2'), borderRadius: 10, padding: '10px 12px', border: `1px solid ${balanceAll >= 0 ? (isDark ? 'rgba(15,110,86,0.4)' : '#a7f3d0') : (isDark ? 'rgba(220,38,38,0.4)' : '#fecaca')}` }}>
+            <div style={{ fontSize: 11, color: textMuted, display: 'flex', alignItems: 'center', gap: 5 }}><i className="ti ti-sum" /> Total balance</div>
+            <div style={{ fontSize: 19, fontWeight: 800, color: balanceAll >= 0 ? GREEN : RED, marginTop: 3 }}>{balanceAll < 0 ? '− ' : ''}{fmt(Math.abs(balanceAll))}</div>
+          </div>
+        </div>
+        <div style={{ fontSize: 10.5, color: textMuted, marginTop: 9, lineHeight: 1.5 }}>Cash = money received in cash minus cash spent (your petty cash). Bank = bank transfers in minus out. Keep recording the correct payment mode on every entry so these stay accurate.</div>
       </div>
 
       {/* VAT return panel */}
@@ -370,21 +415,26 @@ export default function Ledger() {
             <span style={{ fontSize: 13.5, fontWeight: 700, color: text }}>By payment method <span style={{ fontWeight: 400, color: textMuted }}>· {periodLabel}</span></span>
           </div>
           <div style={{ overflowX: 'auto' }}>
-            <div style={{ minWidth: 300 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 8, padding: '0 0 6px', fontSize: 10.5, color: textMuted, textTransform: 'uppercase', letterSpacing: '.3px', borderBottom: `1px solid ${border}` }}>
-                <span>Method</span><span style={{ textAlign: 'right' }}>In</span><span style={{ textAlign: 'right' }}>Out</span>
+            <div style={{ minWidth: 380 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr', gap: 8, padding: '0 0 6px', fontSize: 10.5, color: textMuted, textTransform: 'uppercase', letterSpacing: '.3px', borderBottom: `1px solid ${border}` }}>
+                <span>Method</span><span style={{ textAlign: 'right' }}>In</span><span style={{ textAlign: 'right' }}>Out</span><span style={{ textAlign: 'right' }}>Balance</span>
               </div>
-              {activeMethods.map(k => (
-                <div key={k} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 8, padding: '7px 0', fontSize: 12.5, borderBottom: `1px solid ${border}` }}>
-                  <span style={{ color: text, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}><i className={`ti ${METHOD_ICON[k] || 'ti-coin'}`} style={{ fontSize: 14, color: textSub }} />{k}</span>
-                  <span style={{ textAlign: 'right', color: byMethod[k].in ? GREEN : textMuted }}>{byMethod[k].in ? fmt(byMethod[k].in) : '—'}</span>
-                  <span style={{ textAlign: 'right', color: byMethod[k].out ? RED : textMuted }}>{byMethod[k].out ? fmt(byMethod[k].out) : '—'}</span>
-                </div>
-              ))}
-              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 8, padding: '8px 0 0', fontSize: 12.5, fontWeight: 700 }}>
+              {activeMethods.map(k => {
+                const bal = byMethod[k].in - byMethod[k].out
+                return (
+                  <div key={k} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr', gap: 8, padding: '7px 0', fontSize: 12.5, borderBottom: `1px solid ${border}` }}>
+                    <span style={{ color: text, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}><i className={`ti ${METHOD_ICON[k] || 'ti-coin'}`} style={{ fontSize: 14, color: textSub }} />{k}</span>
+                    <span style={{ textAlign: 'right', color: byMethod[k].in ? GREEN : textMuted }}>{byMethod[k].in ? fmt(byMethod[k].in) : '—'}</span>
+                    <span style={{ textAlign: 'right', color: byMethod[k].out ? RED : textMuted }}>{byMethod[k].out ? fmt(byMethod[k].out) : '—'}</span>
+                    <span style={{ textAlign: 'right', fontWeight: 600, color: bal >= 0 ? text : RED }}>{bal < 0 ? '− ' : ''}{fmt(Math.abs(bal))}</span>
+                  </div>
+                )
+              })}
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr', gap: 8, padding: '8px 0 0', fontSize: 12.5, fontWeight: 700 }}>
                 <span style={{ color: text }}>Total</span>
                 <span style={{ textAlign: 'right', color: GREEN }}>{fmt(income)}</span>
                 <span style={{ textAlign: 'right', color: RED }}>{fmt(expense)}</span>
+                <span style={{ textAlign: 'right', color: netCash >= 0 ? GREEN : RED }}>{netCash < 0 ? '− ' : ''}{fmt(Math.abs(netCash))}</span>
               </div>
             </div>
           </div>
