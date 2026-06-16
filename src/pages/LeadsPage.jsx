@@ -99,7 +99,8 @@ export default function LeadsPage() {
   const { company, user } = useAuth()
   const toast = useToast()
   const fileRef = useRef(null)
-  const [mainTab, setMainTab] = useState('trustdubai')
+  // Default Lead Hub tab = whichever tab you last picked (remembered per browser).
+  const [mainTab, setMainTab] = useState(() => { try { return localStorage.getItem('lead_main_tab') || 'trustdubai' } catch { return 'trustdubai' } })
   const [forms, setForms] = useState([])
   const [editingForm, setEditingForm] = useState(null)
   const [questions, setQuestions] = useState([])
@@ -1622,7 +1623,7 @@ export default function LeadsPage() {
           { id: 'mine',       label: 'My Leads', count: myLeads.length, icon: 'ti-building-store' },
           { id: 'forms',      label: 'Forms',    count: forms.length,   icon: 'ti-forms' },
         ].map(t => (
-          <button key={t.id} onClick={() => { setMainTab(t.id); setFSource('all'); setFStatus('all'); setSearch(''); setQuickFilter(''); closeEditor() }} style={{
+          <button key={t.id} onClick={() => { setMainTab(t.id); try { localStorage.setItem('lead_main_tab', t.id) } catch {} setFSource('all'); setFStatus('all'); setSearch(''); setQuickFilter(''); closeEditor() }} style={{
             padding: mobile ? '9px 9px' : '9px 16px', border: 'none', background: 'none', cursor: 'pointer',
             fontSize: mobile ? 12.5 : 13.5, fontWeight: 600, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap', flexShrink: 0,
             color: mainTab === t.id ? 'var(--primary)' : 'var(--text2)',

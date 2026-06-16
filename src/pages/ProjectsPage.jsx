@@ -40,6 +40,7 @@ export default function ProjectsPage({ onNavigate }) {
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
   const [projects, setProjects] = useState([])
   const [recvByProject, setRecvByProject] = useState({}) // projectId -> client amount received (from invoices)
+  const [costByProject, setCostByProject] = useState({}) // projectId -> total cost (subs + site + matching purchases)
   const [summary, setSummary] = useState(null)           // company-wide rollup for the dashboard
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState('list')
@@ -60,6 +61,7 @@ export default function ProjectsPage({ onNavigate }) {
   const [payList, setPayList] = useState([])
   const [payForm, setPayForm] = useState(null)
   const [invoices, setInvoices] = useState([])     // invoices linked to this project (client cash-in lives here)
+  const [purchases, setPurchases] = useState([])   // purchase bills tagged to this project's client
   const [milestones, setMilestones] = useState([])
   const [msForm, setMsForm] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -88,18 +90,29 @@ export default function ProjectsPage({ onNavigate }) {
         recv[p.id] = matched.reduce((s, iv) => s + sumPay(iv), 0)
       })
       setRecvByProject(recv)
-      // company-wide rollup for the dashboard
-      const [{ data: allSubs }, { data: allExp }] = await Promise.all([
-        supabase.from('project_subcontractors').select('name,contract_amount,paid_amount').eq('company_id', company.id).limit(5000),
-        supabase.from('site_expenses').select('amount').eq('company_id', company.id).limit(5000),
+      // company-wide rollup for the dashboard + per-project cost (incl. matching purchases)
+      const [{ data: allSubs }, { data: allExp }, { data: allPur }] = await Promise.all([
+        supabase.from('project_subcontractors').select('name,project_id,contract_amount,paid_amount').eq('company_id', company.id).limit(5000),
+        supabase.from('site_expenses').select('project_id,amount').eq('company_id', company.id).limit(5000),
+        supabase.from('purchase_invoices').select('client_id,client_name,total').eq('company_id', company.id).limit(5000),
       ])
       const num = v => Number(v) || 0
+      // per-project cost: subcontractor contracts + site expenses + purchase bills tagged to this project's client
+      const cost = {}
+      projs.forEach(p => { cost[p.id] = 0 })
+      ;(allSubs || []).forEach(x => { if (cost[x.project_id] != null) cost[x.project_id] += num(x.contract_amount) })
+      ;(allExp || []).forEach(x => { if (cost[x.project_id] != null) cost[x.project_id] += num(x.amount) })
+      ;(allPur || []).forEach(x => {
+        const p = projs.find(pp => (x.client_id && pp.client_id && String(pp.client_id) === String(x.client_id)) || (x.client_name && pp.client_name && pp.client_name.trim().toLowerCase() === x.client_name.trim().toLowerCase()))
+        if (p) cost[p.id] += num(x.total)
+      })
+      setCostByProject(cost)
       const totalContract = projs.reduce((s, p) => s + num(p.contract_value), 0)
       const totalReceived = Object.values(recv).reduce((s, v) => s + num(v), 0)
       const subContract = (allSubs || []).reduce((s, x) => s + num(x.contract_amount), 0)
       const subPaid = (allSubs || []).reduce((s, x) => s + num(x.paid_amount), 0)
       const siteSpend = (allExp || []).reduce((s, x) => s + num(x.amount), 0)
-      const totalCost = subContract + siteSpend
+      const totalCost = Object.values(cost).reduce((s, v) => s + num(v), 0)
       // top subcontractors by outstanding balance (merge same names across projects)
       const map = {}
       ;(allSubs || []).forEach(x => { const k = (x.name || '').trim().toLowerCase(); if (!k) return; const m = map[k] || { name: x.name, contract: 0, paid: 0 }; m.contract += num(x.contract_amount); m.paid += num(x.paid_amount); map[k] = m })
@@ -152,6 +165,13 @@ export default function ProjectsPage({ onNavigate }) {
     if (proj?.quote_id) { const { data } = await supabase.from('invoices').select('id,invoice_number,total,payments,status,kind,milestone_label,issue_date,due_date').eq('company_id', company.id).eq('quotation_id', proj.quote_id).order('issue_date', { ascending: false }); inv = data || [] }
     else if (proj?.client_id) { const { data } = await supabase.from('invoices').select('id,invoice_number,total,payments,status,kind,milestone_label,issue_date,due_date').eq('company_id', company.id).eq('client_id', proj.client_id).order('issue_date', { ascending: false }); inv = data || [] }
     setInvoices(inv)
+    // Purchase bills tagged to this project's client (counted in project cost)
+    let pur = []
+    try {
+      if (proj?.client_id) { const { data } = await supabase.from('purchase_invoices').select('id,supplier_name,invoice_number,invoice_date,total').eq('company_id', company.id).eq('client_id', proj.client_id).order('invoice_date', { ascending: false }); pur = data || [] }
+      else if (proj?.client_name) { const { data } = await supabase.from('purchase_invoices').select('id,supplier_name,invoice_number,invoice_date,total').eq('company_id', company.id).ilike('client_name', proj.client_name.trim()); pur = data || [] }
+    } catch (e) { /* purchases optional */ }
+    setPurchases(pur)
   }
 
   function newProject() { setProjModal({ isNew: true, p: { name: '', client_name: '', client_phone: '', status: 'planning', contract_value: 0, start_date: '', end_date: '', location: '', notes: '', progress: 0 } }) }
@@ -373,7 +393,8 @@ export default function ProjectsPage({ onNavigate }) {
   const totalSubs = subs.reduce((s, x) => s + (Number(x.contract_amount) || 0), 0)
   const subsPaid = subs.reduce((s, x) => s + (Number(x.paid_amount) || 0), 0)
   const value = Number(active?.contract_value) || 0
-  const totalCost = totalSubs + totalExpenses
+  const totalPurchases = purchases.reduce((s, x) => s + (Number(x.total) || 0), 0)
+  const totalCost = totalSubs + totalExpenses + totalPurchases
   const margin = value - totalCost
   const marginPct = value > 0 ? Math.round((margin / value) * 100) : 0
   // client cash-in (from linked invoices)
@@ -495,12 +516,19 @@ export default function ProjectsPage({ onNavigate }) {
                     {(() => {
                       const recv = Number(recvByProject[p.id]) || 0
                       const payPct = Number(p.contract_value) > 0 ? Math.min(100, Math.round((recv / Number(p.contract_value)) * 100)) : 0
+                      const spent = Number(costByProject[p.id]) || 0
+                      const prof = Number(p.contract_value) - spent
+                      const profPct = Number(p.contract_value) > 0 ? Math.round((prof / Number(p.contract_value)) * 100) : 0
                       return (
                         <>
                           <div style={{ height: 7, background: 'var(--bg2)', borderRadius: 99, overflow: 'hidden' }}><div style={{ width: (p.progress || 0) + '%', height: '100%', background: `linear-gradient(90deg, ${st.color}, ${st.color}aa)`, borderRadius: 99, transition: 'width .3s ease' }} /></div>
                           <div style={{ fontSize: 11, color: 'var(--text3)', display: 'flex', justifyContent: 'space-between' }}><span><i className="ti ti-progress-check" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {p.progress || 0}% work</span><span><i className="ti ti-flag" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {fmtD(p.end_date)}</span></div>
                           <div style={{ height: 7, background: 'var(--bg2)', borderRadius: 99, overflow: 'hidden', marginTop: 2 }}><div style={{ width: payPct + '%', height: '100%', background: 'linear-gradient(90deg,#0099cc,#0099ccaa)', borderRadius: 99, transition: 'width .3s ease' }} /></div>
                           <div style={{ fontSize: 11, color: 'var(--text3)', display: 'flex', justifyContent: 'space-between' }}><span><i className="ti ti-cash" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {payPct}% paid</span><span>{AED(recv)}</span></div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, paddingTop: 7, borderTop: '1px dashed var(--border)', fontSize: 11.5 }}>
+                            <span style={{ color: 'var(--text2)' }}><i className="ti ti-coin" style={{ fontSize: 13, verticalAlign: '-2px', color: '#f59e0b' }} /> Spent {AED(spent)}</span>
+                            <span style={{ fontWeight: 700, color: prof >= 0 ? '#22c55e' : '#ef4444' }}>{prof >= 0 ? 'Profit' : 'Loss'} {AED(Math.abs(prof))}{Number(p.contract_value) > 0 ? ` · ${profPct}%` : ''}</span>
+                          </div>
                         </>
                       )
                     })()}
@@ -540,6 +568,7 @@ export default function ProjectsPage({ onNavigate }) {
         <StatTile icon="ti-wallet" label="Contract value" value={AED(value)} color="#0099cc" />
         <StatTile icon="ti-users-group" label="Subcontractors" value={AED(totalSubs)} color="#8b5cf6" />
         <StatTile icon="ti-coin" label="Site expenses" value={AED(totalExpenses)} color="#f59e0b" />
+        {totalPurchases > 0 && <StatTile icon="ti-shopping-cart" label="Purchases" value={AED(totalPurchases)} color="#9a3412" />}
         <StatTile icon="ti-receipt" label="Total cost" value={AED(totalCost)} color="#ef4444" />
         <StatTile icon={margin >= 0 ? 'ti-trending-up' : 'ti-trending-down'} label={margin >= 0 ? 'Profit' : 'Loss'} value={AED(Math.abs(margin)) + (value > 0 ? ` · ${marginPct}%` : '')} color={margin >= 0 ? '#22c55e' : '#ef4444'} />
       </div>
@@ -720,6 +749,7 @@ export default function ProjectsPage({ onNavigate }) {
                   <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                     <button onClick={() => openPayments(s)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(34,197,94,0.3)', background: 'rgba(34,197,94,0.1)', color: '#22c55e', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}><i className="ti ti-cash" /> Payments</button>
                     <button onClick={() => generateLPO(s)} className="btn btn-secondary btn-sm"><i className="ti ti-file-text" style={{ verticalAlign: '-2px', marginRight: 4 }} />{s.lpo_number ? 'LPO · ' + s.lpo_number : 'Generate LPO'}</button>
+                    <button onClick={() => printNDA(company, active, s, toast)} className="btn btn-secondary btn-sm"><i className="ti ti-shield-lock" style={{ verticalAlign: '-2px', marginRight: 4 }} />NDA</button>
                     <button onClick={() => toggleContract(s)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, border: `1px solid ${s.contract_signed ? '#22c55e' : 'var(--border)'}`, background: s.contract_signed ? 'rgba(34,197,94,0.1)' : 'transparent', color: s.contract_signed ? '#22c55e' : 'var(--text2)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}><i className={'ti ' + (s.contract_signed ? 'ti-circle-check-filled' : 'ti-writing-sign')} /> {s.contract_signed ? 'Contract signed' : 'Mark contract signed'}</button>
                     {scope.filter(x => x.sub_id === s.id).length > 0 && <span style={{ fontSize: 11, color: 'var(--text3)' }}>{scope.filter(x => x.sub_id === s.id).length} scope items assigned</span>}
                   </div>
@@ -1027,6 +1057,47 @@ function printLPO(company, project, sub, items, lpo, toast) {
     <style>*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}@page{size:A4;margin:12mm}.__bar{position:fixed;top:0;left:0;right:0;height:48px;background:#0f1623;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-family:sans-serif;z-index:99}@media print{.__bar{display:none}.__sheet{box-shadow:none!important;margin:0!important}}.__bar button{padding:7px 14px;border:none;border-radius:7px;font-weight:600;cursor:pointer}</style>
     </head><body style="margin:0;background:#eef2f6;padding-top:48px;">
     <div class="__bar"><span style="font-size:14px;font-weight:600;">${esc(lpo)} · ${esc(sub.name)}</span><span><button onclick="window.print()" style="background:#0099cc;color:#fff;">Print / PDF</button> <button onclick="window.close()" style="background:rgba(255,255,255,.15);color:#fff;margin-left:8px;">Close</button></span></div>
+    <div class="__sheet" style="max-width:760px;margin:16px auto;background:#fff;box-shadow:0 6px 28px rgba(0,0,0,.28);">${body}</div></body></html>`)
+  w.document.close()
+}
+
+// Standard mutual confidentiality / non-disclosure agreement for a subcontractor.
+function printNDA(company, project, sub, toast) {
+  const esc = s => String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+  const co = esc(company?.name || 'the Company')
+  const subName = esc(sub?.name || 'the Subcontractor')
+  const dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })
+  const proj = esc(project?.name || '')
+  const clause = (t, d) => `<div style="margin-bottom:11px;"><div style="font-size:11.5px;font-weight:700;color:#1a1a1a;margin-bottom:2px;">${t}</div><div style="font-size:10.5px;color:#444;line-height:1.7;text-align:justify;">${d}</div></div>`
+  const body = `<div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;padding:32px;background:#fff;">
+    <div style="height:5px;background:#0099cc;margin:-32px -32px 18px;"></div>
+    <div style="text-align:center;border-bottom:2px solid #0099cc;padding-bottom:12px;margin-bottom:18px;">
+      <div style="font-size:18px;font-weight:700;">${co}</div>
+      <div style="font-size:9px;color:#888;letter-spacing:1px;text-transform:uppercase;margin-top:2px;">${esc(company?.phone || '')}</div>
+      <div style="font-size:19px;font-weight:800;color:#0099cc;letter-spacing:1.5px;margin-top:10px;">NON-DISCLOSURE AGREEMENT</div>
+    </div>
+    <div style="font-size:10.5px;color:#444;line-height:1.7;margin-bottom:16px;text-align:justify;">
+      This Non-Disclosure Agreement (the “Agreement”) is made on <b>${dateStr}</b> between <b>${co}</b> (the “Disclosing Party”) and <b>${subName}</b>${sub?.trade ? ' (' + esc(sub.trade) + ')' : ''} (the “Receiving Party”), in connection with works${proj ? ' on the project <b>' + proj + '</b>' : ''}.
+    </div>
+    ${clause('1. Confidential Information', `“Confidential Information” means all non-public information disclosed by the Disclosing Party, including client names &amp; contact details, designs, drawings, specifications, quotations, rates &amp; pricing, project plans, business methods, and any information marked or reasonably understood to be confidential.`)}
+    ${clause('2. Obligations', `The Receiving Party shall keep all Confidential Information strictly confidential, use it solely to perform the agreed works for the Disclosing Party, and shall not copy, disclose, or share it with any third party without prior written consent.`)}
+    ${clause('3. Non-Solicitation of Clients', `The Receiving Party shall not, directly or indirectly, approach, solicit, contact, or deal with the Disclosing Party’s clients introduced through this engagement for the same or similar works, during the engagement and for a period of 24 months thereafter.`)}
+    ${clause('4. Term &amp; Survival', `The confidentiality obligations in this Agreement remain in force during the engagement and survive for 24 months after completion or termination of the works.`)}
+    ${clause('5. Return of Materials', `On completion or termination, the Receiving Party shall promptly return or, at the Disclosing Party’s option, destroy all materials containing Confidential Information.`)}
+    ${clause('6. Breach', `Any breach of this Agreement may cause irreparable harm to the Disclosing Party and may result in legal action, injunctive relief, and liability for damages and costs.`)}
+    ${clause('7. Governing Law', `This Agreement is governed by the applicable laws of the United Arab Emirates, and the parties submit to the jurisdiction of its courts.`)}
+    <div style="display:flex;gap:30px;margin-top:34px;">
+      <div style="flex:1;"><div style="font-size:9px;color:#0077a3;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:26px;">Disclosing Party</div><div style="border-bottom:1px solid #1a1a1a;"></div><div style="font-size:10px;color:#444;margin-top:4px;font-weight:700;">${co}</div><div style="font-size:8.5px;color:#999;">Name · Signature · Date</div></div>
+      <div style="flex:1;"><div style="font-size:9px;color:#0077a3;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:26px;">Receiving Party</div><div style="border-bottom:1px solid #1a1a1a;"></div><div style="font-size:10px;color:#444;margin-top:4px;font-weight:700;">${subName}</div><div style="font-size:8.5px;color:#999;">Name · Signature · Date</div></div>
+    </div>
+  </div>`
+  const w = window.open('', '_blank')
+  if (!w) { toast?.error?.('Allow pop-ups to print the NDA'); return }
+  const ttl = 'NDA · ' + subName
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(ttl)}</title>
+    <style>*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}@page{size:A4;margin:12mm}.__bar{position:fixed;top:0;left:0;right:0;height:48px;background:#0f1623;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-family:sans-serif;z-index:99}@media print{.__bar{display:none}.__sheet{box-shadow:none!important;margin:0!important}}.__bar button{padding:7px 14px;border:none;border-radius:7px;font-weight:600;cursor:pointer}</style>
+    </head><body style="margin:0;background:#eef2f6;padding-top:48px;">
+    <div class="__bar"><span style="font-size:14px;font-weight:600;">${esc(ttl)}</span><span><button onclick="window.print()" style="background:#0099cc;color:#fff;">Print / PDF</button> <button onclick="window.close()" style="background:rgba(255,255,255,.15);color:#fff;margin-left:8px;">Close</button></span></div>
     <div class="__sheet" style="max-width:760px;margin:16px auto;background:#fff;box-shadow:0 6px 28px rgba(0,0,0,.28);">${body}</div></body></html>`)
   w.document.close()
 }

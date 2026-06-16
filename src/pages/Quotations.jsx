@@ -990,7 +990,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     const rowHtml = (it, i) => `<tr>
       <td style="${td}color:#999;">${i}</td>
       ${imgTd(it)}
-      <td style="${tdDesc}">${escapeHtml(it.desc||'')}</td>
+      <td style="${tdDesc}">${escapeHtml(it.desc||'').replace(/\n/g, '<br>')}</td>
       <td style="${td}text-align:center;color:#777;">${escapeHtml(it.unit||'')}</td>
       <td style="${td}text-align:center;color:#777;">${escapeHtml(it.qty||0)}</td>
       <td style="${td}text-align:right;color:#777;">${n(Number(it.rate)||0)}</td>
