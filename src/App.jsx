@@ -372,7 +372,7 @@ function Portal() {
                 {company?.name||'My Business'}
               </div>
               <div style={{ fontSize:9, color: isPlatinum?'rgba(167,139,250,0.7)':'var(--text3)', marginTop:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-                {pageTitles[activePage]} · business.trustdubai.ae
+                {pageTitles[activePage]} · business.quvera.ae
               </div>
             </div>
           </div>

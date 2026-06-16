@@ -42,7 +42,7 @@ const PAGE_TO_DIST = { new:'assigned', qualified:'viewed', in_conversation:'cont
 const SLA_HOURS = 12
 
 // Public site base (where the shareable lead form lives) — NOT the business portal origin
-const PUBLIC_BASE = 'https://trustdubai.ae'
+const PUBLIC_BASE = 'https://quvera.ae'
 
 const SOURCE_CARDS = [
   { key:'meta',     label:'Meta',        icon:'ti-brand-meta',     color:'#3b82f6' },

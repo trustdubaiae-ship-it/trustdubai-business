@@ -106,7 +106,7 @@ export default function MenuPage({ onNavigate, isApproved = true, limitedPages =
   const [shareOpen, setShareOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const slug = company?.slug || ''
-  const publicLink = `https://trustdubai.ae/${slug}`
+  const publicLink = `https://quvera.ae/${slug}`
   const profileQrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&margin=14&data=${encodeURIComponent(publicLink)}`
 
   async function copyProfileLink() {

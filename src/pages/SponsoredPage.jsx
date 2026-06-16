@@ -149,7 +149,7 @@ export default function SponsoredPage({ onNavigate }) {
       <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:20, flexWrap:'wrap', gap:10 }}>
         <div>
           <h1 style={{ fontSize:20, fontWeight:700, color:'var(--text)', letterSpacing:'-0.3px' }}>Sponsored Placement</h1>
-          <p style={{ fontSize:12, color:'var(--text2)', marginTop:3 }}>Get featured on trustdubai.ae homepage — reach more customers</p>
+          <p style={{ fontSize:12, color:'var(--text2)', marginTop:3 }}>Get featured on quvera.ae homepage — reach more customers</p>
         </div>
         {(!mySlot || mySlot.status === 'rejected' || mySlot.status === 'expired') && (
           <button onClick={()=>setShowRequest(true)}
@@ -170,7 +170,7 @@ export default function SponsoredPage({ onNavigate }) {
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(150px,1fr))', gap:12, marginBottom:16 }}>
               {[
-                { icon:'ti-home',         label:'Homepage Placement', desc:'Your card appears on trustdubai.ae home page' },
+                { icon:'ti-home',         label:'Homepage Placement', desc:'Your card appears on quvera.ae home page'},
                 { icon:'ti-eye',          label:'Maximum Visibility',  desc:'Seen by every visitor — top of page' },
                 { icon:'ti-trending-up',  label:'Lead Generation',     desc:'Get a Quote form — leads sent directly to you' },
                 { icon:'ti-chart-bar',    label:'Full Analytics',      desc:'Track clicks, views & leads in real time' },
@@ -187,7 +187,7 @@ export default function SponsoredPage({ onNavigate }) {
 
             {/* How sponsor card looks */}
             <div style={{ background:'var(--bg2)', borderRadius:10, padding:'14px 16px', marginBottom:14 }}>
-              <div style={{ fontSize:11, fontWeight:600, color:'var(--text)', marginBottom:10 }}>Preview — how your card looks on trustdubai.ae:</div>
+              <div style={{ fontSize:11, fontWeight:600, color:'var(--text)', marginBottom:10 }}>Preview — how your card looks on quvera.ae:</div>
               <div style={{ background:'#f0faff', border:'0.5px solid #b3d9f0', borderRadius:8, padding:'10px 12px', maxWidth:280, position:'relative' }}>
                 <span style={{ position:'absolute', top:5, right:5, fontSize:7.5, color:'#7a9ab5', background:'#e8f4fd', padding:'1px 5px', borderRadius:3 }}>Ad</span>
                 <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>

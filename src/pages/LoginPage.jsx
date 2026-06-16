@@ -49,7 +49,7 @@ export default function LoginPage({ onRegister }) {
           </button>
           <p style={{ fontSize: 12.5, color: '#6e7681', marginTop: 14, lineHeight: 1.6 }}>
             Already listed on Quvera?{' '}
-            <span onClick={() => window.open('https://trustdubai.ae/claim-company', '_blank')} style={{ color: '#e8b84b', cursor: 'pointer', fontWeight: 600 }}>Claim your company</span>
+            <span onClick={() => window.open('https://quvera.ae/claim-company', '_blank')} style={{ color: '#e8b84b', cursor: 'pointer', fontWeight: 600 }}>Claim your company</span>
           </p>
         </div>
       </div>

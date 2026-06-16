@@ -218,7 +218,7 @@ export default function AnalyticsPage() {
             <div style={{ fontSize: 32, marginBottom: 12 }}>👁️</div>
             <div style={{ fontSize: 14 }}>No visitors yet — share your profile link!</div>
             <div style={{ fontSize: 12, marginTop: 8, color: 'var(--text-muted)' }}>
-              trustdubai.ae/{company?.slug}
+              quvera.ae/{company?.slug}
             </div>
           </div>
         ) : (

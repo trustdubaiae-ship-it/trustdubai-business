@@ -175,7 +175,7 @@ export default function SettingsPage() {
 
             <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 14, lineHeight: 1.6 }}>
               Your public profile URL:<br />
-              <strong style={{ color: '#03C1F5' }}>trustdubai.ae/company/{slug || 'your-username'}</strong>
+              <strong style={{ color: '#03C1F5' }}>quvera.ae/company/{slug || 'your-username'}</strong>
             </div>
 
             {slugLocked ? (
@@ -185,7 +185,7 @@ export default function SettingsPage() {
                   borderRadius: 8, overflow: 'hidden', opacity: 0.7
                 }}>
                   <span style={{ padding: '9px 10px', background: 'var(--bg-secondary)', fontSize: 12, color: 'var(--text-muted)', borderRight: '1px solid var(--card-border)', whiteSpace: 'nowrap' }}>
-                    trustdubai.ae/company/
+                    quvera.ae/company/
                   </span>
                   <span style={{ flex: 1, minWidth: 0, padding: '9px 10px', fontSize: 13, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {company?.slug}
@@ -194,8 +194,8 @@ export default function SettingsPage() {
                 </div>
                 <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)' }}>
                   Username is permanently locked. To request a change, contact{' '}
-                  <a href="mailto:hello@trustdubai.ae?subject=Username change request" style={{ color: '#03C1F5' }}>
-                    hello@trustdubai.ae
+                  <a href="mailto:hello@quvera.ae?subject=Username change request" style={{ color: '#03C1F5' }}>
+                    hello@quvera.ae
                   </a>
                 </div>
               </div>
@@ -205,7 +205,7 @@ export default function SettingsPage() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--card-border)', borderRadius: 8, overflow: 'hidden' }}>
                       <span style={{ padding: '9px 10px', background: 'var(--bg-secondary)', fontSize: 12, color: 'var(--text-muted)', borderRight: '1px solid var(--card-border)', whiteSpace: 'nowrap' }}>
-                        trustdubai.ae/company/
+                        quvera.ae/company/
                       </span>
                       <input
                         value={slug}
@@ -310,7 +310,7 @@ export default function SettingsPage() {
             <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
               <strong style={{ color: 'var(--text-primary)' }}>Our Platform Policy</strong><br />
               Quvera is built on trust and transparency. Once registered, your company profile remains permanent — your reputation is built through customer reviews.<br /><br />
-              Contact us at <a href="mailto:hello@trustdubai.ae" style={{ color: '#03C1F5' }}>hello@trustdubai.ae</a>
+              Contact us at <a href="mailto:hello@quvera.ae" style={{ color: '#03C1F5' }}>hello@quvera.ae</a>
             </div>
           </div>
 

@@ -14,10 +14,10 @@ export default function NoCompanyPage() {
           If you haven't listed your business yet, register it first using the same email. Already applied? Make sure you signed in with the same email you used on the application.
         </p>
         <div style={{ background: '#f0fdf4', border: '1px solid #a7f3d0', borderRadius: 8, padding: '10px 14px', marginBottom: 24, fontSize: 13, color: '#065f46' }}>
-          Looking to review a business? Visit trustdubai.ae instead.
+          Looking to review a business? Visit quvera.ae instead.
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <button onClick={() => window.location.href = 'https://trustdubai.ae'} className="btn btn-primary" style={{ justifyContent: 'center' }}>
+          <button onClick={() => window.location.href = 'https://quvera.ae'} className="btn btn-primary" style={{ justifyContent: 'center' }}>
             🏢 List Your Business
           </button>
           <button onClick={() => window.open('https://wa.me/971503856786?text=Hi, I want access to Quvera Business Portal', '_blank')} className="btn btn-secondary" style={{ justifyContent: 'center' }}>

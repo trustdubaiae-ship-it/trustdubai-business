@@ -109,7 +109,7 @@ export default function Sidebar({ activePage, onNavigate, limitedMode = false, l
   const [shareOpen, setShareOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const slug        = company?.slug || ''
-  const publicLink  = `https://trustdubai.ae/${slug}`
+  const publicLink  = `https://quvera.ae/${slug}`
   const profileQrSrc= `https://api.qrserver.com/v1/create-qr-code/?size=600x600&margin=14&data=${encodeURIComponent(publicLink)}`
 
   async function copyProfileLink() {
@@ -297,7 +297,7 @@ export default function Sidebar({ activePage, onNavigate, limitedMode = false, l
         })}
 
         <div className="nav-section-label" style={{ marginTop:4 }}>QUICK LINKS</div>
-        <button className="nav-item" onClick={() => window.open(`https://trustdubai.ae/${company?.slug||''}`, '_blank')}>
+        <button className="nav-item" onClick={() => window.open(`https://quvera.ae/${company?.slug||''}`, '_blank')}>
           <i className="ti ti-external-link"/>
           View Public Profile
         </button>

@@ -258,7 +258,7 @@ export default function RegisterPage({ onBack }) {
                   : <>This phone number is already linked to <strong style={{ color: '#fff' }}>&ldquo;{dupMatch.name}&rdquo;</strong> on Quvera.</>}
                 <div style={{ marginTop: 6 }}>
                   If this is <strong>your</strong> business, it may already be listed &mdash; please contact us at{' '}
-                  <a href="mailto:support@trustdubai.ae" style={{ color: '#e8b84b', textDecoration: 'none' }}>support@trustdubai.ae</a>{' '}
+                  <a href="mailto:support@quvera.ae" style={{ color: '#e8b84b', textDecoration: 'none' }}>support@quvera.ae</a>{' '}
                   to claim it instead of creating a duplicate. If it's a <strong>different</strong> business, you can continue below.
                 </div>
               </div>
@@ -274,9 +274,9 @@ export default function RegisterPage({ onBack }) {
 
           <div className="rf-legal" style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.08)', fontSize: 11.5, color: '#6e7681', lineHeight: 1.7, textAlign: 'center' }}>
             By continuing, you agree to Quvera's{' '}
-            <a href="https://trustdubai.ae/terms" target="_blank" rel="noopener noreferrer">Terms of Service</a>,{' '}
-            <a href="https://trustdubai.ae/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>{' & '}
-            <a href="https://trustdubai.ae/refund" target="_blank" rel="noopener noreferrer">Refund Policy</a>.
+            <a href="https://quvera.ae/terms" target="_blank" rel="noopener noreferrer">Terms of Service</a>,{' '}
+            <a href="https://quvera.ae/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>{' & '}
+            <a href="https://quvera.ae/refund" target="_blank" rel="noopener noreferrer">Refund Policy</a>.
           </div>
         </div>
       </div>

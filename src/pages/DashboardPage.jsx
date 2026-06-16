@@ -176,7 +176,7 @@ export default function DashboardPage({ onNavigate, theme }) {
   const [shareOpen, setShareOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const _slug = company?.slug || ''
-  const _publicLink = `https://trustdubai.ae/${_slug}`
+  const _publicLink = `https://quvera.ae/${_slug}`
   const _profileQr = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&margin=14&data=${encodeURIComponent(_publicLink)}`
   async function copyProfileLink() {
     try { await navigator.clipboard.writeText(_publicLink); setCopied(true); setTimeout(()=>setCopied(false),1800) }
