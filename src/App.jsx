@@ -27,6 +27,7 @@ import LeadsPage from './pages/LeadsPage'
 import LeadEngine from './pages/LeadEngine'
 import Quotations from './pages/Quotations'
 import Invoices from './pages/Invoices'
+import Purchases from './pages/Purchases'
 import Ledger from './pages/Ledger'
 import QuoteSettings from './pages/QuoteSettings'
 import QuoteLibrary from './pages/QuoteLibrary'
@@ -70,6 +71,7 @@ const PAGE_PERM = {
   leadengine:         'view_leads',
   quotations:         'view_leads',
   invoices:           'view_leads',
+  purchases:          'view_leads',
   ledger:             'view_leads',
   quoteSettings:      'view_profile',
   quotelibrary:       'view_leads',
@@ -94,7 +96,7 @@ const LIMITED_PAGES = ['controlwall', 'dashboard', 'menu', 'inbox', 'profile', '
 // views (list/builder/detail) can also persist a sub-route, e.g. #quotations/builder,
 // so a refresh keeps them on the same view instead of resetting to the list.
 const VALID_PAGES = [
-  'controlwall', 'dashboard', 'menu', 'revenueengine', 'inbox', 'profile', 'reviews', 'portfolio', 'analytics', 'leads', 'leadengine', 'leadform', 'tdleads', 'metaads', 'quotations', 'invoices', 'ledger', 'quoteSettings', 'quotelibrary', 'quoteapprovals', 'aiquote', 'projects', 'materials', 'expenses', 'aiassistant', 'organizer', 'meetings',
+  'controlwall', 'dashboard', 'menu', 'revenueengine', 'inbox', 'profile', 'reviews', 'portfolio', 'analytics', 'leads', 'leadengine', 'leadform', 'tdleads', 'metaads', 'quotations', 'invoices', 'purchases', 'ledger', 'quoteSettings', 'quotelibrary', 'quoteapprovals', 'aiquote', 'projects', 'materials', 'expenses', 'aiassistant', 'organizer', 'meetings',
   'sponsored', 'staff', 'team', 'documents', 'faq', 'notifications', 'trust',
   'controlpanel', 'verification', 'verificationStatus', 'plans', 'settings',
 ]
@@ -238,6 +240,7 @@ function Portal() {
     meetings:           <MeetingsPage onNavigate={navigate} />,
     quotations:         <Quotations subRoute={subRoute} setSubRoute={setPageSub} />,
     invoices:           <Invoices subRoute={subRoute} setSubRoute={setPageSub} />,
+    purchases:          <Purchases />,
     ledger:             <Ledger />,
     quoteSettings:      <QuoteSettings />,
     quotelibrary:       <QuoteLibrary />,
@@ -257,7 +260,7 @@ function Portal() {
 
   const pageTitles = {
     controlwall:'Command Center', dashboard:'Command Center', menu:'All Features', revenueengine:'Revenue Engine', leadform:'Lead Form', tdleads:'Quvera Leads', metaads:'Meta Ads', quoteapprovals:'Quote Approvals', aiquote:'AI Quote Builder', projects:'Projects', materials:'Material Requests', expenses:'Site Expenses', aiassistant:'AI Assistant', organizer:'My Organizer', meetings:'Planner', inbox:'Inbox', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
-    analytics:'Analytics', leads:'Lead Form', leadengine:'Lead Engine', quotations:'Quotations', invoices:'Invoices', ledger:'Ledger', quoteSettings:'Quote Settings', quotelibrary:'Description Library', sponsored:'Sponsored Placement', staff:'Staff & Access',
+    analytics:'Analytics', leads:'Lead Form', leadengine:'Lead Engine', quotations:'Quotations', invoices:'Invoices', purchases:'Purchases & Suppliers', ledger:'Ledger', quoteSettings:'Quote Settings', quotelibrary:'Description Library', sponsored:'Sponsored Placement', staff:'Staff & Access',
     team:'Our Team', documents:'Document Verification', faq:'FAQ Management', notifications:'Notifications', trust:'Trust Score', controlpanel:'Control Panel',
     verification:'Control Panel', verificationStatus:'Control Panel', plans:'Control Panel', settings:'Control Panel',
   }
@@ -355,13 +358,9 @@ function Portal() {
               <i className="ti ti-menu-2" />
             </button>
 
-            {/* Home / Back button — lives inside the sticky topbar so it stays fixed at the top on every page */}
-            {activePage !== 'menu' && (
-              <button onClick={() => navigate('menu')} aria-label="Back to All Features" title="Back to All Features"
-                style={{ display:'flex', alignItems:'center', justifyContent:'center', width:32, height:32, borderRadius:9, border:`0.5px solid var(--border)`, background:'var(--bg2)', color:'var(--text)', cursor:'pointer', flexShrink:0 }}>
-                <i className="ti ti-arrow-left" style={{ fontSize:17 }}/>
-              </button>
-            )}
+            {/* Single global back lives inside each page (one step back). The topbar's
+                All-Features grid icon + sidebar handle jumping to the menu, so we don't
+                duplicate a second back button here. */}
 
             <div style={{ width:34, height:34, borderRadius:9, background:'linear-gradient(135deg,#e8b84b,#c9952a)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:14, color:'#0d1117', flexShrink:0 }}>
               {company?.name?.[0]?.toUpperCase()||'?'}

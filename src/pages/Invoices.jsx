@@ -378,6 +378,10 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
     const payments = parsePayments(inv.payments)
     const paid = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0)
     const bal = Math.max(0, Number(inv.total || 0) - paid)
+    // VAT fraction of the invoice → how much of any payment is VAT (cash-basis view)
+    const vatFrac = (Number(inv.vat_amount) || 0) > 0 && (Number(inv.total) || 0) > 0 ? Number(inv.vat_amount) / Number(inv.total) : 0
+    const payVal = Number(payAmount) || 0
+    const payVat = Math.round(payVal * vatFrac)
     return (
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
@@ -434,6 +438,13 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
                 <input value={payMethod} onChange={e => setPayMethod(e.target.value)} placeholder="Method (Cash, Bank…)" style={inputStyle} />
                 <input value={payNote} onChange={e => setPayNote(e.target.value)} placeholder="Note (optional)" style={inputStyle} />
               </div>
+              {payVal > 0 && vatFrac > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', background: isDark ? 'rgba(0,153,204,0.08)' : '#f0faff', border: `1px solid ${isDark ? 'rgba(0,153,204,0.25)' : '#bae6fd'}`, borderRadius: 8, padding: '7px 11px', marginBottom: 8, fontSize: 12 }}>
+                  <span style={{ color: textSub }}>Of {fmt(payVal)} received:</span>
+                  <span style={{ color: '#0077a3', fontWeight: 700 }}><i className="ti ti-receipt-tax" style={{ fontSize: 13, verticalAlign: '-2px', marginRight: 3 }} />VAT {fmt(payVat)}</span>
+                  <span style={{ color: textSub }}>Net {fmt(payVal - payVat)}</span>
+                </div>
+              )}
               <button onClick={addPayment} style={{ width: '100%', padding: '10px', borderRadius: 9, border: 'none', background: '#0f6e56', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                 <i className="ti ti-plus" style={{ verticalAlign: '-2px', marginRight: 4 }} />Record payment
               </button>

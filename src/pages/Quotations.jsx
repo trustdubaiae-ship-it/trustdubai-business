@@ -1728,16 +1728,6 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     return (
       <div>
         {LibDatalist()}
-        <div style={{ display:'flex', alignItems:'center', gap:11, marginBottom:14 }}>
-          <button onClick={()=>{ if(!editId){clearDraft(); setDraftExists(false)} setView('list') }} title="Back to quotations"
-            style={{ width:34, height:34, borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:textSub, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-            <i className="ti ti-arrow-left" style={{ fontSize:17 }}/>
-          </button>
-          <div style={{ minWidth:0 }}>
-            <div className="font-syne fw-700" style={{ fontSize:18, color:text, lineHeight:1.2 }}>{editId ? 'Edit Quotation' : 'New Quotation'}</div>
-            <div style={{ fontSize:12, color:textMuted }}>Back to all quotations</div>
-          </div>
-        </div>
         {aiOpen && (
           <div onClick={()=>!aiBusy&&setAiOpen(false)} style={{ position:'fixed', inset:0, zIndex:2000, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
             <div onClick={e=>e.stopPropagation()} style={{ background:cardBg, borderRadius:16, width:'100%', maxWidth:480, padding:20, border:`1px solid ${border}` }}>
@@ -1761,7 +1751,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
           </div>
         )}
         <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14 }}>
-          <button onClick={() => setView('list')} style={{ width:34, height:34, borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:textSub, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <button onClick={()=>{ if(!editId){clearDraft(); setDraftExists(false)} setView('list') }} title="Back to quotations" style={{ width:34, height:34, borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:textSub, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
             <i className="ti ti-arrow-left" style={{ fontSize:16 }}/>
           </button>
           <div style={{ flex:1 }}>
