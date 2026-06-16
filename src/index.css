@@ -248,7 +248,9 @@ html, body {
   .topbar-plan { display:none !important; }
 }
 
-@media (max-width: 768px) {
+/* Phone-only tweaks. Capped at 767px so an iPad in portrait (768px, e.g. iPad
+   4th gen) keeps the roomier tablet layout instead of the cramped phone one. */
+@media (max-width: 767px) {
   .topbar-search { display:none !important; }
 
   .page-content { padding:14px; }

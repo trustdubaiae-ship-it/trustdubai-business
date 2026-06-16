@@ -441,14 +441,14 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
           {bal > 0 && (
             <div style={{ marginTop: 10, padding: '11px', border: `1px dashed ${border}`, borderRadius: 9 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                <input type="number" value={payAmount} onChange={e => setPayAmount(e.target.value)} placeholder={`Amount (bal ${num(bal)})`} style={inputStyle} />
-                <input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} style={inputStyle} />
+                <input type="number" value={payAmount} onChange={e => setPayAmount(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addPayment() }} placeholder={`Amount (bal ${num(bal)})`} style={inputStyle} />
+                <input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addPayment() }} style={inputStyle} />
                 <select value={payMethod} onChange={e => setPayMethod(e.target.value)} style={inputStyle} title="How did the client pay?">
                   {PAY_METHODS.map(m => <option key={m} value={m} style={{ background: inputBg, color: text }}>{m}</option>)}
                 </select>
-                <input value={payRef} onChange={e => setPayRef(e.target.value)} placeholder="Reference (txn/cheque no.)" style={inputStyle} />
+                <input value={payRef} onChange={e => setPayRef(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addPayment() }} placeholder="Reference (txn/cheque no.)" style={inputStyle} />
               </div>
-              <input value={payNote} onChange={e => setPayNote(e.target.value)} placeholder="Note (optional)" style={{ ...inputStyle, marginBottom: 8 }} />
+              <input value={payNote} onChange={e => setPayNote(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addPayment() }} placeholder="Note (optional)" style={{ ...inputStyle, marginBottom: 8 }} />
               {payVal > 0 && vatFrac > 0 && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', background: isDark ? 'rgba(0,153,204,0.08)' : '#f0faff', border: `1px solid ${isDark ? 'rgba(0,153,204,0.25)' : '#bae6fd'}`, borderRadius: 8, padding: '7px 11px', marginBottom: 8, fontSize: 12 }}>
                   <span style={{ color: textSub }}>Of {fmt(payVal)} received:</span>

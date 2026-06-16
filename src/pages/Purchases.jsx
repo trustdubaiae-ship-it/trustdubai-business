@@ -65,6 +65,20 @@ export default function Purchases() {
     return () => obs.disconnect()
   }, [company?.id])
 
+  // Keyboard: Esc closes an open modal, Enter (from a text field) saves it.
+  useEffect(() => {
+    if (!pModal && !sModal) return
+    const onKey = (e) => {
+      if (e.key === 'Escape') { setPModal(false); setSModal(false); return }
+      if (e.key === 'Enter' && !saving && (e.target.tagName || '').toLowerCase() === 'input') {
+        e.preventDefault()
+        if (pModal) savePurchase(); else if (sModal) saveSupplier()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [pModal, sModal, saving, pForm, sForm])
+
   async function load() {
     setLoading(true)
     try {
