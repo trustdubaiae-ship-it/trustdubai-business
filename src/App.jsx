@@ -350,11 +350,10 @@ function Portal() {
 
         <div className="topbar" style={{ background: isPlatinum?'#161b2e':'var(--card)', borderBottom:`0.5px solid ${isPlatinum?'rgba(139,92,246,0.2)':'var(--border)'}` }}>
           <div style={{ display:'flex', alignItems:'center', gap:10, minWidth:0, flex:1 }}>
-            {!mobile && (
-              <button className="hamburger-btn" onClick={() => setSidebarOpen(true)} aria-label="Menu">
-                <i className="ti ti-menu-2" />
-              </button>
-            )}
+            {/* Hamburger — always in the DOM; CSS shows it only on drawer screens (<=1024px) */}
+            <button className="hamburger-btn" onClick={() => setSidebarOpen(true)} aria-label="Open menu">
+              <i className="ti ti-menu-2" />
+            </button>
 
             {/* Home / Back button — lives inside the sticky topbar so it stays fixed at the top on every page */}
             {activePage !== 'menu' && (

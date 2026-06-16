@@ -229,8 +229,10 @@ html, body {
 /* ============================================================
    MOBILE RESPONSIVE  (<= 768px)
    ============================================================ */
-@media (max-width: 768px) {
-  .sidebar { transform:translateX(-100%); transition:transform 0.25s ease; width:250px; box-shadow:0 0 30px rgba(0,0,0,0.25); }
+/* Drawer mode: phones AND tablets (<=1024px) — sidebar slides in via hamburger,
+   content goes full width. Desktop (>1024px) keeps the fixed sidebar. */
+@media (max-width: 1024px) {
+  .sidebar { transform:translateX(-100%); transition:transform 0.25s ease; width:min(260px, 82vw); box-shadow:0 0 30px rgba(0,0,0,0.25); }
   .sidebar.open { transform:translateX(0); }
 
   .main { margin-left:0; }
@@ -240,10 +242,14 @@ html, body {
 
   .topbar { padding:0 12px; }
 
-  .topbar-search,
+  /* secondary topbar chips clutter the drawer header — keep only the essentials */
   .topbar-date,
   .topbar-msg,
   .topbar-plan { display:none !important; }
+}
+
+@media (max-width: 768px) {
+  .topbar-search { display:none !important; }
 
   .page-content { padding:14px; }
 
@@ -288,10 +294,10 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .main { min-width: 0; }
 .page-content { min-width: 0; }
 
-/* ---------- TABLET / iPad : 769px – 1024px ---------- */
+/* ---------- TABLET / iPad : 769px – 1024px ----------
+   Sidebar is a hamburger drawer here (see the <=1024px block above),
+   so the main content spans full width — only the grid tuning stays. */
 @media (min-width: 769px) and (max-width: 1024px) {
-  .sidebar { width: 200px; }
-  .main { margin-left: 200px; }
   .page-content { padding: 18px 20px; }
   .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
 
@@ -367,8 +373,8 @@ html { background: var(--bg); }
   padding-left: env(safe-area-inset-left);
 }
 
-/* ---------- Mobile / tablet: topbar spans full width (no sidebar offset) ---------- */
-@media (max-width: 768px) {
+/* ---------- Drawer screens (<=1024px): topbar spans full width (no sidebar offset) ---------- */
+@media (max-width: 1024px) {
   .topbar {
     left: 0;
     padding-left: max(12px, env(safe-area-inset-left));
@@ -376,13 +382,5 @@ html { background: var(--bg); }
   }
   .page-content {
     padding-top: calc(14px + 52px + env(safe-area-inset-top));
-  }
-}
-
-/* ---------- Tablet sidebar is 200px wide, so topbar starts at 200px ---------- */
-@media (min-width: 769px) and (max-width: 1024px) {
-  .topbar { left: 200px; }
-  .page-content {
-    padding-top: calc(18px + 52px + env(safe-area-inset-top));
   }
 }
