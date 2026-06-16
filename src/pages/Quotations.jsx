@@ -243,7 +243,10 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   const [previewDraft, setPreviewDraft] = useState(null)
   const [sourceLead, setSourceLead] = useState(null)
   const [workType, setWorkType] = useState('')
+  const [payTerms, setPayTerms] = useState([])      // per-quote payment milestones (auto-filled from work type, editable)
+  const [quoteTerms, setQuoteTerms] = useState('')  // per-quote terms & conditions text
   const [validUntil, setValidUntil] = useState('')
+  const [revision, setRevision] = useState(0)       // 0 = original; bumped when a quote is re-issued
   const [aiOpen, setAiOpen] = useState(false)
   const [aiDesc, setAiDesc] = useState('')
   const [aiBusy, setAiBusy] = useState(false)
@@ -284,6 +287,16 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   const defaultPresetName = (presets.find(p => p.isDefault) || presets[0])?.name || ''
   const selectedPreset = presets.find(p => p.name === workType) || presets.find(p => p.isDefault) || presets[0] || null
 
+  // Fill the per-quote payment schedule + terms from a work-type preset.
+  function fillFromPreset(name) {
+    const p = presets.find(x => x.name === name) || presets.find(x => x.isDefault) || presets[0]
+    setPayTerms(p?.payment?.length ? p.payment.map(x => ({ percent: Number(x.percent) || 0, label: x.label || '', description: x.description || '' })) : [])
+    setQuoteTerms((p && p.terms) || tpl?.default_terms || DEFAULT_TERMS)
+  }
+  // Changing the work type re-fills payment + terms (so the change is visible) — still editable after.
+  function applyWorkType(name) { setWorkType(name); fillFromPreset(name) }
+  const payPctTotal = payTerms.reduce((s, p) => s + (Number(p.percent) || 0), 0)
+
   function setView(v, sub) {
     setViewRaw(v)
     if (v === 'list') setSub('')
@@ -319,7 +332,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         setNotes(d.notes || ''); setShowFooter(d.showFooter ?? true); setShowSignature(d.showSignature ?? true); setShowBank(d.showBank ?? false); setQuoteTheme(d.quoteTheme ?? 'gold'); setProjTimeline(d.projTimeline ?? [])
         setLocation(d.location || ''); setPreparedBy(d.preparedBy || ''); setClientEmail(d.clientEmail || ''); setClientTrn(d.clientTrn || '')
         setSourceLead(d.sourceLead || null)
-        setWorkType(d.workType || defaultPresetName); setValidUntil(d.validUntil || '')
+        setWorkType(d.workType || defaultPresetName); setPayTerms(Array.isArray(d.payTerms) ? d.payTerms : []); setQuoteTerms(d.quoteTerms || ''); setValidUntil(d.validUntil || ''); setRevision(d.revision || 0)
       }
       setViewRaw('builder')
       setRestoring(false)
@@ -620,7 +633,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     setShowFooter(true); setShowSignature(true); setShowBank(tpl?.default_show_bank ?? false); setAddTradePick('')
     setQuoteTheme(tpl?.default_quote_theme || 'gold'); setProjTimeline([])
     setLocation(''); setPreparedBy(''); setClientEmail(''); setClientTrn(''); setSourceLead(null)
-    setWorkType(defaultPresetName); setValidUntil('')
+    setWorkType(defaultPresetName); fillFromPreset(defaultPresetName); setValidUntil(''); setRevision(0)
     setView('builder', 'builder')
   }
   function resumeDraft() {
@@ -637,7 +650,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     setNotes(d.notes || ''); setShowFooter(d.showFooter ?? true); setShowSignature(d.showSignature ?? true); setShowBank(d.showBank ?? false)
     setLocation(d.location || ''); setPreparedBy(d.preparedBy || ''); setClientEmail(d.clientEmail || '')
     setSourceLead(d.sourceLead || null)
-    setWorkType(d.workType || defaultPresetName); setValidUntil(d.validUntil || '')
+    setWorkType(d.workType || defaultPresetName); setPayTerms(Array.isArray(d.payTerms) ? d.payTerms : []); setQuoteTerms(d.quoteTerms || ''); setValidUntil(d.validUntil || ''); setRevision(d.revision || 0)
     setAddTradePick(''); setView('builder', 'builder')
   }
   function discardDraft() { clearDraft(); setDraftExists(false); toast.info('Draft discarded') }
@@ -657,7 +670,9 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     setShowFooter(q.show_footer ?? true); setShowSignature(q.show_signature ?? true); setShowBank(q.show_bank ?? (tpl?.default_show_bank ?? false))
     setQuoteTheme(q.quote_theme || 'gold'); setProjTimeline(parseTimeline(q.project_timeline))
     setLocation(q.location || ''); setPreparedBy(q.prepared_by || ''); setClientEmail(q.client_email || ''); setClientTrn(q.client_trn || ''); setSourceLead(null)
-    setWorkType(q.work_type || defaultPresetName); setValidUntil((q.valid_until || '').slice(0, 10))
+    setWorkType(q.work_type || defaultPresetName)
+    setPayTerms(parsePaymentTpl(q.payment_terms)); setQuoteTerms(q.terms || tpl?.default_terms || '')
+    setValidUntil((q.valid_until || '').slice(0, 10)); setRevision(q.revision || 0)
     setAddTradePick(''); setView('builder', 'builder')
   }
 
@@ -728,11 +743,11 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     const hasContent = client || projectTitle.trim() || items.some(it => it.desc.trim())
     if (!hasContent) return
     const t = setTimeout(() => {
-      saveDraft({ mode, client, clientSearch, clientPrefix, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, showBank, quoteTheme, projTimeline, location, preparedBy, clientEmail, clientTrn, sourceLead })
+      saveDraft({ mode, client, clientSearch, clientPrefix, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, showBank, quoteTheme, projTimeline, location, preparedBy, clientEmail, clientTrn, sourceLead, workType, payTerms, quoteTerms, validUntil, revision })
       setDraftExists(true)
     }, 500)
     return () => clearTimeout(t)
-  }, [view, editId, mode, client, clientPrefix, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, showBank, quoteTheme, projTimeline, location, preparedBy, clientEmail, clientTrn, sourceLead])
+  }, [view, editId, mode, client, clientPrefix, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, showBank, quoteTheme, projTimeline, location, preparedBy, clientEmail, clientTrn, sourceLead, workType, payTerms, quoteTerms, validUntil, revision])
 
   function openBuilderPreview() {
     if (!client) { toast.error('Select a client first'); return }
@@ -752,10 +767,10 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         ...(it.img ? { img: it.img } : {}),
       })),
       subtotal, vat_amount: vatAmount, total: grandTotal,
-      payment_terms: selectedPreset ? selectedPreset.payment : (tpl?.payment_schedule || null),
+      payment_terms: payTerms.length ? payTerms : (selectedPreset?.payment || tpl?.payment_schedule || null),
       why_choose_us: selectedPreset ? JSON.stringify(selectedPreset.whyUs) : (tpl?.why_choose_us || null),
-      terms: selectedPreset ? selectedPreset.terms : (tpl?.default_terms || null),
-      work_type: workType || null, valid_until: validUntil || null,
+      terms: quoteTerms.trim() || (selectedPreset?.terms || tpl?.default_terms || null),
+      work_type: workType || null, valid_until: validUntil || null, revision: Number(revision) || 0,
       notes: notes.trim() || null,
       show_footer: showFooter, show_signature: showSignature, show_bank: showBank,
       quote_theme: quoteTheme, project_timeline: projTimeline.length ? projTimeline : null,
@@ -788,11 +803,12 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         })),
         subtotal, vat_amount: vatAmount, total: grandTotal,
         discount_type: discountType || null, discount_value: Number(discountValue) || 0, vat_enabled: vatEnabled,
-        payment_terms: selectedPreset ? selectedPreset.payment : (tpl?.payment_schedule || null),
+        payment_terms: payTerms.length ? payTerms : (selectedPreset?.payment || tpl?.payment_schedule || null),
         why_choose_us: selectedPreset ? JSON.stringify(selectedPreset.whyUs) : (tpl?.why_choose_us || null),
-        terms: selectedPreset ? (selectedPreset.terms || null) : (tpl?.default_terms || null),
+        terms: quoteTerms.trim() || (selectedPreset?.terms || tpl?.default_terms || null),
         work_type: workType || null,
         valid_until: validUntil || null,
+        revision: Number(revision) || 0,
         notes: notes.trim() || null,
         show_footer: showFooter, show_signature: showSignature, show_bank: showBank,
         quote_theme: quoteTheme, project_timeline: projTimeline.length ? projTimeline : null,
@@ -934,6 +950,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     const isVo   = !!voMeta
     const docLabel = isVo ? 'VARIATION ORDER' : 'QUOTATION'
     const refLabel = isVo ? escapeHtml(voMeta.voNumber) : escapeHtml(q.quote_number||'')
+    const revStr = (!isVo && Number(q.revision) > 0) ? ' · Rev. ' + Number(q.revision) : ''
     const dateStr = new Date(q.created_at || Date.now()).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })
     const validStr = q.valid_until ? new Date(q.valid_until).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }) : ''
 
@@ -1072,7 +1089,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
             <div style="text-align:right;">
               <div style="font-size:${isVo?'17px':'20px'};font-weight:700;color:${ACC};letter-spacing:${isVo?'1px':'2px'};">${docLabel}</div>
               <div style="display:inline-block;margin-top:6px;background:#faf6ec;border:0.5px solid #e8d9b5;border-radius:5px;padding:5px 9px;text-align:left;">
-                <div style="font-size:9px;color:#6b6b6b;font-family:monospace;">${isVo?'VO':'Ref'} · ${refLabel}</div>
+                <div style="font-size:9px;color:#6b6b6b;font-family:monospace;">${isVo?'VO':'Ref'} · ${refLabel}${revStr}</div>
                 ${isVo?`<div style="font-size:9px;color:#6b6b6b;font-family:monospace;">Against · ${escapeHtml(q.quote_number||'')}</div>`:(q.client_uid?`<div style="font-size:9px;color:#6b6b6b;font-family:monospace;">UID · ${escapeHtml(q.client_uid)}</div>`:'')}
                 <div style="font-size:9px;color:#6b6b6b;">Date · ${dateStr}</div>
                 ${validStr?`<div style="font-size:9px;color:#6b6b6b;">Valid until · ${validStr}</div>`:''}
@@ -1160,7 +1177,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         </div>
         <div style="text-align:right;">
           <div style="font-size:17px;font-weight:700;color:${ACC};">${docLabel}</div>
-          <div style="font-size:10px;color:#6b6b6b;margin-top:3px;font-family:monospace;">${isVo?'VO':'Ref'}: ${refLabel}</div>
+          <div style="font-size:10px;color:#6b6b6b;margin-top:3px;font-family:monospace;">${isVo?'VO':'Ref'}: ${refLabel}${revStr}</div>
           ${isVo?`<div style="font-size:10px;color:#6b6b6b;font-family:monospace;">Against: ${escapeHtml(q.quote_number||'')}</div>`:(q.client_uid?`<div style="font-size:10px;color:#6b6b6b;font-family:monospace;">UID: ${escapeHtml(q.client_uid)}</div>`:'')}
           <div style="font-size:10px;color:#6b6b6b;">Date: ${dateStr}</div>
           ${validStr?`<div style="font-size:10px;color:#6b6b6b;">Valid until: ${validStr}</div>`:''}
@@ -1208,43 +1225,38 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     </div>`
   }
 
+  // Print straight from a hidden iframe → goes directly to the browser's
+  // Print / Save-as-PDF dialog. No blank pop-up window, no extra toolbar click.
   function printDoc(html, title) {
-    const w = window.open('', '_blank')
-    if (!w) { toast.error('Allow pop-ups to print/preview'); return }
     const safeTitle = escapeHtml(title || 'Document')
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${safeTitle}</title>
+    const doc = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${safeTitle}</title>
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <style>
-        /* force background colours/gradients to print & save-to-PDF (premium theme stays) */
         * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
-        html, body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        html, body { margin:0; background:#fff; }
         @page { size: A4; margin: 12mm; }
-        .__sheet { width: 210mm; max-width: 100%; margin: 18px auto; background:#fff; box-shadow:0 6px 30px rgba(0,0,0,0.18); }
-        @media print {
-          .__toolbar { display:none !important; }
-          body { padding-top:0 !important; background:#fff !important; }
-          .__sheet { width:auto; max-width:none; margin:0; box-shadow:none; }
-        }
-        .__toolbar { position:fixed; top:0; left:0; right:0; height:52px; z-index:9999; background:#0f1623; color:#fff; display:flex; align-items:center; justify-content:space-between; padding:0 16px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; box-shadow:0 2px 10px rgba(0,0,0,0.25); }
-        .__toolbar .__t { font-size:14px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .__toolbar .__btns { display:flex; gap:8px; flex-shrink:0; }
-        .__toolbar button { font-size:13px; font-weight:600; padding:8px 16px; border-radius:8px; border:none; cursor:pointer; font-family:inherit; }
-        .__btn-print { background:#0099cc; color:#fff; }
-        .__btn-close { background:rgba(255,255,255,0.12); color:#fff; }
-      </style>
-    </head><body style="margin:0;background:#eef2f6;padding-top:52px;">
-      <div class="__toolbar">
-        <span class="__t">${safeTitle}</span>
-        <span class="__btns">
-          <button class="__btn-print" onclick="window.print()">Print / Save PDF</button>
-          <button class="__btn-close" onclick="window.close()">✕ Close</button>
-        </span>
-      </div>
-      <div class="__sheet">${html}</div>
-    </body></html>`)
-    w.document.close()
+      </style></head><body>${html}</body></html>`
+    const iframe = document.createElement('iframe')
+    iframe.setAttribute('aria-hidden', 'true')
+    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;'
+    iframe.onload = () => {
+      const win = iframe.contentWindow
+      let done = false
+      const cleanup = () => { if (done) return; done = true; try { iframe.remove() } catch (e) {} }
+      try { win.onafterprint = cleanup } catch (e) {}
+      setTimeout(() => { try { win.focus(); win.print() } catch (e) {} }, 300)
+      setTimeout(cleanup, 60000)   // fallback cleanup if afterprint never fires
+    }
+    iframe.srcdoc = doc
+    document.body.appendChild(iframe)
   }
-  function printQuote(q) { printDoc(buildQuoteHTML(q), q.quote_number) }
+  // Default PDF filename = quote ref + revision + client, e.g. "SJID006-rev01 Mr XXX"
+  function pdfName(q) {
+    const rev = Number(q.revision) > 0 ? `-rev${String(Number(q.revision)).padStart(2, '0')}` : ''
+    const who = [q.client_prefix, q.client_name].filter(Boolean).join(' ').trim()
+    return `${q.quote_number || 'Quotation'}${rev}${who ? ' ' + who : ''}`
+  }
+  function printQuote(q) { printDoc(buildQuoteHTML(q), pdfName(q)) }
   function printVo(v) {
     const voNum = 'VO-' + String(v.vo_number).padStart(2,'0')
     const renderObj = {
@@ -1257,8 +1269,19 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
 
   function whatsappQuote(q) {
     const phone = (q.client_phone||'').replace(/[^0-9]/g,'')
-    const msg = `Dear ${q.client_name||'Client'},\n\nPlease find your quotation ${q.quote_number} from ${company?.name||''}.\nProject: ${q.project_title||'—'}\nTotal: AED ${Number(q.total||0).toLocaleString('en-AE')}\n\nThank you.`
-    window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(msg), '_blank')
+    const aed = n => 'AED ' + Number(n||0).toLocaleString('en-AE')
+    const rev = Number(q.revision) > 0 ? ` (Rev. ${Number(q.revision)})` : ''
+    const lines = [
+      `Dear ${q.client_prefix ? q.client_prefix + ' ' : ''}${q.client_name || 'Client'},`,
+      ``,
+      `Please find your quotation *${q.quote_number || ''}*${rev} from ${company?.name || ''}.`,
+    ]
+    if (q.project_title) lines.push(`Project: ${q.project_title}`)
+    lines.push(`Total: ${aed(q.total)}${Number(q.vat_amount) > 0 ? ' (incl. 5% VAT)' : ''}`)
+    if (q.valid_until) lines.push(`Valid until: ${new Date(q.valid_until).toLocaleDateString('en-GB')}`)
+    if (q.public_token) lines.push(``, `View & approve online:`, approvalLink(q))
+    lines.push(``, `Thank you.`)
+    window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(lines.join('\n')), '_blank')
   }
   // Public approval link (client opens it, no login, to approve/reject online)
   function approvalLink(q) { return `${window.location.origin}/#approve/${q.public_token || ''}` }
@@ -1870,15 +1893,23 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
           {presets.length > 0 && (
             <div style={{ minWidth:0 }}>
               <label style={{ fontSize:11, color:textMuted, display:'block', marginBottom:3 }}>Work type · payment &amp; terms</label>
-              <select value={workType} onChange={e=>setWorkType(e.target.value)} style={{ ...inputStyle, fontSize:12.5 }}>
+              <select value={workType} onChange={e=>applyWorkType(e.target.value)} style={{ ...inputStyle, fontSize:12.5 }}>
                 {presets.map(p => <option key={p.name} value={p.name} style={{ background:inputBg, color:text }}>{p.name}{p.isDefault?' (default)':''}</option>)}
               </select>
-              <div style={{ fontSize:10.5, color:textMuted, marginTop:3 }}>Payment schedule, why-us &amp; terms come from this template.</div>
+              <div style={{ fontSize:10.5, color:textMuted, marginTop:3 }}>Fills the payment schedule &amp; terms below — edit them for this quote.</div>
             </div>
           )}
           <div style={{ minWidth:0 }}>
             <label style={{ fontSize:11, color:textMuted, display:'block', marginBottom:3 }}>Valid until <span style={{ color:textMuted }}>(optional)</span></label>
             <input type="date" value={validUntil} onChange={e=>setValidUntil(e.target.value)} style={{ ...inputStyle, fontSize:12.5 }}/>
+          </div>
+          <div style={{ minWidth:0 }}>
+            <label style={{ fontSize:11, color:textMuted, display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:3 }}>
+              <span>Revision <span style={{ color:textMuted }}>(0 = original)</span></span>
+              <button type="button" onClick={()=>setRevision(r=>(Number(r)||0)+1)} title="Bump revision" style={{ fontSize:10.5, fontWeight:700, color:'#0099cc', background:'none', border:'none', cursor:'pointer', padding:0 }}>+1</button>
+            </label>
+            <input type="number" min="0" value={revision} onChange={e=>setRevision(e.target.value)} style={{ ...inputStyle, fontSize:12.5 }}/>
+            {Number(revision) > 0 && <div style={{ fontSize:10.5, color:'#d97706', marginTop:3 }}>Shows as “Rev. {Number(revision)}” on the quote.</div>}
           </div>
         </div>
 
@@ -2105,6 +2136,30 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
           </div>
         </div>
 
+        {/* Payment schedule + terms — auto-filled from the work type, editable per quote */}
+        <div style={{ borderTop:`1px dashed ${border}`, paddingTop:13, marginBottom:14 }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:9 }}>
+            <div style={{ fontSize:11, color:textMuted, textTransform:'uppercase', letterSpacing:'.4px', display:'flex', alignItems:'center', gap:6 }}><i className="ti ti-cash" style={{ fontSize:13, color:'#0099cc' }}/> Payment schedule &amp; terms</div>
+            <span style={{ fontSize:11.5, fontWeight:700, color: payPctTotal===100 ? '#0f6e56' : (payTerms.length ? '#d97706' : textMuted) }}>{payPctTotal}%{payTerms.length && payPctTotal!==100 ? ' · should be 100%' : ''}</span>
+          </div>
+          {payTerms.length === 0 && <div style={{ fontSize:11.5, color:textMuted, marginBottom:9 }}>No milestones — add one, or pick a work type above to auto-fill.</div>}
+          {payTerms.map((p,i)=>(
+            <div key={i} style={{ display:'grid', gridTemplateColumns:'56px 1fr 28px', gap:7, marginBottom:7, alignItems:'start' }}>
+              <input type="number" value={p.percent} onChange={e=>setPayTerms(prev=>prev.map((x,j)=>j===i?{...x,percent:e.target.value}:x))} placeholder="%" style={{ ...inputStyle, textAlign:'center', padding:'8px 4px', fontSize:12.5 }}/>
+              <div style={{ minWidth:0 }}>
+                <input value={p.label} onChange={e=>setPayTerms(prev=>prev.map((x,j)=>j===i?{...x,label:e.target.value}:x))} placeholder="Milestone (e.g. 1st Payment — Advance)" style={{ ...inputStyle, marginBottom:4, padding:'8px 9px', fontSize:12.5 }}/>
+                <input value={p.description} onChange={e=>setPayTerms(prev=>prev.map((x,j)=>j===i?{...x,description:e.target.value}:x))} placeholder="Description (e.g. Upon contract signing)" style={{ ...inputStyle, padding:'7px 9px', fontSize:12, color:textSub }}/>
+              </div>
+              <button onClick={()=>setPayTerms(prev=>prev.filter((_,j)=>j!==i))} title="Remove" style={{ width:28, height:28, borderRadius:7, border:`1px solid ${border}`, background:cardBg, color:'#ef4444', cursor:'pointer', flexShrink:0 }}><i className="ti ti-x" style={{ fontSize:13 }}/></button>
+            </div>
+          ))}
+          <button onClick={()=>setPayTerms(prev=>[...prev,{percent:0,label:'',description:''}])} style={{ fontSize:12, padding:'6px 11px', border:`1px solid ${border}`, borderRadius:7, background:'none', color:'#0099cc', cursor:'pointer', fontWeight:600 }}>
+            <i className="ti ti-plus" style={{ fontSize:12, verticalAlign:'-2px', marginRight:3 }}/> Add milestone
+          </button>
+          <div style={{ fontSize:11.5, color:textSub, fontWeight:600, margin:'13px 0 5px' }}>Terms &amp; conditions</div>
+          <textarea value={quoteTerms} onChange={e=>setQuoteTerms(e.target.value)} placeholder="Terms & conditions shown on this quote…" style={{ ...inputStyle, minHeight:64, resize:'vertical', lineHeight:1.5, fontSize:12.5 }}/>
+        </div>
+
         {/* Colour template + Project timeline */}
         <div style={{ borderTop:`1px dashed ${border}`, paddingTop:13, marginBottom:14 }}>
           <div style={{ fontSize:11, color:textMuted, textTransform:'uppercase', letterSpacing:'.4px', marginBottom:8 }}>Colour template</div>
@@ -2240,6 +2295,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ fontSize:14, fontWeight:600, color:text, display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
                     {q.quote_number||'Untitled'}
+                    {Number(q.revision) > 0 && <span style={{ fontSize:10, fontWeight:700, color:'#d97706', background:isDark?'#d9770622':'#fff7ed', padding:'1px 7px', borderRadius:99 }}>Rev. {Number(q.revision)}</span>}
                     <span style={{ fontSize:11, color:md.color, background:isDark?md.color+'22':md.bg, padding:'1px 8px', borderRadius:99 }}>{md.label}</span>
                     {q.client_uid && <span style={{ fontSize:10, color:textMuted, fontFamily:'monospace' }}>{q.client_uid}</span>}
                   </div>
