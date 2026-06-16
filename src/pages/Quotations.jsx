@@ -12,6 +12,7 @@ const STATUS_STYLE = {
 }
 const MODE_STYLE = {
   simple:   { label:'Simple',   color:'#64748b', bg:'#f1f5f9' },
+  visual:   { label:'Visual',   color:'#7c3aed', bg:'#f3e8ff' },
   advanced: { label:'Advanced', color:'#185fa5', bg:'#e6f1fb' },
   boq:      { label:'BOQ',       color:'#0077a3', bg:'#e0f9ff' },
 }
@@ -190,6 +191,15 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   const canAdvanced = (PLAN_RANK[planName] || 0) >= 1
   const canPremium  = (PLAN_RANK[planName] || 0) >= 2
 
+  // Normalise a stored/restored mode to one this plan can actually use.
+  // 'visual' (Simple + per-item photos) is available on every plan.
+  function normMode(m) {
+    if (m === 'boq')      return canBoq ? 'boq' : 'simple'
+    if (m === 'advanced') return canAdvanced ? 'advanced' : 'simple'
+    if (m === 'visual')   return 'visual'
+    return 'simple'
+  }
+
   const setSub = (typeof setSubRoute === 'function') ? setSubRoute : () => {}
 
   const [, forceUpdate] = useState(0)
@@ -237,6 +247,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   const [aiOpen, setAiOpen] = useState(false)
   const [aiDesc, setAiDesc] = useState('')
   const [aiBusy, setAiBusy] = useState(false)
+  const [imgBusy, setImgBusy] = useState({})   // { rowIdx: true } while a per-item photo uploads
 
   // ---- VO state ----
   const [vos, setVos]             = useState([])
@@ -299,7 +310,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
       const d = loadDraft()
       if (d) {
         setEditId(null)
-        setMode(d.mode === 'boq' && canBoq ? 'boq' : (d.mode === 'advanced' && canAdvanced ? 'advanced' : 'simple'))
+        setMode(normMode(d.mode))
         setClient(d.client || null); setClientSearch(d.clientSearch || ''); setClientPrefix(d.clientPrefix ?? 'Mr.')
         setProjectTitle(d.projectTitle || '')
         setItems(Array.isArray(d.items) && d.items.length ? d.items : [blankItem()])
@@ -392,6 +403,27 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     if (isVo) setVoItems(prev => prev.map((it,i)=> i===idx ? apply(it) : it))
     else setItems(prev => prev.map((it,i)=> i===idx ? apply(it) : it))
   }
+
+  // Visual mode: upload a reference photo for one line item → public URL stored on it.item.img
+  async function uploadItemImage(idx, file) {
+    if (!file) return
+    if (!file.type?.startsWith('image/')) { toast.error('Please choose an image file'); return }
+    if (file.size > 6 * 1024 * 1024) { toast.error('Image too large (max 6 MB)'); return }
+    setImgBusy(prev => ({ ...prev, [idx]: true }))
+    try {
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+      const path = `quote-items/${company.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+      const { error } = await supabase.storage.from('company-assets').upload(path, file, { upsert: false })
+      if (error) throw error
+      const { data: { publicUrl } } = supabase.storage.from('company-assets').getPublicUrl(path)
+      setItems(prev => prev.map((it,i)=> i===idx ? { ...it, img: publicUrl } : it))
+    } catch (e) {
+      toast.error('Image upload failed: ' + (e.message || 'unknown'))
+    } finally {
+      setImgBusy(prev => { const n = { ...prev }; delete n[idx]; return n })
+    }
+  }
+  function removeItemImage(idx) { setItems(prev => prev.map((it,i)=> i===idx ? { ...it, img: '' } : it)) }
   // best-effort: save any new line descriptions into the library (owner only via RLS)
   async function growLibrary(validItems, m) {
     try {
@@ -595,7 +627,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     const d = loadDraft()
     if (!d) { setDraftExists(false); return }
     setEditId(null)
-    setMode(d.mode === 'boq' && canBoq ? 'boq' : (d.mode === 'advanced' && canAdvanced ? 'advanced' : 'simple'))
+    setMode(normMode(d.mode))
     setClient(d.client || null); setClientSearch(d.clientSearch || ''); setClientPrefix(d.clientPrefix ?? 'Mr.')
     setSuggestions([]); setShowSug(false)
     setProjectTitle(d.projectTitle || '')
@@ -612,12 +644,12 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
 
   function editQuote(q) {
     setEditId(q.id)
-    setMode(q.mode === 'boq' && canBoq ? 'boq' : (q.mode === 'advanced' && canAdvanced ? 'advanced' : 'simple'))
+    setMode(normMode(q.mode))
     setClient(q.client_id ? { id:q.client_id, uid:q.client_uid, name:q.client_name, phone:q.client_phone, email:q.client_email } : null)
     setClientSearch(q.client_name || ''); setSuggestions([]); setShowSug(false); setClientPrefix(q.client_prefix || 'Mr.')
     setProjectTitle(q.project_title || '')
     setItems(Array.isArray(q.items) && q.items.length
-      ? q.items.map(it => ({ desc:it.desc||'', unit:it.unit||'Nos', qty:it.qty??1, rate:it.rate??0, trade: it.trade || '' }))
+      ? q.items.map(it => ({ desc:it.desc||'', unit:it.unit||'Nos', qty:it.qty??1, rate:it.rate??0, trade: it.trade || '', img: it.img || '' }))
       : [blankItem()])
     setNotes(q.notes || '')
     setVatEnabled(q.vat_enabled != null ? q.vat_enabled : (!!q.vat_amount || (tpl?.default_vat_enabled ?? true)))
@@ -717,6 +749,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
       items: validItems.map(it => ({
         desc: it.desc.trim(), unit: it.unit || 'Nos', qty: Number(it.qty)||0, rate: Number(it.rate)||0,
         ...((mode === 'boq' || mode === 'advanced') ? { trade: it.trade || 'Misc' } : {}),
+        ...(it.img ? { img: it.img } : {}),
       })),
       subtotal, vat_amount: vatAmount, total: grandTotal,
       payment_terms: selectedPreset ? selectedPreset.payment : (tpl?.payment_schedule || null),
@@ -751,6 +784,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         items: validItems.map(it => ({
           desc:it.desc.trim(), unit:it.unit||'Nos', qty:Number(it.qty)||0, rate:Number(it.rate)||0,
           ...((mode === 'boq' || mode === 'advanced') ? { trade: it.trade || 'Misc' } : {}),
+          ...(it.img ? { img: it.img } : {}),
         })),
         subtotal, vat_amount: vatAmount, total: grandTotal,
         discount_type: discountType || null, discount_value: Number(discountValue) || 0, vat_enabled: vatEnabled,
@@ -917,12 +951,21 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
       <div style="font-size:10px;color:${ACC};text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:7px;">— Notes</div>
       <div style="font-size:9px;color:#666;line-height:1.7;white-space:pre-line;">${noteStr}</div></div>` : ''
 
-    const colgroup = `<colgroup><col style="width:26px"><col><col style="width:44px"><col style="width:36px"><col style="width:60px"><col style="width:72px"></colgroup>`
+    // Visual mode adds a Photo column (each item carries an `img` URL).
+    const withImg = q.mode === 'visual'
+    const imgTh = withImg ? `<th style="padding:7px 8px;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:.5px;">Photo</th>` : ''
+    const colgroup = withImg
+      ? `<colgroup><col style="width:22px"><col style="width:60px"><col><col style="width:40px"><col style="width:32px"><col style="width:54px"><col style="width:66px"></colgroup>`
+      : `<colgroup><col style="width:26px"><col><col style="width:44px"><col style="width:36px"><col style="width:60px"><col style="width:72px"></colgroup>`
     const td = 'padding:7px 8px;font-size:10.5px;border-bottom:0.5px solid #ededed;'
     const tdDesc = `${td}word-break:break-word;overflow-wrap:anywhere;white-space:pre-line;`
+    const imgTd = (it) => withImg
+      ? `<td style="${td}text-align:center;vertical-align:middle;">${it.img?`<img src="${escapeHtml(it.img)}" style="width:50px;height:50px;object-fit:cover;border-radius:5px;border:0.5px solid #e5e5e5;">`:''}</td>`
+      : ''
 
     const rowHtml = (it, i) => `<tr>
       <td style="${td}color:#999;">${i}</td>
+      ${imgTd(it)}
       <td style="${tdDesc}">${escapeHtml(it.desc||'')}</td>
       <td style="${td}text-align:center;color:#777;">${escapeHtml(it.unit||'')}</td>
       <td style="${td}text-align:center;color:#777;">${escapeHtml(it.qty||0)}</td>
@@ -1058,6 +1101,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
             ${colgroup}
             <thead><tr style="background:#1a1a1a;color:#fff;">
               <th style="padding:7px 8px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.5px;">#</th>
+              ${imgTh}
               <th style="padding:7px 8px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.5px;">Description</th>
               <th style="padding:7px 8px;text-align:center;font-size:9px;">Unit</th>
               <th style="padding:7px 8px;text-align:center;font-size:9px;">Qty</th>
@@ -1138,6 +1182,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         ${colgroup}
         <thead><tr style="background:#1a1a1a;color:#fff;">
           <th style="padding:7px 8px;text-align:left;font-size:10px;">#</th>
+          ${imgTh}
           <th style="padding:7px 8px;text-align:left;font-size:10px;">Description</th>
           <th style="padding:7px 8px;text-align:center;font-size:10px;">Unit</th>
           <th style="padding:7px 8px;text-align:center;font-size:10px;">Qty</th>
@@ -1704,7 +1749,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
               <textarea value={aiDesc} onChange={e=>setAiDesc(e.target.value)} autoFocus rows={5}
                 placeholder={'e.g. 3-bedroom villa kitchen renovation — remove old cabinets, install modular cabinets, quartz countertop, new sink & mixer, false ceiling with spotlights, repaint walls.'}
                 style={{ ...inputStyle, resize:'vertical', lineHeight:1.5, marginBottom:6 }}/>
-              <div style={{ fontSize:11, color:textMuted, marginBottom:14 }}>Mode: <b style={{ color:textSub }}>{md.label}</b>{mode!=='simple' ? ' · items will be grouped into sections' : ''}</div>
+              <div style={{ fontSize:11, color:textMuted, marginBottom:14 }}>Mode: <b style={{ color:textSub }}>{md.label}</b>{(mode==='boq'||mode==='advanced') ? ' · items will be grouped into sections' : ''}{mode==='visual' ? ' · add photos to each item after' : ''}</div>
               <div style={{ display:'flex', gap:8 }}>
                 <button onClick={()=>setAiOpen(false)} disabled={aiBusy} style={{ flex:1, padding:'11px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}>Cancel</button>
                 <button onClick={aiGenerate} disabled={aiBusy} style={{ flex:2, padding:'11px', borderRadius:9, border:'none', background:'linear-gradient(135deg,#7c3aed,#0099cc)', color:'#fff', fontSize:13.5, fontWeight:700, cursor:aiBusy?'default':'pointer', opacity:aiBusy?0.7:1, display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
@@ -1730,6 +1775,11 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
           <button onClick={()=>switchMode('simple')}
             style={{ fontSize:13, fontWeight: mode==='simple'?600:400, padding:'6px 16px', borderRadius:7, border:'none', cursor:'pointer',
               background: mode==='simple'?(isDark?'rgba(3,193,245,0.15)':'#e0f9ff'):'transparent', color: mode==='simple'?'#0099cc':textSub }}>Simple</button>
+          <button onClick={()=>switchMode('visual')} title="Itemised quote with a reference photo for each item"
+            style={{ fontSize:13, fontWeight: mode==='visual'?600:400, padding:'6px 16px', borderRadius:7, border:'none', cursor:'pointer', display:'flex', alignItems:'center', gap:5,
+              background: mode==='visual'?(isDark?'rgba(124,58,237,0.18)':'#f3e8ff'):'transparent', color: mode==='visual'?'#7c3aed':textSub }}>
+            <i className="ti ti-photo" style={{ fontSize:14 }}/> Visual
+          </button>
           <button onClick={()=>switchMode('advanced')}
             style={{ fontSize:13, fontWeight: mode==='advanced'?600:400, padding:'6px 16px', borderRadius:7, border:'none', cursor:'pointer', display:'flex', alignItems:'center', gap:5,
               background: mode==='advanced'?(isDark?'rgba(3,193,245,0.15)':'#e0f9ff'):'transparent', color: mode==='advanced'?'#0099cc':(canAdvanced?textSub:textMuted) }}>
@@ -1873,6 +1923,65 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
             </div>
             <div style={{ padding:'9px 11px', borderTop:`1px solid ${border}` }}>
               <button onClick={addItem} style={{ fontSize:12, padding:'6px 12px', border:`1px solid ${border}`, borderRadius:7, background:'none', color:'#0099cc', cursor:'pointer', fontWeight:600 }}>
+                <i className="ti ti-plus" style={{ fontSize:13, verticalAlign:'-2px', marginRight:3 }}/> Add line item
+              </button>
+            </div>
+          </div>
+        )}
+
+        {mode === 'visual' && (
+          <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, overflow:'hidden', marginBottom:14 }}>
+            <div style={{ padding:'8px 12px', background:isDark?'rgba(124,58,237,0.10)':'#f6f0ff', borderBottom:`1px solid ${border}`, fontSize:11.5, color:'#7c3aed', display:'flex', alignItems:'center', gap:6 }}>
+              <i className="ti ti-photo" style={{ fontSize:14 }}/> Visual quote — add a reference photo for each item. Photos show on the PDF &amp; preview.
+            </div>
+            <div style={{ overflowX:'auto', WebkitOverflowScrolling:'touch' }}>
+              <div style={{ minWidth:600 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'66px 1fr 50px 44px 64px 82px 28px', gap:7, padding:'9px 12px', background:subBg, fontSize:11, color:textSub, textTransform:'uppercase', letterSpacing:'.3px' }}>
+                  <span>Photo</span><span>Description</span><span>Unit</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span><span/>
+                </div>
+                {items.map((it, idx) => {
+                  const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
+                  const busy = !!imgBusy[idx]
+                  return (
+                    <div key={idx} style={{ display:'grid', gridTemplateColumns:'66px 1fr 50px 44px 64px 82px 28px', gap:7, padding:'8px 12px', alignItems:'flex-start', borderTop:`1px solid ${border}`, ...(it._new ? { background:isDark?'rgba(34,197,94,0.10)':'#ecfdf5', boxShadow:'inset 3px 0 0 #22c55e' } : {}) }}>
+                      <div style={{ position:'relative', width:60, height:60 }}>
+                        {it.img ? (
+                          <>
+                            <img src={it.img} alt="" style={{ width:60, height:60, objectFit:'cover', borderRadius:8, border:`1px solid ${border}` }}/>
+                            <button onClick={()=>removeItemImage(idx)} title="Remove photo"
+                              style={{ position:'absolute', top:-6, right:-6, width:20, height:20, borderRadius:'50%', border:'none', background:'#ef4444', color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:0 }}>
+                              <i className="ti ti-x" style={{ fontSize:12 }}/>
+                            </button>
+                          </>
+                        ) : (
+                          <label title="Upload photo" style={{ width:60, height:60, borderRadius:8, border:`1px dashed ${border}`, background:subBg, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2, cursor: busy?'default':'pointer', color:textMuted }}>
+                            {busy
+                              ? <div style={{ width:18, height:18, border:'2px solid #7c3aed', borderTopColor:'transparent', borderRadius:'50%', animation:'spin 0.8s linear infinite' }}/>
+                              : <><i className="ti ti-camera-plus" style={{ fontSize:18, color:'#7c3aed' }}/><span style={{ fontSize:8.5 }}>Add</span></>}
+                            <input type="file" accept="image/*" disabled={busy} onChange={e=>{ const f=e.target.files?.[0]; e.target.value=''; uploadItemImage(idx, f) }} style={{ display:'none' }}/>
+                          </label>
+                        )}
+                      </div>
+                      <div style={{ position:'relative', minWidth:0 }}>
+                        {it._new && <span style={{ position:'absolute', top:-7, left:-1, fontSize:8, fontWeight:700, color:'#fff', background:'#22c55e', padding:'1px 5px', borderRadius:99, zIndex:1, letterSpacing:'.3px' }}>NEW</span>}
+                        <textarea value={it.desc} onChange={e=>applyDesc(idx, e.target.value, false)} placeholder="Item description" rows={1}
+                          ref={el=>{ if(el){ el.style.height='auto'; el.style.height=el.scrollHeight+'px' } }}
+                          style={{ ...inputStyle, width:'100%', boxSizing:'border-box', padding:'7px 8px', fontSize:12.5, resize:'none', overflow:'hidden', lineHeight:1.4 }}/>
+                      </div>
+                      <select value={it.unit} onChange={e=>updateItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 4px', fontSize:11 }}>
+                        {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
+                      </select>
+                      <input type="number" value={it.qty} onChange={e=>updateItem(idx,'qty',e.target.value)} style={{ ...inputStyle, padding:'7px 4px', fontSize:12.5, textAlign:'center' }}/>
+                      <input type="number" value={it.rate} onChange={e=>updateItem(idx,'rate',e.target.value)} style={{ ...inputStyle, padding:'7px 6px', fontSize:12.5, textAlign:'right' }}/>
+                      <span style={{ textAlign:'right', fontSize:12.5, color:text, alignSelf:'center' }}>{Math.round(lt).toLocaleString('en-AE')}</span>
+                      <button onClick={()=>removeItem(idx)} style={{ background:'none', border:'none', cursor:'pointer', color:textMuted, display:'flex', justifyContent:'center', alignItems:'center' }}><i className="ti ti-x" style={{ fontSize:15 }}/></button>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+            <div style={{ padding:'9px 11px', borderTop:`1px solid ${border}` }}>
+              <button onClick={addItem} style={{ fontSize:12, padding:'6px 12px', border:`1px solid ${border}`, borderRadius:7, background:'none', color:'#7c3aed', cursor:'pointer', fontWeight:600 }}>
                 <i className="ti ti-plus" style={{ fontSize:13, verticalAlign:'-2px', marginRight:3 }}/> Add line item
               </button>
             </div>
