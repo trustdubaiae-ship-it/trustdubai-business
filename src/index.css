@@ -92,6 +92,10 @@ html, body {
 
 /* Cards */
 .card { background:var(--card); border:0.5px solid var(--border); border-radius:var(--radius-lg); padding:14px 16px; }
+.lead-row { transition:background 0.12s; }
+.lead-row:hover { background:var(--bg2); }
+.lead-kard { transition:box-shadow 0.15s, transform 0.15s; }
+.lead-kard:hover { box-shadow:var(--shadow-md); transform:translateY(-1px); }
 .card-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:14px; }
 .card-title { font-size:12px; font-weight:700; color:var(--text); letter-spacing:0.02em; }
 .card-subtitle { font-size:10px; color:var(--text3); margin-top:2px; }

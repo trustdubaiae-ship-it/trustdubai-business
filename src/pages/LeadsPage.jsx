@@ -805,25 +805,26 @@ export default function LeadsPage() {
         onDragStart={draggable ? () => setDragId(lead) : undefined}
         onDragEnd={draggable ? () => setDragId(null) : undefined}
         onClick={() => openModal(lead)}
-        style={{ background: 'var(--card)', border: '0.5px solid var(--border)', borderLeft: '3px solid ' + accent, borderRadius: 11, padding: 11, marginBottom: 8, cursor: 'pointer' }}
+        className="lead-kard"
+        style={{ background: 'var(--card)', border: '0.5px solid var(--border)', borderLeft: '3px solid ' + accent, borderRadius: 12, padding: 12, marginBottom: 8, cursor: 'pointer' }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
           {/* avatar, wrapped in a live SLA ring for un-actioned platform leads */}
-          <div style={{ position: 'relative', width: 38, height: 38, flexShrink: 0 }}>
+          <div style={{ position: 'relative', width: 40, height: 40, flexShrink: 0 }}>
             {sla.active && (
-              <svg width="38" height="38" style={{ position: 'absolute', top: 0, left: 0, transform: 'rotate(-90deg)' }}>
-                <circle cx="19" cy="19" r="16" fill="none" stroke="var(--border)" strokeWidth="3" />
-                <circle cx="19" cy="19" r="16" fill="none" stroke={sla.color} strokeWidth="3" strokeLinecap="round"
+              <svg width="40" height="40" style={{ position: 'absolute', top: 0, left: 0, transform: 'rotate(-90deg)' }}>
+                <circle cx="20" cy="20" r="16" fill="none" stroke="var(--border)" strokeWidth="3" />
+                <circle cx="20" cy="20" r="16" fill="none" stroke={sla.color} strokeWidth="3" strokeLinecap="round"
                   strokeDasharray={C} strokeDashoffset={C * (1 - sla.pct)} style={{ transition: 'stroke-dashoffset .4s' }} />
               </svg>
             )}
-            <div style={{ position: 'absolute', top: 4, left: 4, width: 30, height: 30, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: accent, background: accent + '22' }}>
+            <div style={{ position: 'absolute', top: 5, left: 5, width: 30, height: 30, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 700, color: accent, background: accent + '22' }}>
               {(lead.name || 'A')[0].toUpperCase()}
             </div>
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.name || 'Anonymous'}</div>
-            {(proj || budget) && <div style={{ fontSize: 10.5, color: 'var(--text3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{proj}{budget ? ' · ' + budget : ''}</div>}
+            <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text)', lineHeight: 1.25, wordBreak: 'break-word' }}>{lead.name || 'Anonymous'}</div>
+            {(proj || budget) && <div style={{ fontSize: 10.5, color: 'var(--text3)', marginTop: 2, lineHeight: 1.3, wordBreak: 'break-word' }}>{proj}{budget ? ' · ' + budget : ''}</div>}
           </div>
           {!lead.isPlatform && (
             <button onClick={e => { e.stopPropagation(); openEdit(lead) }} title="Edit lead"
@@ -831,10 +832,10 @@ export default function LeadsPage() {
               <i className="ti ti-pencil" />
             </button>
           )}
-          <span style={{ fontSize: 8.5, fontWeight: 600, padding: '2px 7px', borderRadius: 99, background: temp.bg, color: temp.color, flexShrink: 0 }}>{temp.label}</span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 9 }}>
+          <span style={{ fontSize: 8.5, fontWeight: 700, padding: '2px 7px', borderRadius: 99, background: temp.bg, color: temp.color }}>{temp.label}</span>
           {lead.isPlatform
             ? <span style={{ fontSize: 8.5, fontWeight: 600, padding: '2px 7px', borderRadius: 99, background: 'rgba(8,145,178,0.14)', color: '#0891b2' }}>Rank #{lead.rank}</span>
             : <span style={{ fontSize: 8.5, fontWeight: 600, padding: '2px 7px', borderRadius: 99, background: mySourceBadge(lead).bg, color: mySourceBadge(lead).color }}>{mySourceBadge(lead).label}</span>}
@@ -1403,7 +1404,9 @@ export default function LeadsPage() {
     if (baseLeads.length === 0) {
       return (
         <div style={{ ...card, textAlign: 'center', padding: '60px 20px' }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>{isTD ? '🎯' : '📭'}</div>
+          <div style={{ width: 64, height: 64, borderRadius: 16, margin: '0 auto 16px', background: 'var(--bg2)', border: '0.5px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <i className={'ti ' + (isTD ? 'ti-target-arrow' : 'ti-inbox')} style={{ fontSize: 30, color: 'var(--text3)' }} />
+          </div>
           <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 8, color: 'var(--text)' }}>{isTD ? 'No Quvera leads yet' : 'No leads yet'}</h3>
           <p style={{ fontSize: 14, color: 'var(--text2)', marginBottom: 20 }}>
             {isTD ? 'Verified leads from the Quvera platform will appear here automatically.' : 'Add a lead manually, import a CSV, or connect your Meta ad account.'}
@@ -1483,11 +1486,12 @@ export default function LeadsPage() {
             <tbody>
               {filtered.map(lead => {
                 const sc = LEAD_STATUSES.find(s => s.value === lead.status) || LEAD_STATUSES[0]
+                const accent = lead.isPlatform ? '#0891b2' : mySourceBadge(lead).color
                 return (
-                  <tr key={lead.key} onClick={() => openModal(lead)} style={{ borderTop: '0.5px solid var(--border)', cursor: 'pointer' }}>
-                    <td style={{ padding: '10px 14px' }}>
+                  <tr key={lead.key} className="lead-row" onClick={() => openModal(lead)} style={{ borderTop: '0.5px solid var(--border)', cursor: 'pointer' }}>
+                    <td style={{ padding: '10px 14px', borderLeft: '3px solid ' + accent }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                        <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--bg2)', color: 'var(--text2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{(lead.name || 'A')[0].toUpperCase()}</div>
+                        <div style={{ width: 30, height: 30, borderRadius: '50%', background: accent + '22', color: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{(lead.name || 'A')[0].toUpperCase()}</div>
                         <div>
                           <div style={{ fontWeight: 600, color: 'var(--text)' }}>{lead.name || 'Anonymous'}</div>
                           <div style={{ fontSize: 11, color: 'var(--text3)' }}>{lead.phone || '—'}</div>
@@ -1612,26 +1616,36 @@ export default function LeadsPage() {
       <ShareModal />
       <input ref={fileRef} type="file" accept=".csv" onChange={handleCSV} style={{ display: 'none' }} />
 
-      <div style={{ marginBottom: 14 }}>
-        <h1 className="font-syne fw-700" style={{ fontSize: 23, marginBottom: 4, color: 'var(--text)' }}>Lead Hub</h1>
-        <p style={{ fontSize: 13, color: 'var(--text2)' }}>Capture, track and close — every lead in one place</p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+        <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--primary-bg)', border: '0.5px solid var(--primary-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <i className="ti ti-users-group" style={{ fontSize: 22, color: 'var(--primary-dark)' }} />
+        </div>
+        <div>
+          <h1 className="font-syne fw-700" style={{ fontSize: 23, marginBottom: 2, color: 'var(--text)' }}>Lead Hub</h1>
+          <p style={{ fontSize: 13, color: 'var(--text2)' }}>Capture, track and close — every lead in one place</p>
+        </div>
       </div>
 
-      <div style={{ display: 'flex', gap: mobile ? 2 : 4, marginBottom: 18, borderBottom: '1px solid var(--border)', flexWrap: 'nowrap', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      <div style={{ display: 'inline-flex', gap: 3, marginBottom: 18, maxWidth: '100%', background: 'var(--bg2)', border: '0.5px solid var(--border)', borderRadius: 11, padding: 3, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
         {[
           { id: 'trustdubai', label: mobile ? 'Quvera' : 'Quvera Leads', count: tdLeads.length, icon: 'ti-shield-check' },
           { id: 'mine',       label: 'My Leads', count: myLeads.length, icon: 'ti-building-store' },
           { id: 'forms',      label: 'Forms',    count: forms.length,   icon: 'ti-forms' },
-        ].map(t => (
+        ].map(t => {
+          const on = mainTab === t.id
+          return (
           <button key={t.id} onClick={() => { setMainTab(t.id); try { localStorage.setItem('lead_main_tab', t.id) } catch {} setFSource('all'); setFStatus('all'); setSearch(''); setQuickFilter(''); closeEditor() }} style={{
-            padding: mobile ? '9px 9px' : '9px 16px', border: 'none', background: 'none', cursor: 'pointer',
-            fontSize: mobile ? 12.5 : 13.5, fontWeight: 600, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap', flexShrink: 0,
-            color: mainTab === t.id ? 'var(--primary)' : 'var(--text2)',
-            borderBottom: mainTab === t.id ? '2px solid var(--primary)' : '2px solid transparent', marginBottom: -1
+            padding: mobile ? '8px 11px' : '8px 16px', border: 'none', cursor: 'pointer', borderRadius: 8,
+            fontSize: mobile ? 12.5 : 13.5, fontWeight: 600, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', flexShrink: 0,
+            background: on ? 'var(--card)' : 'transparent',
+            color: on ? 'var(--primary-dark)' : 'var(--text2)',
+            boxShadow: on ? 'var(--shadow-md)' : 'none', transition: 'background .15s, color .15s'
           }}>
-            <i className={'ti ' + t.icon} style={{ fontSize: 15 }} /> {t.label} <span style={{ fontSize: 11, opacity: 0.7 }}>({t.count})</span>
+            <i className={'ti ' + t.icon} style={{ fontSize: 15 }} /> {t.label}
+            <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 99, background: on ? 'var(--primary-bg)' : 'var(--bg)', color: on ? 'var(--primary-dark)' : 'var(--text3)' }}>{t.count}</span>
           </button>
-        ))}
+          )
+        })}
       </div>
 
       {mainTab === 'trustdubai' && (
@@ -1679,7 +1693,9 @@ export default function LeadsPage() {
 
               {forms.length === 0 ? (
                 <div style={{ ...card, textAlign: 'center', padding: '60px 20px' }}>
-                  <div style={{ fontSize: 48, marginBottom: 16 }}>📋</div>
+                  <div style={{ width: 64, height: 64, borderRadius: 16, margin: '0 auto 16px', background: 'var(--bg2)', border: '0.5px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <i className="ti ti-forms" style={{ fontSize: 30, color: 'var(--text3)' }} />
+                  </div>
                   <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 8, color: 'var(--text)' }}>No forms yet</h3>
                   <p style={{ fontSize: 14, color: 'var(--text2)', marginBottom: 24 }}>Create your first lead form, then share its link or QR</p>
                   <button className="btn btn-primary" onClick={() => setShowNewForm(true)}>+ Create Form</button>
