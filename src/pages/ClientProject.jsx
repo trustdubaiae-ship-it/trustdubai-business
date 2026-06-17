@@ -22,7 +22,8 @@ const UPD_KIND = {
 
 const Shell = ({ children }) => (
   <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #e8f3f9 0%, #f4f6f8 340px)', padding: '22px 12px 40px', fontFamily: "'Segoe UI', Arial, Helvetica, sans-serif", color: INK }}>
-    <div style={{ maxWidth: 720, margin: '0 auto' }}>{children}</div>
+    <style>{`@keyframes cpUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}`}</style>
+    <div style={{ maxWidth: 720, margin: '0 auto', animation: 'cpUp .35s ease' }}>{children}</div>
   </div>
 )
 const Center = ({ icon, title, sub, color, children }) => (
@@ -127,32 +128,35 @@ export default function ClientProject({ token }) {
   const tColor = overdue ? '#ef4444' : CYAN
   return (
     <Shell>
-      {/* company header — branded hero */}
-      <div style={{ background: 'linear-gradient(135deg, #0099cc 0%, #0a6f8f 100%)', color: '#fff', borderRadius: 18, padding: '20px 20px', boxShadow: '0 12px 30px rgba(0,153,204,0.30)', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 14 }}>
-        <div style={{ width: 52, height: 52, borderRadius: 13, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 2px 8px rgba(0,0,0,0.12)', overflow: 'hidden' }}>
-          {co.logo_url
-            ? <img src={co.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-            : <span style={{ color: CYAN, fontWeight: 800, fontSize: 22 }}>{(co.name || 'C')[0]}</span>}
+      {/* branded hero — company + project + status */}
+      <div style={{ background: 'linear-gradient(135deg, #0099cc 0%, #0a6f8f 100%)', color: '#fff', borderRadius: 20, padding: '22px 22px 24px', boxShadow: '0 14px 34px rgba(0,153,204,0.30)', marginBottom: 14, position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: -45, right: -35, width: 170, height: 170, borderRadius: '50%', background: 'rgba(255,255,255,0.07)' }} />
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
+          <div style={{ width: 44, height: 44, borderRadius: 12, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 2px 8px rgba(0,0,0,0.12)', overflow: 'hidden' }}>
+            {co.logo_url
+              ? <img src={co.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+              : <span style={{ color: CYAN, fontWeight: 800, fontSize: 20 }}>{(co.name || 'C')[0]}</span>}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{co.name || 'Your contractor'}</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 1, display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 0 3px rgba(74,222,128,0.3)' }} /> Live project portal
+            </div>
+          </div>
+          <button onClick={lock} title="Lock" style={{ ...btnCss('rgba(255,255,255,0.18)', '#fff'), padding: '8px 12px', fontSize: 12, backdropFilter: 'blur(4px)' }}><i className="ti ti-lock" /></button>
         </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: '-.2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{co.name || 'Your contractor'}</div>
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.82)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 5 }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 0 3px rgba(74,222,128,0.3)' }} /> Live project portal{co.phone ? ' · ' + co.phone : ''}
+        <div style={{ position: 'relative' }}>
+          <div style={{ fontSize: 23, fontWeight: 800, letterSpacing: '-.3px', lineHeight: 1.15 }}>{p.name}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 9, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 11, fontWeight: 800, padding: '4px 11px', borderRadius: 99, background: 'rgba(255,255,255,0.22)', color: '#fff', textTransform: 'uppercase', letterSpacing: '.4px' }}>{st.l}</span>
+            {p.location && <span style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.88)' }}><i className="ti ti-map-pin" style={{ verticalAlign: '-2px' }} /> {p.location}</span>}
           </div>
         </div>
-        <button onClick={lock} title="Lock" style={{ ...btnCss('rgba(255,255,255,0.18)', '#fff'), padding: '8px 12px', fontSize: 12, backdropFilter: 'blur(4px)' }}><i className="ti ti-lock" /></button>
       </div>
 
-      {/* project summary */}
-      <div style={{ background: '#fff', borderRadius: 14, padding: '20px', boxShadow: '0 4px 20px rgba(0,0,0,0.06)', marginBottom: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-          <div>
-            <div style={{ fontSize: 21, fontWeight: 800 }}>{p.name}</div>
-            {p.location && <div style={{ fontSize: 13, color: '#6b7280', marginTop: 2 }}><i className="ti ti-map-pin" /> {p.location}</div>}
-          </div>
-          <span style={{ fontSize: 11, fontWeight: 800, padding: '5px 12px', borderRadius: 99, background: st.c + '22', color: st.c, textTransform: 'uppercase', letterSpacing: '.4px' }}>{st.l}</span>
-        </div>
-        <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap', marginTop: 18, padding: '20px 12px', background: 'linear-gradient(180deg, #f7fbfd, #f1f6f9)', border: '1px solid #e8eef3', borderRadius: 14 }}>
+      {/* progress + timeline */}
+      <div style={{ background: '#fff', borderRadius: 16, padding: '18px', boxShadow: '0 4px 20px rgba(0,0,0,0.06)', marginBottom: 14 }}>
+        <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap', padding: '18px 12px', background: 'linear-gradient(180deg, #f7fbfd, #f1f6f9)', border: '1px solid #e8eef3', borderRadius: 14 }}>
           <div style={{ textAlign: 'center', minWidth: 110 }}>
             <Ring pct={prog} color={st.c} big={prog + '%'} small="DONE" />
             <div style={{ fontSize: 11.5, fontWeight: 800, color: '#334155', marginTop: 8 }}>Project status</div>
@@ -173,20 +177,30 @@ export default function ClientProject({ token }) {
 
       {/* milestones */}
       {milestones.length > 0 && (
-        <div style={{ background: '#fff', borderRadius: 14, padding: '18px 20px', boxShadow: '0 4px 20px rgba(0,0,0,0.06)', marginBottom: 14 }}>
-          <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 12 }}>Stages</div>
-          {milestones.map((m, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderTop: i ? '1px solid #f0f2f5' : 'none' }}>
-              <i className={`ti ${m.status === 'done' ? 'ti-circle-check-filled' : 'ti-circle'}`} style={{ fontSize: 18, color: m.status === 'done' ? '#22c55e' : '#cbd5e1' }} />
-              <div style={{ flex: 1, fontSize: 13.5, fontWeight: 600, textDecoration: m.status === 'done' ? 'none' : 'none' }}>{m.title}</div>
-              <div style={{ fontSize: 12, color: '#94a3b8' }}>{fmtDate(m.target_date)}</div>
-            </div>
-          ))}
+        <div style={{ background: '#fff', borderRadius: 16, padding: '18px 20px', boxShadow: '0 4px 20px rgba(0,0,0,0.06)', marginBottom: 14 }}>
+          <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 14 }}>Project stages</div>
+          {milestones.map((m, i) => {
+            const done = m.status === 'done'
+            const current = !done && milestones.slice(0, i).every(x => x.status === 'done')
+            const last = i === milestones.length - 1
+            return (
+              <div key={i} style={{ display: 'flex', gap: 12, position: 'relative', paddingBottom: last ? 0 : 16 }}>
+                {!last && <div style={{ position: 'absolute', left: 11, top: 24, bottom: 0, width: 2, background: done ? '#22c55e' : '#e7ecf1' }} />}
+                <div style={{ width: 24, height: 24, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: done ? '#22c55e' : '#fff', border: done ? 'none' : `2px solid ${current ? CYAN : '#cbd5e1'}`, color: '#fff', zIndex: 1, boxShadow: current ? `0 0 0 4px ${CYAN}22` : 'none' }}>
+                  {done ? <i className="ti ti-check" style={{ fontSize: 14 }} /> : <span style={{ width: 7, height: 7, borderRadius: '50%', background: current ? CYAN : '#cbd5e1' }} />}
+                </div>
+                <div style={{ flex: 1, minWidth: 0, paddingTop: 1 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: done ? '#64748b' : '#1a1a1a' }}>{m.title}{current && <span style={{ fontSize: 9, fontWeight: 800, color: CYAN, background: CYAN + '1a', padding: '2px 7px', borderRadius: 99, marginLeft: 8 }}>IN PROGRESS</span>}</div>
+                  {m.target_date && <div style={{ fontSize: 11.5, color: '#94a3b8', marginTop: 2 }}><i className="ti ti-calendar" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {fmtDate(m.target_date)}</div>}
+                </div>
+              </div>
+            )
+          })}
         </div>
       )}
 
       {/* updates timeline */}
-      <div style={{ background: '#fff', borderRadius: 14, padding: '18px 20px', boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
+      <div style={{ background: '#fff', borderRadius: 16, padding: '18px 20px', boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
         <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 12 }}>Updates &amp; history</div>
         {updates.length === 0
           ? <div style={{ fontSize: 13, color: '#94a3b8', padding: '14px 0' }}>No updates shared yet.</div>
@@ -195,7 +209,7 @@ export default function ClientProject({ token }) {
                 const k = UPD_KIND[u.kind] || UPD_KIND.note
                 const pending = u.needs_approval && u.approval_status === 'pending'
                 return (
-                  <div key={u.id} style={{ display: 'flex', gap: 12, padding: '13px', border: '1px solid #eef1f4', borderRadius: 12, background: pending ? '#fffdf5' : '#fff' }}>
+                  <div key={u.id} style={{ display: 'flex', gap: 12, padding: '13px', border: '1px solid #eef1f4', borderLeft: '3px solid ' + (pending ? '#f59e0b' : k.c), borderRadius: 12, background: pending ? '#fffdf5' : '#fff' }}>
                     <div style={{ width: 34, height: 34, borderRadius: 9, background: k.c + '1f', color: k.c, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><i className={`ti ${k.icon}`} style={{ fontSize: 17 }} /></div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
