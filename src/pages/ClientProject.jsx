@@ -8,7 +8,9 @@ import { supabase } from '../lib/supabase'
 const INK = '#1a1a1a', CYAN = '#0099cc'
 const fmtDate = d => { if (!d) return '—'; try { return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) } catch { return '—' } }
 const PSTATUS = {
-  planning: { l: 'Planning', c: '#64748b' }, ongoing: { l: 'Ongoing', c: '#0099cc' },
+  planning: { l: 'Planning', c: '#64748b' }, designing: { l: 'Designing', c: '#6366f1' },
+  production: { l: 'Production', c: '#0ea5e9' }, ready_delivery: { l: 'Ready for delivery', c: '#eab308' },
+  site_install: { l: 'Site installation', c: '#f97316' }, ongoing: { l: 'Ongoing', c: '#0099cc' },
   snagging: { l: 'Snagging', c: '#a855f7' }, handover: { l: 'Handover', c: '#14b8a6' },
   completed: { l: 'Completed', c: '#22c55e' }, on_hold: { l: 'On Hold', c: '#f59e0b' }, cancelled: { l: 'Cancelled', c: '#ef4444' },
 }

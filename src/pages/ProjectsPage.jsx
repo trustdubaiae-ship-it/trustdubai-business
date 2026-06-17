@@ -6,13 +6,17 @@ import { supabase } from '../lib/supabase'
 import { useToast } from '../lib/toast'
 
 const PSTATUS = {
-  planning:  { label: 'Planning',  color: '#64748b', icon: 'ti-pencil' },
-  ongoing:   { label: 'Ongoing',   color: '#0099cc', icon: 'ti-progress' },
-  snagging:  { label: 'Snagging',  color: '#a855f7', icon: 'ti-tool' },
-  handover:  { label: 'Handover',  color: '#14b8a6', icon: 'ti-key' },
-  completed: { label: 'Completed', color: '#22c55e', icon: 'ti-circle-check' },
-  on_hold:   { label: 'On Hold',   color: '#f59e0b', icon: 'ti-player-pause' },
-  cancelled: { label: 'Cancelled', color: '#ef4444', icon: 'ti-x' },
+  planning:       { label: 'Planning',           color: '#64748b', icon: 'ti-pencil' },
+  designing:      { label: 'Designing',          color: '#6366f1', icon: 'ti-ruler-2' },
+  production:     { label: 'Production',         color: '#0ea5e9', icon: 'ti-building-factory-2' },
+  ready_delivery: { label: 'Ready for delivery', color: '#eab308', icon: 'ti-package-export' },
+  site_install:   { label: 'Site installation',  color: '#f97316', icon: 'ti-hammer' },
+  ongoing:        { label: 'Ongoing',            color: '#0099cc', icon: 'ti-progress' },
+  snagging:       { label: 'Snagging',           color: '#a855f7', icon: 'ti-tool' },
+  handover:       { label: 'Handover',           color: '#14b8a6', icon: 'ti-key' },
+  completed:      { label: 'Completed',          color: '#22c55e', icon: 'ti-circle-check' },
+  on_hold:        { label: 'On Hold',            color: '#f59e0b', icon: 'ti-player-pause' },
+  cancelled:      { label: 'Cancelled',          color: '#ef4444', icon: 'ti-x' },
 }
 const MSTATUS = { requested: { l: 'Requested', c: '#64748b' }, approved: { l: 'Approved', c: '#0099cc' }, ordered: { l: 'Ordered', c: '#f59e0b' }, received: { l: 'Received', c: '#22c55e' } }
 // kinds of project-history updates (Overview timeline)
@@ -79,8 +83,14 @@ export default function ProjectsPage({ onNavigate }) {
   const [updates, setUpdates] = useState([])   // project history / timeline entries
   const [updForm, setUpdForm] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [cDays, setCDays] = useState('')   // committed duration (days) — start_date + cDays = target end
 
   useEffect(() => { if (company?.id) loadProjects() }, [company?.id])
+  // keep the committed-days field showing the current start→end span (recomputes when either date changes / project switches)
+  useEffect(() => {
+    if (active?.start_date && active?.end_date) setCDays(String(Math.max(0, Math.round((new Date(active.end_date) - new Date(active.start_date)) / 86400000))))
+    else setCDays('')
+  }, [active?.id, active?.start_date, active?.end_date])
   // keep project progress in sync with milestone completion (weighted) — covers every edit path
   useEffect(() => {
     if (view !== 'detail' || !active || !milestones.length) return
@@ -686,6 +696,21 @@ export default function ProjectsPage({ onNavigate }) {
               </select>
             </div>
             <div><label style={lbl}>Start date</label><input type="date" value={active.start_date || ''} onChange={e => patchActive({ start_date: e.target.value || null })} style={input} /></div>
+            <div>
+              <label style={lbl}>Committed (days)</label>
+              <input type="number" min="0" value={cDays} placeholder="e.g. 15"
+                onChange={e => setCDays(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
+                onBlur={() => {
+                  if (cDays === '') return
+                  if (!active.start_date) { toast.error('Set a start date first'); return }
+                  const d = parseInt(cDays)
+                  if (!(d >= 0)) return
+                  const end = new Date(new Date(active.start_date).getTime() + d * 86400000)
+                  patchActive({ end_date: end.toISOString().slice(0, 10) })
+                }}
+                style={input} title="Days from start date — auto-fills Target end" />
+            </div>
             <div><label style={lbl}>Target end</label><input type="date" value={active.end_date || ''} onChange={e => patchActive({ end_date: e.target.value || null })} style={input} /></div>
           </div>
           <label style={{ ...lbl, marginTop: 14 }}>Notes</label>
