@@ -42,6 +42,7 @@ import TrustScorePage from './pages/TrustScorePage'
 import ControlPanel from './pages/ControlPanel'
 import MenuPage from './pages/MenuPage'
 import QuoteApproval from './pages/QuoteApproval'
+import ClientProject from './pages/ClientProject'
 
 const ROLE_LABEL = { owner:'Owner', manager:'Manager', sales:'Sales', engineer:'Engineer', staff:'Staff' }
 
@@ -475,6 +476,10 @@ export default function App() {
   const hash = (window.location.hash || '').replace(/^#/, '')
   if (hash.startsWith('approve/')) {
     return <QuoteApproval token={decodeURIComponent(hash.slice('approve/'.length))} />
+  }
+  // Public, OTP-verified client project view: #project/<token>
+  if (hash.startsWith('project/')) {
+    return <ClientProject token={decodeURIComponent(hash.slice('project/'.length))} />
   }
   return (
     <AuthProvider>
