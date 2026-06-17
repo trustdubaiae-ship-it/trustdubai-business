@@ -15,6 +15,16 @@ const PSTATUS = {
   cancelled: { label: 'Cancelled', color: '#ef4444', icon: 'ti-x' },
 }
 const MSTATUS = { requested: { l: 'Requested', c: '#64748b' }, approved: { l: 'Approved', c: '#0099cc' }, ordered: { l: 'Ordered', c: '#f59e0b' }, received: { l: 'Received', c: '#22c55e' } }
+// kinds of project-history updates (Overview timeline)
+const UPD_KIND = {
+  meeting:     { l: 'Meeting',          c: '#0099cc', icon: 'ti-users' },
+  note:        { l: 'Note',             c: '#64748b', icon: 'ti-note' },
+  requirement: { l: 'Client requirement', c: '#8b5cf6', icon: 'ti-star' },
+  material:    { l: 'Material change',  c: '#f59e0b', icon: 'ti-package' },
+  timeline:    { l: 'Timeline change',  c: '#ef4444', icon: 'ti-calendar-stats' },
+  decision:    { l: 'Client decision',  c: '#14b8a6', icon: 'ti-checkbox' },
+}
+const APPROVAL = { none: null, pending: { l: 'Awaiting client', c: '#f59e0b' }, approved: { l: 'Client approved', c: '#22c55e' }, rejected: { l: 'Client rejected', c: '#ef4444' } }
 const ECAT = { labour: { l: 'Labour', c: '#8b5cf6' }, material: { l: 'Material', c: '#0099cc' }, transport: { l: 'Transport', c: '#f59e0b' }, misc: { l: 'Misc', c: '#64748b' } }
 const SSTATUS = { ongoing: { l: 'Ongoing', c: '#0099cc' }, completed: { l: 'Completed', c: '#22c55e' }, on_hold: { l: 'On Hold', c: '#f59e0b' } }
 const MILESTONE_ST = { pending: { l: 'Pending', c: '#64748b', ic: 'ti-circle' }, in_progress: { l: 'In progress', c: '#0099cc', ic: 'ti-progress' }, done: { l: 'Done', c: '#22c55e', ic: 'ti-circle-check-filled' } }
@@ -66,6 +76,8 @@ export default function ProjectsPage({ onNavigate }) {
   const [purchases, setPurchases] = useState([])   // purchase bills tagged to this project's client
   const [milestones, setMilestones] = useState([])
   const [msForm, setMsForm] = useState(null)
+  const [updates, setUpdates] = useState([])   // project history / timeline entries
+  const [updForm, setUpdForm] = useState(null)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => { if (company?.id) loadProjects() }, [company?.id])
@@ -162,6 +174,10 @@ export default function ProjectsPage({ onNavigate }) {
       supabase.from('project_milestones').select('*').eq('project_id', id).order('sort', { ascending: true }).order('created_at', { ascending: true }),
     ])
     setMaterials(m.data || []); setExpenses(e.data || []); setSubs(s.data || []); setScope(sc.data || []); setMilestones(ms.data || [])
+    try {
+      const { data: upd } = await supabase.from('project_updates').select('*').eq('project_id', id).order('event_date', { ascending: false }).order('created_at', { ascending: false })
+      setUpdates(upd || [])
+    } catch (e) { setUpdates([]) }
     // Client cash-in lives in the Invoices module — pull the linked invoices (single source of truth).
     let inv = []
     if (proj?.quote_id) { const { data } = await supabase.from('invoices').select('id,invoice_number,total,payments,status,kind,milestone_label,issue_date,due_date').eq('company_id', company.id).eq('quotation_id', proj.quote_id).order('issue_date', { ascending: false }); inv = data || [] }
@@ -353,6 +369,34 @@ export default function ProjectsPage({ onNavigate }) {
       return Math.round((doneW / totalW) * 100)
     }
     return Math.round((list.filter(m => m.status === 'done').length / list.length) * 100)
+  }
+  async function saveUpdate() {
+    const x = updForm
+    if (!x.title?.trim() && !x.body?.trim()) { toast.error('Add a title or details'); return }
+    setSaving(true)
+    try {
+      const isTimeline = x.kind === 'timeline'
+      const payload = {
+        company_id: company.id, project_id: active.id,
+        kind: x.kind || 'note', title: x.title?.trim() || null, body: x.body?.trim() || null,
+        event_date: x.event_date || new Date().toISOString().slice(0, 10),
+        old_date: isTimeline ? (x.old_date || null) : null,
+        new_date: isTimeline ? (x.new_date || null) : null,
+        client_visible: x.client_visible !== false,
+        needs_approval: !!x.needs_approval,
+        approval_status: x.needs_approval ? (x.approval_status && x.approval_status !== 'none' ? x.approval_status : 'pending') : 'none',
+      }
+      if (x.id) { const { error } = await supabase.from('project_updates').update(payload).eq('id', x.id).eq('company_id', company.id); if (error) throw error }
+      else { payload.created_by_email = user?.email || null; const { error } = await supabase.from('project_updates').insert(payload); if (error) throw error }
+      // a confirmed timeline change updates the project's target end date too
+      if (isTimeline && x.new_date && (!x.needs_approval || payload.approval_status === 'approved')) {
+        await patchActive({ end_date: x.new_date })
+      }
+      setUpdForm(null); toast.success('Update saved ✓'); await reloadChildren()
+    } catch (e) { console.error(e); toast.error(/project_updates/.test(e?.message || '') ? 'Run the migration first (db/2026-06-17_project_updates.sql)' : 'Save failed: ' + (e?.message || e)) } finally { setSaving(false) }
+  }
+  async function delUpdate(id) {
+    try { await supabase.from('project_updates').delete().eq('id', id).eq('company_id', company.id); setUpdForm(null); await reloadChildren() } catch (e) { toast.error('Delete failed') }
   }
   async function saveMilestone() {
     const x = msForm
@@ -632,6 +676,7 @@ export default function ProjectsPage({ onNavigate }) {
       </div>
 
       {tab === 'overview' && (
+        <>
         <div style={{ ...card }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px,1fr))', gap: 14 }}>
             <div>
@@ -647,6 +692,40 @@ export default function ProjectsPage({ onNavigate }) {
           <textarea value={active.notes || ''} onChange={e => setActive(a => ({ ...a, notes: e.target.value }))} onBlur={e => patchActive({ notes: e.target.value || null })} rows={3} style={{ ...input, resize: 'vertical', minHeight: 70 }} placeholder="Scope, site details, key dates…" />
           {active.quote_id && <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 10 }}><i className="ti ti-file-invoice" /> Linked to a quotation</div>}
         </div>
+
+        {/* Project history & updates — meetings, client requirements, material/timeline changes */}
+        <div style={{ ...card, marginTop: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 7 }}><i className="ti ti-history" style={{ color: '#0099cc', fontSize: 17 }} /> Project history &amp; updates</div>
+            <button onClick={() => setUpdForm({ kind: 'meeting', title: '', body: '', event_date: new Date().toISOString().slice(0, 10), client_visible: true, needs_approval: false })} className="btn btn-primary btn-sm"><i className="ti ti-plus" /> Add update</button>
+          </div>
+          {updates.length === 0
+            ? <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '26px 16px', fontSize: 13 }}><i className="ti ti-history" style={{ fontSize: 26, display: 'block', marginBottom: 8 }} />No updates yet. Log meetings, client requirements, material or timeline changes — they appear here as a timeline.</div>
+            : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {updates.map(u => {
+                  const k = UPD_KIND[u.kind] || UPD_KIND.note
+                  const ap = APPROVAL[u.approval_status] || null
+                  return (
+                    <div key={u.id} onClick={() => setUpdForm({ ...u, event_date: u.event_date || '', old_date: u.old_date || '', new_date: u.new_date || '' })}
+                      style={{ display: 'flex', gap: 11, padding: '11px 12px', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--card)', cursor: 'pointer' }}>
+                      <div style={{ width: 34, height: 34, borderRadius: 9, background: k.c + '1f', color: k.c, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><i className={'ti ' + k.icon} style={{ fontSize: 17 }} /></div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 9, fontWeight: 700, color: k.c, background: k.c + '1f', padding: '2px 7px', borderRadius: 99, textTransform: 'uppercase', letterSpacing: '.3px' }}>{k.l}</span>
+                          <span style={{ fontSize: 11, color: 'var(--text3)' }}>{fmtD(u.event_date)}</span>
+                          {u.client_visible && <span style={{ fontSize: 9, fontWeight: 700, color: '#0099cc', display: 'inline-flex', alignItems: 'center', gap: 3 }}><i className="ti ti-eye" style={{ fontSize: 12 }} /> Client</span>}
+                          {ap && <span style={{ fontSize: 9, fontWeight: 700, color: ap.c, background: ap.c + '1f', padding: '2px 7px', borderRadius: 99 }}>{ap.l}</span>}
+                        </div>
+                        {u.title && <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginTop: 3 }}>{u.title}</div>}
+                        {u.body && <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{u.body}</div>}
+                        {u.kind === 'timeline' && (u.old_date || u.new_date) && <div style={{ fontSize: 11.5, color: 'var(--text2)', marginTop: 4 }}><i className="ti ti-calendar-stats" style={{ fontSize: 13, verticalAlign: '-2px', color: '#ef4444' }} /> {fmtD(u.old_date) || '—'} <span style={{ color: 'var(--text3)' }}>→</span> <b>{fmtD(u.new_date) || '—'}</b></div>}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>}
+        </div>
+        </>
       )}
 
       {tab === 'timeline' && (() => {
@@ -928,6 +1007,29 @@ export default function ProjectsPage({ onNavigate }) {
         </div>
         <label style={lbl}>Status</label><select value={msForm.status} onChange={e => setMsForm(s => ({ ...s, status: e.target.value }))} style={{ ...input, marginBottom: 10 }}>{Object.entries(MILESTONE_ST).map(([k, v]) => <option key={k} value={k}>{v.l}</option>)}</select>
         <label style={lbl}>Note</label><input value={msForm.note || ''} onChange={e => setMsForm(s => ({ ...s, note: e.target.value }))} style={input} placeholder="Optional detail…" />
+      </FormModal>}
+      {updForm && <FormModal title={updForm.id ? 'Edit update' : 'Add project update'} onClose={() => setUpdForm(null)} onSave={saveUpdate} saving={saving} onDelete={updForm.id ? () => delUpdate(updForm.id) : undefined}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+          <div><label style={lbl}>Type</label><select value={updForm.kind} onChange={e => setUpdForm(s => ({ ...s, kind: e.target.value }))} style={input}>{Object.entries(UPD_KIND).map(([k, v]) => <option key={k} value={k}>{v.l}</option>)}</select></div>
+          <div><label style={lbl}>Date</label><input type="date" value={updForm.event_date || ''} onChange={e => setUpdForm(s => ({ ...s, event_date: e.target.value }))} style={input} /></div>
+        </div>
+        <label style={lbl}>Title</label><input autoFocus value={updForm.title || ''} onChange={e => setUpdForm(s => ({ ...s, title: e.target.value }))} style={{ ...input, marginBottom: 10 }} placeholder="e.g. Site meeting — kitchen layout" />
+        <label style={lbl}>Details</label><textarea value={updForm.body || ''} onChange={e => setUpdForm(s => ({ ...s, body: e.target.value }))} rows={4} style={{ ...input, marginBottom: 10, resize: 'vertical', minHeight: 80 }} placeholder="What was discussed / decided / changed…" />
+        {updForm.kind === 'timeline' && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+            <div><label style={lbl}>Previous date</label><input type="date" value={updForm.old_date || active.end_date || ''} onChange={e => setUpdForm(s => ({ ...s, old_date: e.target.value }))} style={input} /></div>
+            <div><label style={lbl}>New date</label><input type="date" value={updForm.new_date || ''} onChange={e => setUpdForm(s => ({ ...s, new_date: e.target.value }))} style={input} /></div>
+          </div>
+        )}
+        <label style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 0', cursor: 'pointer', fontSize: 13, color: 'var(--text)' }}>
+          <input type="checkbox" checked={updForm.client_visible !== false} onChange={e => setUpdForm(s => ({ ...s, client_visible: e.target.checked }))} style={{ width: 16, height: 16 }} />
+          <span><i className="ti ti-eye" style={{ fontSize: 14, verticalAlign: '-2px', marginRight: 4, color: '#0099cc' }} />Visible to client</span>
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '4px 0', cursor: 'pointer', fontSize: 13, color: 'var(--text)' }}>
+          <input type="checkbox" checked={!!updForm.needs_approval} onChange={e => setUpdForm(s => ({ ...s, needs_approval: e.target.checked }))} style={{ width: 16, height: 16 }} />
+          <span><i className="ti ti-checkbox" style={{ fontSize: 14, verticalAlign: '-2px', marginRight: 4, color: '#f59e0b' }} />Needs client approval</span>
+        </label>
+        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6, lineHeight: 1.5 }}>Client visibility &amp; approval apply once the client view is live (Phase 3). A timeline change updates the project Target end{updForm.needs_approval ? ' after the client approves' : ''}.</div>
       </FormModal>}
       {subForm && <FormModal title={subForm.id ? 'Edit subcontractor' : 'Add subcontractor'} onClose={() => setSubForm(null)} onSave={saveSub} saving={saving}>
         <label style={lbl}>Name</label><input autoFocus value={subForm.name} onChange={e => setSubForm(s => ({ ...s, name: e.target.value }))} style={{ ...input, marginBottom: 10 }} placeholder="e.g. Al Noor MEP Works" />
