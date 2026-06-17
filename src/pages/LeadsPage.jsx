@@ -800,8 +800,8 @@ export default function LeadsPage() {
     const loc = lead.answers?.['Location'] || lead.answers?.area || ''
     const sc = LEAD_STATUSES.find(s => s.value === lead.status) || LEAD_STATUSES[0]
     const budgetTxt = budget ? (/aed/i.test(String(budget)) ? String(budget) : 'AED ' + budget) : ''
-    // dark palette — this card mirrors the premium dark reference
-    const D = { text: '#f4f5f7', sub: 'rgba(255,255,255,0.58)', mut: 'rgba(255,255,255,0.42)', line: 'rgba(255,255,255,0.08)', surface: 'rgba(255,255,255,0.045)' }
+    // palette follows the app theme — light board → light card, dark board → dark card
+    const D = { text: 'var(--text)', sub: 'var(--text2)', mut: 'var(--text3)', line: 'var(--border)', surface: 'var(--bg2)' }
     // lead score (0–100) — drives the corner ring + first info row
     const score = (() => {
       if (lead.isPlatform && typeof lead.rank === 'number') return Math.max(45, 100 - (lead.rank - 1) * 7)
@@ -846,7 +846,7 @@ export default function LeadsPage() {
         onDragEnd={draggable ? () => setDragId(null) : undefined}
         onClick={() => openModal(lead)}
         className="lead-kard"
-        style={{ position: 'relative', background: `radial-gradient(135% 90% at 50% -12%, ${temp.color}2b, transparent 55%), linear-gradient(180deg, #1c1b20 0%, #161519 100%)`, border: `1px solid ${D.line}`, borderRadius: 18, padding: 14, marginBottom: 10, cursor: 'pointer', color: D.text, boxShadow: '0 10px 30px rgba(0,0,0,0.45)' }}
+        style={{ position: 'relative', background: `radial-gradient(135% 90% at 50% -12%, ${temp.color}24, transparent 55%), var(--card)`, border: '1px solid var(--border)', borderRadius: 18, padding: 14, marginBottom: 10, cursor: 'pointer', color: 'var(--text)', boxShadow: 'var(--shadow-md)' }}
       >
         {/* top bar: HOT/temperature + menu/rank */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 11 }}>
@@ -866,7 +866,7 @@ export default function LeadsPage() {
           <div style={{ flex: 1, minWidth: 0, fontSize: 18, fontWeight: 800, color: D.text, lineHeight: 1.18, letterSpacing: '-.2px', wordBreak: 'break-word' }}>{lead.name || 'Anonymous'}</div>
           <div style={{ position: 'relative', width: 56, height: 56, flexShrink: 0 }}>
             <svg width="56" height="56" style={{ transform: 'rotate(-90deg)' }}>
-              <circle cx="28" cy="28" r="22" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="4" />
+              <circle cx="28" cy="28" r="22" fill="none" stroke="var(--border)" strokeWidth="4" />
               <circle cx="28" cy="28" r="22" fill="none" stroke={ring.color} strokeWidth="4" strokeLinecap="round"
                 strokeDasharray={C} strokeDashoffset={C * (1 - ring.val / 100)} style={{ transition: 'stroke-dashoffset .4s' }} />
             </svg>
