@@ -98,13 +98,18 @@ export default function MeetingsPage({ onNavigate }) {
   const byDate = useMemo(() => {
     const map = {}
     const push = (k, it) => { (map[k] = map[k] || []).push(it) }
+    const mtgLeadDates = new Set()   // `${lead_id}|${dateKey}` for leads that already have a meeting that day
     for (const mt of meetings) {
       if (mt.status === 'cancelled' || !mt.start_at) continue
-      push(dateKey(mt.start_at), { type: 'meeting', kind: mt.status === 'done' ? mt.kind : mt.kind, done: mt.status === 'done', time: new Date(mt.start_at), title: mt.title, clientId: mt.lead_id, clientName: mt.lead_name, meeting: mt })
+      const dk = dateKey(mt.start_at)
+      push(dk, { type: 'meeting', kind: mt.status === 'done' ? mt.kind : mt.kind, done: mt.status === 'done', time: new Date(mt.start_at), title: mt.title, clientId: mt.lead_id, clientName: mt.lead_name, meeting: mt })
+      if (mt.lead_id) mtgLeadDates.add(mt.lead_id + '|' + dk)
     }
     for (const l of leads) {
       if (l.follow_up_date && !['won', 'lost'].includes(l.status)) {
-        push(String(l.follow_up_date).slice(0, 10), { type: 'followup', kind: 'followup', time: null, title: 'Follow-up due', clientId: l.id, clientName: l.name, lead: l })
+        const dk = String(l.follow_up_date).slice(0, 10)
+        if (mtgLeadDates.has(l.id + '|' + dk)) continue   // a meeting already covers this lead that day — don't double-show the follow-up
+        push(dk, { type: 'followup', kind: 'followup', time: null, title: 'Follow-up due', clientId: l.id, clientName: l.name, lead: l })
       }
     }
     for (const k in map) map[k].sort((a, b) => (a.time?.getTime() || 0) - (b.time?.getTime() || 0))

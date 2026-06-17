@@ -145,6 +145,7 @@ export default function LeadsPage() {
   const [waDraftLoading, setWaDraftLoading] = useState(false)
   const [meetingForm, setMeetingForm] = useState(null) // null | { start, remind, notes }
   const [meetingSaving, setMeetingSaving] = useState(false)
+  const [meetings, setMeetings] = useState([])         // upcoming company_meetings — powers each lead's "Next action"
   const [showNewTpl, setShowNewTpl] = useState(false)
   const [tplName, setTplName] = useState('')
   const [tplBody, setTplBody] = useState('')
@@ -190,6 +191,11 @@ export default function LeadsPage() {
     const { data: tplData } = await supabase
       .from('message_templates').select('*').eq('company_id', company.id).order('sort_order', { ascending: true })
     setTemplates(tplData || [])
+    const { data: mtgData } = await supabase
+      .from('company_meetings').select('id, start_at, kind, status, lead_id')
+      .eq('company_id', company.id).neq('status', 'cancelled')
+      .order('start_at', { ascending: true }).limit(2000)
+    setMeetings(mtgData || [])
     setLoading(false)
   }
 
@@ -331,7 +337,8 @@ export default function LeadsPage() {
 
   async function openModal(lead) {
     setOpenLead(lead)
-    setLogOutcome(''); setLogNote(''); setLogNext(lead.follow_up_date || ''); setLogStage(lead.status); setLogTemp(lead.temperature || 'warm')
+    setLogOutcome(''); setLogNote(''); setLogStage(lead.status); setLogTemp(lead.temperature || 'warm')
+    setLogNext(lead.nextMeeting ? toLocalInput(lead.nextMeeting.start_at) : (lead.follow_up_date ? String(lead.follow_up_date).slice(0, 10) + 'T09:00' : ''))
     setMsgText(''); setShowNewTpl(false); setTplName(''); setTplBody('')
     setTlLoading(true)
     const q = supabase.from('lead_activity').select('*').eq('company_id', company.id).order('created_at', { ascending: false })
@@ -435,28 +442,47 @@ export default function LeadsPage() {
     finally { setWaDraftLoading(false) }
   }
 
+  // format an ISO/date string for a <input type="datetime-local"> (local time, no seconds)
+  function toLocalInput(d) {
+    const dt = new Date(d); const p = n => String(n).padStart(2, '0')
+    return `${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())}T${p(dt.getHours())}:${p(dt.getMinutes())}`
+  }
+
+  // The lead's "Next action" IS a single company_meetings row. Both the meeting form and the
+  // Log-follow-up "Next" feed this — update the existing row if there is one (no duplicates),
+  // and keep follow_up_date in sync so the card, stats and Planner all agree.
+  async function upsertNextMeeting(lead, startLocal, kind = 'followup', notes = null, remind = 30) {
+    if (!startLocal) return
+    const kindLabel = { followup: 'Follow-up', meeting: 'Meeting', site_visit: 'Site Visit', call: 'Call' }[kind] || 'Follow-up'
+    const base = { title: `${kindLabel} — ${lead.name || 'Lead'}`, kind, start_at: new Date(startLocal).toISOString() }
+    if (notes != null) base.notes = notes
+    if (remind != null) base.remind_minutes = parseInt(remind) || 0
+    if (lead.nextMeeting?.id) {
+      const { error } = await supabase.from('company_meetings').update(base).eq('id', lead.nextMeeting.id)
+      if (error) throw error
+    } else {
+      const { error } = await supabase.from('company_meetings').insert({
+        company_id: company.id, created_by_email: user?.email || null, status: 'scheduled',
+        lead_id: lead.subId || null, lead_name: lead.name || null, ...base,
+      })
+      if (error) throw error
+    }
+    const dateOnly = String(startLocal).slice(0, 10)
+    if (lead.distId) await supabase.from('lead_distributions').update({ follow_up_date: dateOnly }).eq('id', lead.distId)
+    else if (lead.subId) await supabase.from('lead_submissions').update({ follow_up_date: dateOnly }).eq('id', lead.subId)
+  }
+
   async function saveMeeting(lead) {
     const f = meetingForm
     if (!f?.start) { toast.error('Pick a date & time'); return }
     if (!user?.email) { toast.error('Sign in required'); return }
     setMeetingSaving(true)
     try {
-      const kindLabel = { followup: 'Follow-up', meeting: 'Meeting', site_visit: 'Site Visit', call: 'Call' }[f.kind || 'followup'] || 'Follow-up'
-      const { error } = await supabase.from('company_meetings').insert({
-        company_id: company.id,
-        created_by_email: user.email,
-        title: `${kindLabel} — ${lead.name || 'Lead'}`,
-        kind: f.kind || 'meeting',
-        notes: f.notes || null,
-        start_at: new Date(f.start).toISOString(),
-        remind_minutes: parseInt(f.remind) || 0,
-        status: 'scheduled',
-        lead_id: lead.subId || null,
-        lead_name: lead.name || null,
-      })
-      if (error) throw error
+      const existing = !!lead.nextMeeting?.id
+      await upsertNextMeeting(lead, f.start, f.kind || 'followup', f.notes || null, f.remind)
       setMeetingForm(null)
-      toast.success('Meeting scheduled ✓ — reminder set')
+      await fetchAll()
+      toast.success(existing ? 'Next action updated ✓' : 'Scheduled ✓ — reminder set')
     } catch (e) { console.error('saveMeeting', e); toast.error('Meeting save failed: ' + (e?.message || e)) }
     finally { setMeetingSaving(false) }
   }
@@ -472,29 +498,31 @@ export default function LeadsPage() {
     setSavingLog(true)
     const lead = openLead
     const stageChanged = logStage !== lead.status
+    const nextDate = logNext ? String(logNext).slice(0, 10) : null   // logNext is a datetime-local; store the date part
     let err = null
     if (lead.distId) {
       const res = await supabase.from('lead_distributions').update({
-        follow_up_date: logNext || null, notes: logNote || lead.notes, temperature: logTemp,
+        follow_up_date: nextDate, notes: logNote || lead.notes, temperature: logTemp,
         ...(stageChanged ? { status: PAGE_TO_DIST[logStage] || 'assigned', status_updated_at: new Date().toISOString() } : {})
       }).eq('id', lead.distId)
       err = res.error
-      if (!err) setDistLeads(prev => prev.map(d => d.id === lead.distId ? { ...d, follow_up_date: logNext || null, notes: logNote || d.notes, temperature: logTemp, ...(stageChanged ? { status: PAGE_TO_DIST[logStage] } : {}) } : d))
     } else {
       const res = await supabase.from('lead_submissions').update({
-        follow_up_date: logNext || null, notes: logNote || lead.notes, temperature: logTemp,
+        follow_up_date: nextDate, notes: logNote || lead.notes, temperature: logTemp,
         ...(stageChanged ? { status: logStage, status_updated_at: new Date().toISOString() } : {})
       }).eq('id', lead.subId)
       err = res.error
-      if (!err) setSubmissions(prev => prev.map(s => s.id === lead.subId ? { ...s, follow_up_date: logNext || null, notes: logNote || s.notes, temperature: logTemp, ...(stageChanged ? { status: logStage } : {}) } : s))
     }
     if (err) { console.error('Save log failed:', err); toast.error('Save failed: ' + err.message); setSavingLog(false); return }
     await supabase.from('lead_activity').insert({
       lead_id: lead.subId || null, distribution_id: lead.distId || null, company_id: company.id,
       actor_name: company.name, kind: stageChanged ? 'stage_change' : 'follow_up',
-      outcome: logOutcome || null, note: logNote || null, next_follow_up: logNext || null,
+      outcome: logOutcome || null, note: logNote || null, next_follow_up: nextDate,
       old_stage: stageChanged ? lead.status : null, new_stage: stageChanged ? logStage : null,
     })
+    // the "Next" you set here is the same single record as the meeting — create/update it (with time) so nothing double-shows
+    try { if (logNext) await upsertNextMeeting(lead, logNext, 'followup', logNote || null) } catch (e) { console.error('next-action sync', e) }
+    await fetchAll()
     setSavingLog(false)
     toast.success('Follow-up logged!')
     closeModal()
@@ -670,18 +698,29 @@ export default function LeadsPage() {
     if (fileRef.current) fileRef.current.value = ''
   }
 
+  // earliest upcoming meeting per lead (today onward) — powers the card's "Next action" so it shows the timed meeting, not just a date
+  const meetingsByLead = (() => {
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
+    const map = {}
+    for (const m of meetings) {
+      if (!m.lead_id || !m.start_at || new Date(m.start_at) < todayStart) continue
+      const cur = map[m.lead_id]
+      if (!cur || new Date(m.start_at) < new Date(cur.start_at)) map[m.lead_id] = { id: m.id, start_at: m.start_at, kind: m.kind }
+    }
+    return map
+  })()
   function unifyDist(d) {
     const s = d.lead_submissions || {}
     return { key: 'dist-' + d.id, subId: s.id, distId: d.id, isPlatform: true, rank: d.rank,
       name: s.name, phone: s.phone, email: s.email, answers: s.answers || {},
       status: DIST_TO_PAGE[d.status] || 'new', created_at: d.assigned_at || s.created_at,
-      assigned_at: d.assigned_at || s.created_at,
+      assigned_at: d.assigned_at || s.created_at, nextMeeting: meetingsByLead[s.id] || null,
       follow_up_date: d.follow_up_date, notes: d.notes, temperature: d.temperature || 'warm' }
   }
   function unifyOwn(s) {
     return { key: 'own-' + s.id, subId: s.id, distId: null, isPlatform: false, rank: null,
       name: s.name, phone: s.phone, email: s.email, answers: s.answers || {}, source: s.source || null,
-      status: s.status || 'new', created_at: s.created_at, assigned_at: s.created_at,
+      status: s.status || 'new', created_at: s.created_at, assigned_at: s.created_at, nextMeeting: meetingsByLead[s.id] || null,
       follow_up_date: s.follow_up_date, notes: s.notes, temperature: s.temperature || 'warm' }
   }
   const tdLeads = distLeads.map(unifyDist)
@@ -827,8 +866,11 @@ export default function LeadsPage() {
       if (d < 2592000) return Math.floor(d / 86400) + 'd ago'
       return new Date(lead.created_at).toLocaleDateString('en-AE', { day: 'numeric', month: 'short' })
     })()
-    // Next-action band — always shown; driven by the follow-up date
-    const nextAction = isOverdue ? { label: 'Overdue — follow up now', color: '#f87171', icon: 'ti-alert-triangle' }
+    // Next-action band — a scheduled meeting (with time) wins; otherwise the date-only follow-up
+    const KIND_LABEL = { followup: 'Follow-up', meeting: 'Meeting', site_visit: 'Site visit', call: 'Call' }
+    const nextAction = lead.nextMeeting
+      ? { label: (KIND_LABEL[lead.nextMeeting.kind] || 'Meeting') + ' · ' + new Date(lead.nextMeeting.start_at).toLocaleString('en-AE', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }), color: '#0891b2', icon: 'ti-calendar-clock' }
+      : isOverdue ? { label: 'Overdue — follow up now', color: '#f87171', icon: 'ti-alert-triangle' }
       : isDueToday ? { label: 'Follow up today', color: '#fbbf24', icon: 'ti-calendar-event' }
       : lead.follow_up_date ? { label: 'Follow up ' + new Date(lead.follow_up_date).toLocaleDateString('en-AE', { day: 'numeric', month: 'short' }), color: '#e2b25f', icon: 'ti-calendar' }
       : { label: 'Set a follow-up', color: '#e2b25f', icon: 'ti-calendar-plus' }
@@ -1197,9 +1239,11 @@ export default function LeadsPage() {
           </button>
 
           {meetingForm == null ? (
-            <button onClick={() => setMeetingForm({ start: '', remind: 30, notes: '', kind: 'followup' })}
+            <button onClick={() => setMeetingForm(lead.nextMeeting
+              ? { start: toLocalInput(lead.nextMeeting.start_at), remind: 30, notes: '', kind: lead.nextMeeting.kind || 'followup' }
+              : { start: '', remind: 30, notes: '', kind: 'followup' })}
               style={{ width: '100%', padding: '11px', borderRadius: 9, background: 'transparent', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.4)', cursor: 'pointer', fontSize: 13, fontWeight: 600, marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
-              <i className="ti ti-calendar-plus" style={{ fontSize: 16 }} /> Schedule a meeting
+              <i className="ti ti-calendar-plus" style={{ fontSize: 16 }} /> {lead.nextMeeting ? 'Edit next action / meeting' : 'Schedule a meeting'}
             </button>
           ) : (
             <div style={{ border: '1px solid rgba(59,130,246,0.35)', borderRadius: 10, padding: 13, marginBottom: 14, background: 'rgba(59,130,246,0.05)' }}>
@@ -1357,8 +1401,8 @@ export default function LeadsPage() {
               style={{ width: '100%', minHeight: 50, padding: '8px 10px', ...inputStyle, fontSize: 12, resize: 'vertical', marginBottom: 9, boxSizing: 'border-box' }} />
             <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : '1fr 1fr', gap: 9, marginBottom: 9 }}>
               <div style={{ minWidth: 0 }}>
-                <label style={{ fontSize: 10, color: 'var(--text3)', display: 'block', marginBottom: 3 }}>Next follow-up</label>
-                <input type="date" value={logNext} onChange={e => setLogNext(e.target.value)} style={{ ...inputStyle, display: 'block', width: '100%', padding: '8px 9px', fontSize: 12, boxSizing: 'border-box', minWidth: 0, WebkitAppearance: 'none', appearance: 'none' }} />
+                <label style={{ fontSize: 10, color: 'var(--text3)', display: 'block', marginBottom: 3 }}>Next action (date &amp; time)</label>
+                <input type="datetime-local" value={logNext} onChange={e => setLogNext(e.target.value)} style={{ ...inputStyle, display: 'block', width: '100%', padding: '8px 9px', fontSize: 12, boxSizing: 'border-box', minWidth: 0, WebkitAppearance: 'none', appearance: 'none' }} />
               </div>
               <div style={{ minWidth: 0 }}>
                 <label style={{ fontSize: 10, color: 'var(--text3)', display: 'block', marginBottom: 3 }}>Move to stage</label>
@@ -1583,19 +1627,31 @@ export default function LeadsPage() {
     return (
       <>
         {baseLeads.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: mobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 10, marginBottom: 12 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
             {STAT_CARDS.map(s => {
               const active = s.click && quickFilter === s.key
               return (
-                <div key={s.key} onClick={s.click ? () => toggleQuick(s.key) : undefined}
-                  style={{ ...card, padding: '11px 14px', cursor: s.click ? 'pointer' : 'default',
-                    borderColor: active ? s.color : 'var(--border)', borderWidth: active ? 1.5 : 0.5, borderStyle: 'solid' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontSize: 11, color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 5 }}><i className={'ti ' + s.icon} style={{ fontSize: 12, color: s.color }} /> {s.label}</div>
-                    {active && <i className="ti ti-circle-check-filled" style={{ fontSize: 13, color: s.color }} />}
-                  </div>
-                  <div style={{ fontSize: 21, fontWeight: 700, color: s.color, marginTop: 2 }}>{s.value}</div>
-                </div>
+                <button key={s.key} onClick={s.click ? () => toggleQuick(s.key) : undefined}
+                  style={{ flex: mobile ? '1 1 40%' : '0 0 auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '7px 13px', borderRadius: 10, fontFamily: 'inherit', cursor: s.click ? 'pointer' : 'default',
+                    background: active ? s.color + '14' : 'var(--card)', border: `1px solid ${active ? s.color : 'var(--border)'}` }}>
+                  <i className={'ti ' + s.icon} style={{ fontSize: 14, color: s.color }} />
+                  <span style={{ fontSize: 11.5, fontWeight: 500, color: 'var(--text2)' }}>{s.label}</span>
+                  <span style={{ fontSize: 14, fontWeight: 800, color: s.color }}>{s.value}</span>
+                  {active && <i className="ti ti-x" style={{ fontSize: 12, color: s.color }} />}
+                </button>
+              )
+            })}
+            {!isTD && myLeads.length > 0 && <span style={{ width: 1, height: 22, background: 'var(--border)', margin: '0 2px' }} />}
+            {!isTD && myLeads.length > 0 && SOURCE_CARDS.map(s => {
+              const active = fSource === s.key
+              return (
+                <button key={s.key} onClick={() => toggleSource(s.key)}
+                  style={{ flex: mobile ? '1 1 40%' : '0 0 auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px 12px', borderRadius: 99, fontFamily: 'inherit', cursor: 'pointer',
+                    background: active ? s.color + '14' : 'var(--card)', border: `1px solid ${active ? s.color : 'var(--border)'}` }}>
+                  <i className={'ti ' + s.icon} style={{ fontSize: 14, color: s.color }} />
+                  <span style={{ fontSize: 11.5, fontWeight: 500, color: 'var(--text2)' }}>{s.label}</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: active ? s.color : 'var(--text)' }}>{mySrcCount(s.key)}</span>
+                </button>
               )
             })}
           </div>
@@ -1614,24 +1670,9 @@ export default function LeadsPage() {
           </div>
         )}
 
-        {!isTD && myLeads.length > 0 && (
-          <div style={{ display: mobile ? 'grid' : 'flex', gridTemplateColumns: mobile ? 'repeat(2,1fr)' : undefined, gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-            {SOURCE_CARDS.map(s => {
-              const active = fSource === s.key
-              return (
-                <div key={s.key} onClick={() => toggleSource(s.key)}
-                  style={{ flex: mobile ? 'none' : 1, minWidth: 0, ...card, padding: '9px 13px', display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer', borderColor: active ? s.color : 'var(--border)', borderWidth: active ? 1.5 : 0.5, borderStyle: 'solid' }}>
-                  <i className={'ti ' + s.icon} style={{ fontSize: 16, color: s.color }} />
-                  <div><span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{mySrcCount(s.key)}</span> <span style={{ fontSize: 10, color: 'var(--text2)' }}>{s.label}</span></div>
-                  {active && <i className="ti ti-circle-check-filled" style={{ fontSize: 14, color: s.color, marginLeft: 'auto' }} />}
-                </div>
-              )
-            })}
-          </div>
-        )}
 
         {baseLeads.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: mobile ? 'column' : 'row', flexWrap: mobile ? 'nowrap' : 'wrap', gap: 10, alignItems: mobile ? 'stretch' : 'center', marginBottom: 16 }}>
+          <div style={{ display: 'flex', flexDirection: mobile ? 'column' : 'row', flexWrap: mobile ? 'nowrap' : 'wrap', gap: 10, alignItems: mobile ? 'stretch' : 'center', marginBottom: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--card)', border: '0.5px solid var(--border)', borderRadius: 8, padding: '8px 12px', flex: mobile ? 'none' : '1 1 200px', minWidth: 0 }}>
               <i className="ti ti-search" style={{ fontSize: 14, color: 'var(--text3)' }} />
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, phone, project, location..." style={{ border: 'none', background: 'none', outline: 'none', fontSize: 13, color: 'var(--text)', width: '100%', fontFamily: 'inherit' }} />
@@ -1649,8 +1690,6 @@ export default function LeadsPage() {
                   </button>
                 ))}
               </div>
-              {!isTD && <button className="btn btn-primary btn-sm" style={{ flex: mobile ? 1 : 'none', whiteSpace: 'nowrap' }} onClick={openAdd}>+ Add</button>}
-              {!isTD && <button className="btn btn-secondary btn-sm" style={{ flex: mobile ? 1 : 'none', whiteSpace: 'nowrap' }} disabled={importing} onClick={() => fileRef.current?.click()}>{importing ? '...' : '⬆ Import'}</button>}
             </div>
           </div>
         )}
@@ -1677,7 +1716,8 @@ export default function LeadsPage() {
         </div>
       </div>
 
-      <div style={{ display: 'inline-flex', gap: 3, marginBottom: 18, maxWidth: '100%', background: 'var(--bg2)', border: '0.5px solid var(--border)', borderRadius: 11, padding: 3, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
+      <div style={{ display: 'inline-flex', gap: 3, maxWidth: '100%', background: 'var(--bg2)', border: '0.5px solid var(--border)', borderRadius: 11, padding: 3, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
         {[
           { id: 'trustdubai', label: mobile ? 'Quvera' : 'Quvera Leads', count: tdLeads.length, icon: 'ti-shield-check' },
           { id: 'mine',       label: 'My Leads', count: myLeads.length, icon: 'ti-building-store' },
@@ -1697,6 +1737,13 @@ export default function LeadsPage() {
           </button>
           )
         })}
+      </div>
+        {mainTab === 'mine' && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-primary btn-sm" style={{ whiteSpace: 'nowrap', padding: '8px 18px' }} onClick={openAdd}>+ Add Lead / Client</button>
+            <button className="btn btn-secondary btn-sm" style={{ whiteSpace: 'nowrap' }} disabled={importing} onClick={() => fileRef.current?.click()}>{importing ? '...' : '⬆ Import'}</button>
+          </div>
+        )}
       </div>
 
       {mainTab === 'trustdubai' && (
