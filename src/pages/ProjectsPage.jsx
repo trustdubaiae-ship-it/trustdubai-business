@@ -408,6 +408,30 @@ export default function ProjectsPage({ onNavigate }) {
   async function delUpdate(id) {
     try { await supabase.from('project_updates').delete().eq('id', id).eq('company_id', company.id); setUpdForm(null); await reloadChildren() } catch (e) { toast.error('Delete failed') }
   }
+  function exportComms() {
+    const esc = s => String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+    const st = PSTATUS[active.status] || PSTATUS.planning
+    const rows = updates.map(u => {
+      const k = UPD_KIND[u.kind] || UPD_KIND.note
+      const meta = `${esc(fmtD(u.event_date))} · ${u.from_client ? 'Client' : esc(k.l)}${u.approval_status && u.approval_status !== 'none' ? ' · ' + esc(u.approval_status) : ''}${u.client_visible ? ' · shared' : ' · internal'}`
+      return `<div style="border-left:3px solid ${u.from_client ? '#0a6f8f' : k.c};padding:8px 12px;margin-bottom:8px;background:#fafbfc;border-radius:6px;">
+        <div style="font-size:11px;color:#888;">${meta}</div>
+        ${u.title ? `<div style="font-weight:700;font-size:13px;margin-top:2px;">${esc(u.title)}</div>` : ''}
+        ${u.body ? `<div style="font-size:12px;color:#444;margin-top:2px;white-space:pre-wrap;">${esc(u.body)}</div>` : ''}
+        ${u.kind === 'timeline' && (u.old_date || u.new_date) ? `<div style="font-size:11px;color:#c0392b;margin-top:3px;">${esc(fmtD(u.old_date))} &rarr; ${esc(fmtD(u.new_date))}</div>` : ''}
+        ${u.client_comment ? `<div style="font-size:11.5px;color:#0a6f8f;margin-top:3px;">Client: ${esc(u.client_comment)}</div>` : ''}
+      </div>`
+    }).join('')
+    const inner = `<div style="font-family:Arial,Helvetica,sans-serif;padding:30px;color:#1a1a1a;">
+      <div style="border-bottom:2px solid #0099cc;padding-bottom:10px;margin-bottom:14px;">
+        <div style="font-size:18px;font-weight:800;">${esc(company?.name || '')}</div>
+        <div style="font-size:13px;color:#666;margin-top:2px;">Project communication — ${esc(active.name)}</div>
+        <div style="font-size:11px;color:#999;margin-top:2px;">${esc(active.client_name || '')} · Status: ${esc(st.label)} · ${esc(fmtD(active.start_date))} &rarr; ${esc(fmtD(active.end_date))}</div>
+      </div>
+      ${rows || '<div style="color:#999;font-size:12px;">No updates yet.</div>'}
+    </div>`
+    printDocs(`${active.name} — communication`, [inner], toast)
+  }
   async function saveMilestone() {
     const x = msForm
     if (!x.title?.trim()) { toast.error('Milestone title is required'); return }
@@ -757,7 +781,10 @@ export default function ProjectsPage({ onNavigate }) {
         <div style={{ ...card, marginTop: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
             <div style={{ fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 7 }}><i className="ti ti-history" style={{ color: '#0099cc', fontSize: 17 }} /> Project history &amp; updates</div>
-            <button onClick={() => setUpdForm({ kind: 'meeting', title: '', body: '', event_date: new Date().toISOString().slice(0, 10), client_visible: true, needs_approval: false })} className="btn btn-primary btn-sm"><i className="ti ti-plus" /> Add update</button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {updates.length > 0 && <button onClick={exportComms} className="btn btn-secondary btn-sm"><i className="ti ti-file-download" /> Export PDF</button>}
+              <button onClick={() => setUpdForm({ kind: 'meeting', title: '', body: '', event_date: new Date().toISOString().slice(0, 10), client_visible: true, needs_approval: false })} className="btn btn-primary btn-sm"><i className="ti ti-plus" /> Add update</button>
+            </div>
           </div>
           {updates.length === 0
             ? <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '26px 16px', fontSize: 13 }}><i className="ti ti-history" style={{ fontSize: 26, display: 'block', marginBottom: 8 }} />No updates yet. Log meetings, client requirements, material or timeline changes — they appear here as a timeline.</div>
@@ -765,15 +792,16 @@ export default function ProjectsPage({ onNavigate }) {
                 {updates.map(u => {
                   const k = UPD_KIND[u.kind] || UPD_KIND.note
                   const ap = APPROVAL[u.approval_status] || null
+                  const fc = u.from_client, ac = fc ? '#0a6f8f' : k.c
                   return (
-                    <div key={u.id} onClick={() => setUpdForm({ ...u, event_date: u.event_date || '', old_date: u.old_date || '', new_date: u.new_date || '' })}
-                      style={{ display: 'flex', gap: 11, padding: '11px 12px', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--card)', cursor: 'pointer' }}>
-                      <div style={{ width: 34, height: 34, borderRadius: 9, background: k.c + '1f', color: k.c, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><i className={'ti ' + k.icon} style={{ fontSize: 17 }} /></div>
+                    <div key={u.id} onClick={() => { if (!fc) setUpdForm({ ...u, event_date: u.event_date || '', old_date: u.old_date || '', new_date: u.new_date || '' }) }}
+                      style={{ display: 'flex', gap: 11, padding: '11px 12px', border: '1px solid var(--border)', borderLeft: '3px solid ' + ac, borderRadius: 12, background: fc ? 'rgba(10,111,143,0.05)' : 'var(--card)', cursor: fc ? 'default' : 'pointer' }}>
+                      <div style={{ width: 34, height: 34, borderRadius: 9, background: ac + '1f', color: ac, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><i className={'ti ' + (fc ? 'ti-user' : k.icon)} style={{ fontSize: 17 }} /></div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: 9, fontWeight: 700, color: k.c, background: k.c + '1f', padding: '2px 7px', borderRadius: 99, textTransform: 'uppercase', letterSpacing: '.3px' }}>{k.l}</span>
+                          <span style={{ fontSize: 9, fontWeight: 700, color: ac, background: ac + '1f', padding: '2px 7px', borderRadius: 99, textTransform: 'uppercase', letterSpacing: '.3px' }}>{fc ? 'From client' : k.l}</span>
                           <span style={{ fontSize: 11, color: 'var(--text3)' }}>{fmtD(u.event_date)}</span>
-                          {u.client_visible && <span style={{ fontSize: 9, fontWeight: 700, color: '#0099cc', display: 'inline-flex', alignItems: 'center', gap: 3 }}><i className="ti ti-eye" style={{ fontSize: 12 }} /> Client</span>}
+                          {!fc && u.client_visible && <span style={{ fontSize: 9, fontWeight: 700, color: '#0099cc', display: 'inline-flex', alignItems: 'center', gap: 3 }}><i className="ti ti-eye" style={{ fontSize: 12 }} /> Client</span>}
                           {ap && <span style={{ fontSize: 9, fontWeight: 700, color: ap.c, background: ap.c + '1f', padding: '2px 7px', borderRadius: 99 }}>{ap.l}</span>}
                         </div>
                         {u.title && <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginTop: 3 }}>{u.title}</div>}

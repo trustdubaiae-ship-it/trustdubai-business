@@ -60,6 +60,8 @@ export default function ClientProject({ token }) {
   const [busy, setBusy] = useState(false)
   const [comments, setComments] = useState({})    // updateId -> comment
   const [respId, setRespId] = useState(null)
+  const [msg, setMsg] = useState('')
+  const [sending, setSending] = useState(false)
   const CODE_KEY = 'qv_proj_code_' + token
 
   async function fetchProject(c) {
@@ -98,6 +100,38 @@ export default function ClientProject({ token }) {
     if (res?.ok) { await reload() } else { setErr('Could not save your response. Please try again.') }
   }
   function lock() { try { localStorage.removeItem(CODE_KEY) } catch { /* ignore */ } setData(null); setCode(''); setErr(''); setPhase('code') }
+  async function postUpdate() {
+    if (!msg.trim()) return
+    setSending(true); setErr('')
+    const { data: res } = await supabase.rpc('fn_add_client_update', { p_token: token, p_code: code.trim(), p_body: msg.trim() })
+    setSending(false)
+    if (res?.ok) { setMsg(''); await reload() } else { setErr('Could not send your message. Please try again.') }
+  }
+  function exportPdf() {
+    const esc = s => String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+    const pr = data.project, com = data.company || {}
+    const rows = (data.updates || []).map(u => {
+      const k = UPD_KIND[u.kind] || UPD_KIND.note
+      const meta = `${esc(fmtDate(u.event_date))} · ${u.from_client ? 'Client' : esc(k.l)}${u.approval_status === 'approved' ? ' · approved' : u.approval_status === 'rejected' ? ' · rejected' : ''}`
+      return `<div style="border-left:3px solid ${u.from_client ? '#0a6f8f' : k.c};padding:8px 12px;margin-bottom:8px;background:#fafbfc;border-radius:6px;">
+        <div style="font-size:11px;color:#888;">${meta}</div>
+        ${u.title ? `<div style="font-weight:700;font-size:13px;margin-top:2px;">${esc(u.title)}</div>` : ''}
+        ${u.body ? `<div style="font-size:12px;color:#444;margin-top:2px;white-space:pre-wrap;">${esc(u.body)}</div>` : ''}
+        ${u.kind === 'timeline' && (u.old_date || u.new_date) ? `<div style="font-size:11px;color:#c0392b;margin-top:3px;">${esc(fmtDate(u.old_date))} &rarr; ${esc(fmtDate(u.new_date))}</div>` : ''}
+      </div>`
+    }).join('')
+    const inner = `<div style="font-family:Arial,Helvetica,sans-serif;padding:30px;color:#1a1a1a;">
+      <div style="border-bottom:2px solid #0099cc;padding-bottom:10px;margin-bottom:14px;">
+        <div style="font-size:18px;font-weight:800;">${esc(com.name || '')}</div>
+        <div style="font-size:13px;color:#666;margin-top:2px;">Project communication — ${esc(pr.name)}</div>
+        <div style="font-size:11px;color:#999;margin-top:2px;">Status: ${esc((PSTATUS[pr.status] || {}).l || pr.status)} · ${esc(fmtDate(pr.start_date))} &rarr; ${esc(fmtDate(pr.end_date))}</div>
+      </div>
+      ${rows || '<div style="color:#999;font-size:12px;">No updates yet.</div>'}
+    </div>`
+    const w = window.open('', '_blank'); if (!w) return
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(pr.name)} — communication</title><style>@page{size:A4;margin:14mm}.__b{position:fixed;top:0;left:0;right:0;height:46px;background:#0f1623;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-family:sans-serif;z-index:9}@media print{.__b{display:none}.__s{box-shadow:none!important;margin:0!important}}.__b button{padding:7px 13px;border:none;border-radius:7px;font-weight:600;cursor:pointer}</style></head><body style="margin:0;background:#eef2f6;padding-top:46px;"><div class="__b"><span style="font-size:13px;">${esc(pr.name)} — communication</span><span><button onclick="window.print()" style="background:#0099cc;color:#fff;">Print / PDF</button> <button onclick="window.close()" style="background:rgba(255,255,255,.15);color:#fff;margin-left:8px;">Close</button></span></div><div class="__s" style="max-width:760px;margin:14px auto;background:#fff;box-shadow:0 6px 28px rgba(0,0,0,.2);">${inner}</div></body></html>`)
+    w.document.close()
+  }
 
   if (phase === 'notfound') return <Center icon="ti-link-off" title="Link not found" sub="This project link is invalid or has been removed. Please ask the company for a new link." />
   if (phase === 'error') return <Center icon="ti-alert-triangle" title="Something went wrong" sub="Please refresh the page or try again later." color="#ef4444" />
@@ -201,19 +235,28 @@ export default function ClientProject({ token }) {
 
       {/* updates timeline */}
       <div style={{ background: '#fff', borderRadius: 16, padding: '18px 20px', boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
-        <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 12 }}>Updates &amp; history</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <div style={{ fontSize: 14, fontWeight: 800 }}>Updates &amp; history</div>
+          <button onClick={exportPdf} style={{ ...btnCss('#f1f5f9', '#475569'), fontSize: 12, padding: '7px 12px' }}><i className="ti ti-file-download" /> Export PDF</button>
+        </div>
+        {/* client composer */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+          <input value={msg} onChange={e => setMsg(e.target.value)} placeholder="Write a message to your contractor…" style={{ ...inputCss, fontSize: 13, padding: '10px 12px' }} onKeyDown={e => e.key === 'Enter' && postUpdate()} />
+          <button onClick={postUpdate} disabled={sending} style={{ ...btnCss(CYAN), padding: '10px 15px', whiteSpace: 'nowrap', opacity: sending ? 0.7 : 1 }}>{sending ? '…' : <><i className="ti ti-send" /> Send</>}</button>
+        </div>
         {updates.length === 0
           ? <div style={{ fontSize: 13, color: '#94a3b8', padding: '14px 0' }}>No updates shared yet.</div>
           : <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {updates.map(u => {
                 const k = UPD_KIND[u.kind] || UPD_KIND.note
                 const pending = u.needs_approval && u.approval_status === 'pending'
+                const fc = u.from_client, ac = fc ? '#0a6f8f' : k.c
                 return (
-                  <div key={u.id} style={{ display: 'flex', gap: 12, padding: '13px', border: '1px solid #eef1f4', borderLeft: '3px solid ' + (pending ? '#f59e0b' : k.c), borderRadius: 12, background: pending ? '#fffdf5' : '#fff' }}>
-                    <div style={{ width: 34, height: 34, borderRadius: 9, background: k.c + '1f', color: k.c, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><i className={`ti ${k.icon}`} style={{ fontSize: 17 }} /></div>
+                  <div key={u.id} style={{ display: 'flex', gap: 12, padding: '13px', border: '1px solid #eef1f4', borderLeft: '3px solid ' + (pending ? '#f59e0b' : ac), borderRadius: 12, background: pending ? '#fffdf5' : (fc ? '#f3fafd' : '#fff') }}>
+                    <div style={{ width: 34, height: 34, borderRadius: 9, background: ac + '1f', color: ac, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><i className={`ti ${fc ? 'ti-user' : k.icon}`} style={{ fontSize: 17 }} /></div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 9, fontWeight: 700, color: k.c, background: k.c + '1f', padding: '2px 7px', borderRadius: 99, textTransform: 'uppercase', letterSpacing: '.3px' }}>{k.l}</span>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: ac, background: ac + '1f', padding: '2px 7px', borderRadius: 99, textTransform: 'uppercase', letterSpacing: '.3px' }}>{fc ? 'You' : k.l}</span>
                         <span style={{ fontSize: 11, color: '#94a3b8' }}>{fmtDate(u.event_date)}</span>
                         {u.approval_status === 'approved' && <span style={{ fontSize: 9, fontWeight: 700, color: '#22c55e', background: '#22c55e1f', padding: '2px 7px', borderRadius: 99 }}>You approved</span>}
                         {u.approval_status === 'rejected' && <span style={{ fontSize: 9, fontWeight: 700, color: '#ef4444', background: '#ef44441f', padding: '2px 7px', borderRadius: 99 }}>You rejected</span>}
