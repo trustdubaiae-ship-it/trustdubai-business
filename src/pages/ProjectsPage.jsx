@@ -6,11 +6,13 @@ import { supabase } from '../lib/supabase'
 import { useToast } from '../lib/toast'
 
 const PSTATUS = {
-  planning:  { label: 'Planning',  color: '#64748b' },
-  ongoing:   { label: 'Ongoing',   color: '#0099cc' },
-  on_hold:   { label: 'On Hold',   color: '#f59e0b' },
-  completed: { label: 'Completed', color: '#22c55e' },
-  cancelled: { label: 'Cancelled', color: '#ef4444' },
+  planning:  { label: 'Planning',  color: '#64748b', icon: 'ti-pencil' },
+  ongoing:   { label: 'Ongoing',   color: '#0099cc', icon: 'ti-progress' },
+  snagging:  { label: 'Snagging',  color: '#a855f7', icon: 'ti-tool' },
+  handover:  { label: 'Handover',  color: '#14b8a6', icon: 'ti-key' },
+  completed: { label: 'Completed', color: '#22c55e', icon: 'ti-circle-check' },
+  on_hold:   { label: 'On Hold',   color: '#f59e0b', icon: 'ti-player-pause' },
+  cancelled: { label: 'Cancelled', color: '#ef4444', icon: 'ti-x' },
 }
 const MSTATUS = { requested: { l: 'Requested', c: '#64748b' }, approved: { l: 'Approved', c: '#0099cc' }, ordered: { l: 'Ordered', c: '#f59e0b' }, received: { l: 'Received', c: '#22c55e' } }
 const ECAT = { labour: { l: 'Labour', c: '#8b5cf6' }, material: { l: 'Material', c: '#0099cc' }, transport: { l: 'Transport', c: '#f59e0b' }, misc: { l: 'Misc', c: '#64748b' } }
@@ -337,7 +339,7 @@ export default function ProjectsPage({ onNavigate }) {
   async function generateLPO(sub) {
     let lpo = sub.lpo_number
     if (!lpo) { lpo = 'LPO-' + String(Date.now()).slice(-6); await supabase.from('project_subcontractors').update({ lpo_number: lpo, lpo_date: new Date().toISOString().slice(0, 10) }).eq('id', sub.id).eq('company_id', company.id); reloadChildren() }
-    printLPO(company, active, sub, scope.filter(s => s.sub_id === sub.id), lpo, toast)
+    printLPOandNDA(company, active, sub, scope.filter(s => s.sub_id === sub.id), lpo, subs.filter(x => x.id !== sub.id), toast)
   }
 
   // ----- milestones / timeline -----
@@ -504,34 +506,66 @@ export default function ProjectsPage({ onNavigate }) {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px,1fr))', gap: 12 }}>
               {projects.map(p => {
                 const st = PSTATUS[p.status] || PSTATUS.planning
+                const recv = Number(recvByProject[p.id]) || 0
+                const cv = Number(p.contract_value) || 0
+                const payPct = cv > 0 ? Math.min(100, Math.round((recv / cv) * 100)) : 0
+                const spent = Number(costByProject[p.id]) || 0
+                const prof = cv - spent
+                const profPct = cv > 0 ? Math.round((prof / cv) * 100) : 0
+                const prog = Math.max(0, Math.min(100, p.progress || 0))
+                const RC = 2 * Math.PI * 20
+                const fmtShort = d => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : null
+                const s1 = fmtShort(p.start_date), s2 = fmtShort(p.end_date)
+                const row = (top) => ({ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 11px', borderTop: top ? '1px solid var(--border)' : 'none' })
+                const lbl = { fontSize: 11.5, color: 'var(--text2)' }
+                const val = { marginLeft: 'auto', fontSize: 12, fontWeight: 700, color: 'var(--text)' }
                 return (
-                  <div key={p.id} className="fx-proj" onClick={() => openProject(p)} style={{ ...card, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 18 }}>
-                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, background: `linear-gradient(90deg, ${st.color}, ${st.color}55)` }} />
-                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-                      <div style={{ fontSize: 15, fontWeight: 700, wordBreak: 'break-word' }}>{p.name}</div>
-                      <Badge c={st.color}>{st.label}</Badge>
+                  <div key={p.id} className="fx-proj" onClick={() => openProject(p)}
+                    style={{ cursor: 'pointer', background: `radial-gradient(130% 85% at 50% -10%, ${st.color}24, transparent 55%), var(--card)`, border: '1px solid var(--border)', borderRadius: 16, padding: 14, boxShadow: 'var(--shadow-md)' }}>
+                    {/* status + contract value */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
+                      <span style={{ fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 99, background: st.color, color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 4, textTransform: 'uppercase', letterSpacing: '.4px', boxShadow: `0 3px 10px ${st.color}55` }}>
+                        <i className={'ti ' + st.icon} style={{ fontSize: 12 }} /> {st.label}
+                      </span>
+                      <span style={{ fontSize: 16, fontWeight: 800, color: '#0099cc', letterSpacing: '-.3px' }}>{AED(cv)}</span>
                     </div>
-                    {p.client_name && <div style={{ fontSize: 12.5, color: 'var(--text2)' }}><i className="ti ti-user" style={{ fontSize: 13, verticalAlign: '-1px' }} /> {p.client_name}</div>}
-                    <div style={{ fontSize: 18, fontWeight: 800, color: '#0099cc', letterSpacing: '-.3px' }}>{AED(p.contract_value)}</div>
-                    {(() => {
-                      const recv = Number(recvByProject[p.id]) || 0
-                      const payPct = Number(p.contract_value) > 0 ? Math.min(100, Math.round((recv / Number(p.contract_value)) * 100)) : 0
-                      const spent = Number(costByProject[p.id]) || 0
-                      const prof = Number(p.contract_value) - spent
-                      const profPct = Number(p.contract_value) > 0 ? Math.round((prof / Number(p.contract_value)) * 100) : 0
-                      return (
-                        <>
-                          <div style={{ height: 7, background: 'var(--bg2)', borderRadius: 99, overflow: 'hidden' }}><div style={{ width: (p.progress || 0) + '%', height: '100%', background: `linear-gradient(90deg, ${st.color}, ${st.color}aa)`, borderRadius: 99, transition: 'width .3s ease' }} /></div>
-                          <div style={{ fontSize: 11, color: 'var(--text3)', display: 'flex', justifyContent: 'space-between' }}><span><i className="ti ti-progress-check" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {p.progress || 0}% work</span><span><i className="ti ti-flag" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {fmtD(p.end_date)}</span></div>
-                          <div style={{ height: 7, background: 'var(--bg2)', borderRadius: 99, overflow: 'hidden', marginTop: 2 }}><div style={{ width: payPct + '%', height: '100%', background: 'linear-gradient(90deg,#0099cc,#0099ccaa)', borderRadius: 99, transition: 'width .3s ease' }} /></div>
-                          <div style={{ fontSize: 11, color: 'var(--text3)', display: 'flex', justifyContent: 'space-between' }}><span><i className="ti ti-cash" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {payPct}% paid</span><span>{AED(recv)}</span></div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, paddingTop: 7, borderTop: '1px dashed var(--border)', fontSize: 11.5 }}>
-                            <span style={{ color: 'var(--text2)' }}><i className="ti ti-coin" style={{ fontSize: 13, verticalAlign: '-2px', color: '#f59e0b' }} /> Spent {AED(spent)}</span>
-                            <span style={{ fontWeight: 700, color: prof >= 0 ? '#22c55e' : '#ef4444' }}>{prof >= 0 ? 'Profit' : 'Loss'} {AED(Math.abs(prof))}{Number(p.contract_value) > 0 ? ` · ${profPct}%` : ''}</span>
-                          </div>
-                        </>
-                      )
-                    })()}
+                    {/* name + progress ring */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                      <div style={{ flex: 1, minWidth: 0, fontSize: 16, fontWeight: 800, color: 'var(--text)', lineHeight: 1.2, wordBreak: 'break-word' }}>{p.name}</div>
+                      <div style={{ position: 'relative', width: 52, height: 52, flexShrink: 0 }}>
+                        <svg width="52" height="52" style={{ transform: 'rotate(-90deg)' }}>
+                          <circle cx="26" cy="26" r="20" fill="none" stroke="var(--border)" strokeWidth="4" />
+                          <circle cx="26" cy="26" r="20" fill="none" stroke={st.color} strokeWidth="4" strokeLinecap="round" strokeDasharray={RC} strokeDashoffset={RC * (1 - prog / 100)} style={{ transition: 'stroke-dashoffset .4s' }} />
+                        </svg>
+                        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                          <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', lineHeight: 1 }}>{prog}<span style={{ fontSize: 8 }}>%</span></span>
+                          <span style={{ fontSize: 7, fontWeight: 700, color: 'var(--text3)', letterSpacing: '.3px' }}>DONE</span>
+                        </div>
+                      </div>
+                    </div>
+                    {/* client + location */}
+                    {(p.client_name || p.location) && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 9 }}>
+                        <div style={{ width: 30, height: 30, borderRadius: 9, background: st.color + '1f', color: st.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><i className="ti ti-user" style={{ fontSize: 15 }} /></div>
+                        <div style={{ minWidth: 0 }}>
+                          {p.client_name && <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)', lineHeight: 1.25, wordBreak: 'break-word' }}>{p.client_name}</div>}
+                          {p.location && <div style={{ fontSize: 11, color: 'var(--text3)', lineHeight: 1.25 }}>{p.location}</div>}
+                        </div>
+                      </div>
+                    )}
+                    {/* money rows */}
+                    <div style={{ marginTop: 11, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+                      <div style={row(false)}><i className="ti ti-cash" style={{ fontSize: 14, color: '#0099cc' }} /><span style={lbl}>Paid</span><span style={val}>{payPct}% · {AED(recv)}</span></div>
+                      <div style={row(true)}><i className="ti ti-coin" style={{ fontSize: 14, color: '#f59e0b' }} /><span style={lbl}>Spent</span><span style={val}>{AED(spent)}</span></div>
+                      <div style={row(true)}><i className={'ti ' + (prof >= 0 ? 'ti-trending-up' : 'ti-trending-down')} style={{ fontSize: 14, color: prof >= 0 ? '#22c55e' : '#ef4444' }} /><span style={lbl}>{prof >= 0 ? 'Profit' : 'Loss'}</span><span style={{ ...val, color: prof >= 0 ? '#22c55e' : '#ef4444' }}>{AED(Math.abs(prof))}{cv > 0 ? ` · ${profPct}%` : ''}</span></div>
+                    </div>
+                    {/* timeline */}
+                    {(s1 || s2) && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 11, padding: '9px 11px', borderRadius: 10, background: 'var(--bg2)', border: '1px solid var(--border)' }}>
+                        <i className="ti ti-calendar-event" style={{ fontSize: 16, color: st.color, flexShrink: 0 }} />
+                        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{s1 || '—'} <span style={{ color: 'var(--text3)' }}>→</span> {s2 || '—'}</div>
+                      </div>
+                    )}
                   </div>
                 )
               })}
@@ -748,8 +782,7 @@ export default function ProjectsPage({ onNavigate }) {
                   </div>
                   <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                     <button onClick={() => openPayments(s)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(34,197,94,0.3)', background: 'rgba(34,197,94,0.1)', color: '#22c55e', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}><i className="ti ti-cash" /> Payments</button>
-                    <button onClick={() => generateLPO(s)} className="btn btn-secondary btn-sm"><i className="ti ti-file-text" style={{ verticalAlign: '-2px', marginRight: 4 }} />{s.lpo_number ? 'LPO · ' + s.lpo_number : 'Generate LPO'}</button>
-                    <button onClick={() => printNDA(company, active, s, toast)} className="btn btn-secondary btn-sm"><i className="ti ti-shield-lock" style={{ verticalAlign: '-2px', marginRight: 4 }} />NDA</button>
+                    <button onClick={() => generateLPO(s)} className="btn btn-secondary btn-sm"><i className="ti ti-files" style={{ verticalAlign: '-2px', marginRight: 4 }} />{s.lpo_number ? 'LPO + NDA · ' + s.lpo_number : 'Generate LPO + NDA'}</button>
                     <button onClick={() => toggleContract(s)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, border: `1px solid ${s.contract_signed ? '#22c55e' : 'var(--border)'}`, background: s.contract_signed ? 'rgba(34,197,94,0.1)' : 'transparent', color: s.contract_signed ? '#22c55e' : 'var(--text2)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}><i className={'ti ' + (s.contract_signed ? 'ti-circle-check-filled' : 'ti-writing-sign')} /> {s.contract_signed ? 'Contract signed' : 'Mark contract signed'}</button>
                     {scope.filter(x => x.sub_id === s.id).length > 0 && <span style={{ fontSize: 11, color: 'var(--text3)' }}>{scope.filter(x => x.sub_id === s.id).length} scope items assigned</span>}
                   </div>
@@ -1018,17 +1051,34 @@ function FormModal({ title, children, onClose, onSave, saving, onDelete }) {
   )
 }
 
-// ----- LPO (Local Purchase Order) print document -----
-function printLPO(company, project, sub, items, lpo, toast) {
-  const esc = s => String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+const __escDoc = s => String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+
+// ----- LPO (Local Purchase Order) sheet -----
+function lpoBody(company, project, sub, items, lpo, others = []) {
+  const esc = __escDoc
   const n = v => Math.round(Number(v) || 0).toLocaleString('en-AE')
   const total = items.reduce((a, s) => a + (Number(s.sub_amount) || 0), 0)
+  const otherList = (others || []).filter(o => o?.name).map(o => esc(o.name) + (o.trade ? ' (' + esc(o.trade) + ')' : '')).join(', ')
+  // Project timeline → the subcontractor must finish 15% of the schedule before the project completion date
+  const fmtDate = d => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : null
+  const pStart = fmtDate(project?.start_date), pEnd = fmtDate(project?.end_date)
+  let subDue = null, bufferDays = 0
+  if (project?.start_date && project?.end_date) {
+    const totalDays = Math.max(1, Math.round((new Date(project.end_date) - new Date(project.start_date)) / 86400000))
+    bufferDays = Math.ceil(totalDays * 0.15)
+    subDue = fmtDate(new Date(new Date(project.end_date).getTime() - bufferDays * 86400000))
+  } else if (project?.end_date) { subDue = pEnd }
+  const timelineRow = (pStart || pEnd) ? `<div style="display:flex;gap:12px;margin-bottom:16px;">
+      <div style="flex:1;border:1px solid #e3eef3;border-radius:5px;padding:8px 11px;"><div style="font-size:8.5px;color:#0077a3;text-transform:uppercase;letter-spacing:.6px;font-weight:700;">Project start</div><div style="font-size:12px;font-weight:700;margin-top:2px;">${pStart || '—'}</div></div>
+      <div style="flex:1;border:1px solid #e3eef3;border-radius:5px;padding:8px 11px;"><div style="font-size:8.5px;color:#0077a3;text-transform:uppercase;letter-spacing:.6px;font-weight:700;">Project completion</div><div style="font-size:12px;font-weight:700;margin-top:2px;">${pEnd || '—'}</div></div>
+      <div style="flex:1;background:#fff4f4;border:1px solid #f3c9c9;border-radius:5px;padding:8px 11px;"><div style="font-size:8.5px;color:#c0392b;text-transform:uppercase;letter-spacing:.6px;font-weight:700;">Your completion${bufferDays ? ' · ' + bufferDays + ' days early' : ''}</div><div style="font-size:12px;font-weight:700;margin-top:2px;color:#c0392b;">${subDue || '—'}</div></div>
+    </div>` : ''
   const rows = items.map((s, i) => `<tr>
       <td style="padding:7px 8px;border-bottom:.5px solid #eee;font-size:11px;color:#999;">${i + 1}</td>
       <td style="padding:7px 8px;border-bottom:.5px solid #eee;font-size:11px;">${esc(s.description)}</td>
       <td style="padding:7px 8px;border-bottom:.5px solid #eee;font-size:11px;text-align:center;color:#777;">${esc(s.quantity || '')} ${esc(s.unit || '')}</td>
       <td style="padding:7px 8px;border-bottom:.5px solid #eee;font-size:11px;text-align:right;">AED ${n(s.sub_amount)}</td></tr>`).join('')
-  const body = `<div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;padding:30px;background:#fff;">
+  return `<div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;padding:30px;background:#fff;">
     <div style="height:5px;background:#0099cc;margin:-30px -30px 18px;"></div>
     <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #0099cc;padding-bottom:12px;margin-bottom:16px;">
       <div><div style="font-size:17px;font-weight:700;">${esc(company?.name || 'Company')}</div><div style="font-size:11px;color:#666;">${esc(company?.phone || '')}</div></div>
@@ -1040,64 +1090,76 @@ function printLPO(company, project, sub, items, lpo, toast) {
       <div style="flex:1;background:#f6fafc;border-left:2.5px solid #0099cc;padding:10px 13px;"><div style="font-size:9px;color:#0077a3;text-transform:uppercase;letter-spacing:1px;font-weight:700;">To · Subcontractor</div><div style="font-size:13px;font-weight:700;margin-top:2px;">${esc(sub.name)}</div><div style="font-size:11px;color:#666;">${esc(sub.trade || '')}${sub.phone ? ' · ' + esc(sub.phone) : ''}</div></div>
       <div style="flex:1;background:#f6fafc;border-left:2.5px solid #0099cc;padding:10px 13px;"><div style="font-size:9px;color:#0077a3;text-transform:uppercase;letter-spacing:1px;font-weight:700;">Project</div><div style="font-size:13px;font-weight:700;margin-top:2px;">${esc(project.name)}</div><div style="font-size:11px;color:#666;">${esc(project.location || '')}</div></div>
     </div>
+    ${timelineRow}
     <table style="width:100%;border-collapse:collapse;margin-bottom:14px;">
       <thead><tr style="background:#1a1a1a;color:#fff;"><th style="padding:7px 8px;text-align:left;font-size:10px;">#</th><th style="padding:7px 8px;text-align:left;font-size:10px;">Scope of Work</th><th style="padding:7px 8px;text-align:center;font-size:10px;">Qty</th><th style="padding:7px 8px;text-align:right;font-size:10px;">Amount</th></tr></thead>
       <tbody>${rows || '<tr><td colspan="4" style="padding:14px;text-align:center;color:#999;font-size:11px;">No scope assigned to this subcontractor yet.</td></tr>'}</tbody>
     </table>
     <div style="display:flex;justify-content:flex-end;margin-bottom:18px;"><div style="width:240px;"><div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding:8px 10px;background:#1a1a1a;color:#fff;border-radius:4px;"><span>Total</span><span style="color:#0099cc;">AED ${n(total)}</span></div></div></div>
-    <div style="font-size:9px;color:#888;line-height:1.7;margin-bottom:20px;"><b>Terms:</b> Work to be completed per the project schedule and to the satisfaction of ${esc(company?.name || 'the company')}. Payment as per agreed milestones. Materials &amp; workmanship as per approved specifications. This LPO is subject to the signed subcontract agreement.</div>
+    <div style="font-size:9px;color:#888;line-height:1.7;margin-bottom:12px;"><b>Timeline:</b> The Subcontractor shall complete all works ${subDue ? 'on or before <b style="color:#c0392b;">' + subDue + '</b>' : 'by the agreed completion date'}${bufferDays ? ', which is ' + bufferDays + ' days (15% of the project schedule) before the project completion date' : ''}, to allow time for inspection, snagging and handover. <b>Time is of the essence.</b></div>
+    <div style="font-size:9px;color:#888;line-height:1.7;margin-bottom:12px;"><b>Delay / Liquidated Damages:</b> If the Subcontractor fails to complete by the date above, the Company may, without prejudice to its other rights, levy liquidated damages of <b>1% of this LPO value for each day</b> of delay (or part thereof), up to a maximum of <b>10%</b> of the LPO value, and/or engage others to complete the works and back-charge the Subcontractor with the cost.</div>
+    <div style="font-size:9px;color:#888;line-height:1.7;margin-bottom:12px;"><b>Coordination with Other Contractors &amp; Team:</b> Multiple contractors and trades are engaged on this project. The Subcontractor shall fully coordinate and cooperate with ${otherList ? 'the other contractors on this project (<b>' + otherList + '</b>)' : 'all other contractors and trades'} and with the Company’s site team and project engineer, follow the agreed work sequence, programme and site instructions, share access, scaffolding and services, and shall not obstruct, delay or damage the works of others. The Subcontractor shall attend coordination meetings as required and is liable for any delay, rework or damage it causes to other trades.</div>
+    <div style="font-size:9px;color:#888;line-height:1.7;margin-bottom:20px;"><b>General:</b> Work to the satisfaction of ${esc(company?.name || 'the company')}; payment as per agreed milestones; materials &amp; workmanship per approved specifications. This LPO is issued together with, and is subject to, the signed Non-Disclosure Agreement attached overleaf.</div>
     <div style="display:flex;gap:30px;margin-top:26px;">
       <div style="flex:1;text-align:center;"><div style="border-bottom:1px solid #1a1a1a;height:30px;"></div><div style="font-size:9px;color:#666;margin-top:4px;">For ${esc(company?.name || 'Company')}</div></div>
       <div style="flex:1;text-align:center;"><div style="border-bottom:1px solid #1a1a1a;height:30px;"></div><div style="font-size:9px;color:#666;margin-top:4px;">Accepted — ${esc(sub.name)}</div></div>
     </div>
   </div>`
-  const w = window.open('', '_blank')
-  if (!w) { toast?.error?.('Allow pop-ups to print the LPO'); return }
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(lpo)}</title>
-    <style>*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}@page{size:A4;margin:12mm}.__bar{position:fixed;top:0;left:0;right:0;height:48px;background:#0f1623;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-family:sans-serif;z-index:99}@media print{.__bar{display:none}.__sheet{box-shadow:none!important;margin:0!important}}.__bar button{padding:7px 14px;border:none;border-radius:7px;font-weight:600;cursor:pointer}</style>
-    </head><body style="margin:0;background:#eef2f6;padding-top:48px;">
-    <div class="__bar"><span style="font-size:14px;font-weight:600;">${esc(lpo)} · ${esc(sub.name)}</span><span><button onclick="window.print()" style="background:#0099cc;color:#fff;">Print / PDF</button> <button onclick="window.close()" style="background:rgba(255,255,255,.15);color:#fff;margin-left:8px;">Close</button></span></div>
-    <div class="__sheet" style="max-width:760px;margin:16px auto;background:#fff;box-shadow:0 6px 28px rgba(0,0,0,.28);">${body}</div></body></html>`)
-  w.document.close()
 }
 
-// Standard mutual confidentiality / non-disclosure agreement for a subcontractor.
-function printNDA(company, project, sub, toast) {
-  const esc = s => String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+// ----- NDA sheet — a strong, enforceable confidentiality + non-circumvention agreement -----
+function ndaBody(company, project, sub) {
+  const esc = __escDoc
   const co = esc(company?.name || 'the Company')
   const subName = esc(sub?.name || 'the Subcontractor')
   const dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })
   const proj = esc(project?.name || '')
-  const clause = (t, d) => `<div style="margin-bottom:11px;"><div style="font-size:11.5px;font-weight:700;color:#1a1a1a;margin-bottom:2px;">${t}</div><div style="font-size:10.5px;color:#444;line-height:1.7;text-align:justify;">${d}</div></div>`
-  const body = `<div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;padding:32px;background:#fff;">
-    <div style="height:5px;background:#0099cc;margin:-32px -32px 18px;"></div>
-    <div style="text-align:center;border-bottom:2px solid #0099cc;padding-bottom:12px;margin-bottom:18px;">
+  const c = (t, d) => `<div style="margin-bottom:9px;"><div style="font-size:11px;font-weight:700;color:#1a1a1a;margin-bottom:2px;">${t}</div><div style="font-size:10px;color:#444;line-height:1.65;text-align:justify;">${d}</div></div>`
+  return `<div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;padding:32px;background:#fff;">
+    <div style="height:5px;background:#0099cc;margin:-32px -32px 16px;"></div>
+    <div style="text-align:center;border-bottom:2px solid #0099cc;padding-bottom:11px;margin-bottom:14px;">
       <div style="font-size:18px;font-weight:700;">${co}</div>
       <div style="font-size:9px;color:#888;letter-spacing:1px;text-transform:uppercase;margin-top:2px;">${esc(company?.phone || '')}</div>
-      <div style="font-size:19px;font-weight:800;color:#0099cc;letter-spacing:1.5px;margin-top:10px;">NON-DISCLOSURE AGREEMENT</div>
+      <div style="font-size:18px;font-weight:800;color:#0099cc;letter-spacing:1.5px;margin-top:9px;">NON-DISCLOSURE &amp; NON-CIRCUMVENTION AGREEMENT</div>
     </div>
-    <div style="font-size:10.5px;color:#444;line-height:1.7;margin-bottom:16px;text-align:justify;">
-      This Non-Disclosure Agreement (the “Agreement”) is made on <b>${dateStr}</b> between <b>${co}</b> (the “Disclosing Party”) and <b>${subName}</b>${sub?.trade ? ' (' + esc(sub.trade) + ')' : ''} (the “Receiving Party”), in connection with works${proj ? ' on the project <b>' + proj + '</b>' : ''}.
+    <div style="font-size:10px;color:#444;line-height:1.65;margin-bottom:13px;text-align:justify;">
+      This Non-Disclosure &amp; Non-Circumvention Agreement (the “Agreement”) is made on <b>${dateStr}</b> between <b>${co}</b> (the “Disclosing Party”) and <b>${subName}</b>${sub?.trade ? ' (' + esc(sub.trade) + ')' : ''} (the “Receiving Party”), in connection with the works${proj ? ' on the project <b>' + proj + '</b>' : ''} and any related or future engagement. In consideration of being engaged and given access to the Disclosing Party’s confidential information and clients, the Receiving Party agrees as follows:
     </div>
-    ${clause('1. Confidential Information', `“Confidential Information” means all non-public information disclosed by the Disclosing Party, including client names &amp; contact details, designs, drawings, specifications, quotations, rates &amp; pricing, project plans, business methods, and any information marked or reasonably understood to be confidential.`)}
-    ${clause('2. Obligations', `The Receiving Party shall keep all Confidential Information strictly confidential, use it solely to perform the agreed works for the Disclosing Party, and shall not copy, disclose, or share it with any third party without prior written consent.`)}
-    ${clause('3. Non-Solicitation of Clients', `The Receiving Party shall not, directly or indirectly, approach, solicit, contact, or deal with the Disclosing Party’s clients introduced through this engagement for the same or similar works, during the engagement and for a period of 24 months thereafter.`)}
-    ${clause('4. Term &amp; Survival', `The confidentiality obligations in this Agreement remain in force during the engagement and survive for 24 months after completion or termination of the works.`)}
-    ${clause('5. Return of Materials', `On completion or termination, the Receiving Party shall promptly return or, at the Disclosing Party’s option, destroy all materials containing Confidential Information.`)}
-    ${clause('6. Breach', `Any breach of this Agreement may cause irreparable harm to the Disclosing Party and may result in legal action, injunctive relief, and liability for damages and costs.`)}
-    ${clause('7. Governing Law', `This Agreement is governed by the applicable laws of the United Arab Emirates, and the parties submit to the jurisdiction of its courts.`)}
-    <div style="display:flex;gap:30px;margin-top:34px;">
-      <div style="flex:1;"><div style="font-size:9px;color:#0077a3;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:26px;">Disclosing Party</div><div style="border-bottom:1px solid #1a1a1a;"></div><div style="font-size:10px;color:#444;margin-top:4px;font-weight:700;">${co}</div><div style="font-size:8.5px;color:#999;">Name · Signature · Date</div></div>
-      <div style="flex:1;"><div style="font-size:9px;color:#0077a3;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:26px;">Receiving Party</div><div style="border-bottom:1px solid #1a1a1a;"></div><div style="font-size:10px;color:#444;margin-top:4px;font-weight:700;">${subName}</div><div style="font-size:8.5px;color:#999;">Name · Signature · Date</div></div>
+    ${c('1. Confidential Information', `“Confidential Information” means any and all non-public information of the Disclosing Party in any form (oral, written, visual or electronic), whether or not marked confidential, including without limitation: client and customer names, leads, prospects and contact details; designs, drawings, BOQs, specifications and samples; quotations, rates, costs, margins and pricing; supplier and vendor details; project plans, methods, processes and know-how; financial, commercial and business information; and any trade secrets of the Disclosing Party.`)}
+    ${c('2. Confidentiality Obligations', `The Receiving Party shall: (a) keep all Confidential Information strictly secret and secure; (b) use it solely to perform the agreed works for the Disclosing Party and for no other purpose; (c) disclose it only to those of its personnel who strictly need it and who are bound by obligations no less protective than these; and (d) not copy, store on personal devices, publish, reverse-engineer or disclose it to any third party without the Disclosing Party’s prior written consent. The Receiving Party is fully liable for any breach by its partners, employees, workers or agents.`)}
+    ${c('3. Non-Circumvention &amp; Non-Solicitation of Clients', `During the engagement and for <b>twenty-four (24) months</b> after its completion or termination, the Receiving Party shall not, whether directly or indirectly (including through relatives, associates or any other entity), approach, solicit, contact, quote to, accept work from, or transact with any client, customer, lead or prospect of the Disclosing Party that the Receiving Party became aware of or was introduced to through this engagement, for the same or similar works.`)}
+    ${c('4. No Bypass', `The Receiving Party shall not attempt to bypass, circumvent or compete with the Disclosing Party in respect of the project or its end client, nor enter into any direct or indirect arrangement with the end client that deprives the Disclosing Party of its business, fees or margin.`)}
+    ${c('5. Non-Solicitation of Staff &amp; Suppliers', `During the engagement and for twelve (12) months thereafter, the Receiving Party shall not solicit or entice away any employee, worker or supplier of the Disclosing Party.`)}
+    ${c('6. Intellectual Property &amp; Ownership', `All Confidential Information, designs, drawings and documents remain the exclusive property of the Disclosing Party. No licence or right of any kind is granted to the Receiving Party except the limited right to use them strictly for the agreed works.`)}
+    ${c('7. Exclusions', `These obligations do not apply to information that the Receiving Party can prove: (a) is or becomes public other than through its breach; (b) was lawfully known to it before disclosure; or (c) is required to be disclosed by law or a competent court, provided the Receiving Party gives prompt written notice and discloses only the minimum required.`)}
+    ${c('8. Return &amp; Destruction', `On completion or termination, or on demand, the Receiving Party shall promptly return or, at the Disclosing Party’s option, permanently destroy all materials (and copies) containing Confidential Information and certify such destruction in writing.`)}
+    ${c('9. Term &amp; Survival', `This Agreement takes effect on the date above and the confidentiality obligations survive for twenty-four (24) months after completion or termination of the works, and indefinitely in respect of trade secrets.`)}
+    ${c('10. Remedies &amp; Injunctive Relief', `The Receiving Party acknowledges that any breach would cause the Disclosing Party irreparable harm for which damages alone are inadequate. The Disclosing Party shall be entitled, without the need to post any bond, to injunctive relief in addition to all other remedies, and to recover all resulting losses, lost profits, and legal and enforcement costs.`)}
+    ${c('11. Indemnity', `The Receiving Party shall indemnify and hold the Disclosing Party harmless against all losses, damages, claims and expenses arising out of or in connection with any breach of this Agreement by the Receiving Party or its personnel.`)}
+    ${c('12. General', `This Agreement is the entire agreement between the parties on its subject matter and supersedes any prior understanding. No failure to enforce any term is a waiver of it. If any provision is held invalid, the remainder stays in full force. Any amendment must be in writing and signed by both parties.`)}
+    ${c('13. Governing Law &amp; Jurisdiction', `This Agreement is governed by the laws of the United Arab Emirates, and the parties irrevocably submit to the exclusive jurisdiction of the competent courts of the Emirate in which the Disclosing Party is registered.`)}
+    <div style="display:flex;gap:30px;margin-top:24px;">
+      <div style="flex:1;"><div style="font-size:9px;color:#0077a3;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:24px;">Disclosing Party</div><div style="border-bottom:1px solid #1a1a1a;"></div><div style="font-size:10px;color:#444;margin-top:4px;font-weight:700;">${co}</div><div style="font-size:8.5px;color:#999;">Name · Signature · Date · Stamp</div></div>
+      <div style="flex:1;"><div style="font-size:9px;color:#0077a3;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:24px;">Receiving Party</div><div style="border-bottom:1px solid #1a1a1a;"></div><div style="font-size:10px;color:#444;margin-top:4px;font-weight:700;">${subName}</div><div style="font-size:8.5px;color:#999;">Name · Signature · Date · Emirates ID</div></div>
     </div>
   </div>`
+}
+
+// Open one print window holding several A4 sheets (each on its own page).
+function printDocs(titleText, sheets, toast) {
+  const esc = __escDoc
   const w = window.open('', '_blank')
-  if (!w) { toast?.error?.('Allow pop-ups to print the NDA'); return }
-  const ttl = 'NDA · ' + subName
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(ttl)}</title>
+  if (!w) { toast?.error?.('Allow pop-ups to print the document'); return }
+  const sheetHtml = sheets.map((h, i) => `<div class="__sheet" style="max-width:760px;margin:16px auto;background:#fff;box-shadow:0 6px 28px rgba(0,0,0,.28);${i < sheets.length - 1 ? 'page-break-after:always;' : ''}">${h}</div>`).join('')
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(titleText)}</title>
     <style>*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}@page{size:A4;margin:12mm}.__bar{position:fixed;top:0;left:0;right:0;height:48px;background:#0f1623;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-family:sans-serif;z-index:99}@media print{.__bar{display:none}.__sheet{box-shadow:none!important;margin:0!important}}.__bar button{padding:7px 14px;border:none;border-radius:7px;font-weight:600;cursor:pointer}</style>
     </head><body style="margin:0;background:#eef2f6;padding-top:48px;">
-    <div class="__bar"><span style="font-size:14px;font-weight:600;">${esc(ttl)}</span><span><button onclick="window.print()" style="background:#0099cc;color:#fff;">Print / PDF</button> <button onclick="window.close()" style="background:rgba(255,255,255,.15);color:#fff;margin-left:8px;">Close</button></span></div>
-    <div class="__sheet" style="max-width:760px;margin:16px auto;background:#fff;box-shadow:0 6px 28px rgba(0,0,0,.28);">${body}</div></body></html>`)
+    <div class="__bar"><span style="font-size:14px;font-weight:600;">${esc(titleText)}</span><span><button onclick="window.print()" style="background:#0099cc;color:#fff;">Print / PDF</button> <button onclick="window.close()" style="background:rgba(255,255,255,.15);color:#fff;margin-left:8px;">Close</button></span></div>
+    ${sheetHtml}</body></html>`)
   w.document.close()
+}
+
+// LPO + NDA, printed together (one window, LPO on page 1, NDA on the next pages).
+function printLPOandNDA(company, project, sub, items, lpo, others, toast) {
+  printDocs(`${lpo} + NDA · ${sub?.name || 'Subcontractor'}`, [lpoBody(company, project, sub, items, lpo, others), ndaBody(company, project, sub)], toast)
 }
