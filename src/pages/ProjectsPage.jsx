@@ -693,6 +693,25 @@ export default function ProjectsPage({ onNavigate }) {
           {active.quote_id && <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 10 }}><i className="ti ti-file-invoice" /> Linked to a quotation</div>}
         </div>
 
+        {/* Client access — private link so the client can follow the project & approve changes */}
+        <div style={{ ...card, marginTop: 14 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}><i className="ti ti-user-share" style={{ color: '#0099cc', fontSize: 17 }} /> Client access</div>
+          <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 10, lineHeight: 1.5 }}>Share a private link so the client can follow this project and approve changes. They verify with a one-time code sent to their email.</div>
+          <label style={lbl}>Client email</label>
+          <input type="email" value={active.client_email || ''} onChange={e => setActive(a => ({ ...a, client_email: e.target.value }))} onBlur={e => patchActive({ client_email: e.target.value.trim().toLowerCase() || null })} style={{ ...input, marginBottom: 10 }} placeholder="client@email.com" />
+          {active.client_email && active.public_token
+            ? (() => {
+                const link = `${window.location.origin}/#project/${active.public_token}`
+                return (
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <input readOnly value={link} onClick={e => e.target.select()} style={{ ...input, flex: 1, minWidth: 160, fontSize: 12, color: 'var(--text2)' }} />
+                    <button onClick={() => { navigator.clipboard?.writeText(link); toast.success('Link copied ✓') }} className="btn btn-primary btn-sm" style={{ whiteSpace: 'nowrap' }}><i className="ti ti-copy" /> Copy link</button>
+                  </div>
+                )
+              })()
+            : <div style={{ fontSize: 11.5, color: 'var(--text3)' }}><i className="ti ti-info-circle" style={{ verticalAlign: '-2px' }} /> Add the client email to generate their private link. (Run db/2026-06-17_project_client_access.sql first.)</div>}
+        </div>
+
         {/* Project history & updates — meetings, client requirements, material/timeline changes */}
         <div style={{ ...card, marginTop: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
