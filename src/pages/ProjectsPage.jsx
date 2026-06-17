@@ -721,21 +721,33 @@ export default function ProjectsPage({ onNavigate }) {
         {/* Client access — share the link + access code over WhatsApp; client follows the project & approves changes */}
         <div style={{ ...card, marginTop: 14 }}>
           <div style={{ fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}><i className="ti ti-user-share" style={{ color: '#0099cc', fontSize: 17 }} /> Client access</div>
-          <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 12, lineHeight: 1.5 }}>Send the project link + access code to your client on WhatsApp. They open the link, enter the code, and can follow the project and approve changes.</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px,1fr))', gap: 10, marginBottom: 12 }}>
-            <div><label style={lbl}>Client WhatsApp number</label><input value={active.client_phone || ''} onChange={e => setActive(a => ({ ...a, client_phone: e.target.value }))} onBlur={e => patchActive({ client_phone: e.target.value.trim() || null })} style={input} placeholder="+9715XXXXXXXX" /></div>
-            <div><label style={lbl}>Access code</label><input readOnly value={active.access_code || '—'} style={{ ...input, fontWeight: 800, letterSpacing: 3 }} /></div>
-          </div>
+          <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 12, lineHeight: 1.5 }}>Send the project link + access code to your client on WhatsApp. The primary number is locked to the client on record (no leaks); add more numbers if needed.</div>
           {active.public_token
             ? (() => {
                 const link = `${window.location.origin}/#project/${active.public_token}`
-                const phone = (active.client_phone || '').replace(/\D/g, '')
                 const msg = `Track your project "${active.name}" live here:\n${link}\nAccess code: ${active.access_code || ''}`
+                const sendTo = (num) => { const ph = (num || '').replace(/\D/g, ''); if (!ph) { toast.error('No number'); return } window.open(`https://wa.me/${ph}?text=${encodeURIComponent(msg)}`, '_blank') }
+                const extras = (active.extra_phones || '').split(',').map(s => s.trim()).filter(Boolean)
+                const waBtn = (num, label) => <button key={num + label} onClick={() => sendTo(num)} className="btn btn-sm" style={{ background: '#22c55e', color: '#fff', border: 'none', whiteSpace: 'nowrap' }}><i className="ti ti-brand-whatsapp" /> {label}</button>
                 return (
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    <button onClick={() => { navigator.clipboard?.writeText(`${link}\nAccess code: ${active.access_code || ''}`); toast.success('Link + code copied ✓') }} className="btn btn-secondary btn-sm"><i className="ti ti-copy" /> Copy link + code</button>
-                    <button onClick={() => { if (!phone) { toast.error('Add the client WhatsApp number first'); return } window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank') }} className="btn btn-sm" style={{ background: '#22c55e', color: '#fff', border: 'none' }}><i className="ti ti-brand-whatsapp" /> Send on WhatsApp</button>
-                  </div>
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px,1fr))', gap: 10, marginBottom: 10 }}>
+                      <div>
+                        <label style={lbl}>Primary WhatsApp <i className="ti ti-lock" style={{ fontSize: 11, verticalAlign: '-1px' }} /> <span style={{ color: 'var(--text3)', fontWeight: 400 }}>(from client)</span></label>
+                        {active.client_phone
+                          ? <input readOnly value={active.client_phone} style={{ ...input, background: 'var(--bg2)', color: 'var(--text2)' }} title="Locked to the client on record" />
+                          : <input value={active.client_phone || ''} onChange={e => setActive(a => ({ ...a, client_phone: e.target.value }))} onBlur={e => patchActive({ client_phone: e.target.value.trim() || null })} style={input} placeholder="+9715XXXXXXXX (set once)" />}
+                      </div>
+                      <div><label style={lbl}>Access code</label><input readOnly value={active.access_code || '—'} style={{ ...input, fontWeight: 800, letterSpacing: 3 }} /></div>
+                    </div>
+                    <label style={lbl}>Additional numbers <span style={{ color: 'var(--text3)', fontWeight: 400 }}>(comma-separated)</span></label>
+                    <input value={active.extra_phones || ''} onChange={e => setActive(a => ({ ...a, extra_phones: e.target.value }))} onBlur={e => patchActive({ extra_phones: e.target.value.trim() || null })} style={{ ...input, marginBottom: 12 }} placeholder="+97150…, +97155…" />
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button onClick={() => { navigator.clipboard?.writeText(`${link}\nAccess code: ${active.access_code || ''}`); toast.success('Link + code copied ✓') }} className="btn btn-secondary btn-sm"><i className="ti ti-copy" /> Copy link + code</button>
+                      {active.client_phone && waBtn(active.client_phone, 'Send to client')}
+                      {extras.map((num, i) => waBtn(num, 'Send · ' + num))}
+                    </div>
+                  </>
                 )
               })()
             : <div style={{ fontSize: 11.5, color: 'var(--text3)' }}><i className="ti ti-info-circle" style={{ verticalAlign: '-2px' }} /> Run db/2026-06-17_project_client_code.sql to enable client access.</div>}
