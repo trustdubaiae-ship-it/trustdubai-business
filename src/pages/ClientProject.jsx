@@ -264,6 +264,7 @@ export default function ClientProject({ token }) {
                       {u.title && <div style={{ fontSize: 14, fontWeight: 700, marginTop: 4 }}>{u.title}</div>}
                       {u.body && <div style={{ fontSize: 13, color: '#475569', marginTop: 3, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{u.body}</div>}
                       {u.kind === 'timeline' && (u.old_date || u.new_date) && <div style={{ fontSize: 12.5, color: '#475569', marginTop: 6, fontWeight: 600 }}><i className="ti ti-calendar-stats" style={{ verticalAlign: '-2px', color: '#ef4444' }} /> {fmtDate(u.old_date)} → <b>{fmtDate(u.new_date)}</b></div>}
+                      {u.client_comment && <div style={{ fontSize: 12, color: '#475569', marginTop: 6, background: '#f4f7fa', borderRadius: 8, padding: '7px 10px', borderLeft: '2px solid #94a3b8' }}><i className="ti ti-message-2" style={{ verticalAlign: '-2px', color: '#94a3b8' }} /> {u.client_comment}</div>}
                       {pending && (
                         <div style={{ marginTop: 11, borderTop: '1px dashed #e2e8f0', paddingTop: 11 }}>
                           <div style={{ fontSize: 12, fontWeight: 700, color: '#b45309', marginBottom: 7 }}><i className="ti ti-alert-circle" style={{ verticalAlign: '-2px' }} /> This change needs your confirmation</div>

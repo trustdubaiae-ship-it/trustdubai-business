@@ -50,7 +50,7 @@ const TRADES = ['MEP', 'Electrical', 'Plumbing', 'HVAC', 'Gypsum / Ceiling', 'Ti
 const AED = n => 'AED ' + Math.round(Number(n) || 0).toLocaleString('en-AE')
 const fmtD = d => d ? new Date(d).toLocaleDateString('en-AE', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'
 
-export default function ProjectsPage({ onNavigate }) {
+export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   const { company, user } = useAuth()
   const toast = useToast()
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
@@ -172,7 +172,15 @@ export default function ProjectsPage({ onNavigate }) {
   async function openProject(p) {
     setActive(p); setTab('overview'); setView('detail'); setMaterials([]); setExpenses([])
     reloadChildren(p.id)
+    if (setSubRoute) setSubRoute(p.id)
   }
+  // restore the open project from the URL on refresh / direct link
+  useEffect(() => {
+    if (!subRoute || !projects.length) return
+    if (active && active.id === subRoute) return
+    const p = projects.find(x => x.id === subRoute)
+    if (p) { setActive(p); setTab('overview'); setView('detail'); setMaterials([]); setExpenses([]); reloadChildren(p.id) }
+  }, [subRoute, projects]) // eslint-disable-line react-hooks/exhaustive-deps
   async function reloadChildren(pid) {
     const id = pid || active?.id; if (!id) return
     const proj = projects.find(x => x.id === id) || active
@@ -221,7 +229,7 @@ export default function ProjectsPage({ onNavigate }) {
       await supabase.from('site_expenses').delete().eq('project_id', id).eq('company_id', company.id)
       await supabase.from('material_requests').delete().eq('project_id', id).eq('company_id', company.id)
       await supabase.from('ops_projects').delete().eq('id', id).eq('company_id', company.id)
-      toast.success('Project deleted'); setView('list'); setActive(null); loadProjects()
+      toast.success('Project deleted'); setView('list'); setActive(null); if (setSubRoute) setSubRoute(''); loadProjects()
     } catch (e) { console.error(e); toast.error('Delete failed') }
   }
   async function patchActive(patch) {
@@ -662,7 +670,7 @@ export default function ProjectsPage({ onNavigate }) {
       <style>{FX}</style>
       <div className="fx-hero" style={{ borderRadius: 18, padding: '18px 20px', marginBottom: 16, background: heroBg, color: '#fff' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 11, flexWrap: 'wrap', position: 'relative' }}>
-          <button onClick={() => { setView('list'); setActive(null) }} style={{ width: 36, height: 36, borderRadius: 10, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(255,255,255,.12)', color: '#fff', cursor: 'pointer', flexShrink: 0 }}><i className="ti ti-arrow-left" style={{ fontSize: 16 }} /></button>
+          <button onClick={() => { setView('list'); setActive(null); if (setSubRoute) setSubRoute('') }} style={{ width: 36, height: 36, borderRadius: 10, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(255,255,255,.12)', color: '#fff', cursor: 'pointer', flexShrink: 0 }}><i className="ti ti-arrow-left" style={{ fontSize: 16 }} /></button>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
               <h1 className="font-syne fw-700" style={{ fontSize: 21, margin: 0, wordBreak: 'break-word', letterSpacing: '-.4px' }}>{active.name}</h1>
@@ -807,6 +815,7 @@ export default function ProjectsPage({ onNavigate }) {
                         {u.title && <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginTop: 3 }}>{u.title}</div>}
                         {u.body && <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{u.body}</div>}
                         {u.kind === 'timeline' && (u.old_date || u.new_date) && <div style={{ fontSize: 11.5, color: 'var(--text2)', marginTop: 4 }}><i className="ti ti-calendar-stats" style={{ fontSize: 13, verticalAlign: '-2px', color: '#ef4444' }} /> {fmtD(u.old_date) || '—'} <span style={{ color: 'var(--text3)' }}>→</span> <b>{fmtD(u.new_date) || '—'}</b></div>}
+                        {u.client_comment && <div style={{ fontSize: 11.5, color: 'var(--text2)', marginTop: 5, background: 'var(--bg2)', borderRadius: 8, padding: '6px 9px', borderLeft: '2px solid #0a6f8f' }}><i className="ti ti-message-2" style={{ verticalAlign: '-2px', color: '#0a6f8f' }} /> Client: {u.client_comment}</div>}
                       </div>
                     </div>
                   )
