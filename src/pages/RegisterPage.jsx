@@ -127,7 +127,7 @@ export default function RegisterPage({ onBack }) {
           <div style={{ width: 72, height: 72, borderRadius: '50%', background: '#ecfdf5', border: '2px solid #10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
             <Check size={32} color="#10b981" />
           </div>
-          <h2 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 22, marginBottom: 10 }}>Application Submitted! 🎉</h2>
+          <h2 style={{ fontFamily: "'Sora', sans-serif", fontWeight: 700, fontSize: 22, marginBottom: 10 }}>Application Submitted! 🎉</h2>
           <p style={{ fontSize: 14, color: '#6b7280', lineHeight: 1.8, marginBottom: 8 }}>Thank you, <strong>{form.owner_name}</strong>! We received your application for <strong>{form.company_name}</strong>.</p>
           <p style={{ fontSize: 14, color: '#6b7280', lineHeight: 1.8, marginBottom: 28 }}>Our team will review within <strong>1-2 business days</strong> and email you at <strong>{form.email}</strong>.</p>
           <div style={{ background: '#fef9ed', border: '1px solid rgba(232,184,75,0.3)', borderRadius: 10, padding: '14px 16px', fontSize: 13, color: '#92400e', lineHeight: 1.7 }}>
@@ -165,12 +165,12 @@ export default function RegisterPage({ onBack }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 48 }}>
           <div style={{ width: 44, height: 44, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/quvera-icon.png" alt="Quvera" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /></div>
           <div>
-            <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 16, color: '#fff' }}>Quvera</div>
+            <div style={{ fontFamily: "'Sora', sans-serif", fontWeight: 700, fontSize: 16, color: '#fff' }}>Quvera</div>
             <div style={{ fontSize: 11, color: '#6e7681', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Business Registration</div>
             <div style={{ fontSize: 10, color: '#a8893f', letterSpacing: '0.04em', marginTop: 2 }}>Find. Verify. Trust.</div>
           </div>
         </div>
-        <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 'clamp(28px, 6vw, 42px)', color: '#ffffff', lineHeight: 1.2, marginBottom: 16, maxWidth: 440 }}>
+        <h1 style={{ fontFamily: "'Sora', sans-serif", fontWeight: 800, fontSize: 'clamp(28px, 6vw, 42px)', color: '#ffffff', lineHeight: 1.2, marginBottom: 16, maxWidth: 440 }}>
           List your business.<br /><span style={{ color: '#e8b84b' }}>Build trust.</span>
         </h1>
         <p style={{ fontSize: 15, color: '#8b949e', maxWidth: 380, lineHeight: 1.8, marginBottom: 40 }}>Join hundreds of Dubai businesses. Get verified, showcase your work, attract more clients.</p>
@@ -189,12 +189,12 @@ export default function RegisterPage({ onBack }) {
       <div style={{ flex: '1 1 360px', width: '100%', maxWidth: 480, overflowY: 'auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 'clamp(20px, 4vw, 40px)' }}>
         <div style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: 'clamp(20px, 4vw, 36px)', backdropFilter: 'blur(20px)', marginTop: 40, marginBottom: 40 }}>
           <div style={{ fontSize: 11, color: '#6e7681', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>Step {step + 1} of {STEPS.length}</div>
-          <h2 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 20, color: '#fff', marginBottom: 6 }}>{STEPS[step]}</h2>
+          <h2 style={{ fontFamily: "'Sora', sans-serif", fontWeight: 700, fontSize: 20, color: '#fff', marginBottom: 6 }}>{STEPS[step]}</h2>
           <div style={{ height: 3, background: 'rgba(255,255,255,0.08)', borderRadius: 99, marginBottom: 24, overflow: 'hidden' }}>
             <div style={{ width: `${((step + 1) / STEPS.length) * 100}%`, height: '100%', background: 'linear-gradient(90deg, #e8b84b, #c9952a)', borderRadius: 99 }} />
           </div>
 
-          <style>{`.rf input,.rf select,.rf textarea{width:100%;padding:10px 14px;background:rgba(255,255,255,0.06);border:1.5px solid rgba(255,255,255,0.12);border-radius:8px;font-size:14px;color:#fff;font-family:'DM Sans',sans-serif;outline:none;box-sizing:border-box;margin-bottom:16px}.rf input:focus,.rf select:focus,.rf textarea:focus{border-color:#e8b84b}.rf input::placeholder,.rf textarea::placeholder{color:#4a5568}.rf select option{background:#1a1f2e}.rf textarea{min-height:100px;resize:vertical}.rf label{display:block;font-size:12px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px}.rf .err{color:#ef4444;font-size:12px;margin-top:-12px;margin-bottom:8px}.rf-legal a{color:#e8b84b;text-decoration:none}.rf-legal a:hover{text-decoration:underline}`}</style>
+          <style>{`.rf input,.rf select,.rf textarea{width:100%;padding:10px 14px;background:rgba(255,255,255,0.06);border:1.5px solid rgba(255,255,255,0.12);border-radius:8px;font-size:14px;color:#fff;font-family:'Inter',sans-serif;outline:none;box-sizing:border-box;margin-bottom:16px}.rf input:focus,.rf select:focus,.rf textarea:focus{border-color:#e8b84b}.rf input::placeholder,.rf textarea::placeholder{color:#4a5568}.rf select option{background:#1a1f2e}.rf textarea{min-height:100px;resize:vertical}.rf label{display:block;font-size:12px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px}.rf .err{color:#ef4444;font-size:12px;margin-top:-12px;margin-bottom:8px}.rf-legal a{color:#e8b84b;text-decoration:none}.rf-legal a:hover{text-decoration:underline}`}</style>
 
           <div className="rf">
             {step === 0 && <>
@@ -266,8 +266,8 @@ export default function RegisterPage({ onBack }) {
           )}
 
           <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-            <button onClick={back} style={{ padding: '10px 18px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, color: '#9ca3af', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600 }}>Back</button>
-            <button onClick={step === STEPS.length - 1 ? submit : next} disabled={submitting || checking} style={{ flex: 1, padding: '10px 18px', background: 'linear-gradient(135deg, #e8b84b, #c9952a)', border: 'none', borderRadius: 8, color: '#0d1117', cursor: (submitting || checking) ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: (submitting || checking) ? 0.7 : 1 }}>
+            <button onClick={back} style={{ padding: '10px 18px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, color: '#9ca3af', cursor: 'pointer', fontFamily: "'Inter', sans-serif", fontSize: 14, fontWeight: 600 }}>Back</button>
+            <button onClick={step === STEPS.length - 1 ? submit : next} disabled={submitting || checking} style={{ flex: 1, padding: '10px 18px', background: 'linear-gradient(135deg, #e8b84b, #c9952a)', border: 'none', borderRadius: 8, color: '#0d1117', cursor: (submitting || checking) ? 'not-allowed' : 'pointer', fontFamily: "'Inter', sans-serif", fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: (submitting || checking) ? 0.7 : 1 }}>
               {checking ? 'Checking...' : submitting ? 'Submitting...' : step === STEPS.length - 1 ? 'Submit Application ✓' : dupMatch ? <>Continue anyway <ChevronRight size={15} /></> : <>Next <ChevronRight size={15} /></>}
             </button>
           </div>

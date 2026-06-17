@@ -168,7 +168,7 @@ export default function PlansPage() {
               <div style={{ width: 40, height: 40, borderRadius: 10, background: meta.color + '15', border: '1px solid ' + meta.color + '30', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
                 <Icon size={18} color={meta.color} />
               </div>
-              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 16, marginBottom: 4 }}>{plan.name}</div>
+              <div style={{ fontFamily: "'Sora', sans-serif", fontWeight: 700, fontSize: 16, marginBottom: 4 }}>{plan.name}</div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>{meta.description}</div>
               <div className="plan-price" style={{ marginBottom: 16 }}>
                 AED {price}<span>/month{billing === 'annual' ? ' (billed annually)' : ''}</span>

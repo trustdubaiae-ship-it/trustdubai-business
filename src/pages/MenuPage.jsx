@@ -102,6 +102,13 @@ export default function MenuPage({ onNavigate, isApproved = true, limitedPages =
 
   const groups = buildGroups()
 
+  // live feature search
+  const [q, setQ] = useState('')
+  const query = q.trim().toLowerCase()
+  const visibleGroups = groups
+    .map(g => ({ ...g, items: g.items.filter(it => !query || (it.label || '').toLowerCase().includes(query) || (labelHint(it) || '').toLowerCase().includes(query)) }))
+    .filter(g => g.items.length)
+
   // Share Profile modal (mirrors the sidebar)
   const [shareOpen, setShareOpen] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -161,8 +168,15 @@ export default function MenuPage({ onNavigate, isApproved = true, limitedPages =
       <style>{CSS}</style>
 
       <div className="td-menu-head">
-        <h1 className="td-menu-title">All Features</h1>
-        <p className="td-menu-sub">Everything in one place — tap a tile to open it.</p>
+        <div>
+          <h1 className="td-menu-title">All Features</h1>
+          <p className="td-menu-sub">Your whole business in one place — search or tap a tile to open it.</p>
+        </div>
+        <div className="td-menu-search">
+          <i className="ti ti-search" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search features…" />
+          {q && <button onClick={() => setQ('')} aria-label="Clear"><i className="ti ti-x" /></button>}
+        </div>
       </div>
 
       {/* Launch Plan banner — visible only while the trial is active */}
@@ -184,7 +198,11 @@ export default function MenuPage({ onNavigate, isApproved = true, limitedPages =
         </div>
       )}
 
-      {groups.map((group, gi) => (
+      {visibleGroups.length === 0 && (
+        <div className="td-menu-empty"><i className="ti ti-search-off" /> No features match “{q}”.</div>
+      )}
+
+      {visibleGroups.map((group, gi) => (
         <div className="td-menu-group" key={`${group.label}-${gi}`}>
           <div className="td-menu-group-head">
             <span className="td-menu-dot" style={{ background: group.color }} />
@@ -229,6 +247,7 @@ export default function MenuPage({ onNavigate, isApproved = true, limitedPages =
                   disabled={hardLocked}
                   title={lockLabel || item.label}
                 >
+                  <span className="td-tile-accent" style={{ background: greyed ? 'transparent' : group.color }} />
                   {/* top-right: status chip + plan crown */}
                   <span className="td-tr">
                     {status === 'soon' && <span className="td-mini td-mini-soon">Soon</span>}
@@ -245,7 +264,9 @@ export default function MenuPage({ onNavigate, isApproved = true, limitedPages =
 
                   <span
                     className="td-tile-icon"
-                    style={{ background: greyed ? 'var(--bg2)' : group.color + '1f', color: greyed ? 'var(--text3)' : group.color }}
+                    style={greyed
+                      ? { background: 'var(--bg2)', color: 'var(--text3)' }
+                      : { background: `linear-gradient(135deg, ${group.color}2e, ${group.color}10)`, color: group.color, boxShadow: `0 5px 16px ${group.color}30`, border: `0.5px solid ${group.color}40` }}
                   >
                     <i className={`ti ${item.icon}`} />
                   </span>
@@ -350,9 +371,22 @@ function labelHint(item) {
 const CSS = `
 .td-menu{ max-width:1200px; margin:0 auto; }
 .td-menu *{ box-sizing:border-box; }
-.td-menu-head{ margin-bottom:18px; }
-.td-menu-title{ font-size:22px; font-weight:800; color:var(--text); margin:0; font-family:'Syne',sans-serif; }
+.td-menu-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:20px; }
+.td-menu-title{ font-size:22px; font-weight:800; color:var(--text); margin:0; font-family:'Sora',sans-serif; letter-spacing:-0.01em; }
 .td-menu-sub{ font-size:13px; color:var(--text2); margin:5px 0 0; }
+
+/* header search */
+.td-menu-search{ display:flex; align-items:center; gap:9px; background:var(--card); border:0.5px solid var(--border); border-radius:12px; padding:10px 14px; flex:0 1 340px; min-width:220px; }
+.td-menu-search i{ font-size:16px; color:var(--text3); }
+.td-menu-search input{ flex:1; min-width:0; border:none; outline:none; background:none; font-size:14px; color:var(--text); font-family:inherit; }
+.td-menu-search button{ border:none; background:none; cursor:pointer; color:var(--text3); display:flex; padding:0; }
+
+.td-menu-empty{ text-align:center; color:var(--text3); font-size:14px; padding:40px 16px; background:var(--card); border:0.5px solid var(--border); border-radius:16px; }
+.td-menu-empty i{ display:block; font-size:28px; margin-bottom:8px; }
+
+/* tile top accent in the group colour */
+.td-tile-accent{ position:absolute; top:0; left:14px; right:14px; height:3px; border-radius:0 0 4px 4px; opacity:.5; transition:opacity .15s ease; }
+.td-tile:hover:not(:disabled) .td-tile-accent{ opacity:1; }
 
 /* Launch Plan banner */
 .td-launch{
@@ -378,16 +412,22 @@ const CSS = `
 
 .td-tile{
   position:relative; display:flex; flex-direction:column; align-items:flex-start; gap:9px; text-align:left;
-  background:var(--card); border:0.5px solid var(--border); border-radius:16px; padding:15px;
-  cursor:pointer; font-family:inherit; min-width:0; width:100%;
-  transition:transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+  background:linear-gradient(165deg, var(--card) 62%, var(--bg2)); border:0.5px solid var(--border); border-radius:16px; padding:15px;
+  cursor:pointer; font-family:inherit; min-width:0; width:100%; height:100%; min-height:140px; overflow:hidden;
+  transition:transform .18s ease, border-color .18s ease, box-shadow .18s ease;
 }
-.td-tile:hover:not(:disabled){ transform:translateY(-3px); border-color:rgba(0,153,204,0.45); box-shadow:0 8px 22px rgba(0,0,0,0.10); }
+/* sheen that fades in on hover (sits behind content) */
+.td-tile::after{ content:''; position:absolute; inset:0; z-index:0; pointer-events:none; opacity:0; transition:opacity .2s ease;
+  background:radial-gradient(130% 90% at 100% 0%, rgba(0,153,204,0.12), transparent 55%); }
+.td-tile > *{ position:relative; z-index:1; }
+.td-tile:hover:not(:disabled){ transform:translateY(-4px); border-color:rgba(0,153,204,0.5); box-shadow:0 14px 32px rgba(0,0,0,0.14); }
+.td-tile:hover:not(:disabled)::after{ opacity:1; }
 .td-tile:active:not(:disabled){ transform:translateY(-1px); }
 .td-tile.is-greyed{ opacity:0.55; }
 .td-tile:disabled{ cursor:default; }
 
-.td-tile-icon{ width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:21px; flex-shrink:0; }
+.td-tile-icon{ width:44px; height:44px; border-radius:13px; display:flex; align-items:center; justify-content:center; font-size:21px; flex-shrink:0; transition:transform .18s ease; }
+.td-tile:hover:not(:disabled) .td-tile-icon{ transform:scale(1.08) rotate(-3deg); }
 .td-tile-title{ font-size:13.5px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
 .td-tile-desc{ font-size:11px; color:var(--text3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
 
@@ -402,10 +442,10 @@ const CSS = `
 .td-mini-lock i{ font-size:11px; }
 
 /* days-left chip (premium tiles, during trial) */
-.td-days{ display:inline-flex; align-items:center; gap:4px; margin-top:1px; font-size:10px; font-weight:800; color:#8b5cf6; background:rgba(139,92,246,0.12); padding:2px 8px; border-radius:7px; align-self:flex-start; max-width:100%; }
+.td-days{ display:inline-flex; align-items:center; gap:4px; margin-top:auto; font-size:10px; font-weight:800; color:#8b5cf6; background:rgba(139,92,246,0.12); padding:2px 8px; border-radius:7px; align-self:flex-start; max-width:100%; }
 .td-days i{ font-size:11px; }
 
 @media (max-width:1100px){ .td-menu-grid{ grid-template-columns:repeat(4,1fr); } }
 @media (max-width:860px){  .td-menu-grid{ grid-template-columns:repeat(3,1fr); } }
-@media (max-width:560px){  .td-menu-grid{ grid-template-columns:repeat(2,1fr); } .td-tile{ padding:13px; } .td-tile-icon{ width:38px; height:38px; font-size:19px; } .td-launch-cta{ display:none; } }
+@media (max-width:560px){  .td-menu-grid{ grid-template-columns:repeat(2,1fr); } .td-tile{ padding:13px; min-height:122px; } .td-tile-icon{ width:38px; height:38px; font-size:19px; } .td-launch-cta{ display:none; } }
 `

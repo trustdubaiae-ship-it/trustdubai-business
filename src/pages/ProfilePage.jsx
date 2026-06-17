@@ -353,11 +353,11 @@ export default function ProfilePage() {
             <div className="card-title" style={{ color: 'white', marginBottom: 16, fontSize: 13 }}>📱 Public Profile Preview</div>
             <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 10, padding: 16, border: '1px solid rgba(255,255,255,0.08)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-                <div style={{ width: 48, height: 48, borderRadius: 10, background: company?.logo_url ? 'none' : 'rgba(232,184,75,0.15)', border: '1px solid rgba(232,184,75,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', fontFamily: "'Syne', sans-serif", fontWeight: 700, color: '#e8b84b', fontSize: 16, flexShrink: 0 }}>
+                <div style={{ width: 48, height: 48, borderRadius: 10, background: company?.logo_url ? 'none' : 'rgba(232,184,75,0.15)', border: '1px solid rgba(232,184,75,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', fontFamily: "'Sora', sans-serif", fontWeight: 700, color: '#e8b84b', fontSize: 16, flexShrink: 0 }}>
                   {company?.logo_url ? <img src={company.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (form.name?.[0] || '?')}
                 </div>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: 'white', fontSize: 15 }}>{form.name || 'Company Name'}</div>
+                  <div style={{ fontFamily: "'Sora', sans-serif", fontWeight: 700, color: 'white', fontSize: 15 }}>{form.name || 'Company Name'}</div>
                   <div style={{ fontSize: 12, color: '#8b949e' }}>{form.tagline || 'Your tagline here'}</div>
                 </div>
               </div>

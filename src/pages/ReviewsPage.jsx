@@ -125,7 +125,7 @@ export default function ReviewsPage() {
             borderBottom: isMobile ? '1px solid var(--card-border)' : 'none',
             minWidth: isMobile ? 'auto' : 130,
           }}>
-            <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 52, color: 'var(--text-primary)', lineHeight: 1 }}>{avgRating}</div>
+            <div style={{ fontFamily: "'Sora', sans-serif", fontWeight: 800, fontSize: 52, color: 'var(--text-primary)', lineHeight: 1 }}>{avgRating}</div>
             <div style={{ textAlign: isMobile ? 'left' : 'center' }}>
               <div className="stars" style={{ justifyContent: isMobile ? 'flex-start' : 'center', margin: isMobile ? '0 0 3px' : '8px 0 4px' }}>
                 {[1,2,3,4,5].map(s => (
@@ -174,7 +174,7 @@ export default function ReviewsPage() {
               { label: 'Needs Reply', value: needsReplyCount, color: 'var(--amber)' },
             ].map(({ label, value, color }) => (
               <div key={label} style={{ flex: isMobile ? 1 : 'none', minWidth: isMobile ? 0 : 96, padding: '12px 16px', background: 'var(--bg)', borderRadius: 10, textAlign: 'center' }}>
-                <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 22, color }}>{value}</div>
+                <div style={{ fontFamily: "'Sora', sans-serif", fontWeight: 700, fontSize: 22, color }}>{value}</div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{label}</div>
               </div>
             ))}

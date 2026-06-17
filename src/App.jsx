@@ -375,7 +375,7 @@ function Portal() {
               </button>
             )}
 
-            <div style={{ width:34, height:34, borderRadius:9, background:'linear-gradient(135deg,#e8b84b,#c9952a)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:14, color:'#0d1117', flexShrink:0 }}>
+            <div style={{ width:34, height:34, borderRadius:9, background:'linear-gradient(135deg,#e8b84b,#c9952a)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:"'Sora',sans-serif", fontWeight:800, fontSize:14, color:'#0d1117', flexShrink:0 }}>
               {company?.name?.[0]?.toUpperCase()||'?'}
             </div>
             <div style={{ minWidth:0 }}>

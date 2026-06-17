@@ -9,7 +9,7 @@ export default function UpgradeLockModal({ open, featureName, currentPlan, onClo
       <div onClick={e => e.stopPropagation()}
         style={{ background:'#fff', borderRadius:18, width:'100%', maxWidth:380, padding:'30px 26px', textAlign:'center', boxShadow:'0 20px 60px rgba(0,0,0,0.3)' }}>
         <div style={{ width:64, height:64, borderRadius:16, background:'rgba(232,184,75,0.12)', border:'1px solid rgba(232,184,75,0.3)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px', fontSize:30 }}>🔒</div>
-        <h3 style={{ fontSize:18, fontWeight:700, color:'#0f172a', marginBottom:8, fontFamily:"'Syne',sans-serif" }}>
+        <h3 style={{ fontSize:18, fontWeight:700, color:'#0f172a', marginBottom:8, fontFamily:"'Sora',sans-serif" }}>
           Feature Locked
         </h3>
         <p style={{ fontSize:13.5, color:'#64748b', lineHeight:1.6, marginBottom:6 }}>

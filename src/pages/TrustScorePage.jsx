@@ -83,7 +83,7 @@ export default function TrustScorePage() {
             <circle cx="85" cy="85" r={R} fill="none" stroke={col} strokeWidth="14"
               strokeLinecap="round" strokeDasharray={`${dash} ${C}`}
               transform="rotate(-90 85 85)" style={{ transition: 'stroke-dasharray .6s' }} />
-            <text x="85" y="80" textAnchor="middle" fontSize="38" fontWeight="800" fill={col} fontFamily="Syne">{score}</text>
+            <text x="85" y="80" textAnchor="middle" fontSize="38" fontWeight="800" fill={col} fontFamily="Sora">{score}</text>
             <text x="85" y="103" textAnchor="middle" fontSize="12" fill="var(--text3)">/ 100</text>
           </svg>
 
