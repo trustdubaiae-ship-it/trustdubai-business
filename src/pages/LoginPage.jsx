@@ -22,6 +22,15 @@ export default function LoginPage({ onRegister }) {
         </div>
       </div>
 
+      <div style={{ textAlign: 'center', marginBottom: 28, maxWidth: 580 }}>
+        <h1 style={{ fontFamily: "'Sora', sans-serif", fontWeight: 800, fontSize: 'clamp(30px, 6vw, 48px)', lineHeight: 1.04, letterSpacing: '-1.2px', margin: 0, background: 'linear-gradient(100deg,#00D4FF,#00FFCC 55%,#8B5CF6)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>
+          Quvera Business OS
+        </h1>
+        <p style={{ fontSize: 'clamp(13px, 2vw, 15.5px)', color: '#aeb9d6', marginTop: 12, lineHeight: 1.5 }}>
+          The AI Operating System for Construction, Interior Fit-Out &amp; Service Companies.
+        </p>
+      </div>
+
       <div style={{ width: '100%', maxWidth: 420, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: 'clamp(24px, 6vw, 40px)', backdropFilter: 'blur(20px)' }}>
         <h2 style={{ fontFamily: "'Sora', sans-serif", fontWeight: 700, fontSize: 24, color: '#fff', marginBottom: 8, textAlign: 'center' }}>Welcome back</h2>
         <p style={{ fontSize: 14, color: '#8b949e', marginBottom: 32, textAlign: 'center' }}>Sign in to manage your business profile</p>
