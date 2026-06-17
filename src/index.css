@@ -279,9 +279,11 @@ html, body {
   .main { max-width: 100vw; overflow-x: hidden; }
   .page-content { max-width: 100%; overflow-x: hidden; }
 
-  /* 2. Quotation list stats (inline repeat(4,1fr)) -> 2x2 on phone */
+  /* 2. Inline stat grids (repeat(4,1fr) / repeat(3,1fr)) -> 2 cols on phone */
   .page-content div[style*="repeat(4,1fr)"],
-  .page-content div[style*="repeat(4, 1fr)"] {
+  .page-content div[style*="repeat(4, 1fr)"],
+  .page-content div[style*="repeat(3,1fr)"],
+  .page-content div[style*="repeat(3, 1fr)"] {
     grid-template-columns: 1fr 1fr !important;
   }
 
