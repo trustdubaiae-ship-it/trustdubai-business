@@ -170,3 +170,18 @@ export const GUIDE_SECTIONS = [
     ],
   },
 ]
+
+// Quick FAQ — common questions, shown as an accordion on the Help page.
+export const GUIDE_FAQ = [
+  { q: 'How does a lead become a project?', a: 'Win the lead, build a quotation and share the approval link. When the client approves the quote it can auto-create a project — or you can add a project manually with the client and contract value.' },
+  { q: 'How does the client see their project — do they need a login?', a: 'No login or app. On the project, set the client and share the private link + a 6-digit access code over WhatsApp. The client opens the link, enters the code once (it is remembered on their device) and sees a live, read-only view.' },
+  { q: 'How is the client view kept secure / leak-proof?', a: 'Two factors are needed: an unguessable link token plus the 6-digit access code. The primary WhatsApp number is locked to the client on record, and only updates you mark "visible to client" are ever shown — internal notes stay private.' },
+  { q: 'How do I send an LPO and NDA to a subcontractor?', a: 'Open the project → Subcontractors → "Generate LPO + NDA". Both print together in one document: the LPO (with project timeline, a delay/liquidated-damages clause and a coordination clause) followed by a strong Non-Disclosure & Non-Circumvention Agreement.' },
+  { q: 'How is the subcontractor’s deadline decided?', a: 'It is set automatically to 15% of the project schedule before the project end date, leaving a buffer for inspection, snagging and handover.' },
+  { q: 'How do I change the project timeline with the client’s consent?', a: 'Add a "Timeline change" update with the new date and tick "needs client approval". The client approves it from their page — only then does the project’s target end date move. Everything is recorded.' },
+  { q: 'Where do client messages and approvals appear?', a: 'In the project history (tagged "From client" / approved / rejected, with any comment) and as a notification in your Inbox and the bell.' },
+  { q: 'Can I export the project communication?', a: 'Yes — "Export PDF" is available on the project history (company side) and on the client page. It produces a clean, branded report of all updates and decisions.' },
+  { q: 'How does the Ledger know my real cash position?', a: 'It combines manual income/expense entries with invoice payments and site expenses, then splits money-in-hand by method (cash, petty cash, bank, card). Transfers move money between accounts without counting as income or expense.' },
+  { q: 'Can I limit what my staff can see?', a: 'Yes. In Staff & Access invite members with roles (Manager, Sales, Engineer, Staff); each role has its own permissions controlling which modules they can open.' },
+  { q: 'Can I use the portal before my business is approved?', a: 'Yes — you can set up your Business Profile, logo, Portfolio, Verification documents and FAQ while under review. The remaining features unlock automatically once approved.' },
+]
