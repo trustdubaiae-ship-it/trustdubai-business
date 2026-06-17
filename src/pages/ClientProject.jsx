@@ -2,7 +2,7 @@
 // The client verifies with a one-time code (Supabase email OTP); data is then read
 // via fn_get_project_by_token / fn_respond_project_update, which only return data
 // when the verified email matches the project's client_email.
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 const INK = '#1a1a1a', CYAN = '#0099cc'
@@ -37,68 +37,47 @@ const inputCss = { width: '100%', padding: '11px 13px', fontSize: 14, border: '1
 const btnCss = (bg, fg) => ({ padding: '11px 16px', borderRadius: 9, border: 'none', background: bg, color: fg || '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer' })
 
 export default function ClientProject({ token }) {
-  const [phase, setPhase] = useState('loading')  // loading | email | otp | ready | notfound | error
+  const [phase, setPhase] = useState('code')  // code | ready | notfound | error
   const [data, setData] = useState(null)
-  const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   const [comments, setComments] = useState({})    // updateId -> comment
   const [respId, setRespId] = useState(null)
 
-  async function load() {
-    const { data: res, error } = await supabase.rpc('fn_get_project_by_token', { p_token: token })
-    if (error) { setPhase('error'); return }
-    if (res?.ok) { setData(res); setPhase('ready'); return }
-    if (res?.error === 'need_otp') { setPhase('email'); return }
-    if (res?.error === 'unauthorized') { setPhase('email'); setErr('This link belongs to a different email. Enter the email your project link was shared with.'); return }
-    setPhase('notfound')
+  async function fetchProject(c) {
+    const { data: res, error } = await supabase.rpc('fn_get_project_by_token', { p_token: token, p_code: c })
+    if (error) return { ok: false, error: 'error' }
+    return res || { ok: false, error: 'error' }
   }
-  useEffect(() => { load() }, [token])
-
-  async function sendCode() {
-    if (!/.+@.+\..+/.test(email)) { setErr('Enter a valid email'); return }
+  async function submit() {
+    if (!code.trim()) { setErr('Enter the access code'); return }
     setBusy(true); setErr('')
-    const { error } = await supabase.auth.signInWithOtp({ email: email.trim().toLowerCase(), options: { shouldCreateUser: true } })
+    const res = await fetchProject(code.trim())
     setBusy(false)
-    if (error) { setErr(error.message || 'Could not send code'); return }
-    setPhase('otp')
+    if (res.ok) { setData(res); setPhase('ready'); return }
+    if (res.error === 'bad_code') { setErr('Wrong code. Check the access code your contractor sent you.'); return }
+    if (res.error === 'not_found') { setPhase('notfound'); return }
+    setErr('Could not open the project. Please try again.')
   }
-  async function verify() {
-    if (!code.trim()) { setErr('Enter the code from your email'); return }
-    setBusy(true); setErr('')
-    const { error } = await supabase.auth.verifyOtp({ email: email.trim().toLowerCase(), token: code.trim(), type: 'email' })
-    if (error) { setBusy(false); setErr('Invalid or expired code. Try again.'); return }
-    await load(); setBusy(false)
-  }
+  async function reload() { const res = await fetchProject(code.trim()); if (res.ok) setData(res) }
   async function respond(updateId, response) {
     setRespId(updateId + response); setErr('')
-    const { data: res } = await supabase.rpc('fn_respond_project_update', { p_token: token, p_update_id: updateId, p_response: response, p_comment: comments[updateId] || null })
+    const { data: res } = await supabase.rpc('fn_respond_project_update', { p_token: token, p_code: code.trim(), p_update_id: updateId, p_response: response, p_comment: comments[updateId] || null })
     setRespId(null)
-    if (res?.ok) { await load() } else { setErr('Could not save your response. Please try again.') }
+    if (res?.ok) { await reload() } else { setErr('Could not save your response. Please try again.') }
   }
-  async function signOutClient() { await supabase.auth.signOut(); setData(null); setEmail(''); setCode(''); setErr(''); setPhase('email') }
+  function lock() { setData(null); setCode(''); setErr(''); setPhase('code') }
 
-  if (phase === 'loading') return <Center icon="ti-loader-2" title="Loading your project…" />
   if (phase === 'notfound') return <Center icon="ti-link-off" title="Link not found" sub="This project link is invalid or has been removed. Please ask the company for a new link." />
   if (phase === 'error') return <Center icon="ti-alert-triangle" title="Something went wrong" sub="Please refresh the page or try again later." color="#ef4444" />
 
-  if (phase === 'email') return (
-    <Center icon="ti-mail" title="View your project" sub="Enter the email this link was shared with. We’ll send you a one-time code." color={CYAN}>
-      <div style={{ maxWidth: 340, margin: '18px auto 0', textAlign: 'left' }}>
-        <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@email.com" style={{ ...inputCss, marginBottom: 10 }} onKeyDown={e => e.key === 'Enter' && sendCode()} />
+  if (phase === 'code') return (
+    <Center icon="ti-lock" title="View your project" sub="Enter the access code your contractor shared with you (e.g. on WhatsApp)." color={CYAN}>
+      <div style={{ maxWidth: 320, margin: '18px auto 0', textAlign: 'left' }}>
+        <input value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" placeholder="6-digit code" style={{ ...inputCss, marginBottom: 10, letterSpacing: 6, textAlign: 'center', fontSize: 22 }} onKeyDown={e => e.key === 'Enter' && submit()} />
         {err && <div style={{ fontSize: 12, color: '#ef4444', marginBottom: 10 }}>{err}</div>}
-        <button onClick={sendCode} disabled={busy} style={{ ...btnCss(CYAN), width: '100%', opacity: busy ? 0.7 : 1 }}>{busy ? 'Sending…' : 'Send code'}</button>
-      </div>
-    </Center>
-  )
-  if (phase === 'otp') return (
-    <Center icon="ti-shield-lock" title="Enter your code" sub={`We sent a 6-digit code to ${email}. Enter it below to continue.`} color={CYAN}>
-      <div style={{ maxWidth: 340, margin: '18px auto 0', textAlign: 'left' }}>
-        <input value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 8))} inputMode="numeric" placeholder="123456" style={{ ...inputCss, marginBottom: 10, letterSpacing: 4, textAlign: 'center', fontSize: 20 }} onKeyDown={e => e.key === 'Enter' && verify()} />
-        {err && <div style={{ fontSize: 12, color: '#ef4444', marginBottom: 10 }}>{err}</div>}
-        <button onClick={verify} disabled={busy} style={{ ...btnCss(CYAN), width: '100%', opacity: busy ? 0.7 : 1 }}>{busy ? 'Verifying…' : 'Verify & view project'}</button>
-        <button onClick={() => { setPhase('email'); setCode(''); setErr('') }} style={{ ...btnCss('transparent', '#6b7280'), width: '100%', marginTop: 8 }}>Use a different email</button>
+        <button onClick={submit} disabled={busy} style={{ ...btnCss(CYAN), width: '100%', opacity: busy ? 0.7 : 1 }}>{busy ? 'Opening…' : 'View project'}</button>
       </div>
     </Center>
   )
@@ -118,7 +97,7 @@ export default function ClientProject({ token }) {
           <div style={{ fontSize: 16, fontWeight: 800 }}>{co.name || 'Your contractor'}</div>
           <div style={{ fontSize: 12, color: '#6b7280' }}>Project portal{co.phone ? ' · ' + co.phone : ''}</div>
         </div>
-        <button onClick={signOutClient} style={{ ...btnCss('#f4f5f7', '#6b7280'), padding: '7px 12px', fontSize: 12 }}>Sign out</button>
+        <button onClick={lock} style={{ ...btnCss('#f4f5f7', '#6b7280'), padding: '7px 12px', fontSize: 12 }}><i className="ti ti-lock" /> Lock</button>
       </div>
 
       {/* project summary */}

@@ -718,23 +718,27 @@ export default function ProjectsPage({ onNavigate }) {
           {active.quote_id && <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 10 }}><i className="ti ti-file-invoice" /> Linked to a quotation</div>}
         </div>
 
-        {/* Client access — private link so the client can follow the project & approve changes */}
+        {/* Client access — share the link + access code over WhatsApp; client follows the project & approves changes */}
         <div style={{ ...card, marginTop: 14 }}>
           <div style={{ fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}><i className="ti ti-user-share" style={{ color: '#0099cc', fontSize: 17 }} /> Client access</div>
-          <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 10, lineHeight: 1.5 }}>Share a private link so the client can follow this project and approve changes. They verify with a one-time code sent to their email.</div>
-          <label style={lbl}>Client email</label>
-          <input type="email" value={active.client_email || ''} onChange={e => setActive(a => ({ ...a, client_email: e.target.value }))} onBlur={e => patchActive({ client_email: e.target.value.trim().toLowerCase() || null })} style={{ ...input, marginBottom: 10 }} placeholder="client@email.com" />
-          {active.client_email && active.public_token
+          <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 12, lineHeight: 1.5 }}>Send the project link + access code to your client on WhatsApp. They open the link, enter the code, and can follow the project and approve changes.</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px,1fr))', gap: 10, marginBottom: 12 }}>
+            <div><label style={lbl}>Client WhatsApp number</label><input value={active.client_phone || ''} onChange={e => setActive(a => ({ ...a, client_phone: e.target.value }))} onBlur={e => patchActive({ client_phone: e.target.value.trim() || null })} style={input} placeholder="+9715XXXXXXXX" /></div>
+            <div><label style={lbl}>Access code</label><input readOnly value={active.access_code || '—'} style={{ ...input, fontWeight: 800, letterSpacing: 3 }} /></div>
+          </div>
+          {active.public_token
             ? (() => {
                 const link = `${window.location.origin}/#project/${active.public_token}`
+                const phone = (active.client_phone || '').replace(/\D/g, '')
+                const msg = `Track your project "${active.name}" live here:\n${link}\nAccess code: ${active.access_code || ''}`
                 return (
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <input readOnly value={link} onClick={e => e.target.select()} style={{ ...input, flex: 1, minWidth: 160, fontSize: 12, color: 'var(--text2)' }} />
-                    <button onClick={() => { navigator.clipboard?.writeText(link); toast.success('Link copied ✓') }} className="btn btn-primary btn-sm" style={{ whiteSpace: 'nowrap' }}><i className="ti ti-copy" /> Copy link</button>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <button onClick={() => { navigator.clipboard?.writeText(`${link}\nAccess code: ${active.access_code || ''}`); toast.success('Link + code copied ✓') }} className="btn btn-secondary btn-sm"><i className="ti ti-copy" /> Copy link + code</button>
+                    <button onClick={() => { if (!phone) { toast.error('Add the client WhatsApp number first'); return } window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank') }} className="btn btn-sm" style={{ background: '#22c55e', color: '#fff', border: 'none' }}><i className="ti ti-brand-whatsapp" /> Send on WhatsApp</button>
                   </div>
                 )
               })()
-            : <div style={{ fontSize: 11.5, color: 'var(--text3)' }}><i className="ti ti-info-circle" style={{ verticalAlign: '-2px' }} /> Add the client email to generate their private link. (Run db/2026-06-17_project_client_access.sql first.)</div>}
+            : <div style={{ fontSize: 11.5, color: 'var(--text3)' }}><i className="ti ti-info-circle" style={{ verticalAlign: '-2px' }} /> Run db/2026-06-17_project_client_code.sql to enable client access.</div>}
         </div>
 
         {/* Project history & updates — meetings, client requirements, material/timeline changes */}
