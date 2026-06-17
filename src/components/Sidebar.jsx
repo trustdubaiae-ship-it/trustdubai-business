@@ -80,6 +80,9 @@ export const MENU = [
 
   { section: 'SETTINGS' },
   { id:'controlpanel', icon:'ti-adjustments', label:'Control Panel', perm:'view_profile' },
+
+  { section: 'HELP' },
+  { id:'help', icon:'ti-help-hexagon', label:'How it works', perm:'view_dashboard' },
 ]
 
 // add-on key → display name (for the upsell modal)

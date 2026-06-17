@@ -43,6 +43,7 @@ import ControlPanel from './pages/ControlPanel'
 import MenuPage from './pages/MenuPage'
 import QuoteApproval from './pages/QuoteApproval'
 import ClientProject from './pages/ClientProject'
+import HelpPage from './pages/HelpPage'
 
 const ROLE_LABEL = { owner:'Owner', manager:'Manager', sales:'Sales', engineer:'Engineer', staff:'Staff' }
 
@@ -83,13 +84,14 @@ const PAGE_PERM = {
   faq:                'view_profile',
   trust:              'view_dashboard',
   controlpanel:       'view_profile',
+  help:               'view_dashboard',
   verification:       'view_profile',
   verificationStatus: 'view_profile',
   plans:              'view_profile',
   settings:           'view_profile',
 }
 
-const LIMITED_PAGES = ['controlwall', 'dashboard', 'menu', 'inbox', 'profile', 'portfolio', 'faq', 'notifications', 'team', 'documents', 'quoteSettings', 'leadform', 'tdleads', 'metaads', 'quoteapprovals', 'aiquote', 'projects', 'materials', 'expenses', 'aiassistant', 'organizer', 'meetings']
+const LIMITED_PAGES = ['controlwall', 'dashboard', 'menu', 'inbox', 'profile', 'portfolio', 'faq', 'notifications', 'team', 'documents', 'quoteSettings', 'leadform', 'tdleads', 'metaads', 'quoteapprovals', 'aiquote', 'projects', 'materials', 'expenses', 'aiassistant', 'organizer', 'meetings', 'help']
 
 // Pages that render their OWN one-step back button (list ↔ builder/detail).
 // On these we hide the topbar back so there's never two back buttons.
@@ -103,7 +105,7 @@ const SELF_BACK_PAGES = ['quotations', 'aiquote', 'invoices']
 const VALID_PAGES = [
   'controlwall', 'dashboard', 'menu', 'revenueengine', 'inbox', 'profile', 'reviews', 'portfolio', 'analytics', 'leads', 'leadengine', 'leadform', 'tdleads', 'metaads', 'quotations', 'invoices', 'purchases', 'ledger', 'quoteSettings', 'quotelibrary', 'quoteapprovals', 'aiquote', 'projects', 'materials', 'expenses', 'aiassistant', 'organizer', 'meetings',
   'sponsored', 'staff', 'team', 'documents', 'faq', 'notifications', 'trust',
-  'controlpanel', 'verification', 'verificationStatus', 'plans', 'settings',
+  'controlpanel', 'verification', 'verificationStatus', 'plans', 'settings', 'help',
 ]
 
 // App Launcher (Menu) is the home/default page. Command Center stays one tap away.
@@ -261,13 +263,14 @@ function Portal() {
     verificationStatus: <ControlPanel initialTab="verification" />,
     plans:              <ControlPanel initialTab="plans" />,
     settings:           <ControlPanel initialTab="settings" />,
+    help:               <HelpPage company={company} />,
   }
 
   const pageTitles = {
     controlwall:'Command Center', dashboard:'Command Center', menu:'All Features', revenueengine:'Revenue Engine', leadform:'Lead Form', tdleads:'Quvera Leads', metaads:'Meta Ads', quoteapprovals:'Quote Approvals', aiquote:'AI Quote Builder', projects:'Projects', materials:'Material Requests', expenses:'Site Expenses', aiassistant:'AI Assistant', organizer:'My Organizer', meetings:'Planner', inbox:'Inbox', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
     analytics:'Analytics', leads:'Lead Form', leadengine:'Lead Engine', quotations:'Quotations', invoices:'Invoices', purchases:'Purchases & Suppliers', ledger:'Ledger', quoteSettings:'Quote Settings', quotelibrary:'Description Library', sponsored:'Sponsored Placement', staff:'Staff & Access',
     team:'Our Team', documents:'Document Verification', faq:'FAQ Management', notifications:'Notifications', trust:'Trust Score', controlpanel:'Control Panel',
-    verification:'Control Panel', verificationStatus:'Control Panel', plans:'Control Panel', settings:'Control Panel',
+    verification:'Control Panel', verificationStatus:'Control Panel', plans:'Control Panel', settings:'Control Panel', help:'How it works',
   }
 
   const neededPerm = PAGE_PERM[activePage]
