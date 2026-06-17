@@ -785,7 +785,6 @@ export default function LeadsPage() {
 
   function LeadCard({ lead, draggable }) {
     const temp = TEMP[lead.temperature] || TEMP.warm
-    const accent = lead.isPlatform ? '#0891b2' : mySourceBadge(lead).color
     const isOverdue = lead.follow_up_date && lead.follow_up_date < today && !['won','lost'].includes(lead.status)
     const isDueToday = lead.follow_up_date === today
     const proj = lead.answers?.['Project Type'] || lead.answers?.category || ''
@@ -797,7 +796,48 @@ export default function LeadsPage() {
 
     // REAL response-timer (replaces the demo "match %"): % of the 12h window left
     const sla = slaInfo(lead)
-    const C = 2 * Math.PI * 16 // ring circumference (r = 16)
+    const C = 2 * Math.PI * 22 // ring circumference (r = 22)
+    const loc = lead.answers?.['Location'] || lead.answers?.area || ''
+    const sc = LEAD_STATUSES.find(s => s.value === lead.status) || LEAD_STATUSES[0]
+    const budgetTxt = budget ? (/aed/i.test(String(budget)) ? String(budget) : 'AED ' + budget) : ''
+    // dark palette — this card mirrors the premium dark reference
+    const D = { text: '#f4f5f7', sub: 'rgba(255,255,255,0.58)', mut: 'rgba(255,255,255,0.42)', line: 'rgba(255,255,255,0.08)', surface: 'rgba(255,255,255,0.045)' }
+    // lead score (0–100) — drives the corner ring + first info row
+    const score = (() => {
+      if (lead.isPlatform && typeof lead.rank === 'number') return Math.max(45, 100 - (lead.rank - 1) * 7)
+      let s = 45
+      if (lead.phone) s += 15
+      if (proj) s += 15
+      if (budgetTxt) s += 15
+      if (lead.answers?.['WhatsApp'] || lead.email) s += 8
+      s += lead.temperature === 'hot' ? 12 : lead.temperature === 'warm' ? 6 : 0
+      return Math.min(99, s)
+    })()
+    // ring shows the live SLA % while a Quvera lead is un-actioned, else the lead score — always visible
+    const ring = sla.active
+      ? { val: Math.round(sla.pct * 100), label: 'SLA', color: sla.color }
+      : { val: score, label: 'SCORE', color: temp.color }
+    // "time ago" from when the lead arrived
+    const ago = (() => {
+      if (!lead.created_at) return ''
+      const d = (Date.now() - new Date(lead.created_at).getTime()) / 1000
+      if (d < 60) return 'just now'
+      if (d < 3600) return Math.floor(d / 60) + 'm ago'
+      if (d < 86400) return Math.floor(d / 3600) + 'h ago'
+      if (d < 2592000) return Math.floor(d / 86400) + 'd ago'
+      return new Date(lead.created_at).toLocaleDateString('en-AE', { day: 'numeric', month: 'short' })
+    })()
+    // Next-action band — always shown; driven by the follow-up date
+    const nextAction = isOverdue ? { label: 'Overdue — follow up now', color: '#f87171', icon: 'ti-alert-triangle' }
+      : isDueToday ? { label: 'Follow up today', color: '#fbbf24', icon: 'ti-calendar-event' }
+      : lead.follow_up_date ? { label: 'Follow up ' + new Date(lead.follow_up_date).toLocaleDateString('en-AE', { day: 'numeric', month: 'short' }), color: '#e2b25f', icon: 'ti-calendar' }
+      : { label: 'Set a follow-up', color: '#e2b25f', icon: 'ti-calendar-plus' }
+    // Info rows (icon · label · value)
+    const infoRows = [
+      { icon: 'ti-sparkles', tint: ring.color, label: ring.label === 'SLA' ? 'Response left' : 'Lead score', value: ring.val + '%', vColor: ring.color },
+      budgetTxt && { icon: 'ti-coin', tint: '#34d399', label: 'Budget', value: budgetTxt },
+      { icon: 'ti-arrow-up-right', tint: '#60a5fa', label: 'Source', value: lead.isPlatform ? 'Quvera · #' + lead.rank : mySourceBadge(lead).label },
+    ].filter(Boolean)
 
     return (
       <div
@@ -806,91 +846,112 @@ export default function LeadsPage() {
         onDragEnd={draggable ? () => setDragId(null) : undefined}
         onClick={() => openModal(lead)}
         className="lead-kard"
-        style={{ background: 'var(--card)', border: '0.5px solid var(--border)', borderLeft: '3px solid ' + accent, borderRadius: 12, padding: 12, marginBottom: 8, cursor: 'pointer' }}
+        style={{ position: 'relative', background: `radial-gradient(135% 90% at 50% -12%, ${temp.color}2b, transparent 55%), linear-gradient(180deg, #1c1b20 0%, #161519 100%)`, border: `1px solid ${D.line}`, borderRadius: 18, padding: 14, marginBottom: 10, cursor: 'pointer', color: D.text, boxShadow: '0 10px 30px rgba(0,0,0,0.45)' }}
       >
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-          {/* avatar, wrapped in a live SLA ring for un-actioned platform leads */}
-          <div style={{ position: 'relative', width: 40, height: 40, flexShrink: 0 }}>
-            {sla.active && (
-              <svg width="40" height="40" style={{ position: 'absolute', top: 0, left: 0, transform: 'rotate(-90deg)' }}>
-                <circle cx="20" cy="20" r="16" fill="none" stroke="var(--border)" strokeWidth="3" />
-                <circle cx="20" cy="20" r="16" fill="none" stroke={sla.color} strokeWidth="3" strokeLinecap="round"
-                  strokeDasharray={C} strokeDashoffset={C * (1 - sla.pct)} style={{ transition: 'stroke-dashoffset .4s' }} />
-              </svg>
-            )}
-            <div style={{ position: 'absolute', top: 5, left: 5, width: 30, height: 30, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 700, color: accent, background: accent + '22' }}>
-              {(lead.name || 'A')[0].toUpperCase()}
-            </div>
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text)', lineHeight: 1.25, wordBreak: 'break-word' }}>{lead.name || 'Anonymous'}</div>
-            {(proj || budget) && <div style={{ fontSize: 10.5, color: 'var(--text3)', marginTop: 2, lineHeight: 1.3, wordBreak: 'break-word' }}>{proj}{budget ? ' · ' + budget : ''}</div>}
-          </div>
-          {!lead.isPlatform && (
-            <button onClick={e => { e.stopPropagation(); openEdit(lead) }} title="Edit lead"
-              style={{ width: 26, height: 26, borderRadius: 7, border: '0.5px solid var(--border)', background: 'var(--bg2)', color: 'var(--text3)', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>
-              <i className="ti ti-pencil" />
-            </button>
-          )}
+        {/* top bar: HOT/temperature + menu/rank */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 11 }}>
+          <span style={{ fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 99, background: temp.color, color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 4, textTransform: 'uppercase', letterSpacing: '.4px', boxShadow: `0 3px 10px ${temp.color}59` }}>
+            <i className="ti ti-flame" style={{ fontSize: 12 }} /> {temp.label}
+          </span>
+          {!lead.isPlatform
+            ? <button onClick={e => { e.stopPropagation(); openEdit(lead) }} title="Edit lead"
+                style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: 'transparent', color: D.mut, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
+                <i className="ti ti-dots-vertical" />
+              </button>
+            : <span style={{ fontSize: 10, fontWeight: 700, padding: '4px 10px', borderRadius: 99, background: 'rgba(8,145,178,0.22)', color: '#5bc7e6' }}>Rank #{lead.rank}</span>}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 9 }}>
-          <span style={{ fontSize: 8.5, fontWeight: 700, padding: '2px 7px', borderRadius: 99, background: temp.bg, color: temp.color }}>{temp.label}</span>
-          {lead.isPlatform
-            ? <span style={{ fontSize: 8.5, fontWeight: 600, padding: '2px 7px', borderRadius: 99, background: 'rgba(8,145,178,0.14)', color: '#0891b2' }}>Rank #{lead.rank}</span>
-            : <span style={{ fontSize: 8.5, fontWeight: 600, padding: '2px 7px', borderRadius: 99, background: mySourceBadge(lead).bg, color: mySourceBadge(lead).color }}>{mySourceBadge(lead).label}</span>}
-          {isOverdue && <span style={{ fontSize: 9, fontWeight: 600, padding: '2px 7px', borderRadius: 99, background: 'rgba(239,68,68,0.14)', color: '#ef4444', display: 'inline-flex', alignItems: 'center', gap: 3 }}><i className="ti ti-clock" style={{ fontSize: 10 }} /> Overdue</span>}
-          {!isOverdue && isDueToday && <span style={{ fontSize: 9, fontWeight: 600, padding: '2px 7px', borderRadius: 99, background: 'rgba(245,158,11,0.14)', color: '#f59e0b', display: 'inline-flex', alignItems: 'center', gap: 3 }}><i className="ti ti-clock" style={{ fontSize: 10 }} /> Today</span>}
+        {/* name + score ring */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ flex: 1, minWidth: 0, fontSize: 18, fontWeight: 800, color: D.text, lineHeight: 1.18, letterSpacing: '-.2px', wordBreak: 'break-word' }}>{lead.name || 'Anonymous'}</div>
+          <div style={{ position: 'relative', width: 56, height: 56, flexShrink: 0 }}>
+            <svg width="56" height="56" style={{ transform: 'rotate(-90deg)' }}>
+              <circle cx="28" cy="28" r="22" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="4" />
+              <circle cx="28" cy="28" r="22" fill="none" stroke={ring.color} strokeWidth="4" strokeLinecap="round"
+                strokeDasharray={C} strokeDashoffset={C * (1 - ring.val / 100)} style={{ transition: 'stroke-dashoffset .4s' }} />
+            </svg>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ fontSize: 14, fontWeight: 800, color: D.text, lineHeight: 1 }}>{ring.val}<span style={{ fontSize: 8 }}>%</span></span>
+              <span style={{ fontSize: 7, fontWeight: 700, color: ring.color, letterSpacing: '.4px', marginTop: 1 }}>{ring.label}</span>
+            </div>
+          </div>
         </div>
 
-        {/* REAL SLA timing line — only while the lead is un-actioned (status = New) */}
-        {sla.active && (
-          <div style={{ marginTop: 9 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
-              <span style={{ fontSize: 9.5, fontWeight: 600, color: sla.color, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                <i className="ti ti-clock" style={{ fontSize: 11 }} /> {sla.overdue ? 'SLA passed · may reassign' : 'Respond in ' + sla.left}
-              </span>
-              <span style={{ fontSize: 9, color: 'var(--text3)' }}>{Math.round(sla.pct * 100)}%</span>
+        {/* project + location */}
+        {(proj || loc) && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 11 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 9, background: temp.color + '26', color: temp.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <i className="ti ti-home" style={{ fontSize: 16 }} />
             </div>
-            <div style={{ height: 5, borderRadius: 99, background: 'var(--bg)', overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: (sla.pct * 100) + '%', background: sla.color, borderRadius: 99, transition: 'width .4s' }} />
+            <div style={{ minWidth: 0 }}>
+              {proj && <div style={{ fontSize: 13, fontWeight: 600, color: D.text, lineHeight: 1.25, wordBreak: 'break-word' }}>{proj}</div>}
+              {loc && <div style={{ fontSize: 11, color: D.sub, lineHeight: 1.25 }}>{loc}</div>}
             </div>
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: 6, marginTop: 10 }} onClick={e => e.stopPropagation()}>
-          <button
-            onClick={() => canMove && updateLeadStage(lead, nextStage(lead.status))}
-            disabled={!canMove || updatingStatus === lead.key}
-            title={canMove ? 'Move to next stage' : 'Lead is closed'}
-            style={{ flex: 1, minHeight: 36, fontSize: 11, fontWeight: 600, borderRadius: 8, border: 'none',
-              background: canMove ? '#0099cc' : 'var(--bg)', color: canMove ? '#fff' : 'var(--text3)',
-              cursor: canMove ? 'pointer' : 'not-allowed', opacity: canMove ? 1 : 0.55,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, whiteSpace: 'nowrap' }}>
-            <i className="ti ti-arrow-right" style={{ fontSize: 14 }} /> Move
-          </button>
+        {/* info rows */}
+        <div style={{ marginTop: 12, background: D.surface, border: `1px solid ${D.line}`, borderRadius: 12, overflow: 'hidden' }}>
+          {infoRows.map((r, i) => (
+            <div key={r.label} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 11px', borderTop: i ? `1px solid ${D.line}` : 'none' }}>
+              <i className={'ti ' + r.icon} style={{ fontSize: 15, color: r.tint, flexShrink: 0 }} />
+              <span style={{ fontSize: 11.5, color: D.sub }}>{r.label}</span>
+              <span style={{ marginLeft: 'auto', fontSize: 12.5, fontWeight: 700, color: r.vColor || D.text, textAlign: 'right', wordBreak: 'break-word' }}>{r.value}</span>
+            </div>
+          ))}
+        </div>
 
+        {/* next action band */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 11, padding: '10px 12px', borderRadius: 12, background: nextAction.color + '1f', border: `1px solid ${nextAction.color}3d` }}>
+          <i className={'ti ' + nextAction.icon} style={{ fontSize: 17, color: nextAction.color, flexShrink: 0 }} />
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: D.mut, textTransform: 'uppercase', letterSpacing: '.5px' }}>Next action</div>
+            <div style={{ fontSize: 12.5, fontWeight: 700, color: nextAction.color, lineHeight: 1.2 }}>{nextAction.label}</div>
+          </div>
+          <i className="ti ti-chevron-right" style={{ fontSize: 15, color: nextAction.color, flexShrink: 0 }} />
+        </div>
+
+        {/* actions: Call · WhatsApp · Move */}
+        <div style={{ display: 'flex', gap: 8, marginTop: 12 }} onClick={e => e.stopPropagation()}>
           <button
             onClick={() => callNo && window.open('tel:' + callNo, '_self')}
             disabled={!callNo}
             title={callNo ? 'Call ' + lead.phone : 'No phone number'}
-            style={{ width: 42, minHeight: 36, fontSize: 15, borderRadius: 8, border: 'none',
-              background: callNo ? 'rgba(8,145,178,0.14)' : 'var(--bg)', color: callNo ? '#0077a3' : 'var(--text3)',
-              cursor: callNo ? 'pointer' : 'not-allowed', opacity: callNo ? 1 : 0.55,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <i className="ti ti-phone" />
+            style={{ flex: 1, minHeight: 40, fontSize: 12, fontWeight: 700, borderRadius: 11,
+              border: `1px solid ${callNo ? 'rgba(52,211,153,0.32)' : D.line}`,
+              background: callNo ? 'rgba(52,211,153,0.16)' : D.surface, color: callNo ? '#5ee0a8' : D.mut,
+              cursor: callNo ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+            <i className="ti ti-phone" style={{ fontSize: 15 }} /> Call
           </button>
-
           <button
             onClick={() => waNo && openModal(lead)}
             disabled={!waNo}
             title={waNo ? 'Open templates & send WhatsApp' : 'No WhatsApp number'}
-            style={{ width: 42, minHeight: 36, fontSize: 15, borderRadius: 8, border: 'none',
-              background: waNo ? 'rgba(34,197,94,0.14)' : 'var(--bg)', color: waNo ? '#0f7a52' : 'var(--text3)',
-              cursor: waNo ? 'pointer' : 'not-allowed', opacity: waNo ? 1 : 0.55,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <i className="ti ti-brand-whatsapp" />
+            style={{ flex: 1, minHeight: 40, fontSize: 12, fontWeight: 700, borderRadius: 11,
+              border: `1px solid ${D.line}`, background: D.surface, color: waNo ? D.text : D.mut,
+              cursor: waNo ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+            <i className="ti ti-brand-whatsapp" style={{ fontSize: 15, color: waNo ? '#5ee0a8' : D.mut }} /> WhatsApp
           </button>
+          <button
+            onClick={() => canMove && updateLeadStage(lead, nextStage(lead.status))}
+            disabled={!canMove || updatingStatus === lead.key}
+            title={canMove ? 'Move to next stage' : 'Lead is closed'}
+            style={{ width: 46, minHeight: 40, fontSize: 17, borderRadius: 11,
+              border: `1px solid ${canMove ? 'rgba(139,92,246,0.4)' : D.line}`,
+              background: canMove ? 'rgba(139,92,246,0.2)' : D.surface, color: canMove ? '#b794f6' : D.mut,
+              cursor: canMove ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <i className="ti ti-arrow-right" />
+          </button>
+        </div>
+
+        {/* footer: time ago + stage */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 12, paddingTop: 10, borderTop: `1px solid ${D.line}` }}>
+          <span style={{ fontSize: 10.5, color: D.sub, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <i className="ti ti-clock" style={{ fontSize: 12 }} /> {ago || '—'}
+          </span>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 99, background: sc.color + '2b', color: sc.color, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: sc.color }} /> {sc.label}
+          </span>
         </div>
       </div>
     )
@@ -1428,46 +1489,36 @@ export default function LeadsPage() {
         </div>
       )
     }
-    if (view === 'board' && mobile) {
+    if (view === 'board') {
+      const stages = [...PIPELINE, LOST]
+      const selLeads = filtered.filter(l => l.status === mobileStage)
+      const selStage = stages.find(s => s.stage === mobileStage) || stages[0]
       return (
         <div>
-          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 14, paddingBottom: 4 }}>
-            {[...PIPELINE, LOST].map(p => {
+          {/* stage tabs — pick a stage; its cards fill the width below and wrap onto new rows.
+              Drag a card onto a pill to move it to that stage. */}
+          <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 14 }}>
+            {stages.map(p => {
               const count = filtered.filter(l => l.status === p.stage).length
               const active = mobileStage === p.stage
               return (
-                <button key={p.stage} onClick={() => setMobileStage(p.stage)} style={{ flexShrink: 0, fontSize: 11, padding: '6px 13px', borderRadius: 99, border: 'none', cursor: 'pointer', background: active ? p.color : 'var(--bg2)', color: active ? '#fff' : 'var(--text2)', fontWeight: 500 }}>{p.label} {count}</button>
+                <button key={p.stage} onClick={() => setMobileStage(p.stage)}
+                  onDragOver={e => e.preventDefault()}
+                  onDrop={() => { if (dragId && dragId.status !== p.stage) updateLeadStage(dragId, p.stage); setDragId(null) }}
+                  style={{ flexShrink: 0, fontSize: 12.5, fontWeight: 600, padding: '8px 15px', borderRadius: 99, cursor: 'pointer',
+                    border: `1px solid ${active ? p.color : 'var(--border)'}`, background: active ? p.color : 'var(--card)', color: active ? '#fff' : 'var(--text2)',
+                    display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                  {p.label}
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 99, background: active ? 'rgba(255,255,255,0.25)' : 'var(--bg2)', color: active ? '#fff' : 'var(--text3)' }}>{count}</span>
+                </button>
               )
             })}
           </div>
-          {filtered.filter(l => l.status === mobileStage).length === 0 ? (
-            <div style={{ ...card, textAlign: 'center', padding: 30, color: 'var(--text3)', fontSize: 13 }}>No leads in this stage</div>
-          ) : (
-            filtered.filter(l => l.status === mobileStage).map(lead => <LeadCard key={lead.key} lead={lead} draggable={false} />)
-          )}
-        </div>
-      )
-    }
-    if (view === 'board') {
-      return (
-        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 6 }}>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', minWidth: 'min-content' }}>
-            {[...PIPELINE, LOST].map(col => {
-              const colLeads = filtered.filter(l => l.status === col.stage)
-              const isLost = col.stage === 'lost'
-              return (
-                <div key={col.stage} onDragOver={e => e.preventDefault()} onDrop={() => { if (dragId && dragId.status !== col.stage) updateLeadStage(dragId, col.stage); setDragId(null) }}
-                  style={{ width: 230, flexShrink: 0, ...card, padding: 10, minHeight: 120, borderStyle: isLost ? 'dashed' : 'solid' }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: col.color, marginBottom: 10, display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid ' + col.color, paddingBottom: 7 }}>
-                    <span>{col.label}</span><span>{colLeads.length}</span>
-                  </div>
-                  {colLeads.length === 0
-                    ? <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'center', padding: '14px 0' }}>—</div>
-                    : colLeads.map(lead => <LeadCard key={lead.key} lead={lead} draggable={true} />)}
-                </div>
-              )
-            })}
-          </div>
+          {selLeads.length === 0
+            ? <div style={{ ...card, textAlign: 'center', padding: '44px 20px', color: 'var(--text3)', fontSize: 13 }}>No leads in “{selStage.label}”.</div>
+            : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: 12, alignItems: 'start' }}>
+                {selLeads.map(lead => <LeadCard key={lead.key} lead={lead} draggable={true} />)}
+              </div>}
         </div>
       )
     }
