@@ -52,7 +52,8 @@ const AED = n => 'AED ' + Math.round(Number(n) || 0).toLocaleString('en-AE')
 const fmtD = d => d ? new Date(d).toLocaleDateString('en-AE', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'
 
 export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
-  const { company, user } = useAuth()
+  const { company, user, staff } = useAuth()
+  const myName = staff?.name || company?.name || (user?.email || '').split('@')[0] || 'Staff'
   const toast = useToast()
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
   const [projects, setProjects] = useState([])
@@ -406,7 +407,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
         approval_status: x.needs_approval ? (x.approval_status && x.approval_status !== 'none' ? x.approval_status : 'pending') : 'none',
       }
       if (x.id) { const { error } = await supabase.from('project_updates').update(payload).eq('id', x.id).eq('company_id', company.id); if (error) throw error }
-      else { payload.created_by_email = user?.email || null; const { error } = await supabase.from('project_updates').insert(payload); if (error) throw error }
+      else { payload.created_by_email = user?.email || null; payload.created_by_name = myName; const { error } = await supabase.from('project_updates').insert(payload); if (error) throw error }
       // a confirmed timeline change updates the project's target end date too
       if (isTimeline && x.new_date && (!x.needs_approval || payload.approval_status === 'approved')) {
         await patchActive({ end_date: x.new_date })
@@ -804,6 +805,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
                           <span style={{ fontSize: 9, fontWeight: 700, color: ac, background: ac + '1f', padding: '2px 7px', borderRadius: 99, textTransform: 'uppercase', letterSpacing: '.3px' }}>{fc ? 'From client' : k.l}</span>
                           <span style={{ fontSize: 11, color: 'var(--text3)' }}>{fmtD(u.event_date)}</span>
+                          {!fc && (u.created_by_name || u.created_by_email) && <span style={{ fontSize: 11, color: 'var(--text3)', display: 'inline-flex', alignItems: 'center', gap: 3 }}><i className="ti ti-user-circle" style={{ fontSize: 13, verticalAlign: '-2px' }} /> {u.created_by_name || (u.created_by_email || '').split('@')[0]}</span>}
                           {!fc && u.client_visible && <span style={{ fontSize: 9, fontWeight: 700, color: '#0099cc', display: 'inline-flex', alignItems: 'center', gap: 3 }}><i className="ti ti-eye" style={{ fontSize: 12 }} /> Client</span>}
                           {ap && <span style={{ fontSize: 9, fontWeight: 700, color: ap.c, background: ap.c + '1f', padding: '2px 7px', borderRadius: 99 }}>{ap.l}</span>}
                         </div>
