@@ -1,5 +1,5 @@
 // Quvera Business — Service Worker (PWA install + light caching)
-const CACHE = 'td-business-v2'
+const CACHE = 'td-business-v3'
 const PRECACHE = ['/', '/index.html', '/manifest.json', '/quvera-icon.png']
 
 self.addEventListener('install', (event) => {
