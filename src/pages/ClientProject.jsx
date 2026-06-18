@@ -153,7 +153,7 @@ export default function ClientProject({ token }) {
   // timeline ring — share of the schedule elapsed + days remaining
   let timePct = 0, daysLeft = null, overdue = false
   if (p.start_date && p.end_date) {
-    const s = new Date(p.start_date), e = new Date(p.end_date), now = new Date(); now.setHours(0, 0, 0, 0)
+    const s = new Date(p.start_date + 'T00:00:00'), e = new Date(p.end_date + 'T00:00:00'), now = new Date(); now.setHours(0, 0, 0, 0)
     const total = Math.max(1, (e - s) / 86400000)
     timePct = Math.round(((now - s) / 86400000) / total * 100)
     daysLeft = Math.round((e - now) / 86400000)

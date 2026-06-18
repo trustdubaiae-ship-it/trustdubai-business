@@ -2364,7 +2364,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
           {list.map(q => {
             const st = STATUS_STYLE[q.status||'draft']||STATUS_STYLE.draft
             const md = MODE_STYLE[q.mode||'simple']||MODE_STYLE.simple
-            const expired = q.valid_until && (q.status||'draft') !== 'approved' && new Date(q.valid_until) < new Date(new Date().toDateString())
+            const expired = q.valid_until && (q.status||'draft') !== 'approved' && new Date(q.valid_until + 'T00:00:00') < new Date(new Date().toDateString())
             const iconBtn = (icon, color, onClick, title) => (
               <button title={title} onClick={(e)=>{ e.stopPropagation(); onClick() }}
                 style={{ width:30, height:30, borderRadius:7, border:`1px solid ${border}`, background:cardBg, color, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>

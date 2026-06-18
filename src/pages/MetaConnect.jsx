@@ -21,6 +21,14 @@ function loadFbSdk() {
       js.src = 'https://connect.facebook.net/en_US/sdk.js'
       js.async = true; js.defer = true
       document.body.appendChild(js)
+    } else {
+      // script already injected by an earlier mount but FB not ready — poll so the
+      // promise resolves instead of hanging (fbAsyncInit may have already fired)
+      const t0 = Date.now()
+      const iv = setInterval(() => {
+        if (window.FB) { clearInterval(iv); resolve(window.FB) }
+        else if (Date.now() - t0 > 8000) { clearInterval(iv); resolve(null) }
+      }, 150)
     }
   })
 }
