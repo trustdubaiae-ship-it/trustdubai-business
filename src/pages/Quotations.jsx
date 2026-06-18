@@ -34,6 +34,53 @@ function mapUnit(u) {
 const blankItem  = () => ({ desc:'', unit:'Nos', qty:1, rate:0 })
 const blankItemT = (trade) => ({ desc:'', unit:'Nos', qty:1, rate:0, trade: trade || '' })
 
+/* Library picker — search the Description Library by TITLE, pick one to add a
+   ready-made line item (description + unit + rate). The "pick → done" flow. */
+function LibPicker({ libItems, onPick, isDark }) {
+  const [q, setQ] = useState('')
+  const [open, setOpen] = useState(false)
+  const text = isDark?'#f1f5f9':'#0f172a', sub = isDark?'#94a3b8':'#64748b'
+  const border = isDark?'rgba(255,255,255,0.10)':'#e2e8f0', card = isDark?'#1e293b':'#ffffff', inp = isDark?'#0f172a':'#ffffff'
+  const seen = new Set()
+  const uniq = (libItems||[]).filter(li => { const t=(li.label||'').trim().toLowerCase(); if(!t||seen.has(t)) return false; seen.add(t); return true })
+  const ql = q.trim().toLowerCase()
+  const matches = (ql ? uniq.filter(li => (li.label||'').toLowerCase().includes(ql) || (li.description||'').toLowerCase().includes(ql)) : uniq).slice(0, 10)
+  return (
+    <div style={{ position:'relative', flex:1, minWidth:210 }}>
+      <div style={{ display:'flex', alignItems:'center', gap:7, background:inp, border:`1px solid ${open?'#0099cc':border}`, borderRadius:8, padding:'7px 10px' }}>
+        <i className="ti ti-books" style={{ fontSize:15, color:'#0099cc' }}/>
+        <input value={q} onFocus={()=>setOpen(true)} onChange={e=>{ setQ(e.target.value); setOpen(true) }}
+          placeholder="Add from library — search title…"
+          style={{ flex:1, minWidth:0, border:'none', background:'none', outline:'none', fontSize:12.5, color:text }}/>
+        <i className="ti ti-chevron-down" style={{ fontSize:13, color:sub }}/>
+      </div>
+      {open && (
+        <>
+          <div onClick={()=>setOpen(false)} style={{ position:'fixed', inset:0, zIndex:60 }}/>
+          <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:61, background:card, border:`1px solid ${border}`, borderRadius:10, boxShadow:'0 14px 36px rgba(0,0,0,0.20)', maxHeight:300, overflowY:'auto' }}>
+            {matches.length===0 ? (
+              <div style={{ padding:'14px 12px', fontSize:12, color:sub, textAlign:'center' }}>
+                {(libItems||[]).length===0 ? 'Library is empty — add items in Description Library first.' : 'No titles match.'}
+              </div>
+            ) : matches.map(li => (
+              <div key={li.id} onClick={()=>{ onPick(li); setQ(''); setOpen(false) }}
+                style={{ padding:'9px 12px', cursor:'pointer', borderBottom:`1px solid ${border}` }}
+                onMouseEnter={e=>{ e.currentTarget.style.background = isDark?'rgba(255,255,255,0.05)':'#f6fafe' }}
+                onMouseLeave={e=>{ e.currentTarget.style.background = 'transparent' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', gap:10, alignItems:'baseline' }}>
+                  <span style={{ fontWeight:700, fontSize:12.5, color:text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{li.label}</span>
+                  <span style={{ fontSize:11.5, color:'#0099cc', fontWeight:700, whiteSpace:'nowrap' }}>AED {Number(li.default_rate||0).toLocaleString()}<span style={{ color:sub, fontWeight:400 }}> /{li.unit||'nos'}</span></span>
+                </div>
+                <div style={{ fontSize:11, color:sub, marginTop:2, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{li.description}</div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 function groupByTradeIdx(items, order) {
   const groups = {}
   items.forEach((it, idx) => {
@@ -458,7 +505,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
           company_id: String(company.id),
           owner_email: user?.email || null,
           trade_section: (m === 'boq' ? (it.trade || 'Misc') : 'Misc'),
-          label: null,
+          label: ((d.split(/[.\n]/)[0] || '').trim().slice(0, 48)) || d.slice(0, 48),
           description: d,
           unit: it.unit || null,
           default_rate: Number(it.rate) || 0,
@@ -695,6 +742,13 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   function addItem() { setItems(prev => [...prev, blankItem()]) }
   function removeItem(idx) { setItems(prev => prev.length===1?prev:prev.filter((_,i)=>i!==idx)) }
   function addItemToTrade(trade) { setItems(prev => [...prev, blankItemT(trade)]) }
+  // Pick a library item by title → add a ready-made line (desc + unit + rate). No duplicates.
+  function addFromLib(lib, trade='') {
+    const norm = s => (s||'').trim().toLowerCase()
+    if (items.some(it => norm(it.desc) === norm(lib.description))) { toast.error(`"${lib.label||'Item'}" is already in this quote`); return }
+    const u = mapUnit(lib.unit)
+    setItems(prev => [...prev, { desc: lib.description||'', unit: u || 'Nos', qty: 1, rate: Number(lib.default_rate)||0, trade: trade||'', img:'', _new:true }])
+  }
   function removeItemBoq(idx) { setItems(prev => prev.filter((_,i)=>i!==idx)) }
   function addTradeSection() { if (!addTradePick) return; addItemToTrade(addTradePick); setAddTradePick('') }
 
@@ -1939,9 +1993,10 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
                 })}
               </div>
             </div>
-            <div style={{ padding:'9px 11px', borderTop:`1px solid ${border}` }}>
-              <button onClick={addItem} style={{ fontSize:12, padding:'6px 12px', border:`1px solid ${border}`, borderRadius:7, background:'none', color:'#0099cc', cursor:'pointer', fontWeight:600 }}>
-                <i className="ti ti-plus" style={{ fontSize:13, verticalAlign:'-2px', marginRight:3 }}/> Add line item
+            <div style={{ padding:'9px 11px', borderTop:`1px solid ${border}`, display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+              <LibPicker libItems={libItems} onPick={(li)=>addFromLib(li)} isDark={isDark} />
+              <button onClick={addItem} style={{ fontSize:12, padding:'7px 12px', border:`1px solid ${border}`, borderRadius:8, background:'none', color:textSub, cursor:'pointer', fontWeight:600, whiteSpace:'nowrap' }}>
+                <i className="ti ti-plus" style={{ fontSize:13, verticalAlign:'-2px', marginRight:3 }}/> Blank line
               </button>
             </div>
           </div>
@@ -1998,9 +2053,10 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
                 })}
               </div>
             </div>
-            <div style={{ padding:'9px 11px', borderTop:`1px solid ${border}` }}>
-              <button onClick={addItem} style={{ fontSize:12, padding:'6px 12px', border:`1px solid ${border}`, borderRadius:7, background:'none', color:'#7c3aed', cursor:'pointer', fontWeight:600 }}>
-                <i className="ti ti-plus" style={{ fontSize:13, verticalAlign:'-2px', marginRight:3 }}/> Add line item
+            <div style={{ padding:'9px 11px', borderTop:`1px solid ${border}`, display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+              <LibPicker libItems={libItems} onPick={(li)=>addFromLib(li)} isDark={isDark} />
+              <button onClick={addItem} style={{ fontSize:12, padding:'7px 12px', border:`1px solid ${border}`, borderRadius:8, background:'none', color:textSub, cursor:'pointer', fontWeight:600, whiteSpace:'nowrap' }}>
+                <i className="ti ti-plus" style={{ fontSize:13, verticalAlign:'-2px', marginRight:3 }}/> Blank line
               </button>
             </div>
           </div>
@@ -2043,9 +2099,10 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
                     })}
                   </div>
                 </div>
-                <div style={{ padding:'8px 11px', borderTop:`1px solid ${border}` }}>
-                  <button onClick={()=>addItemToTrade(g.trade)} style={{ fontSize:12, padding:'5px 11px', border:`1px solid ${border}`, borderRadius:7, background:'none', color:'#0099cc', cursor:'pointer', fontWeight:600 }}>
-                    <i className="ti ti-plus" style={{ fontSize:12, verticalAlign:'-2px', marginRight:3 }}/> Add item to {g.trade}
+                <div style={{ padding:'8px 11px', borderTop:`1px solid ${border}`, display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+                  <LibPicker libItems={libItems} onPick={(li)=>addFromLib(li, g.trade)} isDark={isDark} />
+                  <button onClick={()=>addItemToTrade(g.trade)} style={{ fontSize:12, padding:'7px 11px', border:`1px solid ${border}`, borderRadius:8, background:'none', color:textSub, cursor:'pointer', fontWeight:600, whiteSpace:'nowrap' }}>
+                    <i className="ti ti-plus" style={{ fontSize:12, verticalAlign:'-2px', marginRight:3 }}/> Blank line
                   </button>
                 </div>
               </div>

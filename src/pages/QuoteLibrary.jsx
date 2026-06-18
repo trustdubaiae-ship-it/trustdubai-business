@@ -65,7 +65,12 @@ export default function QuoteLibrary() {
   function showToast(m) { setToast(m); setTimeout(() => setToast(''), 2000) }
 
   async function saveItem(form) {
+    const title = (form.label || '').trim()
+    if (!title) { showToast('Title is required'); return }
     if (!form.description?.trim()) { showToast('Description is required'); return }
+    // Block duplicate titles (case-insensitive) within this company's library
+    const dupe = items.find(it => (it.label || '').trim().toLowerCase() === title.toLowerCase() && it.id !== form.id)
+    if (dupe) { showToast('An item with this title already exists'); return }
     setSaving(true)
     try {
       const row = {
@@ -245,6 +250,12 @@ function ItemModal({ initial, knownTrades, saving, onClose, onSave }) {
           <button onClick={onClose} style={{ ...iconBtn, marginLeft:'auto' }}><i className="ti ti-x" style={{ fontSize:18 }}/></button>
         </div>
 
+        <Field label="Title *">
+          <input autoFocus value={form.label} onChange={e => set('label', e.target.value)} placeholder="e.g. TV Wall Unit — Model 1" style={inputStyle}
+            onKeyDown={e => { if (e.key==='Enter' && form.label.trim() && form.description.trim()) onSave(form) }}/>
+          <div style={{ fontSize:10.5, color:'var(--text3)', marginTop:4 }}>This is what you'll search & pick in the quote builder.</div>
+        </Field>
+
         <Field label="Trade section">
           {addingTrade ? (
             <div style={{ display:'flex', gap:8 }}>
@@ -262,10 +273,6 @@ function ItemModal({ initial, knownTrades, saving, onClose, onSave }) {
               <option value="__new__">+ New trade…</option>
             </select>
           )}
-        </Field>
-
-        <Field label="Short label (optional)">
-          <input value={form.label} onChange={e => set('label', e.target.value)} placeholder="e.g. Gypsum false ceiling" style={inputStyle}/>
         </Field>
 
         <Field label="Full description *">
@@ -287,7 +294,7 @@ function ItemModal({ initial, knownTrades, saving, onClose, onSave }) {
 
         <div style={{ display:'flex', gap:10, marginTop:18 }}>
           <button onClick={onClose} style={{ ...btnGhost, flex:1, justifyContent:'center' }}>Cancel</button>
-          <button onClick={() => onSave(form)} disabled={saving || !form.description.trim()} style={{ ...btnPrimary, flex:1, justifyContent:'center', opacity:(saving||!form.description.trim())?0.6:1 }}>
+          <button onClick={() => onSave(form)} disabled={saving || !form.label.trim() || !form.description.trim()} style={{ ...btnPrimary, flex:1, justifyContent:'center', opacity:(saving||!form.label.trim()||!form.description.trim())?0.6:1 }}>
             {saving ? 'Saving…' : (form.id ? 'Update item' : 'Add to library')}
           </button>
         </div>
