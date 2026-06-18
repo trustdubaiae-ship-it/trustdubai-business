@@ -483,7 +483,7 @@ export default function DashboardPage({ onNavigate, theme }) {
                 </svg>
 
                 <div className="qc-ring r3"/><div className="qc-ring r2"/><div className="qc-ring r1"/>
-                <div className="qc-core"><div className="qc-core-inner">
+                <div className="qc-core" onClick={()=>go('menu')} title="Open All Features" style={{ cursor:'pointer' }}><div className="qc-core-inner">
                   <div style={{ fontWeight:800, fontSize:17, letterSpacing:.5 }}>QUVERA</div>
                   <div style={{ fontSize:9, letterSpacing:2.5, color:'#bfe9ff', textTransform:'uppercase', marginTop:3 }}>AI Core</div>
                   <div className="qc-grad" style={{ fontSize:22, fontWeight:800, marginTop:6, fontVariantNumeric:'tabular-nums' }}><AnimatedNumber value={d.aiScore}/></div>
@@ -690,7 +690,7 @@ const QC_CSS = `
 .qc-flowline{ stroke-dasharray:6 10; animation:qcdash 1s linear infinite; opacity:.75; stroke-width:1.9; }
 .qc-flowdot{ filter:drop-shadow(0 0 4px currentColor); }
 
-.qc-node-card{ position:absolute; width:clamp(186px,15vw,224px); display:flex; align-items:center; gap:11px; padding:11px 13px; border-radius:14px; cursor:pointer; z-index:3;
+.qc-node-card{ position:absolute; width:clamp(186px,15vw,224px); min-height:72px; display:flex; align-items:center; gap:11px; padding:11px 13px; border-radius:14px; cursor:pointer; z-index:3;
   border:1px solid color-mix(in srgb, var(--c) 38%, var(--qc-glass-bd)); background:var(--qc-node-bg); backdrop-filter:blur(6px);
   box-shadow:0 0 26px -14px var(--c), 0 0 0 1px color-mix(in srgb, var(--c) 12%, transparent) inset;
   transition:transform .15s, border-color .15s, box-shadow .15s; }
@@ -700,7 +700,7 @@ const QC_CSS = `
 .qc-eng-ic{ width:40px; height:40px; border-radius:11px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:20px;
   background:color-mix(in srgb, var(--c) 18%, transparent); color:var(--c); border:1px solid color-mix(in srgb, var(--c) 40%, transparent); }
 .qc-eng-name{ font-weight:700; font-size:13px; letter-spacing:.4px; }
-.qc-eng-tag{ font-size:10.5px; color:var(--qc-text2); margin-top:2px; line-height:1.3; }
+.qc-eng-tag{ font-size:10.5px; color:var(--qc-text2); margin-top:2px; line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .qc-eng-online{ font-size:9.5px; font-weight:700; letter-spacing:.6px; color:#22c55e; margin-top:5px; display:flex; align-items:center; gap:5px; }
 
 .qc-ring{ position:absolute; left:50%; top:50%; border-radius:50%; border:1px solid rgba(0,212,255,0.38); z-index:1; box-shadow:0 0 22px -6px rgba(0,212,255,0.4); }

@@ -235,6 +235,11 @@ export default function MenuPage({ onNavigate, isApproved = true, limitedPages =
                         : st.featureLocked ? 'Upgrade plan'
                           : st.showSoon ? 'Coming soon' : ''
 
+              // Active = usable now · Inactive = locked / coming soon
+              const isActive = special || (!greyed && !(st && st.showSoon))
+              const statusTxt = isActive ? 'ACTIVE' : (st && st.showSoon ? 'SOON' : 'INACTIVE')
+              const descText = special ? labelHint(item) : (lockLabel || labelHint(item))
+
               return (
                 <button
                   key={`${item.id || item._special}-${ii}`}
@@ -242,36 +247,24 @@ export default function MenuPage({ onNavigate, isApproved = true, limitedPages =
                   onClick={() => handleTile(item, st)}
                   disabled={hardLocked}
                   title={lockLabel || item.label}
+                  style={{ '--tc': group.color }}
                 >
-                  <span className="td-tile-accent" style={{ background: greyed ? 'transparent' : group.color }} />
-                  {/* top-right: status chip + plan crown */}
-                  <span className="td-tr">
-                    {status === 'soon' && <span className="td-mini td-mini-soon">Soon</span>}
-                    {status === 'addon' && <span className="td-mini td-mini-addon"><i className="ti ti-plus" /></span>}
-                    {status === 'lock' && <span className="td-mini td-mini-lock"><i className="ti ti-lock" /></span>}
-                    <span
-                      className="td-crown"
-                      style={{ color: crownColor, background: crownColor + '22' }}
-                      title={`${PLAN_LABEL[plan]} plan feature`}
-                    >
-                      <i className="ti ti-crown" />
-                    </span>
-                  </span>
-
                   <span
                     className="td-tile-icon"
-                    style={greyed
-                      ? { background: 'var(--bg2)', color: 'var(--text3)' }
-                      : { background: `linear-gradient(135deg, ${group.color}2e, ${group.color}10)`, color: group.color, boxShadow: `0 5px 16px ${group.color}30`, border: `0.5px solid ${group.color}40` }}
+                    style={greyed ? { background: 'var(--bg2)', color: 'var(--text3)', boxShadow: 'none', borderColor: 'var(--border)' } : undefined}
                   >
                     <i className={`ti ${item.icon}`} />
                   </span>
-                  <span className="td-tile-title">{item.label}</span>
-                  <span className="td-tile-desc">{lockLabel || labelHint(item)}</span>
-
-                  {showDays && (
-                    <span className="td-days" title="Free during your Launch Plan trial">
-                      <i className="ti ti-rocket" /> {trialDaysLeft} {trialDaysLeft === 1 ? 'day' : 'days'} left
+                  <span className="td-tile-body">
+                    <span className="td-tile-title">{item.label}</span>
+                    <span className="td-tile-desc">{descText}</span>
+                    <span className={`td-tile-status ${isActive ? 'td-status-on' : 'td-status-off'}`}>
+                      <span className="td-status-dot" /> {statusTxt}
+                    </span>
+                  </span>
+                  {!special && (
+                    <span className="td-crown" style={{ color: crownColor, background: crownColor + '22' }} title={`${PLAN_LABEL[plan]} plan feature`}>
+                      <i className="ti ti-crown" />
                     </span>
                   )}
                 </button>
@@ -404,44 +397,36 @@ const CSS = `
 .td-menu-dot{ width:9px; height:9px; border-radius:3px; flex-shrink:0; }
 .td-menu-group-label{ font-size:11.5px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:var(--text2); }
 
-.td-menu-grid{ display:grid; gap:12px; grid-template-columns:repeat(5,1fr); }
+/* AI-Core-style horizontal cards: icon + title/hint/status + plan crown */
+.td-menu-grid{ display:grid; gap:12px; grid-template-columns:repeat(3,1fr); }
 
 .td-tile{
-  position:relative; display:flex; flex-direction:column; align-items:flex-start; gap:9px; text-align:left;
-  background:linear-gradient(165deg, var(--card) 62%, var(--bg2)); border:0.5px solid var(--border); border-radius:16px; padding:15px;
-  cursor:pointer; font-family:inherit; min-width:0; width:100%; height:100%; min-height:140px; overflow:hidden;
-  transition:transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+  position:relative; display:flex; flex-direction:row; align-items:center; gap:12px; text-align:left;
+  background:var(--card); border:1px solid color-mix(in srgb, var(--tc) 30%, var(--border)); border-radius:14px; padding:13px 14px;
+  cursor:pointer; font-family:inherit; min-width:0; width:100%; min-height:74px; overflow:hidden;
+  box-shadow:0 0 24px -16px var(--tc);
+  transition:transform .16s ease, border-color .16s ease, box-shadow .16s ease;
 }
-/* sheen that fades in on hover (sits behind content) */
-.td-tile::after{ content:''; position:absolute; inset:0; z-index:0; pointer-events:none; opacity:0; transition:opacity .2s ease;
-  background:radial-gradient(130% 90% at 100% 0%, rgba(0,153,204,0.12), transparent 55%); }
-.td-tile > *{ position:relative; z-index:1; }
-.td-tile:hover:not(:disabled){ transform:translateY(-4px); border-color:rgba(0,153,204,0.5); box-shadow:0 14px 32px rgba(0,0,0,0.14); }
-.td-tile:hover:not(:disabled)::after{ opacity:1; }
+.td-tile:hover:not(:disabled){ transform:translateY(-3px); border-color:var(--tc); box-shadow:0 12px 30px -12px var(--tc); }
 .td-tile:active:not(:disabled){ transform:translateY(-1px); }
-.td-tile.is-greyed{ opacity:0.55; }
+.td-tile.is-greyed{ opacity:0.6; }
 .td-tile:disabled{ cursor:default; }
 
-.td-tile-icon{ width:44px; height:44px; border-radius:13px; display:flex; align-items:center; justify-content:center; font-size:21px; flex-shrink:0; transition:transform .18s ease; }
-.td-tile:hover:not(:disabled) .td-tile-icon{ transform:scale(1.08) rotate(-3deg); }
-.td-tile-title{ font-size:13.5px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
-.td-tile-desc{ font-size:11px; color:var(--text3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+.td-tile-icon{ width:44px; height:44px; border-radius:13px; display:flex; align-items:center; justify-content:center; font-size:21px; flex-shrink:0;
+  background:color-mix(in srgb, var(--tc) 18%, transparent); color:var(--tc); border:1px solid color-mix(in srgb, var(--tc) 40%, transparent);
+  box-shadow:0 0 18px -3px color-mix(in srgb, var(--tc) 55%, transparent); transition:transform .16s ease; }
+.td-tile:hover:not(:disabled) .td-tile-icon{ transform:scale(1.06); }
 
-/* top-right cluster: status chip + plan crown */
-.td-tr{ position:absolute; top:9px; right:9px; display:flex; align-items:center; gap:5px; }
-.td-crown{ width:22px; height:22px; border-radius:7px; display:inline-flex; align-items:center; justify-content:center; font-size:12px; flex-shrink:0; }
-.td-mini{ font-size:9px; font-weight:800; line-height:1.4; border-radius:20px; display:inline-flex; align-items:center; gap:3px; padding:2px 7px; }
-.td-mini-soon{ background:rgba(245,158,11,0.16); color:#c9952a; }
-.td-mini-addon{ background:rgba(0,153,204,0.12); color:#0099cc; border:0.5px solid rgba(0,153,204,0.25); padding:3px 6px; }
-.td-mini-addon i{ font-size:10px; }
-.td-mini-lock{ background:var(--bg2); color:var(--text3); padding:3px 6px; }
-.td-mini-lock i{ font-size:11px; }
+.td-tile-body{ display:flex; flex-direction:column; min-width:0; flex:1; }
+.td-tile-title{ font-size:13px; font-weight:700; letter-spacing:.2px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+.td-tile-desc{ font-size:10.5px; color:var(--text3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; margin-top:2px; }
+.td-tile-status{ display:flex; align-items:center; gap:5px; font-size:9px; font-weight:800; letter-spacing:.6px; margin-top:6px; }
+.td-status-dot{ width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.td-status-on{ color:#22c55e; } .td-status-on .td-status-dot{ background:#22c55e; box-shadow:0 0 8px #22c55e; }
+.td-status-off{ color:var(--text3); } .td-status-off .td-status-dot{ background:var(--text3); }
 
-/* days-left chip (premium tiles, during trial) */
-.td-days{ display:inline-flex; align-items:center; gap:4px; margin-top:auto; font-size:10px; font-weight:800; color:#8b5cf6; background:rgba(139,92,246,0.12); padding:2px 8px; border-radius:7px; align-self:flex-start; max-width:100%; }
-.td-days i{ font-size:11px; }
+.td-crown{ width:22px; height:22px; border-radius:7px; display:inline-flex; align-items:center; justify-content:center; font-size:12px; flex-shrink:0; align-self:flex-start; }
 
-@media (max-width:1100px){ .td-menu-grid{ grid-template-columns:repeat(4,1fr); } }
-@media (max-width:860px){  .td-menu-grid{ grid-template-columns:repeat(3,1fr); } }
-@media (max-width:560px){  .td-menu-grid{ grid-template-columns:repeat(2,1fr); } .td-tile{ padding:13px; min-height:122px; } .td-tile-icon{ width:38px; height:38px; font-size:19px; } .td-launch-cta{ display:none; } }
+@media (max-width:1100px){ .td-menu-grid{ grid-template-columns:repeat(2,1fr); } }
+@media (max-width:680px){  .td-menu-grid{ grid-template-columns:1fr; } }
 `
