@@ -31,8 +31,8 @@ function mapUnit(u) {
   return f || null
 }
 
-const blankItem  = () => ({ desc:'', unit:'Nos', qty:1, rate:0 })
-const blankItemT = (trade) => ({ desc:'', unit:'Nos', qty:1, rate:0, trade: trade || '' })
+const blankItem  = () => ({ title:'', desc:'', unit:'Nos', qty:1, rate:0 })
+const blankItemT = (trade) => ({ title:'', desc:'', unit:'Nos', qty:1, rate:0, trade: trade || '' })
 
 /* Library picker — search the Description Library by TITLE, pick one to add a
    ready-made line item (description + unit + rate). The "pick → done" flow. */
@@ -720,7 +720,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     setClientSearch(q.client_name || ''); setSuggestions([]); setShowSug(false); setClientPrefix(q.client_prefix || 'Mr.')
     setProjectTitle(q.project_title || '')
     setItems(Array.isArray(q.items) && q.items.length
-      ? q.items.map(it => ({ desc:it.desc||'', unit:it.unit||'Nos', qty:it.qty??1, rate:it.rate??0, trade: it.trade || '', img: it.img || '' }))
+      ? q.items.map(it => ({ title:it.title||'', desc:it.desc||'', unit:it.unit||'Nos', qty:it.qty??1, rate:it.rate??0, trade: it.trade || '', img: it.img || '' }))
       : [blankItem()])
     setNotes(q.notes || '')
     setVatEnabled(q.vat_enabled != null ? q.vat_enabled : (!!q.vat_amount || (tpl?.default_vat_enabled ?? true)))
@@ -754,7 +754,8 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     const norm = s => (s||'').trim().toLowerCase()
     if (items.some(it => norm(it.desc) === norm(lib.description))) { toast.error(`"${lib.label||'Item'}" is already in this quote`); return }
     const u = mapUnit(lib.unit)
-    setItems(prev => [...prev, { desc: lib.description||'', unit: u || 'Nos', qty: 1, rate: Number(lib.default_rate)||0, trade: trade||'', img:'', _new:true }])
+    const t = (lib.label||'').trim() || ((lib.description||'').split(/[.\n]/)[0]||'').slice(0,48)
+    setItems(prev => [...prev, { title: t, desc: lib.description||'', unit: u || 'Nos', qty: 1, rate: Number(lib.default_rate)||0, trade: trade||'', img:'', _new:true }])
   }
   function removeItemBoq(idx) { setItems(prev => prev.filter((_,i)=>i!==idx)) }
   function addTradeSection() { if (!addTradePick) return; addItemToTrade(addTradePick); setAddTradePick('') }
@@ -773,7 +774,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
       const aiItems = Array.isArray(data?.items) ? data.items : []
       if (!aiItems.length) { toast.error('AI could not generate items — add more detail (or redeploy the AI function)'); return }
       const mapped = aiItems.map(it => ({
-        desc: String(it.desc || '').trim(), unit: it.unit || 'Nos',
+        title: (it.title||'').trim(), desc: String(it.desc || '').trim(), unit: it.unit || 'Nos',
         qty: Number(it.qty) || 1, rate: Number(it.rate) || 0,
         ...((mode === 'boq' || mode === 'advanced') ? { trade: it.trade || 'Misc' } : {}),
       })).filter(it => it.desc)
@@ -827,7 +828,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
       location: location.trim() || '', prepared_by: preparedBy.trim() || '',
       project_title: projectTitle.trim() || '', mode,
       items: validItems.map(it => ({
-        desc: it.desc.trim(), unit: it.unit || 'Nos', qty: Number(it.qty)||0, rate: Number(it.rate)||0,
+        title: (it.title||'').trim(), desc: it.desc.trim(), unit: it.unit || 'Nos', qty: Number(it.qty)||0, rate: Number(it.rate)||0,
         ...((mode === 'boq' || mode === 'advanced') ? { trade: it.trade || 'Misc' } : {}),
         ...(it.img ? { img: it.img } : {}),
       })),
@@ -866,7 +867,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         prepared_by: preparedBy.trim() || null,
         project_title: projectTitle.trim() || null, mode,
         items: validItems.map(it => ({
-          desc:it.desc.trim(), unit:it.unit||'Nos', qty:Number(it.qty)||0, rate:Number(it.rate)||0,
+          title:(it.title||'').trim(), desc:it.desc.trim(), unit:it.unit||'Nos', qty:Number(it.qty)||0, rate:Number(it.rate)||0,
           ...((mode === 'boq' || mode === 'advanced') ? { trade: it.trade || 'Misc' } : {}),
           ...(it.img ? { img: it.img } : {}),
         })),
@@ -937,7 +938,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     const m = v.items && v.items.some(it => it.trade) ? 'boq' : 'simple'
     setVoMode(m === 'boq' && canBoq ? 'boq' : 'simple')
     setVoItems(Array.isArray(v.items) && v.items.length
-      ? v.items.map(it => ({ desc:it.desc||'', unit:it.unit||'Nos', qty:it.qty??1, rate:it.rate??0, trade: it.trade || '' }))
+      ? v.items.map(it => ({ title:it.title||'', desc:it.desc||'', unit:it.unit||'Nos', qty:it.qty??1, rate:it.rate??0, trade: it.trade || '' }))
       : [blankItem()])
     setVoVat(!!v.vat_amount); setVoAddTrade('')
     setView('voBuilder', `voBuilder/${activeQuote.id}`)
@@ -958,7 +959,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         quotation_id: activeQuote.id, company_id: company.id,
         description: voDescription.trim(),
         items: validItems.map(it => ({
-          desc:it.desc.trim(), unit:it.unit||'Nos', qty:Number(it.qty)||0, rate:Number(it.rate)||0,
+          title:(it.title||'').trim(), desc:it.desc.trim(), unit:it.unit||'Nos', qty:Number(it.qty)||0, rate:Number(it.rate)||0,
           ...(voMode === 'boq' ? { trade: it.trade || 'Misc' } : {}),
         })),
         subtotal: voSubtotal, vat_enabled: voVat, vat_amount: voVatAmount, total: voTotal,
@@ -1052,7 +1053,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     const rowHtml = (it, i) => `<tr>
       <td style="${td}color:#999;">${i}</td>
       ${imgTd(it)}
-      <td style="${tdDesc}">${escapeHtml(it.desc||'').replace(/\n/g, '<br>')}</td>
+      <td style="${tdDesc}">${it.title ? `<div style="font-weight:700;margin-bottom:2px;">${escapeHtml(it.title)}</div>` : ''}${escapeHtml(it.desc||'').replace(/\n/g, '<br>')}</td>
       <td style="${td}text-align:center;color:#777;">${escapeHtml(it.unit||'')}</td>
       <td style="${td}text-align:center;color:#777;">${escapeHtml(it.qty||0)}</td>
       <td style="${td}text-align:right;color:#777;">${n(Number(it.rate)||0)}</td>
@@ -1375,6 +1376,19 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   const inputStyle = { padding:'9px 11px', border:`1px solid ${border}`, borderRadius:8, fontSize:13, background:inputBg, color:text, outline:'none', width:'100%', boxSizing:'border-box' }
   const initials = nm => nm ? nm.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase() : '?'
 
+  // One box: bold Title on top + Description below (the line-item description cell).
+  const descCell = (it, idx, { fs = 12.5, vo = false } = {}) => (
+    <div style={{ position:'relative', minWidth:0, border:`1px solid ${border}`, borderRadius:8, background:inputBg, ...(it._new ? { boxShadow:'inset 3px 0 0 #22c55e' } : {}) }}>
+      {it._new && <span style={{ position:'absolute', top:-7, left:-1, fontSize:8, fontWeight:700, color:'#fff', background:'#22c55e', padding:'1px 5px', borderRadius:99, zIndex:1, letterSpacing:'.3px' }}>NEW</span>}
+      <input value={it.title || ''} onChange={e => (vo ? setVoItems(prev=>prev.map((x,i)=>i===idx?{...x,title:e.target.value}:x)) : updateItem(idx,'title',e.target.value))}
+        placeholder="Title (optional)"
+        style={{ width:'100%', boxSizing:'border-box', border:'none', background:'none', outline:'none', fontWeight:700, fontSize:fs, color:text, padding:'6px 9px 0', fontFamily:'inherit' }}/>
+      <textarea value={it.desc} onChange={e => applyDesc(idx, e.target.value, vo)} placeholder="Description" rows={1}
+        ref={el=>{ if(el){ el.style.height='auto'; el.style.height=el.scrollHeight+'px' } }}
+        style={{ width:'100%', boxSizing:'border-box', border:'none', background:'none', outline:'none', color:text, padding:'2px 9px 7px', fontSize:fs-0.5, resize:'none', overflow:'hidden', lineHeight:1.4, fontFamily:'inherit' }}/>
+    </div>
+  )
+
   const LibDatalist = () => {
     const seen = new Set()
     const opts = libItems.filter(li => {
@@ -1483,9 +1497,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
                   const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
                   return (
                     <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 54px 46px 66px 86px 28px', gap:7, padding:'8px 12px', alignItems:'flex-start', borderTop:`1px solid ${border}` }}>
-                      <textarea value={it.desc} onChange={e=>applyDesc(idx, e.target.value, true)} placeholder="Item description" rows={1}
-                        ref={el=>{ if(el){ el.style.height='auto'; el.style.height=el.scrollHeight+'px' } }}
-                        style={{ ...inputStyle, padding:'7px 8px', fontSize:12.5, resize:'none', overflow:'hidden', lineHeight:1.4 }}/>
+                      {descCell(it, idx, { vo:true })}
                       <select value={it.unit} onChange={e=>updateVoItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 4px', fontSize:11 }}>
                         {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
                       </select>
@@ -1523,9 +1535,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
                       const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
                       return (
                         <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 50px 44px 62px 82px 26px', gap:7, padding:'6px 12px', alignItems:'flex-start', borderTop:`1px solid ${border}` }}>
-                          <textarea value={it.desc} onChange={e=>applyDesc(idx, e.target.value, true)} placeholder="Item description" rows={1}
-                            ref={el=>{ if(el){ el.style.height='auto'; el.style.height=el.scrollHeight+'px' } }}
-                            style={{ ...inputStyle, padding:'7px 8px', fontSize:12, resize:'none', overflow:'hidden', lineHeight:1.4 }}/>
+                          {descCell(it, idx, { vo:true, fs:12 })}
                           <select value={it.unit} onChange={e=>updateVoItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 3px', fontSize:10.5 }}>
                             {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
                           </select>
@@ -1982,12 +1992,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
                   const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
                   return (
                     <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 54px 46px 66px 86px 28px', gap:7, padding:'8px 12px', alignItems:'flex-start', borderTop:`1px solid ${border}`, ...(it._new ? { background:isDark?'rgba(34,197,94,0.10)':'#ecfdf5', boxShadow:'inset 3px 0 0 #22c55e' } : {}) }}>
-                      <div style={{ position:'relative', minWidth:0 }}>
-                        {it._new && <span style={{ position:'absolute', top:-7, left:-1, fontSize:8, fontWeight:700, color:'#fff', background:'#22c55e', padding:'1px 5px', borderRadius:99, zIndex:1, letterSpacing:'.3px' }}>NEW</span>}
-                        <textarea value={it.desc} onChange={e=>applyDesc(idx, e.target.value, false)} placeholder="Item description" rows={1}
-                          ref={el=>{ if(el){ el.style.height='auto'; el.style.height=el.scrollHeight+'px' } }}
-                          style={{ ...inputStyle, width:'100%', boxSizing:'border-box', padding:'7px 8px', fontSize:12.5, resize:'none', overflow:'hidden', lineHeight:1.4 }}/>
-                      </div>
+                      {descCell(it, idx)}
                       <select value={it.unit} onChange={e=>updateItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 4px', fontSize:11 }}>
                         {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
                       </select>
@@ -2042,12 +2047,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
                           </label>
                         )}
                       </div>
-                      <div style={{ position:'relative', minWidth:0 }}>
-                        {it._new && <span style={{ position:'absolute', top:-7, left:-1, fontSize:8, fontWeight:700, color:'#fff', background:'#22c55e', padding:'1px 5px', borderRadius:99, zIndex:1, letterSpacing:'.3px' }}>NEW</span>}
-                        <textarea value={it.desc} onChange={e=>applyDesc(idx, e.target.value, false)} placeholder="Item description" rows={1}
-                          ref={el=>{ if(el){ el.style.height='auto'; el.style.height=el.scrollHeight+'px' } }}
-                          style={{ ...inputStyle, width:'100%', boxSizing:'border-box', padding:'7px 8px', fontSize:12.5, resize:'none', overflow:'hidden', lineHeight:1.4 }}/>
-                      </div>
+                      {descCell(it, idx)}
                       <select value={it.unit} onChange={e=>updateItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 4px', fontSize:11 }}>
                         {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
                       </select>
@@ -2088,12 +2088,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
                       const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
                       return (
                         <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 50px 44px 62px 82px 26px', gap:7, padding:'6px 12px', alignItems:'flex-start', borderTop:`1px solid ${border}`, ...(it._new ? { background:isDark?'rgba(34,197,94,0.10)':'#ecfdf5', boxShadow:'inset 3px 0 0 #22c55e' } : {}) }}>
-                          <div style={{ position:'relative', minWidth:0 }}>
-                            {it._new && <span style={{ position:'absolute', top:-7, left:-1, fontSize:8, fontWeight:700, color:'#fff', background:'#22c55e', padding:'1px 5px', borderRadius:99, zIndex:1, letterSpacing:'.3px' }}>NEW</span>}
-                            <textarea value={it.desc} onChange={e=>applyDesc(idx, e.target.value, false)} placeholder="Item description" rows={1}
-                              ref={el=>{ if(el){ el.style.height='auto'; el.style.height=el.scrollHeight+'px' } }}
-                              style={{ ...inputStyle, width:'100%', boxSizing:'border-box', padding:'7px 8px', fontSize:12, resize:'none', overflow:'hidden', lineHeight:1.4 }}/>
-                          </div>
+                          {descCell(it, idx, { fs: 12 })}
                           <select value={it.unit} onChange={e=>updateItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 3px', fontSize:10.5 }}>
                             {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
                           </select>
