@@ -448,7 +448,7 @@ export default function Ledger() {
   const subBg = isDark ? 'rgba(255,255,255,0.04)' : '#f8fafc', inputBg = isDark ? '#0f172a' : '#fff', pillBg = isDark ? 'rgba(255,255,255,0.05)' : '#fff'
   const inputStyle = { padding: '9px 11px', border: `1px solid ${border}`, borderRadius: 8, fontSize: 13, background: inputBg, color: text, outline: 'none', width: '100%', boxSizing: 'border-box' }
   const card = { background: cardBg, border: `1px solid ${border}`, borderRadius: 12, padding: '14px 16px' }
-  const GREEN = '#0f6e56', RED = '#dc2626', AMBER = '#f59e0b'
+  const GREEN = '#0f6e56', AMBER = '#f59e0b', RED = AMBER // expenses use amber, no red anywhere on the page
 
   if (loading) return (
     <div style={{ textAlign: 'center', padding: 50 }}>
@@ -592,28 +592,21 @@ export default function Ledger() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><i className="ti ti-chart-bar" style={{ fontSize: 16, color: '#0099cc' }} /><span style={{ fontSize: 13.5, fontWeight: 700, color: text }}>Cash flow · last 6 months</span></div>
             <div style={{ display: 'flex', gap: 10, fontSize: 10.5 }}><span style={{ color: GREEN }}>● In</span><span style={{ color: AMBER }}>● Out</span></div>
           </div>
-          {hasFlow ? (
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 6, borderBottom: `1px solid ${border}`, paddingBottom: 0 }}>
             {monthSeries.map(m => (
               <div key={m.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 100, width: '100%', justifyContent: 'center' }} title={`${m.label} · In ${fmt(m.inc)} · Out ${fmt(m.exp)}`}>
-                  <div style={{ width: '42%', maxWidth: 16, height: `${m.inc > 0 ? Math.max(3, (m.inc / maxBar) * 100) : 0}%`, background: GREEN, borderRadius: '3px 3px 0 0' }} />
-                  <div style={{ width: '42%', maxWidth: 16, height: `${m.exp > 0 ? Math.max(3, (m.exp / maxBar) * 100) : 0}%`, background: AMBER, borderRadius: '3px 3px 0 0' }} />
+                  <div style={{ width: '42%', maxWidth: 16, height: `${m.inc > 0 ? Math.max(4, (m.inc / maxBar) * 100) : 0}%`, background: GREEN, borderRadius: '3px 3px 0 0' }} />
+                  <div style={{ width: '42%', maxWidth: 16, height: `${m.exp > 0 ? Math.max(4, (m.exp / maxBar) * 100) : 0}%`, background: AMBER, borderRadius: '3px 3px 0 0' }} />
                 </div>
                 <span style={{ fontSize: 10, color: textMuted }}>{m.label}</span>
               </div>
             ))}
           </div>
-          ) : (
-            <div style={{ height: 125, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 6 }}>
-              <i className="ti ti-chart-bar-off" style={{ fontSize: 26, color: textMuted }} />
-              <div style={{ fontSize: 12.5, color: textSub, fontWeight: 600 }}>No cash movement yet</div>
-              <div style={{ fontSize: 11, color: textMuted, lineHeight: 1.5, maxWidth: 240 }}>Income appears here when you record an invoice payment; expenses when you add them. The last 6 months will fill in automatically.</div>
-            </div>
-          )}
+          {!hasFlow && <div style={{ fontSize: 10.5, color: textMuted, textAlign: 'center', marginTop: 9 }}>Bars fill in as you record invoice payments &amp; expenses.</div>}
         </div>
         <div style={card}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12 }}><i className="ti ti-chart-donut" style={{ fontSize: 16, color: '#dc2626' }} /><span style={{ fontSize: 13.5, fontWeight: 700, color: text }}>Top expenses · {periodLabel}</span></div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12 }}><i className="ti ti-chart-donut" style={{ fontSize: 16, color: AMBER }} /><span style={{ fontSize: 13.5, fontWeight: 700, color: text }}>Top expenses · {periodLabel}</span></div>
           {expByCat.length === 0 ? (
             <div style={{ fontSize: 12, color: textMuted, padding: '24px 0', textAlign: 'center' }}>No expenses in this period.</div>
           ) : (
@@ -625,7 +618,7 @@ export default function Ledger() {
                     <span style={{ color: textSub, flexShrink: 0, marginLeft: 8 }}>{fmt(c.amt)} · {Math.round(c.amt / expense * 100) || 0}%</span>
                   </div>
                   <div style={{ height: 7, background: subBg, borderRadius: 99, overflow: 'hidden' }}>
-                    <div style={{ width: `${(c.amt / expCatMax) * 100}%`, height: '100%', background: 'linear-gradient(90deg,#f87171,#dc2626)', borderRadius: 99 }} />
+                    <div style={{ width: `${(c.amt / expCatMax) * 100}%`, height: '100%', background: 'linear-gradient(90deg,#fbbf24,#f59e0b)', borderRadius: 99 }} />
                   </div>
                 </div>
               ))}
@@ -666,7 +659,7 @@ export default function Ledger() {
             <div style={{ fontSize: 11, color: textMuted }}>Input VAT <span style={{ fontSize: 9.5 }}>(on purchases)</span></div>
             <div style={{ fontSize: 17, fontWeight: 700, color: text, marginTop: 3 }}>{fmt(inputVat)}</div>
           </div>
-          <div style={{ background: netVat >= 0 ? (isDark ? 'rgba(220,38,38,0.12)' : '#fef2f2') : (isDark ? 'rgba(15,110,86,0.14)' : '#ecfdf5'), borderRadius: 10, padding: '10px 12px' }}>
+          <div style={{ background: netVat >= 0 ? (isDark ? 'rgba(245,158,11,0.14)' : '#fff7ed') : (isDark ? 'rgba(15,110,86,0.14)' : '#ecfdf5'), borderRadius: 10, padding: '10px 12px' }}>
             <div style={{ fontSize: 11, color: textMuted }}>{netVat >= 0 ? 'Net VAT payable' : 'VAT reclaimable'}</div>
             <div style={{ fontSize: 17, fontWeight: 800, color: netVat >= 0 ? RED : GREEN, marginTop: 3 }}>{fmt(Math.abs(netVat))}</div>
           </div>
@@ -743,7 +736,7 @@ export default function Ledger() {
             return (
               <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderTop: i > 0 ? `1px solid ${border}` : 'none', transition: 'background .12s' }}
                 onMouseEnter={e => e.currentTarget.style.background = subBg} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                <div style={{ width: 34, height: 34, borderRadius: 8, background: isTransfer ? (isDark ? '#0099cc22' : '#e0f9ff') : (inc ? (isDark ? '#0f6e5622' : '#e1f5ee') : (isDark ? '#dc262622' : '#fef2f2')), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <div style={{ width: 34, height: 34, borderRadius: 8, background: isTransfer ? (isDark ? '#0099cc22' : '#e0f9ff') : (inc ? (isDark ? '#0f6e5622' : '#e1f5ee') : (isDark ? '#f59e0b22' : '#fff7ed')), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <i className={`ti ${isTransfer ? 'ti-arrows-exchange' : (inc ? 'ti-arrow-down-left' : 'ti-arrow-up-right')}`} style={{ fontSize: 16, color: isTransfer ? '#0099cc' : (inc ? GREEN : RED) }} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -783,7 +776,7 @@ export default function Ledger() {
               {/* type toggle */}
               <div style={{ display: 'inline-flex', background: pillBg, border: `1px solid ${border}`, borderRadius: 9, padding: 3 }}>
                 {[['income', 'Income', GREEN], ['expense', 'Expense', RED]].map(([v, l, c]) => (
-                  <button key={v} onClick={() => setForm(f => ({ ...f, kind: v, category: v === 'income' ? INCOME_CATS[0] : EXPENSE_CATS[0], amountType: v === 'expense' ? 'gross' : 'net' }))} style={{ flex: 1, fontSize: 13, fontWeight: form.kind === v ? 700 : 400, padding: '7px 0', borderRadius: 7, border: 'none', cursor: 'pointer', background: form.kind === v ? (v === 'income' ? (isDark ? '#0f6e5622' : '#e1f5ee') : (isDark ? '#dc262622' : '#fef2f2')) : 'transparent', color: form.kind === v ? c : textSub }}>{l}</button>
+                  <button key={v} onClick={() => setForm(f => ({ ...f, kind: v, category: v === 'income' ? INCOME_CATS[0] : EXPENSE_CATS[0], amountType: v === 'expense' ? 'gross' : 'net' }))} style={{ flex: 1, fontSize: 13, fontWeight: form.kind === v ? 700 : 400, padding: '7px 0', borderRadius: 7, border: 'none', cursor: 'pointer', background: form.kind === v ? (v === 'income' ? (isDark ? '#0f6e5622' : '#e1f5ee') : (isDark ? '#f59e0b22' : '#fff7ed')) : 'transparent', color: form.kind === v ? c : textSub }}>{l}</button>
                 ))}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
