@@ -305,14 +305,11 @@ export default function DashboardPage({ onNavigate, theme }) {
 
   /* ---------------- mobile render (tile launcher preserved) ---------------- */
   if (mobile) {
-    const MC = { card:'#141921', border:'rgba(255,255,255,0.07)', text:'#f1f5f9', text2:'#9ca3af', text3:'#6b7280', row:'rgba(255,255,255,0.03)', green:'#22c55e', cyan:'#06b6d4', gold:'#f59e0b', shadow:'0 4px 24px rgba(0,0,0,0.3)' }
+    // Theme-aware (follows the 555 shell light/dark) — greeting now lives in the global hero.
+    const MC = { card:'var(--card)', border:'var(--border)', text:'var(--text)', text2:'var(--text2)', text3:'var(--text3)', row:'var(--bg2)', green:'#22c55e', cyan:'#06b6d4', gold:'#f59e0b', shadow:'var(--shadow)' }
     return (
       <div style={{ color:MC.text }}>
         <MeetingBanner onNavigate={onNavigate} />
-        <div style={{ marginBottom:16 }}>
-          <h1 style={{ fontSize:20, fontWeight:800, margin:0 }}>{greeting()}, {firstName}! 👋</h1>
-          <p style={{ fontSize:13, color:MC.text2, marginTop:4 }}>Your Business Operating System.</p>
-        </div>
         <div style={{ display:'flex', gap:8, marginBottom:16 }}>
           {[['Trust', d.trust, MC.green],['Leads', d.leads, MC.cyan],['Reviews', d.reviews, MC.gold]].map(([l,v,c]) => (
             <div key={l} style={{ flex:1, background:MC.card, border:`1px solid ${MC.border}`, borderRadius:14, padding:'11px 6px', textAlign:'center', boxShadow:MC.shadow }}>
