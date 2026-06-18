@@ -782,33 +782,37 @@ const QC_CSS = `
 @keyframes qcload{ 0%{ background-position:-50% 0; } 100%{ background-position:150% 0; } }
 @keyframes qcdash{ to{ stroke-dashoffset:-16; } }
 
+/* ===== Laptop (1024–1240): single-column core + bottom, KPIs/metrics 3-col ===== */
 @media (max-width:1240px){
   .qc-kpis{ grid-template-columns:repeat(3,1fr); }
   .qc-core-band{ grid-template-columns:1fr; }
   .qc-metrics{ grid-template-columns:repeat(3,1fr); }
   .qc-bottom{ grid-template-columns:1fr; }
 }
+
+/* ===== iPad / tablet portrait (≤1024): intentional, aligned cockpit =====
+   - KPIs stay 3-col (5 tiles → a tidy 3 + 2)
+   - AI Core: sphere on top, 6 engine cards in a clean 2×3 grid
+   - Intelligence cards 2-col (they're dense), Recent Activity spans full width
+   - AI assistant, workflow & priorities are already stacked from the rule above */
 @media (max-width:1024px){
-  /* radial hub → sphere on top, engine cards in a clean 2-column grid */
-  .qc-core-sec{ height:auto; display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:10px; padding:10px 0; }
+  .qc-kpis{ grid-template-columns:repeat(3,1fr); gap:12px; }
+
+  .qc-core-sec{ height:auto; display:flex; flex-wrap:wrap; align-items:stretch; justify-content:center; gap:10px; padding:8px 0 4px; }
   .qc-neural{ display:none; }
   .qc-ring{ display:none; }
-  .qc-core{ position:static; flex-basis:100%; margin:4px auto 12px; }
+  .qc-core{ position:static; flex-basis:100%; margin:2px auto 14px; }
   .qc-node-card{ position:static; flex:1 1 calc(50% - 6px); width:auto; max-width:calc(50% - 6px); }
   .qc-node-card.right{ flex-direction:row; text-align:left; }
   .qc-node-card.right .qc-eng-online{ justify-content:flex-start; }
+
+  .qc-metrics{ grid-template-columns:repeat(2,1fr); }   /* 5 cards + Activity = a tidy 3×2 */
 }
-@media (max-width:560px){
-  /* phones won't reach the cockpit (launcher shows < 768), but keep nodes 1-col as a safety */
-  .qc-node-card{ flex-basis:100%; max-width:100%; }
-}
-@media (max-width:900px){
-  /* iPad portrait & small tablets — clean 2-column, stacked core */
-  .qc-kpis{ grid-template-columns:repeat(2,1fr); }
-  .qc-metrics{ grid-template-columns:repeat(2,1fr); }
-}
-@media (max-width:560px){
+
+/* ===== Narrow tablets / large phones (≤700): 2-col KPIs, single-column cards ===== */
+@media (max-width:700px){
   .qc-kpis{ grid-template-columns:repeat(2,1fr); }
   .qc-metrics{ grid-template-columns:1fr; }
+  .qc-node-card{ flex-basis:100%; max-width:100%; }
 }
 `
