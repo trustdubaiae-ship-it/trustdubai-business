@@ -801,8 +801,13 @@ const QC_CSS = `
   .qc-node-card.right{ flex-direction:row; text-align:left; }
   .qc-node-card.right .qc-eng-online{ justify-content:flex-start; }
 }
-@media (max-width:820px){
+@media (max-width:900px){
+  /* iPad portrait & small tablets — clean 2-column, stacked core */
   .qc-kpis{ grid-template-columns:repeat(2,1fr); }
   .qc-metrics{ grid-template-columns:repeat(2,1fr); }
+}
+@media (max-width:560px){
+  .qc-kpis{ grid-template-columns:repeat(2,1fr); }
+  .qc-metrics{ grid-template-columns:1fr; }
 }
 `
