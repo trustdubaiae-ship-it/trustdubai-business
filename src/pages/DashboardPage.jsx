@@ -439,18 +439,18 @@ export default function DashboardPage({ onNavigate, theme }) {
 
   return (
     <div className="qc-fit" ref={fitWrapRef}>
-    <div className="qc-fit-inner" ref={fitInnerRef} style={{ transform:`scale(${fitScale})` }}>
-    <div ref={cockpitRef} className={`qc-root${isDark?' qc-dark':' qc-light'}`} style={{ position:'relative', overflow:'hidden',
+    <div className="qc-fit-inner" ref={fitInnerRef}>
+    <div ref={cockpitRef} className={`qc-root${isDark?' qc-dark':' qc-light'}`} style={{ position:'relative', overflow:'hidden', height:'100%', display:'flex', flexDirection:'column',
       background:T.rootGrad, color:T.text,
       '--qc-text':T.text, '--qc-text2':T.text2, '--qc-glass-bg':T.glassBg, '--qc-glass-bd':T.glassBd,
       '--qc-card-bg':T.cardBg, '--qc-node-bg':T.nodeBg, '--qc-line':T.line, '--qc-hero-bg':T.heroBg }}>
       <style>{QC_CSS}</style>
       <Starfield containerRef={cockpitRef} />
 
-      <div style={{ position:'relative', zIndex:2, padding:'0 0 36px' }}>
+      <div style={{ position:'relative', zIndex:2, flex:1, minHeight:0, display:'flex', flexDirection:'column', padding:'0 0 8px' }}>
 
         {/* ============ KPI BAND ============ */}
-        <div style={{ padding:'12px clamp(16px,2.4vw,28px) 0' }}>
+        <div style={{ flexShrink:0, padding:'10px clamp(16px,2.4vw,28px) 0' }}>
           <MeetingBanner onNavigate={onNavigate} />
 
           {/* KPI TILES */}
@@ -467,7 +467,7 @@ export default function DashboardPage({ onNavigate, theme }) {
           </div>
         </div>
 
-        <div style={{ padding:'0 clamp(16px,2.4vw,28px)' }}>
+        <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateRows:'auto 1fr auto', gap:14, padding:'4px clamp(16px,2.4vw,28px) 0' }}>
           {/* ============ AI CORE BAND ============ */}
           <div className="qc-sec-head">
             <h2>AI Core</h2>
@@ -478,7 +478,7 @@ export default function DashboardPage({ onNavigate, theme }) {
             <button className="qc-refresh" onClick={fetchAll} title="Refresh"><i className="ti ti-refresh"/></button>
           </div>
 
-          <div className="qc-core-band">
+          <div className="qc-stage">
             <div className="qc-glass qc-core-card">
               {loading && <div className="qc-loadbar"/>}
               <div className="qc-core-sec">
@@ -518,102 +518,55 @@ export default function DashboardPage({ onNavigate, theme }) {
               <div className="qc-flow-cap">One platform · one workflow · one source of truth</div>
             </div>
 
-            {/* AI ASSISTANT */}
-            <div className="qc-glass qc-ai">
-              <div className="qc-ai-head">
-                <span style={{ fontWeight:800, fontSize:14, letterSpacing:.3 }}>AI ASSISTANT</span>
-                <span className="qc-beta">BETA</span>
-              </div>
-              <div className="qc-ai-orb"><i className="ti ti-robot"/></div>
-              <div style={{ textAlign:'center', marginBottom:14 }}>
-                <div style={{ fontWeight:700, fontSize:14 }}>Hi {firstName}! 👋</div>
-                <div style={{ color:'#7e8aa8', fontSize:12.5, marginTop:2 }}>How can I help you today?</div>
-              </div>
-              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                {AI_QUESTIONS.map((q,i)=>(
-                  <div key={i} className="qc-ai-q" onClick={()=>go('aiassistant')}>
-                    <span style={{ flex:1 }}>{q}</span><i className="ti ti-arrow-right" style={{ color:'#7e8aa8' }}/>
-                  </div>
-                ))}
-              </div>
-              <button className="qc-ai-open" onClick={()=>go('aiassistant')}>Open Full AI Assistant <i className="ti ti-arrow-right"/></button>
-            </div>
-          </div>
-
-          {/* ============ INTELLIGENCE METRIC CARDS + ACTIVITY ============ */}
-          <div className="qc-metrics">
-            {METRICS.map((m,i)=>(
-              <div key={i} className="qc-metric" onClick={()=>go(m.page)} style={{ '--c':m.c }}>
-                <div className="qc-metric-top">
-                  <div className="qc-metric-ic"><i className={`ti ${m.icon}`}/></div>
-                  <div className="qc-metric-name">{m.name}</div>
+            {/* RIGHT RAIL — Ask AI + Today's Priorities */}
+            <div className="qc-rail">
+              <div className="qc-glass qc-ai">
+                <div className="qc-ai-head">
+                  <span className="qc-ai-orb-sm"><i className="ti ti-robot"/></span>
+                  <span style={{ fontWeight:800, fontSize:13.5, letterSpacing:.3 }}>Ask Quvera AI</span>
+                  <span className="qc-beta">BETA</span>
                 </div>
-                <div className="qc-metric-big">
-                  {m.bigRaw ? m.bigRaw : <><AnimatedNumber value={m.big}/>{m.bigSuffix||''}</>}
-                </div>
-                <div className="qc-metric-label">{m.label}</div>
-                <div className="qc-metric-rows">
-                  {m.rows.map((r,j)=>(
-                    <div key={j} className="qc-metric-row"><span>{r[0]}</span><b>{r[1]}</b></div>
+                <div className="qc-ai-qs">
+                  {AI_QUESTIONS.slice(0,3).map((q,i)=>(
+                    <div key={i} className="qc-ai-q" onClick={()=>go('aiassistant')}>
+                      <span style={{ flex:1 }}>{q}</span><i className="ti ti-arrow-right" style={{ color:'#7e8aa8' }}/>
+                    </div>
                   ))}
                 </div>
-                <div className="qc-metric-open">{m.open} <i className="ti ti-arrow-right"/></div>
+                <button className="qc-ai-open" onClick={()=>go('aiassistant')}>Open Full Assistant <i className="ti ti-arrow-right"/></button>
               </div>
-            ))}
 
-            <div className="qc-glass qc-act-panel">
-              <div className="qc-panel-h"><span>Recent Activity</span><span className="qc-live"><span className="qc-livedot"/>Live</span></div>
-              {activity.length===0 ? (
-                <div style={{ textAlign:'center', padding:'24px 0', color:'#7e8aa8', fontSize:12 }}>No recent activity</div>
-              ) : activity.map((a,i)=>(
-                <div key={i} className="qc-act">
-                  <span className="qc-act-dot" style={{ background:a.dot, boxShadow:`0 0 8px ${a.dot}` }}/>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:12, lineHeight:1.35 }}>{a.text}</div>
-                    <div style={{ fontSize:10, color:'#7e8aa8', marginTop:1 }}>{timeAgo(a.time)}</div>
-                  </div>
+              <div className="qc-glass qc-panel qc-prio-panel">
+                <div className="qc-panel-h"><span>Today's Priorities</span><span className="qc-live"><span className="qc-livedot"/>Live</span></div>
+                <div className="qc-prio-list">
+                  {priorities.length===0 ? (
+                    <div style={{ textAlign:'center', padding:'18px 0', color:'#7e8aa8', fontSize:12 }}>
+                      <i className="ti ti-circle-check" style={{ fontSize:24, color:'#22c55e', display:'block', marginBottom:6 }}/>All clear — nothing needs attention.
+                    </div>
+                  ) : priorities.map((p,i)=>(
+                    <div key={i} className="qc-prio" onClick={()=>go(p.page)}>
+                      <div className="qc-prio-ic" style={{ background:p.color+'1e', color:p.color }}><i className={`ti ${p.icon}`}/></div>
+                      <span style={{ flex:1, fontSize:12 }}>{p.text}</span>
+                      <i className="ti ti-chevron-right" style={{ color:'#7e8aa8', fontSize:14 }}/>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
             </div>
           </div>
 
-          {/* ============ WORKFLOW + PRIORITIES ============ */}
-          <div className="qc-bottom">
-            <div className="qc-glass qc-flow-card">
-              <div className="qc-flow-title">ONE PLATFORM. ONE WORKFLOW. ONE SOURCE OF TRUTH.</div>
-              <div className="qc-flow-track">
-                {FLOW.map((f,i)=>(
-                  <span key={i} style={{ display:'contents' }}>
-                    <div className="qc-step" onClick={()=>go(f.page)}>
-                      <span className="qc-step-b"><i className={`ti ${f.ic}`}/></span>
-                      <span className="qc-step-l">{f.label}</span>
-                    </div>
-                    {i<FLOW.length-1 && <span className="qc-arrowf"/>}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-              <div className="qc-glass qc-panel">
-                <div className="qc-panel-h"><span>Today's Priorities</span></div>
-                {priorities.length===0 ? (
-                  <div style={{ textAlign:'center', padding:'18px 0', color:'#7e8aa8', fontSize:12 }}>
-                    <i className="ti ti-circle-check" style={{ fontSize:24, color:'#22c55e', display:'block', marginBottom:6 }}/>All clear.
+          {/* ============ FOOTER — workflow rail ============ */}
+          <div className="qc-glass qc-flow-card">
+            <div className="qc-flow-track">
+              {FLOW.map((f,i)=>(
+                <span key={i} style={{ display:'contents' }}>
+                  <div className="qc-step" onClick={()=>go(f.page)}>
+                    <span className="qc-step-b"><i className={`ti ${f.ic}`}/></span>
+                    <span className="qc-step-l">{f.label}</span>
                   </div>
-                ) : priorities.map((p,i)=>(
-                  <div key={i} className="qc-prio" onClick={()=>go(p.page)}>
-                    <div className="qc-prio-ic" style={{ background:p.color+'1e', color:p.color }}><i className={`ti ${p.icon}`}/></div>
-                    <span style={{ flex:1, fontSize:12 }}>{p.text}</span>
-                  </div>
-                ))}
-                <button className="qc-ai-open" style={{ marginTop:10 }} onClick={()=>go('organizer')}>Open My Organizer <i className="ti ti-arrow-right"/></button>
-              </div>
-
-              <div className="qc-wordmark">
-                <div className="qc-grad" style={{ fontSize:22, fontWeight:800, letterSpacing:.5, lineHeight:1.1 }}>QUVERA<br/>BUSINESS OS</div>
-                <div style={{ color:'#7e8aa8', fontSize:11, marginTop:8, lineHeight:1.5 }}>Powered by AI. Built for Growth.<br/>Engineered for Trust.</div>
-              </div>
+                  {i<FLOW.length-1 && <span className="qc-arrowf"/>}
+                </span>
+              ))}
             </div>
           </div>
         </div>
@@ -702,15 +655,16 @@ const QC_CSS = `
 .qc-kpi-v{ font-size:23px; font-weight:800; margin-top:3px; font-variant-numeric:tabular-nums; line-height:1; color:var(--c); }
 
 /* ---- section head ---- */
-.qc-sec-head{ display:flex; align-items:center; gap:12px; margin:24px 0 14px; }
+.qc-sec-head{ display:flex; align-items:center; gap:12px; margin:0; min-height:0; }
 .qc-sec-head h2{ font-weight:800; font-size:18px; letter-spacing:-.3px; }
 .qc-line{ flex:1; height:1px; background:linear-gradient(90deg,rgba(255,255,255,0.12),transparent); }
 
-/* ---- core band ---- */
-.qc-core-band{ display:grid; grid-template-columns:1.85fr 1fr; gap:16px; }
-.qc-core-card{ border-radius:22px; padding:16px; position:relative; overflow:hidden; }
+/* ---- stage: AI Core hub (hero) + right rail ---- */
+.qc-stage{ display:grid; grid-template-columns:1.9fr 1fr; gap:16px; min-height:0; }
+.qc-rail{ display:flex; flex-direction:column; gap:14px; min-height:0; }
+.qc-core-card{ border-radius:22px; padding:14px; position:relative; overflow:hidden; height:100%; min-height:0; }
 .qc-loadbar{ position:absolute; top:0; left:0; right:0; height:2px; background:linear-gradient(90deg,transparent,#00D4FF,transparent); background-size:50% 100%; animation:qcload 1.1s linear infinite; z-index:6; }
-.qc-core-sec{ position:relative; width:100%; height:440px; }
+.qc-core-sec{ position:relative; width:100%; height:100%; min-height:0; }
 .qc-neural{ position:absolute; inset:0; width:100%; height:100%; z-index:0; opacity:.9; }
 .qc-flowline{ stroke-dasharray:6 10; animation:qcdash 1s linear infinite; opacity:.75; stroke-width:1.9; }
 .qc-flowdot{ filter:drop-shadow(0 0 4px currentColor); }
@@ -747,20 +701,23 @@ const QC_CSS = `
 .qc-light .qc-skyline{ opacity:.32; mix-blend-mode:multiply; }
 .qc-light .qc-flow-cap, .qc-light .qc-metric-label{ color:#5a6b8a; }
 
-/* ---- AI assistant ---- */
-.qc-ai{ border-radius:20px; padding:18px; border-color:rgba(0,212,255,0.20); display:flex; flex-direction:column; }
-.qc-ai-head{ display:flex; align-items:center; gap:9px; margin-bottom:14px; }
-.qc-beta{ font-size:8.5px; font-weight:800; letter-spacing:1px; color:#00FFCC; border:1px solid rgba(0,255,204,0.4); background:rgba(0,255,204,0.08); padding:2px 6px; border-radius:6px; }
-.qc-ai-orb{ width:54px; height:54px; border-radius:50%; margin:0 auto 12px; display:flex; align-items:center; justify-content:center; font-size:26px; color:#cdebff;
-  background:radial-gradient(circle at 50% 38%, rgba(0,212,255,0.5), rgba(139,92,246,0.25) 65%, transparent);
-  box-shadow:0 0 30px rgba(0,212,255,0.55); animation:qcfloat 5s ease-in-out infinite; }
-.qc-ai-q{ display:flex; align-items:center; gap:8px; font-size:12px; color:var(--qc-text); border:1px solid var(--qc-glass-bd); background:var(--qc-glass-bg); padding:10px 12px; border-radius:11px; cursor:pointer; transition:all .15s; }
+/* ---- AI assistant (right rail, top) ---- */
+.qc-ai{ border-radius:18px; padding:16px; border-color:color-mix(in srgb,#00D4FF 22%, var(--qc-glass-bd)); display:flex; flex-direction:column; flex:0 0 auto; }
+.qc-ai-head{ display:flex; align-items:center; gap:9px; margin-bottom:12px; }
+.qc-ai-orb-sm{ width:30px; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:16px; color:#cdebff; flex-shrink:0;
+  background:radial-gradient(circle at 50% 38%, rgba(0,212,255,0.5), rgba(139,92,246,0.25) 65%, transparent); box-shadow:0 0 16px -2px rgba(0,212,255,0.5); }
+.qc-beta{ font-size:8.5px; font-weight:800; letter-spacing:1px; color:#00FFCC; border:1px solid rgba(0,255,204,0.4); background:rgba(0,255,204,0.08); padding:2px 6px; border-radius:6px; margin-left:auto; }
+.qc-ai-qs{ display:flex; flex-direction:column; gap:8px; }
+.qc-ai-q{ display:flex; align-items:center; gap:8px; font-size:12px; color:var(--qc-text); border:1px solid var(--qc-glass-bd); background:var(--qc-glass-bg); padding:9px 12px; border-radius:11px; cursor:pointer; transition:all .15s; }
 .qc-ai-q:hover{ border-color:rgba(0,212,255,0.5); background:rgba(0,212,255,0.06); }
-.qc-ai-open{ margin-top:14px; width:100%; padding:10px; border-radius:11px; border:1px solid rgba(0,212,255,0.3); background:rgba(0,212,255,0.08); color:#00D4FF; font-weight:700; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:7px; transition:all .15s; }
+.qc-ai-open{ margin-top:12px; width:100%; padding:9px; border-radius:11px; border:1px solid rgba(0,212,255,0.3); background:rgba(0,212,255,0.08); color:#00D4FF; font-weight:700; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:7px; transition:all .15s; }
 .qc-ai-open:hover{ background:rgba(0,212,255,0.16); }
+/* priorities panel fills the rest of the rail */
+.qc-prio-panel{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
+.qc-prio-list{ flex:1; min-height:0; overflow:hidden; }
 
 /* ---- metric cards ---- */
-.qc-metrics{ display:grid; grid-template-columns:repeat(5,1fr) 0.95fr; gap:14px; margin-top:22px; }
+.qc-metrics{ display:grid; grid-template-columns:repeat(5,1fr) 0.95fr; gap:12px; margin-top:0; min-height:0; }
 .qc-metric{ position:relative; border:1px solid var(--qc-glass-bd); border-radius:18px; padding:16px; cursor:pointer; overflow:hidden;
   background:var(--qc-card-bg); backdrop-filter:blur(12px); transition:transform .2s, border-color .2s, box-shadow .2s; }
 .qc-metric::before{ content:''; position:absolute; inset:0; opacity:0; transition:opacity .2s; pointer-events:none; background:radial-gradient(120% 80% at 100% 0%, var(--c), transparent 50%); }
@@ -786,16 +743,15 @@ const QC_CSS = `
 .qc-act-dot{ width:8px; height:8px; border-radius:50%; flex-shrink:0; margin-top:4px; }
 
 /* ---- bottom: workflow + priorities ---- */
-.qc-bottom{ display:grid; grid-template-columns:1.85fr 1fr; gap:16px; margin-top:18px; }
-.qc-flow-card{ border-radius:20px; padding:22px; display:flex; flex-direction:column; justify-content:center; }
-.qc-flow-title{ text-align:center; font-weight:800; font-size:15px; letter-spacing:1px; margin-bottom:22px; color:var(--qc-text); }
-.qc-flow-track{ display:flex; align-items:center; justify-content:center; gap:4px; flex-wrap:wrap; }
-.qc-step{ display:flex; flex-direction:column; align-items:center; gap:8px; font-size:10.5px; font-weight:700; letter-spacing:.5px; cursor:pointer; transition:color .15s; color:var(--qc-text2); }
+.qc-bottom{ display:grid; grid-template-columns:1.85fr 1fr; gap:16px; margin-top:0; min-height:0; }
+.qc-flow-card{ border-radius:16px; padding:11px 18px; display:flex; align-items:center; justify-content:center; }
+.qc-flow-track{ display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap; }
+.qc-step{ display:flex; align-items:center; gap:8px; font-size:11px; font-weight:700; letter-spacing:.5px; cursor:pointer; transition:color .15s; color:var(--qc-text2); }
 .qc-step:hover{ color:#00D4FF; }
-.qc-step-b{ width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:19px;
-  background:radial-gradient(circle at 50% 40%, rgba(0,212,255,0.22), rgba(139,92,246,0.12)); color:#00D4FF; border:1px solid rgba(0,212,255,0.35); box-shadow:0 0 18px -4px rgba(0,212,255,0.5); transition:transform .15s; }
-.qc-step:hover .qc-step-b{ transform:translateY(-3px); }
-.qc-arrowf{ width:26px; height:2px; align-self:flex-start; margin-top:21px; background:linear-gradient(90deg,#00D4FF,#8B5CF6); border-radius:2px; opacity:.6; }
+.qc-step-b{ width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:16px;
+  background:radial-gradient(circle at 50% 40%, rgba(0,212,255,0.22), rgba(139,92,246,0.12)); color:#00D4FF; border:1px solid rgba(0,212,255,0.35); box-shadow:0 0 16px -4px rgba(0,212,255,0.5); transition:transform .15s; }
+.qc-step:hover .qc-step-b{ transform:translateY(-2px); }
+.qc-arrowf{ width:22px; height:2px; align-self:center; margin:0; background:linear-gradient(90deg,#00D4FF,#8B5CF6); border-radius:2px; opacity:.6; }
 
 .qc-prio{ display:flex; align-items:center; gap:11px; padding:8px 0; border-bottom:1px solid var(--qc-line); cursor:pointer; transition:padding-left .15s; }
 .qc-prio:last-child{ border-bottom:none; }
@@ -810,15 +766,12 @@ const QC_CSS = `
 @keyframes qcload{ 0%{ background-position:-50% 0; } 100%{ background-position:150% 0; } }
 @keyframes qcdash{ to{ stroke-dashoffset:-16; } }
 
-/* ===== Laptop (1024–1240): single-column core + bottom; KPIs stay 5-up ===== */
+/* ===== Laptop (≤1240): tighten the stage split ===== */
 @media (max-width:1240px){
-  .qc-core-band{ grid-template-columns:1fr; }
-  .qc-metrics{ grid-template-columns:repeat(3,1fr); }
-  .qc-bottom{ grid-template-columns:1fr; }
+  .qc-stage{ grid-template-columns:1.7fr 1fr; }
 }
 
-/* ===== iPad / tablet portrait (≤1024): KEEP the PC radial AI Core.
-   KPIs stay 5 in one row (compact vertical tiles so they fit). ===== */
+/* ===== iPad / tablet (≤1024): compact KPI tiles, keep the radial hub ===== */
 @media (max-width:1024px){
   .qc-kpis{ grid-template-columns:repeat(5,1fr); gap:8px; }
   .qc-kpi{ flex-direction:column; align-items:flex-start; gap:7px; padding:12px 11px; }
@@ -826,18 +779,19 @@ const QC_CSS = `
   .qc-kpi-ic i{ font-size:18px; }
   .qc-kpi-k{ font-size:9px; letter-spacing:.5px; white-space:normal; line-height:1.25; }
   .qc-kpi-v{ font-size:19px; }
-  /* keep the radial hub fitting on tablet width */
-  .qc-core-sec{ height:400px; }
-  .qc-node-card{ width:clamp(158px,21vw,206px); }
-  .qc-metrics{ grid-template-columns:repeat(2,1fr); }
+  .qc-node-card{ width:clamp(150px,20vw,196px); }
 }
 
-/* ===== Safety net only — the cockpit isn't shown below 768 (tile launcher takes over).
-   If it ever renders narrow, stack the hub and drop to 2/1 columns. ===== */
+/* ===== Small tablet (≤900): stack the hub above the rail ===== */
+@media (max-width:900px){
+  .qc-stage{ grid-template-columns:1fr; }
+  .qc-core-sec{ min-height:320px; }
+}
+
+/* ===== Safety net (≤680): stack the radial into a list ===== */
 @media (max-width:680px){
   .qc-kpis{ grid-template-columns:repeat(2,1fr); }
-  .qc-metrics{ grid-template-columns:1fr; }
-  .qc-core-sec{ height:auto; display:flex; flex-direction:column; align-items:center; gap:10px; padding:8px 0; }
+  .qc-core-sec{ height:auto; min-height:0; display:flex; flex-direction:column; align-items:center; gap:10px; padding:8px 0; }
   .qc-neural{ display:none; } .qc-ring{ display:none; }
   .qc-core{ position:static; align-self:center; }
   .qc-node-card{ position:static; width:100%; max-width:100%; }
