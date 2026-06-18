@@ -288,8 +288,17 @@ export default function Ledger() {
   const pctChange = (cur, prev) => prev > 0 ? Math.round((cur - prev) / prev * 100) : (cur > 0 ? 100 : 0)
   const showTrend = period !== 'all'
 
-  // ---------- overall income vs expenses (for the selected period) ----------
-  const flowMax = Math.max(income, expense, 1)
+  // ---------- last-6-months cash-flow series ----------
+  const monthSeries = []
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const key = monthKey(d.toISOString())
+    let inc = 0, exp = 0
+    rows.forEach(r => { if (monthKey(r.date) === key) { if (r.kind === 'income') inc += r.total; else if (r.kind === 'expense') exp += r.total } })
+    monthSeries.push({ key, label: d.toLocaleDateString('en-GB', { month: 'short' }), inc, exp })
+  }
+  const maxBar = Math.max(1, ...monthSeries.flatMap(m => [m.inc, m.exp]))
+  const hasFlow = monthSeries.some(m => m.inc > 0 || m.exp > 0)
 
   // ---------- top expense categories for the period ----------
   const expCatMap = {}
@@ -439,7 +448,7 @@ export default function Ledger() {
   const subBg = isDark ? 'rgba(255,255,255,0.04)' : '#f8fafc', inputBg = isDark ? '#0f172a' : '#fff', pillBg = isDark ? 'rgba(255,255,255,0.05)' : '#fff'
   const inputStyle = { padding: '9px 11px', border: `1px solid ${border}`, borderRadius: 8, fontSize: 13, background: inputBg, color: text, outline: 'none', width: '100%', boxSizing: 'border-box' }
   const card = { background: cardBg, border: `1px solid ${border}`, borderRadius: 12, padding: '14px 16px' }
-  const GREEN = '#0f6e56', RED = '#dc2626'
+  const GREEN = '#0f6e56', RED = '#dc2626', AMBER = '#f59e0b'
 
   if (loading) return (
     <div style={{ textAlign: 'center', padding: 50 }}>
@@ -579,32 +588,27 @@ export default function Ledger() {
       {/* Charts: cash flow + top expense categories */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: 12, marginBottom: 14 }}>
         <div style={card}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><i className="ti ti-arrows-up-down" style={{ fontSize: 16, color: '#0099cc' }} /><span style={{ fontSize: 13.5, fontWeight: 700, color: text }}>Income vs Expenses · {periodLabel}</span></div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><i className="ti ti-chart-bar" style={{ fontSize: 16, color: '#0099cc' }} /><span style={{ fontSize: 13.5, fontWeight: 700, color: text }}>Cash flow · last 6 months</span></div>
+            <div style={{ display: 'flex', gap: 10, fontSize: 10.5 }}><span style={{ color: GREEN }}>● In</span><span style={{ color: AMBER }}>● Out</span></div>
           </div>
-          {(income > 0 || expense > 0) ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {[{ l: 'Income', v: income, c: GREEN, ic: 'ti-arrow-down-left' }, { l: 'Expenses', v: expense, c: RED, ic: 'ti-arrow-up-right' }].map(b => (
-                <div key={b.l}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                    <span style={{ fontSize: 12, color: textSub, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}><i className={'ti ' + b.ic} style={{ color: b.c, fontSize: 14 }} />{b.l}</span>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: b.c }}>{fmt(b.v)}</span>
-                  </div>
-                  <div style={{ height: 14, background: subBg, borderRadius: 99, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${b.v > 0 ? Math.max(4, (b.v / flowMax) * 100) : 0}%`, background: b.c, borderRadius: 99, transition: 'width .3s ease' }} />
-                  </div>
+          {hasFlow ? (
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 6, borderBottom: `1px solid ${border}`, paddingBottom: 0 }}>
+            {monthSeries.map(m => (
+              <div key={m.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 100, width: '100%', justifyContent: 'center' }} title={`${m.label} · In ${fmt(m.inc)} · Out ${fmt(m.exp)}`}>
+                  <div style={{ width: '42%', maxWidth: 16, height: `${m.inc > 0 ? Math.max(3, (m.inc / maxBar) * 100) : 0}%`, background: GREEN, borderRadius: '3px 3px 0 0' }} />
+                  <div style={{ width: '42%', maxWidth: 16, height: `${m.exp > 0 ? Math.max(3, (m.exp / maxBar) * 100) : 0}%`, background: AMBER, borderRadius: '3px 3px 0 0' }} />
                 </div>
-              ))}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: `1px solid ${border}`, paddingTop: 12, marginTop: 2 }}>
-                <span style={{ fontSize: 12.5, color: textSub, fontWeight: 600 }}>Net cash flow</span>
-                <span style={{ fontSize: 16, fontWeight: 800, color: netCash >= 0 ? GREEN : RED }}>{netCash >= 0 ? '+' : '−'}{fmt(Math.abs(netCash))}</span>
+                <span style={{ fontSize: 10, color: textMuted }}>{m.label}</span>
               </div>
-            </div>
+            ))}
+          </div>
           ) : (
-            <div style={{ height: 140, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 6 }}>
+            <div style={{ height: 125, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 6 }}>
               <i className="ti ti-chart-bar-off" style={{ fontSize: 26, color: textMuted }} />
-              <div style={{ fontSize: 12.5, color: textSub, fontWeight: 600 }}>No cash movement in {periodLabel.toLowerCase()}</div>
-              <div style={{ fontSize: 11, color: textMuted, lineHeight: 1.5, maxWidth: 240 }}>Income shows when you record an invoice payment; expenses when you add them. Switch the period to “All time” to see everything.</div>
+              <div style={{ fontSize: 12.5, color: textSub, fontWeight: 600 }}>No cash movement yet</div>
+              <div style={{ fontSize: 11, color: textMuted, lineHeight: 1.5, maxWidth: 240 }}>Income appears here when you record an invoice payment; expenses when you add them. The last 6 months will fill in automatically.</div>
             </div>
           )}
         </div>
