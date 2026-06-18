@@ -298,6 +298,7 @@ export default function Ledger() {
     monthSeries.push({ key, label: d.toLocaleDateString('en-GB', { month: 'short' }), inc, exp })
   }
   const maxBar = Math.max(1, ...monthSeries.flatMap(m => [m.inc, m.exp]))
+  const hasFlow = monthSeries.some(m => m.inc > 0 || m.exp > 0)
 
   // ---------- top expense categories for the period ----------
   const expCatMap = {}
@@ -591,17 +592,25 @@ export default function Ledger() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><i className="ti ti-chart-bar" style={{ fontSize: 16, color: '#0099cc' }} /><span style={{ fontSize: 13.5, fontWeight: 700, color: text }}>Cash flow · last 6 months</span></div>
             <div style={{ display: 'flex', gap: 10, fontSize: 10.5 }}><span style={{ color: GREEN }}>● In</span><span style={{ color: RED }}>● Out</span></div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 6 }}>
+          {hasFlow ? (
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 6, borderBottom: `1px solid ${border}`, paddingBottom: 0 }}>
             {monthSeries.map(m => (
               <div key={m.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 100, width: '100%', justifyContent: 'center' }} title={`${m.label} · In ${fmt(m.inc)} · Out ${fmt(m.exp)}`}>
-                  <div style={{ width: '42%', maxWidth: 16, height: `${Math.max(2, (m.inc / maxBar) * 100)}%`, background: GREEN, borderRadius: '3px 3px 0 0' }} />
-                  <div style={{ width: '42%', maxWidth: 16, height: `${Math.max(2, (m.exp / maxBar) * 100)}%`, background: RED, borderRadius: '3px 3px 0 0' }} />
+                  <div style={{ width: '42%', maxWidth: 16, height: `${m.inc > 0 ? Math.max(3, (m.inc / maxBar) * 100) : 0}%`, background: GREEN, borderRadius: '3px 3px 0 0' }} />
+                  <div style={{ width: '42%', maxWidth: 16, height: `${m.exp > 0 ? Math.max(3, (m.exp / maxBar) * 100) : 0}%`, background: RED, borderRadius: '3px 3px 0 0' }} />
                 </div>
                 <span style={{ fontSize: 10, color: textMuted }}>{m.label}</span>
               </div>
             ))}
           </div>
+          ) : (
+            <div style={{ height: 125, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 6 }}>
+              <i className="ti ti-chart-bar-off" style={{ fontSize: 26, color: textMuted }} />
+              <div style={{ fontSize: 12.5, color: textSub, fontWeight: 600 }}>No cash movement yet</div>
+              <div style={{ fontSize: 11, color: textMuted, lineHeight: 1.5, maxWidth: 240 }}>Income appears here when you record an invoice payment; expenses when you add them. The last 6 months will fill in automatically.</div>
+            </div>
+          )}
         </div>
         <div style={card}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12 }}><i className="ti ti-chart-donut" style={{ fontSize: 16, color: '#dc2626' }} /><span style={{ fontSize: 13.5, fontWeight: 700, color: text }}>Top expenses · {periodLabel}</span></div>
