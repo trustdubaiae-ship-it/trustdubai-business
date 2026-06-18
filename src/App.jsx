@@ -164,7 +164,7 @@ const VALID_PAGES = [
 ]
 
 // App Launcher (Menu) is the home/default page. Command Center stays one tap away.
-const DEFAULT_PAGE = 'menu'
+const DEFAULT_PAGE = 'dashboard'
 const isMobileView = () => typeof window !== 'undefined' && window.innerWidth < 768
 const getDefaultPage = () => DEFAULT_PAGE
 
@@ -264,8 +264,13 @@ function Portal() {
   if (loading) return (
     <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center', padding:20, gap:18,
       background:'radial-gradient(800px 420px at 50% 28%, rgba(0,212,255,0.13), transparent 60%), linear-gradient(135deg,#050816 0%,#0a1024 100%)' }}>
-      <div style={{ width:58, height:58, borderRadius:16, display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)', boxShadow:'0 0 44px rgba(0,212,255,0.35)' }}>
-        <img src="/quvera-icon.png" alt="Quvera" style={{ width:'68%', height:'68%', objectFit:'contain' }} />
+      <div style={{ position:'relative', width:110, height:110, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:2 }}>
+        {/* neon glow behind the logo (also gives the navy mark contrast on the dark splash) */}
+        <div style={{ position:'absolute', inset:'-26%', borderRadius:'50%',
+          background:'radial-gradient(circle, rgba(125,232,255,0.55), rgba(0,212,255,0.40) 42%, rgba(139,92,246,0.28) 62%, transparent 74%)',
+          filter:'blur(10px)', animation:'qglow 3s ease-in-out infinite' }} />
+        <img src="/quvera-icon.png" alt="Quvera" style={{ position:'relative', zIndex:1, width:'100%', height:'100%', objectFit:'contain',
+          filter:'drop-shadow(0 0 22px rgba(0,212,255,0.6)) drop-shadow(0 3px 8px rgba(0,0,0,0.45))' }} />
       </div>
       <div>
         <div style={{ fontFamily:"'Sora',sans-serif", fontWeight:800, fontSize:'clamp(26px,6vw,40px)', letterSpacing:'-.6px', lineHeight:1.05,
@@ -275,7 +280,7 @@ function Portal() {
       <div style={{ width:170, height:3, borderRadius:99, overflow:'hidden', background:'rgba(255,255,255,0.08)', marginTop:6 }}>
         <div style={{ width:'42%', height:'100%', borderRadius:99, background:'linear-gradient(90deg,#00D4FF,#8B5CF6)', animation:'qload 1.1s ease-in-out infinite' }}/>
       </div>
-      <style>{`@keyframes qload{0%{margin-left:-42%}100%{margin-left:100%}}`}</style>
+      <style>{`@keyframes qload{0%{margin-left:-42%}100%{margin-left:100%}} @keyframes qglow{0%,100%{opacity:.82;transform:scale(1)}50%{opacity:1;transform:scale(1.09)}}`}</style>
     </div>
   )
 
