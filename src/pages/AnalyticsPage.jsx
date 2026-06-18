@@ -3,6 +3,10 @@ import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 import { Eye, TrendingUp, Users, Star, Lock } from 'lucide-react'
 
+// Local YYYY-MM-DD key (NOT toISOString, which uses UTC and lands on the wrong
+// day in +ve timezones like Dubai UTC+4, mismatching the local-date labels)
+const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
 export default function AnalyticsPage() {
   const { company } = useAuth()
   const [loading, setLoading] = useState(true)
@@ -39,9 +43,9 @@ export default function AnalyticsPage() {
 
       setViewsLog(logs || [])
 
-      // Today views
-      const today = new Date().toISOString().split('T')[0]
-      const todayCount = (logs || []).filter(l => l.visited_at.startsWith(today)).length
+      // Today views (bucketed by the user's LOCAL day)
+      const today = ymd(new Date())
+      const todayCount = (logs || []).filter(l => ymd(new Date(l.visited_at)) === today).length
       setTodayViews(todayCount)
 
       // This week views
@@ -64,8 +68,8 @@ export default function AnalyticsPage() {
     for (let i = days - 1; i >= 0; i--) {
       const d = new Date()
       d.setDate(d.getDate() - i)
-      const dateStr = d.toISOString().split('T')[0]
-      const count = viewsLog.filter(l => l.visited_at.startsWith(dateStr)).length
+      const dateStr = ymd(d)
+      const count = viewsLog.filter(l => ymd(new Date(l.visited_at)) === dateStr).length
       result.push({
         date: dateStr,
         label: d.toLocaleDateString('en-AE', { day: 'numeric', month: 'short' }),
