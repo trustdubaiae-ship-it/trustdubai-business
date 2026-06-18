@@ -366,12 +366,12 @@ export default function DashboardPage({ onNavigate, theme }) {
 
   // Radial engine nodes around the AI Core (side + vertical % + matching SVG endpoint)
   const NODES = [
-    { name:'LEAD AI',    c:'#00D4FF', icon:'ti-users',        tag:'Detect. Score. Convert.',     page:'leadengine', side:'left',  y:6,  ly:70  },
-    { name:'REVENUE AI', c:'#8B5CF6', icon:'ti-file-invoice', tag:'Quote. Close. Grow.',         page:'quotations', side:'left',  y:39, ly:220 },
-    { name:'FINANCE AI', c:'#ffb020', icon:'ti-cash',         tag:'Monitor. Predict. Optimize.', page:'ledger',     side:'left',  y:72, ly:370 },
-    { name:'PROJECT AI', c:'#00FFCC', icon:'ti-stack-2',      tag:'Plan. Track. Deliver.',       page:'projects',   side:'right', y:6,  ly:70  },
-    { name:'CLIENT AI',  c:'#ec4899', icon:'ti-messages',     tag:'Engage. Delight. Retain.',    page:'inbox',      side:'right', y:39, ly:220 },
-    { name:'TRUST AI',   c:'#22c55e', icon:'ti-shield-check', tag:'Verify. Review. Build Trust.',page:'trust',      side:'right', y:72, ly:370 },
+    { name:'LEAD AI',    c:'#00D4FF', icon:'ti-users',         tag:'Capture. Score. Convert.',    page:'leads',      side:'left',  y:6,  ly:70  },
+    { name:'REVENUE AI', c:'#8B5CF6', icon:'ti-file-invoice',  tag:'Quote. Close. Grow.',         page:'quotations', side:'left',  y:39, ly:220 },
+    { name:'FINANCE AI', c:'#ffb020', icon:'ti-cash',          tag:'Monitor. Predict. Optimize.', page:'ledger',     side:'left',  y:72, ly:370 },
+    { name:'PROJECT AI', c:'#00FFCC', icon:'ti-stack-2',       tag:'Plan. Track. Deliver.',       page:'projects',   side:'right', y:6,  ly:70  },
+    { name:'GROWTH AI',  c:'#ec4899', icon:'ti-trending-up',   tag:'Track. Measure. Grow.',       page:'analytics',  side:'right', y:39, ly:220 },
+    { name:'PLANNER AI', c:'#22c55e', icon:'ti-calendar-event',tag:'Schedule. Remind. Follow up.',page:'meetings',   side:'right', y:72, ly:370 },
   ]
 
   const AI_QUESTIONS = [
