@@ -479,11 +479,6 @@ function Portal() {
                 {unreadCount > 0 && <span className="os-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>}
               </div>
 
-              <div className="os-plan" title={isTrial ? `Launch Plan · ${trialDaysLeft} ${trialDaysLeft===1?'day':'days'} of full access left` : undefined} style={{ color: isTrial ? 'var(--purple)' : planColors[planName] }}>
-                <i className={`ti ${isTrial?'ti-rocket': planName==='platinum'?'ti-diamond': planName==='gold'?'ti-star':'ti-building'}`} style={{ fontSize:10 }}/>
-                {isTrial ? 'Launch Plan' : planName.charAt(0).toUpperCase()+planName.slice(1)+' Plan'}
-              </div>
-
               <div style={{ position:'relative', flexShrink:0 }}>
                 <div className="os-avatar" onClick={() => setShowProfile(v => !v)} title={`${displayName} · ${displayEmail}`}>
                   {avatarLetter}
@@ -526,7 +521,15 @@ function Portal() {
             )}
             <div style={{ minWidth:0 }}>
               <div className="os-eyebrow">{heroEyebrow}</div>
-              <h1 className="os-title">{heroTitle}</h1>
+              <div className="os-title-row">
+                <h1 className="os-title">{heroTitle}</h1>
+                {activePage==='dashboard' && (
+                  <span className="os-hero-plan" onClick={() => navigate('plans')} title="Your plan" style={{ '--pc': isTrial ? '#8b5cf6' : planColors[planName] }}>
+                    <i className={`ti ${isTrial?'ti-rocket': planName==='platinum'?'ti-diamond': planName==='gold'?'ti-star':'ti-building'}`}/>
+                    {isTrial ? `Launch Plan · ${trialDaysLeft}d left` : planName.charAt(0).toUpperCase()+planName.slice(1)+' Plan'}
+                  </span>
+                )}
+              </div>
               {heroSub && <div className="os-sub">{!isConverted && <span className="os-live-dot"/>} {heroSub}</div>}
             </div>
             {/* pages teleport their primary action buttons here via <HeroActions> */}

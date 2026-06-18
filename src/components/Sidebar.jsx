@@ -180,23 +180,7 @@ export default function Sidebar({ activePage, onNavigate, limitedMode = false, l
         </div>
       </div>
 
-      {company && (
-        <div className="sidebar-company" onClick={() => onNavigate('profile')} title="Your business profile">
-          <div className="sidebar-company-avatar">
-            {company.logo_url ? <img src={company.logo_url} alt={company.name}/> : initials}
-          </div>
-          <div style={{ flex:1, minWidth:0 }}>
-            <div className="sidebar-company-name" style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-              {company.name}
-            </div>
-            <div className="sidebar-company-plan" style={{ color: isTrial ? '#8b5cf6' : (isExpired?'#ef4444':planColor) }}>
-              <i className={`ti ${isTrial ? 'ti-rocket' : (planIcons[planName]||'ti-building')}`} style={{ fontSize:9 }}/>
-              {isTrial ? 'Launch Plan' : (isExpired ? 'Expired' : planName.charAt(0).toUpperCase()+planName.slice(1)+' Plan')}
-            </div>
-          </div>
-          <i className="ti ti-chevron-right sidebar-company-go"/>
-        </div>
-      )}
+      {/* Company name + plan now live in the hero (avoids duplication). */}
 
       {/* Launch Plan countdown banner — visible only while the trial is active */}
       {isTrial && (
