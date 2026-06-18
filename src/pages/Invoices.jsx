@@ -5,9 +5,11 @@ import { useToast } from '../lib/toast'
 import HeroActions from '../components/HeroActions'
 
 const STATUS_STYLE = {
-  unpaid:  { label: 'Unpaid',  color: '#b91c1c', bg: '#fee2e2' },
-  partial: { label: 'Partial', color: '#92400e', bg: '#fef9ed' },
-  paid:    { label: 'Paid',    color: '#0f6e56', bg: '#e1f5ee' },
+  unpaid:    { label: 'Unpaid',    color: '#b91c1c', bg: '#fee2e2' },
+  partial:   { label: 'Partial',   color: '#92400e', bg: '#fef9ed' },
+  paid:      { label: 'Paid',      color: '#0f6e56', bg: '#e1f5ee' },
+  hold:      { label: 'On hold',   color: '#7c5c00', bg: '#fef3c7' },
+  cancelled: { label: 'Cancelled', color: '#6b7280', bg: '#f1f3f5' },
 }
 const PAY_METHODS = ['Cash', 'Bank Transfer', 'Card', 'Cheque', 'Online']
 const todayStr = () => new Date().toISOString().slice(0, 10)
@@ -153,8 +155,36 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
     const newP = parsePayments(active.payments).filter((_, i) => i !== idx)
     await savePayments(active, newP)
   }
+  // Lifecycle: cancel / hold an unpaid invoice instead of deleting it, so the
+  // numbering & history stay intact and the ledger isn't corrupted. Reactivate
+  // / resume puts it back to 'unpaid'. Cancel & Hold are blocked once any money
+  // is recorded (a paid/partial invoice must be handled via refund, not cancel).
+  async function setLifecycle(inv, newStatus) {
+    const paid = parsePayments(inv.payments).reduce((s, p) => s + (Number(p.amount) || 0), 0)
+    if ((newStatus === 'cancelled' || newStatus === 'hold') && paid > 0) {
+      toast.error('This invoice has payments recorded — remove them first to cancel/hold.')
+      return
+    }
+    let reason = ''
+    if (newStatus === 'cancelled') {
+      reason = (window.prompt('Reason for cancelling this invoice? (optional — kept for your records)') || '').trim()
+      if (!window.confirm('Cancel this invoice? The record is kept but it is excluded from ledger, VAT and outstanding.')) return
+    }
+    const full = { status: newStatus, status_changed_at: new Date().toISOString(), cancel_reason: newStatus === 'cancelled' ? (reason || null) : null }
+    let { data, error } = await supabase.from('invoices').update(full).eq('id', inv.id).eq('company_id', company.id).select()
+    if (error) { // audit columns may not exist yet — fall back to status only
+      ;({ data, error } = await supabase.from('invoices').update({ status: newStatus }).eq('id', inv.id).eq('company_id', company.id).select())
+    }
+    if (error) { toast.error('Update failed: ' + error.message); return }
+    if (!data || data.length === 0) { toast.error('Could not update — not allowed for this invoice (RLS?)'); return }
+    const updated = { ...inv, ...data[0] }
+    if (active?.id === inv.id) setActive(updated)
+    setInvoices(prev => prev.map(i => i.id === updated.id ? updated : i))
+    const msg = { cancelled: 'Invoice cancelled', hold: 'Invoice put on hold', unpaid: 'Invoice reactivated' }[newStatus] || 'Updated'
+    toast.success(msg)
+  }
   async function deleteInvoice(inv) {
-    if (!window.confirm('Delete this invoice? This cannot be undone.')) return
+    if (!window.confirm('Permanently delete this invoice? This breaks numbering & history — prefer Cancel. This cannot be undone.')) return
     const { error } = await supabase.from('invoices').delete().eq('id', inv.id).eq('company_id', company.id)
     if (error) { toast.error('Delete failed'); return }
     toast.success('Invoice deleted')
@@ -467,21 +497,41 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
           <button onClick={() => printInvoice(inv)} style={{ flex: 1, minWidth: 110, padding: '10px', borderRadius: 9, border: `1px solid ${border}`, background: cardBg, color: text, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}><i className="ti ti-printer" style={{ verticalAlign: '-2px', marginRight: 4 }} />Print / PDF</button>
           <button onClick={() => whatsappInvoice(inv)} style={{ flex: 1, minWidth: 110, padding: '10px', borderRadius: 9, border: 'none', background: '#22c55e', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}><i className="ti ti-brand-whatsapp" style={{ verticalAlign: '-2px', marginRight: 4 }} />WhatsApp</button>
-          <button onClick={() => deleteInvoice(inv)} style={{ flex: 1, minWidth: 110, padding: '10px', borderRadius: 9, border: '1px solid #fca5a5', background: cardBg, color: '#dc2626', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}><i className="ti ti-trash" style={{ verticalAlign: '-2px', marginRight: 4 }} />Delete</button>
+          {inv.status === 'cancelled' ? (
+            <>
+              <button onClick={() => setLifecycle(inv, 'unpaid')} style={{ flex: 1, minWidth: 110, padding: '10px', borderRadius: 9, border: '1px solid #86efac', background: cardBg, color: '#0f6e56', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}><i className="ti ti-rotate" style={{ verticalAlign: '-2px', marginRight: 4 }} />Reactivate</button>
+              <button onClick={() => deleteInvoice(inv)} style={{ flex: 1, minWidth: 110, padding: '10px', borderRadius: 9, border: '1px solid #fca5a5', background: cardBg, color: '#dc2626', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}><i className="ti ti-trash" style={{ verticalAlign: '-2px', marginRight: 4 }} />Delete</button>
+            </>
+          ) : inv.status === 'hold' ? (
+            <>
+              <button onClick={() => setLifecycle(inv, 'unpaid')} style={{ flex: 1, minWidth: 110, padding: '10px', borderRadius: 9, border: '1px solid #86efac', background: cardBg, color: '#0f6e56', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}><i className="ti ti-player-play" style={{ verticalAlign: '-2px', marginRight: 4 }} />Resume</button>
+              <button onClick={() => setLifecycle(inv, 'cancelled')} style={{ flex: 1, minWidth: 110, padding: '10px', borderRadius: 9, border: '1px solid #fca5a5', background: cardBg, color: '#dc2626', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}><i className="ti ti-ban" style={{ verticalAlign: '-2px', marginRight: 4 }} />Cancel</button>
+            </>
+          ) : paid === 0 ? (
+            <>
+              <button onClick={() => setLifecycle(inv, 'hold')} style={{ flex: 1, minWidth: 110, padding: '10px', borderRadius: 9, border: '1px solid #fcd34d', background: cardBg, color: '#7c5c00', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}><i className="ti ti-player-pause" style={{ verticalAlign: '-2px', marginRight: 4 }} />Hold</button>
+              <button onClick={() => setLifecycle(inv, 'cancelled')} style={{ flex: 1, minWidth: 110, padding: '10px', borderRadius: 9, border: '1px solid #fca5a5', background: cardBg, color: '#dc2626', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}><i className="ti ti-ban" style={{ verticalAlign: '-2px', marginRight: 4 }} />Cancel</button>
+            </>
+          ) : null}
         </div>
+        {inv.status === 'cancelled' && inv.cancel_reason && <div style={{ fontSize: 12, color: textMuted, marginTop: -10, marginBottom: 14 }}><i className="ti ti-info-circle" style={{ verticalAlign: '-2px', marginRight: 4 }} />Cancelled: {inv.cancel_reason}</div>}
       </div>
     )
   }
 
   // ============ LIST ============
+  // 'all' hides cancelled (archived); they live under their own tab. Other tabs match exactly.
   let list = invoices
-  if (filter !== 'all') list = list.filter(i => (i.status || 'unpaid') === filter)
+  if (filter === 'all') list = list.filter(i => (i.status || 'unpaid') !== 'cancelled')
+  else list = list.filter(i => (i.status || 'unpaid') === filter)
   if (search.trim()) {
     const s = search.toLowerCase()
     list = list.filter(i => i.invoice_number?.toLowerCase().includes(s) || i.client_name?.toLowerCase().includes(s) || i.project_title?.toLowerCase().includes(s) || i.quote_number?.toLowerCase().includes(s))
   }
-  const totInvoiced = invoices.reduce((s, i) => s + Number(i.total || 0), 0)
-  const totReceived = invoices.reduce((s, i) => s + parsePayments(i.payments).reduce((a, p) => a + (Number(p.amount) || 0), 0), 0)
+  // Totals ignore cancelled & on-hold invoices so the figures + outstanding stay clean.
+  const liveInv = invoices.filter(i => { const s = i.status || 'unpaid'; return s !== 'cancelled' && s !== 'hold' })
+  const totInvoiced = liveInv.reduce((s, i) => s + Number(i.total || 0), 0)
+  const totReceived = liveInv.reduce((s, i) => s + parsePayments(i.payments).reduce((a, p) => a + (Number(p.amount) || 0), 0), 0)
   const totOutstanding = Math.max(0, totInvoiced - totReceived)
 
   return (
@@ -502,7 +552,7 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search invoices…" style={{ ...inputStyle, flex: 1, minWidth: 160 }} />
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-          {['all', 'unpaid', 'partial', 'paid'].map(f => (
+          {['all', 'unpaid', 'partial', 'paid', 'hold', 'cancelled'].map(f => (
             <button key={f} onClick={() => setFilter(f)} style={{ padding: '8px 12px', borderRadius: 8, border: `1px solid ${filter === f ? '#0099cc' : border}`, background: filter === f ? (isDark ? 'rgba(3,193,245,0.12)' : '#e0f9ff') : cardBg, color: filter === f ? '#0099cc' : textSub, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', textTransform: 'capitalize' }}>{f}</button>
           ))}
         </div>

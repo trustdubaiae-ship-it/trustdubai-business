@@ -249,10 +249,11 @@ export default function DashboardPage({ onNavigate, theme }) {
       const conversion = quoteCount ? Math.round(approved/quoteCount*100) : 0
       const quotePipeline = quotes.filter(q=>!/reject/.test(norm(q.status))).reduce((s,q)=>s+num(q.total),0)
 
-      /* Invoices / finance */
+      /* Invoices / finance — cancelled & on-hold invoices don't count toward revenue/outstanding */
       const sumPay = iv => (Array.isArray(iv.payments)?iv.payments:[]).reduce((a,x)=>a+num(x.amount),0)
-      const invoiceTotal = invoices.reduce((s,iv)=>s+num(iv.total),0)
-      const revenue = invoices.reduce((s,iv)=>s+sumPay(iv),0)
+      const liveInv = invoices.filter(iv => iv.status !== 'cancelled' && iv.status !== 'hold')
+      const invoiceTotal = liveInv.reduce((s,iv)=>s+num(iv.total),0)
+      const revenue = liveInv.reduce((s,iv)=>s+sumPay(iv),0)
       const outstanding = Math.max(0, invoiceTotal - revenue)
       const profit = Math.round(revenue * 0.26) // indicative margin until cost engine is wired
 

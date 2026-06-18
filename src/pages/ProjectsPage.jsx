@@ -489,8 +489,10 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   const marginPct = value > 0 ? Math.round((margin / value) * 100) : 0
   // client cash-in (from linked invoices)
   const invPaid = inv => (Array.isArray(inv.payments) ? inv.payments : []).reduce((a, p) => a + (Number(p.amount) || 0), 0)
-  const totalInvoiced = invoices.reduce((s, i) => s + (Number(i.total) || 0), 0)
-  const clientReceived = invoices.reduce((s, i) => s + invPaid(i), 0)
+  // cancelled / on-hold invoices don't count toward billed or received
+  const liveInvoices = invoices.filter(i => i.status !== 'cancelled' && i.status !== 'hold')
+  const totalInvoiced = liveInvoices.reduce((s, i) => s + (Number(i.total) || 0), 0)
+  const clientReceived = liveInvoices.reduce((s, i) => s + invPaid(i), 0)
   const clientOutstanding = Math.max(0, value - clientReceived)   // vs the contract value
   const netCash = clientReceived - subsPaid - totalExpenses        // actual money position
   const workPct = milestones.length ? weightedPct(milestones) : (Number(active?.progress) || 0)
@@ -1046,7 +1048,8 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
               {invoices.map(iv => {
                 const paid = invPaid(iv); const tot = Number(iv.total) || 0; const bal = Math.max(0, tot - paid)
-                const ist = iv.status === 'paid' ? { c: '#22c55e', l: 'Paid' } : iv.status === 'partial' ? { c: '#f59e0b', l: 'Partial' } : { c: '#ef4444', l: 'Unpaid' }
+                const voided = iv.status === 'cancelled' || iv.status === 'hold'
+                const ist = iv.status === 'paid' ? { c: '#22c55e', l: 'Paid' } : iv.status === 'partial' ? { c: '#f59e0b', l: 'Partial' } : iv.status === 'hold' ? { c: '#7c5c00', l: 'On hold' } : iv.status === 'cancelled' ? { c: '#9ca3af', l: 'Cancelled' } : { c: '#ef4444', l: 'Unpaid' }
                 return (
                   <div key={iv.id} onClick={() => onNavigate && onNavigate('invoices')} style={{ ...card, padding: '12px 14px', cursor: 'pointer' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -1059,8 +1062,8 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
                         <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 2 }}>Issued {fmtD(iv.issue_date)}{iv.due_date ? ' · due ' + fmtD(iv.due_date) : ''}</div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: 15, fontWeight: 700 }}>{AED(tot)}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text3)' }}><span style={{ color: '#22c55e' }}>{AED(paid)} paid</span>{bal > 0 ? ` · ${AED(bal)} due` : ''}</div>
+                        <div style={{ fontSize: 15, fontWeight: 700, textDecoration: iv.status === 'cancelled' ? 'line-through' : 'none', opacity: voided ? 0.6 : 1 }}>{AED(tot)}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text3)' }}>{voided ? ist.l : (<><span style={{ color: '#22c55e' }}>{AED(paid)} paid</span>{bal > 0 ? ` · ${AED(bal)} due` : ''}</>)}</div>
                       </div>
                     </div>
                     {tot > 0 && <div style={{ height: 5, background: 'var(--bg2)', borderRadius: 99, overflow: 'hidden', marginTop: 9 }}><div style={{ width: Math.min(100, (paid / tot) * 100) + '%', height: '100%', background: ist.c, borderRadius: 99 }} /></div>}

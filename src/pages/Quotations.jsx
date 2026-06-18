@@ -1325,7 +1325,19 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title || 'Document')}</title>
       <style>@page{ size:A4; margin:12mm } * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; } html,body{ margin:0; background:#fff }</style>
       </head><body>${html}<script>
-        window.onload=function(){ setTimeout(function(){ try{ window.focus(); window.print(); }catch(e){} }, 350); };
+        (function(){
+          function go(){ try{ window.focus(); window.print(); }catch(e){} }
+          function ready(){
+            var imgs = Array.prototype.slice.call(document.images || []);
+            var pending = imgs.filter(function(im){ return !im.complete; });
+            if (!pending.length){ setTimeout(go, 80); return; }
+            var n = 0, fired = false;
+            function done(){ if (++n >= pending.length && !fired){ fired = true; setTimeout(go, 80); } }
+            pending.forEach(function(im){ im.addEventListener('load', done); im.addEventListener('error', done); });
+            setTimeout(function(){ if(!fired){ fired = true; go(); } }, 6000); // safety net
+          }
+          if (document.readyState === 'complete') ready(); else window.addEventListener('load', ready);
+        })();
         window.onafterprint=function(){ window.close(); };
       <\/script></body></html>`)
     w.document.close()

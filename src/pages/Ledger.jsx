@@ -149,6 +149,8 @@ export default function Ledger() {
       const vatRows = []
       let recvSum = 0, paySum = 0
       ;(invRes.data || []).forEach(inv => {
+        // Cancelled / on-hold invoices are excluded from income, receivable & VAT — they never count.
+        if (inv.status === 'cancelled' || inv.status === 'hold') return
         if (inv.vat_enabled !== false && Number(inv.vat_amount) > 0) vatRows.push({ date: inv.issue_date || '', vat: Number(inv.vat_amount) || 0 })
         const label = [inv.invoice_number, inv.project_title].filter(Boolean).join(' · ')
         const invPaid = parsePayments(inv.payments).reduce((s, p) => s + (Number(p.amount) || 0), 0)
