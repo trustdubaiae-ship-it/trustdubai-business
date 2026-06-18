@@ -595,9 +595,9 @@ export default function Ledger() {
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 6, borderBottom: `1px solid ${border}`, paddingBottom: 0 }}>
             {monthSeries.map(m => (
               <div key={m.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 100, width: '100%', justifyContent: 'center' }} title={`${m.label} · Income ${fmt(m.inc)} · Expenses ${fmt(m.exp)}`}>
-                  <div style={{ width: '42%', maxWidth: 16, height: `${m.inc > 0 ? Math.max(4, (m.inc / maxBar) * 100) : 0}%`, background: GREEN, borderRadius: '3px 3px 0 0' }} />
-                  <div style={{ width: '42%', maxWidth: 16, height: `${m.exp > 0 ? Math.max(4, (m.exp / maxBar) * 100) : 0}%`, background: AMBER, borderRadius: '3px 3px 0 0' }} />
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 100, width: '100%', justifyContent: 'center' }} title={`${m.label} · Income ${fmt(m.inc)} · Expenses ${fmt(m.exp)}`}>
+                  <div style={{ width: '42%', maxWidth: 16, minHeight: 4, height: `${(m.inc / maxBar) * 100}%`, background: m.inc > 0 ? GREEN : GREEN + '2e', borderRadius: '3px 3px 0 0' }} />
+                  <div style={{ width: '42%', maxWidth: 16, minHeight: 4, height: `${(m.exp / maxBar) * 100}%`, background: m.exp > 0 ? AMBER : AMBER + '2e', borderRadius: '3px 3px 0 0' }} />
                 </div>
                 <span style={{ fontSize: 10, color: textMuted }}>{m.label}</span>
               </div>
