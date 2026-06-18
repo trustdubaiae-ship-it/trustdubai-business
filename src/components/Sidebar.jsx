@@ -173,7 +173,7 @@ export default function Sidebar({ activePage, onNavigate, limitedMode = false, l
   return (
     <aside className={`sidebar${open ? ' open' : ''}`}>
       <div className="sidebar-logo">
-        <div className="sidebar-logo-mark"><img src="/quvera-icon.png" alt="Quvera" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /></div>
+        <div className="sidebar-logo-mark"><img src="/quvera-icon.png?v=4" alt="Quvera" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /></div>
         <div>
           <div className="sidebar-logo-text">QUVERA</div>
           <div className="sidebar-logo-sub">Business OS</div>

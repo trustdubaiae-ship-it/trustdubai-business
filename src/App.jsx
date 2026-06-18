@@ -269,7 +269,7 @@ function Portal() {
         <div style={{ position:'absolute', inset:'-26%', borderRadius:'50%',
           background:'radial-gradient(circle, rgba(125,232,255,0.55), rgba(0,212,255,0.40) 42%, rgba(139,92,246,0.28) 62%, transparent 74%)',
           filter:'blur(10px)', animation:'qglow 3s ease-in-out infinite' }} />
-        <img src="/quvera-icon.png" alt="Quvera" style={{ position:'relative', zIndex:1, width:'100%', height:'100%', objectFit:'contain',
+        <img src="/quvera-icon.png?v=4" alt="Quvera" style={{ position:'relative', zIndex:1, width:'100%', height:'100%', objectFit:'contain',
           filter:'drop-shadow(0 0 22px rgba(0,212,255,0.6)) drop-shadow(0 3px 8px rgba(0,0,0,0.45))' }} />
       </div>
       <div>

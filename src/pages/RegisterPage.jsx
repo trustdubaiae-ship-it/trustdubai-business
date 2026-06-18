@@ -163,7 +163,7 @@ export default function RegisterPage({ onBack }) {
 
       <div style={{ flex: '1 1 360px', minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: 'clamp(28px, 6vw, 60px)', position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 48 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/quvera-icon.png" alt="Quvera" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /></div>
+          <div style={{ width: 44, height: 44, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/quvera-icon.png?v=4" alt="Quvera" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /></div>
           <div>
             <div style={{ fontFamily: "'Sora', sans-serif", fontWeight: 700, fontSize: 16, color: '#fff' }}>Quvera</div>
             <div style={{ fontSize: 11, color: '#6e7681', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Business Registration</div>

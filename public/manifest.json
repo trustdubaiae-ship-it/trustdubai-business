@@ -10,13 +10,13 @@
   "theme_color": "#e8b84b",
   "icons": [
     {
-      "src": "/quvera-icon.png",
+      "src": "/quvera-icon.png?v=4",
       "sizes": "192x192 512x512 1024x1024",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/quvera-icon.png",
+      "src": "/quvera-icon.png?v=4",
       "sizes": "1024x1024",
       "type": "image/png",
       "purpose": "maskable"

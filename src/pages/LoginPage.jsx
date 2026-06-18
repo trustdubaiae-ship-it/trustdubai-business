@@ -14,7 +14,7 @@ export default function LoginPage({ onRegister }) {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #0d1117 0%, #161b22 100%)', padding: 20 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32 }}>
-        <div style={{ width: 44, height: 44, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/quvera-icon.png" alt="Quvera" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /></div>
+        <div style={{ width: 44, height: 44, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/quvera-icon.png?v=4" alt="Quvera" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /></div>
         <div>
           <div style={{ fontFamily: "'Sora', sans-serif", fontWeight: 700, fontSize: 18, color: '#fff' }}>Quvera</div>
           <div style={{ fontSize: 11, color: '#6e7681', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Business Portal</div>
