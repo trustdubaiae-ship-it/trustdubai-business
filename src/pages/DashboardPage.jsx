@@ -789,14 +789,18 @@ const QC_CSS = `
   .qc-bottom{ grid-template-columns:1fr; }
 }
 @media (max-width:1024px){
-  /* radial hub → stacked on narrow desktops */
-  .qc-core-sec{ height:auto; display:flex; flex-direction:column; align-items:center; gap:12px; padding:10px 0; }
+  /* radial hub → sphere on top, engine cards in a clean 2-column grid */
+  .qc-core-sec{ height:auto; display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:10px; padding:10px 0; }
   .qc-neural{ display:none; }
   .qc-ring{ display:none; }
-  .qc-core{ position:static; margin:4px auto 10px; }
-  .qc-node-card{ position:static; width:100%; max-width:440px; }
+  .qc-core{ position:static; flex-basis:100%; margin:4px auto 12px; }
+  .qc-node-card{ position:static; flex:1 1 calc(50% - 6px); width:auto; max-width:calc(50% - 6px); }
   .qc-node-card.right{ flex-direction:row; text-align:left; }
   .qc-node-card.right .qc-eng-online{ justify-content:flex-start; }
+}
+@media (max-width:560px){
+  /* phones won't reach the cockpit (launcher shows < 768), but keep nodes 1-col as a safety */
+  .qc-node-card{ flex-basis:100%; max-width:100%; }
 }
 @media (max-width:900px){
   /* iPad portrait & small tablets — clean 2-column, stacked core */
