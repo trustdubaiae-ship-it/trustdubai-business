@@ -676,6 +676,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   }
 
   function openBuilder() {
+    loadLibrary()   // always pull the latest Description Library (so newly-added items show in the picker)
     setEditId(null); setMode('simple')
     setClient(null); setClientSearch(''); setSuggestions([]); setShowSug(false); setClientPrefix('Mr.')
     setProjectTitle(''); setItems([blankItem()]); setNotes('')
