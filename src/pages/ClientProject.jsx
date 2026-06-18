@@ -66,7 +66,7 @@ export default function ClientProject({ token }) {
 
   async function fetchProject(c) {
     const { data: res, error } = await supabase.rpc('fn_get_project_by_token', { p_token: token, p_code: c })
-    if (error) return { ok: false, error: 'error' }
+    if (error) { console.error('fn_get_project_by_token error:', error); return { ok: false, error: 'error', message: error.message || '' } }
     return res || { ok: false, error: 'error' }
   }
   // remembered code on this device → open straight away without asking again
@@ -90,7 +90,7 @@ export default function ClientProject({ token }) {
     if (res.ok) { try { localStorage.setItem(CODE_KEY, code.trim()) } catch { /* ignore */ } setData(res); setPhase('ready'); return }
     if (res.error === 'bad_code') { setErr('Wrong code. Check the access code your contractor sent you.'); return }
     if (res.error === 'not_found') { setPhase('notfound'); return }
-    setErr('Could not open the project. Please try again.')
+    setErr('Could not open the project.' + (res.message ? ' [' + res.message + ']' : ' Please try again.'))
   }
   async function reload() { const res = await fetchProject(code.trim()); if (res.ok) setData(res) }
   async function respond(updateId, response) {
