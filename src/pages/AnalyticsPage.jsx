@@ -121,11 +121,6 @@ export default function AnalyticsPage() {
 
   return (
     <div className="page-content animate-in">
-      <div style={{ marginBottom: 24 }}>
-        <h1 className="font-syne fw-700" style={{ fontSize: 24, marginBottom: 4 }}>Analytics</h1>
-        <p className="text-secondary" style={{ fontSize: 14 }}>Track your profile visitors and performance</p>
-      </div>
-
       {/* Stats cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16, marginBottom: 24 }}>
         {[

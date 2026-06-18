@@ -91,14 +91,6 @@ export default function TrustDubaiLeads({ onNavigate }) {
 
   return (
     <div style={{ maxWidth: 980, margin: '0 auto' }}>
-      {/* header */}
-      <div style={{ marginBottom: 16 }}>
-        <h1 style={{ fontSize:'clamp(20px,5vw,26px)', fontWeight:800, color:'var(--text)', margin:0, display:'flex', alignItems:'center', gap:9 }}>
-          <i className="ti ti-discount-check" style={{ color:'#22c55e' }}/> Quvera Leads
-        </h1>
-        <p style={{ fontSize:13, color:'var(--text2)', margin:'4px 0 0' }}>Leads that came directly from your Quvera profile.</p>
-      </div>
-
       {/* stat cards */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))', gap:12, marginBottom:18 }}>
         <Stat icon="ti-users" label="Total leads" value={stats.total} color="#3b82f6" />

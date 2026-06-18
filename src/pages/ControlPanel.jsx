@@ -45,11 +45,6 @@ export default function ControlPanel({ initialTab = 'general' }) {
       `}</style>
 
       <div style={{ maxWidth: 1000, margin: '0 auto' }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 4, color: 'var(--text)' }}>Control Panel</h1>
-        <p style={{ color: 'var(--text2)', marginBottom: 18, fontSize: 14 }}>
-          Manage your company settings, verification, finance and profile visibility.
-        </p>
-
         <div className="cp-tabs">
           {TABS.map(t => (
             <button key={t.key} onClick={() => setTab(t.key)}

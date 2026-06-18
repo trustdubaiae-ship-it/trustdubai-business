@@ -168,10 +168,6 @@ export default function MenuPage({ onNavigate, isApproved = true, limitedPages =
       <style>{CSS}</style>
 
       <div className="td-menu-head">
-        <div>
-          <h1 className="td-menu-title">All Features</h1>
-          <p className="td-menu-sub">Your whole business in one place — search or tap a tile to open it.</p>
-        </div>
         <div className="td-menu-search">
           <i className="ti ti-search" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search features…" />

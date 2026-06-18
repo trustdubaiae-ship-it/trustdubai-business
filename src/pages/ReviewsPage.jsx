@@ -3,6 +3,7 @@ import { useAuth } from '../lib/auth'
 import { useToast } from '../lib/toast'
 import { supabase } from '../lib/supabase'
 import { MessageCircle, Send, Clock, Lock, Star } from 'lucide-react'
+import HeroActions from '../components/HeroActions'
 
 export default function ReviewsPage() {
   const { company } = useAuth()
@@ -93,19 +94,14 @@ export default function ReviewsPage() {
 
   return (
     <div className="animate-in">
-      {/* Header */}
-      <div style={{ marginBottom: 20, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-        <div>
-          <h1 className="font-syne fw-700" style={{ fontSize: 24, marginBottom: 4 }}>Reviews &amp; Comments</h1>
-          <p className="text-secondary" style={{ fontSize: 14 }}>Manage your customer reviews and responses</p>
-        </div>
-        {!canReply && (
+      {!canReply && (
+        <HeroActions>
           <div style={{ background: '#fef9ed', border: '1px solid #fcd34d', borderRadius: 8, padding: '8px 14px', fontSize: 12, color: '#92400e', display: 'flex', alignItems: 'center', gap: 6 }}>
             <Lock size={12} />
             Reply needs Silver plan or above
           </div>
-        )}
-      </div>
+        </HeroActions>
+      )}
 
       {/* ===== Rating overview ===== */}
       <div className="card" style={{ marginBottom: 20, padding: isMobile ? 16 : 20 }}>

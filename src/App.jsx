@@ -4,7 +4,7 @@ import { ToastProvider } from './lib/toast'
 import { can } from './lib/permissions'
 import { initTheme, toggleTheme, getTheme } from './lib/theme'
 import { supabase } from './lib/supabase'
-import Sidebar from './components/Sidebar'
+import Sidebar, { MENU } from './components/Sidebar'
 import LoginNotificationPopup from './components/LoginNotificationPopup'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
@@ -95,7 +95,62 @@ const LIMITED_PAGES = ['controlwall', 'dashboard', 'menu', 'inbox', 'profile', '
 
 // Pages that render their OWN one-step back button (list ↔ builder/detail).
 // On these we hide the topbar back so there's never two back buttons.
-const SELF_BACK_PAGES = ['quotations', 'aiquote', 'invoices']
+const SELF_BACK_PAGES = ['quotations', 'aiquote', 'invoices', 'projects', 'materials', 'expenses']
+
+// --- 555 OS hero: pages whose title now lives IN the hero (internal <h1> removed).
+const OS_TITLE_PAGES = new Set([
+  'leadengine', 'ledger', 'reviews', 'analytics', 'inbox', 'portfolio', 'trust',
+  'notifications', 'organizer', 'meetings', 'purchases', 'profile', 'documents',
+  'team', 'staff', 'faq', 'quotelibrary', 'quoteSettings', 'sponsored',
+  'aiassistant', 'revenueengine', 'quotations', 'invoices', 'projects',
+  'materials', 'expenses', 'leads', 'tdleads', 'menu', 'controlpanel',
+  'verification', 'verificationStatus', 'plans', 'settings',
+])
+
+// pageId -> sidebar section (used as the hero eyebrow / breadcrumb), built from MENU.
+const SECTION_OF = (() => {
+  const map = {}; let cur = ''
+  for (const it of MENU) { if (it.section) cur = it.section; else if (it.id) map[it.id] = cur }
+  return map
+})()
+
+// Short one-line description shown under the hero title (per converted page).
+const PAGE_DESC = {
+  leadengine:   'Connect & run all your lead sources from one place',
+  ledger:       'Income, expenses & VAT — your full money picture',
+  reviews:      'Manage your customer reviews and responses',
+  analytics:    'Track your profile visitors and performance',
+  inbox:        'Messages between your company and Quvera',
+  portfolio:    'Showcase your best work to attract more clients',
+  trust:        'Your credibility rating on Quvera — higher score, more leads',
+  notifications:'Internal team reminders & tasks',
+  organizer:    'Your private diary — meetings, tasks & notes',
+  meetings:     'Meetings, site visits & follow-ups — synced with every lead',
+  purchases:    'Record supplier bills with VAT — flows into your Ledger',
+  profile:      'Manage how your business appears on Quvera',
+  documents:    'Upload & verify your business documents',
+  team:         'Add your client-facing, EID-verified team members',
+  staff:        'Manage team members, roles & access',
+  faq:          'Add common questions & answers shown on your profile',
+  quotelibrary: 'Reusable line items & descriptions for quotes',
+  quoteSettings:'Branding & defaults for your quotations',
+  sponsored:    'Boost your visibility & get more leads on Quvera',
+  aiassistant:  'Ask anything about your business',
+  revenueengine:'Your sales pipeline & revenue at a glance',
+  quotations:   'Create, send & track your quotes',
+  invoices:     'Invoice approved quotes & track payments',
+  projects:     'Track jobs, scope, subcontractors & site spend',
+  materials:    'Material requests across your projects',
+  expenses:     'Site expenses across your projects',
+  leads:        'Capture, track and close — every lead in one place',
+  tdleads:      'Verified leads from your Quvera profile',
+  menu:         'Your whole business in one place',
+  controlpanel: 'Manage your company settings & verification',
+  verification: 'Your verification & documents',
+  verificationStatus: 'Your verification & documents',
+  plans:        'Your plan & billing',
+  settings:     'Account & app settings',
+}
 
 // --- Refresh persistence (URL hash) ---
 // activePage is mirrored in the URL hash (e.g. #leads) so a page refresh
@@ -289,6 +344,19 @@ function Portal() {
   const planColors = { free:'#6b7280', silver:'#64748b', gold:'#d97706', platinum:'#8b5cf6' }
   const planName   = company?.plan || 'free'
   const isPlatinum = false  // Platinum ka dark shell band; dark/light theme toggle se aata hai (var(--bg))
+
+  // 555 OS hero header.
+  // Pages listed in OS_TITLE_PAGES carry their title INSIDE the hero (their own
+  // internal <h1> is removed). Every other page still shows the brand hero until
+  // it's converted — so nothing duplicates during the gradual rollout.
+  const greeting   = (() => { const h = new Date().getHours(); return h<12?'Good Morning':h<17?'Good Afternoon':'Good Evening' })()
+  const isConverted = OS_TITLE_PAGES.has(activePage)
+  const heroEyebrow = activePage==='dashboard' ? greeting : (isConverted ? (SECTION_OF[activePage] || 'Quvera') : greeting)
+  const heroTitle   = (activePage!=='dashboard' && isConverted) ? (pageTitles[activePage] || 'Quvera') : (company?.name || 'My Business')
+  const heroSub     = (activePage!=='dashboard' && isConverted)
+    ? (PAGE_DESC[activePage] || '')
+    : 'Your AI Business Operating System is running perfectly'
+  const showBack    = activePage !== 'menu' && activePage !== 'dashboard' && !SELF_BACK_PAGES.includes(activePage)
   const pageBg     = isPlatinum ? '#0f0e1a' : 'var(--bg)'  // follow active light/dark theme (no mixup)
 
   const displayName  = staff?.name || company?.name || 'User'
@@ -355,7 +423,7 @@ function Portal() {
   else mainContent = (allPages[activePage] || allPages.dashboard)
 
   return (
-    <div className="layout" style={{ background: pageBg }}>
+    <div className="layout os555" style={{ background: pageBg }}>
       <div className={`sidebar-overlay${sidebarOpen ? ' show' : ''}`} onClick={() => setSidebarOpen(false)} />
 
       <Sidebar
@@ -368,82 +436,54 @@ function Portal() {
 
       <main className="main" style={{ background: pageBg }}>
 
-        <div className="topbar" style={{ background: isPlatinum?'#161b2e':'var(--card)', borderBottom:`0.5px solid ${isPlatinum?'rgba(139,92,246,0.2)':'var(--border)'}` }}>
-          <div style={{ display:'flex', alignItems:'center', gap:10, minWidth:0, flex:1 }}>
-            {/* Hamburger — always in the DOM; CSS shows it only on drawer screens (<=1024px) */}
-            <button className="hamburger-btn" onClick={() => setSidebarOpen(true)} aria-label="Open menu">
-              <i className="ti ti-menu-2" />
-            </button>
+        <header className="os-hero">
+          <div className="os-hero-skyline" aria-hidden="true"/>
+          <div className="os-hero-glow" aria-hidden="true"/>
 
-            {/* Back to All Features — shown on pages WITHOUT their own back button,
-                so every page has exactly one back (multi-view pages use their own). */}
-            {activePage !== 'menu' && !SELF_BACK_PAGES.includes(activePage) && (
-              <button onClick={() => navigate('menu')} aria-label="Back to All Features" title="Back to All Features"
-                style={{ display:'flex', alignItems:'center', justifyContent:'center', width:32, height:32, borderRadius:9, border:`0.5px solid var(--border)`, background:'var(--bg2)', color:'var(--text)', cursor:'pointer', flexShrink:0 }}>
-                <i className="ti ti-arrow-left" style={{ fontSize:17 }}/>
+          {/* controls row */}
+          <div className="os-hero-controls">
+            <div className="os-hero-left">
+              <button className="hamburger-btn" onClick={() => setSidebarOpen(true)} aria-label="Open menu">
+                <i className="ti ti-menu-2" />
               </button>
-            )}
-
-            <div style={{ width:34, height:34, borderRadius:9, background:'linear-gradient(135deg,#e8b84b,#c9952a)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:"'Sora',sans-serif", fontWeight:800, fontSize:14, color:'#0d1117', flexShrink:0 }}>
-              {company?.name?.[0]?.toUpperCase()||'?'}
-            </div>
-            <div style={{ minWidth:0 }}>
-              <div style={{ fontSize:14, fontWeight:700, color: isPlatinum?'#f1f5f9':'var(--text)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-                {company?.name||'My Business'}
-              </div>
-              <div style={{ fontSize:9, color: isPlatinum?'rgba(167,139,250,0.7)':'var(--text3)', marginTop:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-                {pageTitles[activePage]} · business.quvera.ae
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
-            {!isApproved && (
-              <div className="topbar-statuspill" style={{ background: isRejected?'rgba(220,38,38,0.1)':'rgba(0,153,204,0.1)', border:`0.5px solid ${isRejected?'rgba(220,38,38,0.3)':'rgba(0,153,204,0.3)'}`, borderRadius:8, padding:'4px 10px', fontSize:9, fontWeight:700, color: isRejected?'#dc2626':'#0077a3', display:'flex', alignItems:'center', gap:4, whiteSpace:'nowrap' }}>
-                <i className={`ti ${isRejected?'ti-alert-triangle':'ti-clock'}`} style={{ fontSize:10 }}/>
-                {isRejected ? 'Rejected' : 'Under Review'}
-              </div>
-            )}
-            <div className="topbar-search" style={{ background: isPlatinum?'rgba(255,255,255,0.05)':'var(--bg2)', border:`0.5px solid ${isPlatinum?'rgba(255,255,255,0.08)':'var(--border)'}`, borderRadius:20, padding:'6px 12px', display:'flex', alignItems:'center', gap:6, minWidth:180 }}>
-              <i className="ti ti-search" style={{ fontSize:11, color: isPlatinum?'rgba(255,255,255,0.3)':'var(--text3)' }}/>
-              <input placeholder="Global search..." style={{ border:'none', background:'none', outline:'none', fontSize:10, color: isPlatinum?'rgba(255,255,255,0.6)':'var(--text)', width:'100%' }}/>
-            </div>
-            <div className="topbar-date" style={{ background: isPlatinum?'rgba(255,255,255,0.05)':'var(--bg2)', border:`0.5px solid ${isPlatinum?'rgba(255,255,255,0.08)':'var(--border)'}`, borderRadius:8, padding:'5px 10px', fontSize:9, color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)', display:'flex', alignItems:'center', gap:5, whiteSpace:'nowrap' }}>
-              <i className="ti ti-calendar" style={{ fontSize:10 }}/> Last 30 Days <i className="ti ti-chevron-down" style={{ fontSize:9 }}/>
             </div>
 
-            <div onClick={() => navigate('menu')} title="All Features"
-              style={{ cursor:'pointer', width:30, height:30, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', color: activePage==='menu' ? '#0099cc' : (isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)'), flexShrink:0 }}>
-              <i className="ti ti-layout-grid" style={{ fontSize:17 }}/>
-            </div>
-
-            <div onClick={() => setTheme(toggleTheme())} title={theme==='dark'?'Switch to light':'Switch to dark'}
-              style={{ cursor:'pointer', width:30, height:30, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)', flexShrink:0 }}>
-              <i className={`ti ${theme==='dark'?'ti-sun':'ti-moon'}`} style={{ fontSize:17 }}/>
-            </div>
-
-            <MeetingBell navigate={navigate} isPlatinum={isPlatinum} />
-
-            <div onClick={() => navigate('notifications')} title={unreadCount>0 ? `${unreadCount} unread notification${unreadCount>1?'s':''}` : 'Notifications'} style={{ position:'relative', cursor:'pointer', flexShrink:0 }}>
-              <i className="ti ti-bell" style={{ fontSize:18, color: unreadCount>0 ? '#0099cc' : (isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)') }}/>
-              {unreadCount > 0 && (
-                <div style={{ position:'absolute', top:-6, right:-7, minWidth:15, height:15, padding:'0 4px', background:'#ef4444', color:'#fff', borderRadius:8, fontSize:9, fontWeight:800, lineHeight:1, display:'flex', alignItems:'center', justifyContent:'center', border:`1.5px solid ${isPlatinum?'#161b2e':'var(--card)'}` }}>
-                  {unreadCount > 99 ? '99+' : unreadCount}
+            <div className="os-hero-right">
+              {!isApproved && (
+                <div className="os-statuspill" style={{ background: isRejected?'rgba(220,38,38,0.12)':'var(--primary-bg)', borderColor: isRejected?'rgba(220,38,38,0.3)':'var(--primary-border)', color: isRejected?'var(--red)':'var(--primary)' }}>
+                  <i className={`ti ${isRejected?'ti-alert-triangle':'ti-clock'}`} style={{ fontSize:10 }}/>
+                  {isRejected ? 'Rejected' : 'Under Review'}
                 </div>
               )}
-            </div>
-            <i className="ti ti-message-circle topbar-msg" style={{ fontSize:18, color: isPlatinum?'rgba(255,255,255,0.5)':'var(--text3)', cursor:'pointer' }}/>
-            <div className="topbar-plan" title={isTrial ? `Launch Plan · ${trialDaysLeft} ${trialDaysLeft===1?'day':'days'} of full access left` : undefined} style={{ background: isTrial?'rgba(139,92,246,0.15)': planName==='gold'?'#fffbeb': planName==='platinum'?'rgba(139,92,246,0.15)':'var(--bg2)', border:`0.5px solid ${isTrial?'rgba(139,92,246,0.35)': planName==='gold'?'#fcd34d': planName==='platinum'?'rgba(139,92,246,0.3)':'var(--border)'}`, borderRadius:8, padding:'4px 10px', fontSize:9, color: isTrial ? '#8b5cf6' : planColors[planName], fontWeight:700, display:'flex', alignItems:'center', gap:4, whiteSpace:'nowrap' }}>
-              <i className={`ti ${isTrial?'ti-rocket': planName==='platinum'?'ti-diamond': planName==='gold'?'ti-star':'ti-building'}`} style={{ fontSize:10 }}/>
-              {isTrial ? 'Launch Plan' : planName.charAt(0).toUpperCase()+planName.slice(1)+' Plan'}
-            </div>
-
-            <div style={{ position:'relative', flexShrink:0 }}>
-              <div onClick={() => setShowProfile(v => !v)} title={`${displayName} · ${displayEmail}`}
-                style={{ width:32, height:32, borderRadius:8, background:'#0099cc', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:13, color:'#fff', cursor:'pointer' }}>
-                {avatarLetter}
+              <div className="os-search">
+                <i className="ti ti-search"/>
+                <input placeholder="Global search..."/>
               </div>
-              {showProfile && (
+
+              <div className="os-ic" onClick={() => navigate('menu')} title="All Features" style={activePage==='menu'?{color:'var(--primary)'}:undefined}>
+                <i className="ti ti-layout-grid"/>
+              </div>
+              <div className="os-ic" onClick={() => setTheme(toggleTheme())} title={theme==='dark'?'Switch to light':'Switch to dark'}>
+                <i className={`ti ${theme==='dark'?'ti-sun':'ti-moon'}`}/>
+              </div>
+
+              <MeetingBell navigate={navigate} isPlatinum={isPlatinum} />
+
+              <div className="os-ic os-bell" onClick={() => navigate('notifications')} title={unreadCount>0 ? `${unreadCount} unread notification${unreadCount>1?'s':''}` : 'Notifications'}>
+                <i className="ti ti-bell" style={{ color: unreadCount>0 ? 'var(--primary)' : undefined }}/>
+                {unreadCount > 0 && <span className="os-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>}
+              </div>
+
+              <div className="os-plan" title={isTrial ? `Launch Plan · ${trialDaysLeft} ${trialDaysLeft===1?'day':'days'} of full access left` : undefined} style={{ color: isTrial ? 'var(--purple)' : planColors[planName] }}>
+                <i className={`ti ${isTrial?'ti-rocket': planName==='platinum'?'ti-diamond': planName==='gold'?'ti-star':'ti-building'}`} style={{ fontSize:10 }}/>
+                {isTrial ? 'Launch Plan' : planName.charAt(0).toUpperCase()+planName.slice(1)+' Plan'}
+              </div>
+
+              <div style={{ position:'relative', flexShrink:0 }}>
+                <div className="os-avatar" onClick={() => setShowProfile(v => !v)} title={`${displayName} · ${displayEmail}`}>
+                  {avatarLetter}
+                </div>
+                {showProfile && (
                 <>
                   <div onClick={() => setShowProfile(false)} style={{ position:'fixed', inset:0, zIndex:40 }}/>
                   <div style={{ position:'absolute', right:0, top:42, zIndex:50, width:240, background:'var(--card)', borderRadius:12, boxShadow:'0 10px 30px rgba(0,0,0,0.15)', border:'1px solid var(--border)', overflow:'hidden' }}>
@@ -470,9 +510,26 @@ function Portal() {
               )}
             </div>
           </div>
-        </div>
+          </div>
 
-        <div className="page-content">
+          {/* hero text — page title lives here on converted pages */}
+          <div className="os-hero-text">
+            {showBack && (
+              <button onClick={() => navigate('menu')} className="os-hero-back" title="Back to All Features" aria-label="Back to All Features">
+                <i className="ti ti-arrow-left"/>
+              </button>
+            )}
+            <div style={{ minWidth:0 }}>
+              <div className="os-eyebrow">{heroEyebrow}</div>
+              <h1 className="os-title">{heroTitle}</h1>
+              {heroSub && <div className="os-sub">{!isConverted && <span className="os-live-dot"/>} {heroSub}</div>}
+            </div>
+            {/* pages teleport their primary action buttons here via <HeroActions> */}
+            <div className="os-hero-actions" id="os-hero-actions"/>
+          </div>
+        </header>
+
+        <div className={`page-content${activePage==='dashboard' ? ' page-content--flush' : ''}`}>
           {ReviewBanner}
           {mainContent}
         </div>

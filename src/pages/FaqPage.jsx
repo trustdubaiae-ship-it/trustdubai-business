@@ -89,12 +89,7 @@ export default function FaqPage() {
 
   return (
     <div style={{ maxWidth: 760, margin: '0 auto', padding: '8px 4px 40px' }}>
-      <h1 style={{ fontSize: 22, fontWeight: 800, color: '#1e2a3a', margin: '4px 0 4px' }}>❓ FAQ Management</h1>
-      <p style={{ fontSize: 13, color: '#64748b', marginBottom: 20 }}>
-        Add common questions &amp; answers. These show on your public profile under the “Achievement &amp; Badge” tab → FAQ Section.
-      </p>
-
-      {msg && <div style={{ marginBottom: 16, fontSize: 13, fontWeight: 600, color: msg.startsWith('Error') || msg.startsWith('Save failed') ? '#dc2626' : '#1e9e63' }}>{msg}</div>}
+      {msg &&<div style={{ marginBottom: 16, fontSize: 13, fontWeight: 600, color: msg.startsWith('Error') || msg.startsWith('Save failed') ? '#dc2626' : '#1e9e63' }}>{msg}</div>}
 
       {/* Add / Edit form */}
       {editing ? (

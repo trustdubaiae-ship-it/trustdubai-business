@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { useToast } from '../lib/toast'
+import HeroActions from '../components/HeroActions'
 
 const fmt = n => 'AED ' + Math.round(Number(n) || 0).toLocaleString('en-AE')
 const fmtDate = d => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
@@ -466,18 +467,13 @@ export default function Ledger() {
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
-        <div>
-          <h1 style={{ fontSize: 21, fontWeight: 700, color: text, margin: 0 }}>Ledger &amp; Accounts</h1>
-          <p style={{ fontSize: 13, color: textSub, marginTop: 3 }}>Income, expenses &amp; VAT — your full money picture{trn ? ` · TRN ${trn}` : ''}</p>
-        </div>
+      <HeroActions>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button onClick={() => openAdd('income')} style={{ padding: '9px 14px', borderRadius: 9, border: 'none', background: GREEN, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}><i className="ti ti-arrow-down-left" style={{ fontSize: 15 }} /> Income</button>
           <button onClick={() => openAdd('expense')} style={{ padding: '9px 14px', borderRadius: 9, border: 'none', background: RED, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}><i className="ti ti-arrow-up-right" style={{ fontSize: 15 }} /> Expense</button>
           <button onClick={openTransfer} title="Move money between accounts (e.g. Bank → petty cash)" style={{ padding: '9px 14px', borderRadius: 9, border: `1px solid ${border}`, background: cardBg, color: text, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}><i className="ti ti-arrows-exchange" style={{ fontSize: 15, color: '#0099cc' }} /> Transfer</button>
         </div>
-      </div>
+      </HeroActions>
 
       {!hasTable && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: isDark ? 'rgba(232,184,75,0.1)' : '#fffbeb', border: `1px solid ${isDark ? 'rgba(232,184,75,0.25)' : '#fcd34d'}`, borderRadius: 10, padding: '11px 14px', marginBottom: 14 }}>

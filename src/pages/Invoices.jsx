@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { useToast } from '../lib/toast'
+import HeroActions from '../components/HeroActions'
 
 const STATUS_STYLE = {
   unpaid:  { label: 'Unpaid',  color: '#b91c1c', bg: '#fee2e2' },
@@ -485,13 +486,9 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-        <div>
-          <h1 style={{ fontSize: 21, fontWeight: 700, color: text, margin: 0 }}>Invoices</h1>
-          <p style={{ fontSize: 13, color: textSub, marginTop: 3 }}>Invoice approved quotes &amp; track payments</p>
-        </div>
+      <HeroActions>
         <button onClick={openCreate} style={{ padding: '9px 16px', background: '#0099cc', color: '#fff', border: 'none', borderRadius: 9, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ New Invoice</button>
-      </div>
+      </HeroActions>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 14 }}>
         {[['Invoiced', totInvoiced, text], ['Received', totReceived, '#0f6e56'], ['Outstanding', totOutstanding, '#b91c1c']].map(([l, v, c]) => (

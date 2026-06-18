@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { useToast } from '../lib/toast'
+import HeroActions from '../components/HeroActions'
 
 const DEFAULT_TRADES = ['Civil', 'MEP', 'False Ceiling', 'Flooring', 'Painting', 'Joinery', 'Sanitary']
 const DEFAULT_WHY = [
@@ -305,17 +306,13 @@ export default function QuoteSettings() {
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, marginBottom:18, flexWrap:'wrap' }}>
-        <div>
-          <h1 style={{ fontSize:21, fontWeight:700, color:text, margin:0 }}>Quote Settings</h1>
-          <p style={{ fontSize:13, color:textSub, marginTop:3 }}>Branding &amp; defaults applied to every new quotation</p>
-        </div>
+      {/* Header actions teleported into the global hero */}
+      <HeroActions>
         <button onClick={save} disabled={saving}
           style={{ padding:'9px 18px', background:'#0099cc', color:'#fff', border:'none', borderRadius:9, fontSize:13, fontWeight:600, cursor: saving?'default':'pointer', display:'flex', alignItems:'center', gap:6, opacity: saving?0.7:1 }}>
           <i className="ti ti-device-floppy" style={{ fontSize:15 }}/> {saving ? 'Saving...' : 'Save Settings'}
         </button>
-      </div>
+      </HeroActions>
 
       {/* Logo note */}
       <div style={{ display:'flex', alignItems:'center', gap:10, background:subBg, border:`1px solid ${border}`, borderRadius:9, padding:'11px 14px', marginBottom:14 }}>

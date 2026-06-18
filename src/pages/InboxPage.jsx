@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
+import HeroActions from '../components/HeroActions'
 
 const BRAND = '#0099cc'
 const SAFE_TOP = 'env(safe-area-inset-top)'
@@ -110,21 +111,12 @@ export default function InboxPage() {
   return (
     <div style={{ maxWidth:760, margin:'0 auto', color:'var(--text)' }}>
 
-      {/* Header */}
-      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12, marginBottom:4 }}>
-        <div style={{ minWidth:0 }}>
-          <h1 className="font-syne fw-700" style={{ fontSize:mobile?21:24, fontWeight:800, color:'var(--text)', margin:0 }}>
-            Inbox{unreadCount>0 && <span style={{ fontSize:13, color:BRAND, fontWeight:700, marginLeft:7 }}>{unreadCount} unread</span>}
-          </h1>
-          <p style={{ fontSize:13, color:'var(--text2)', marginTop:4 }}>
-            Messages between {company?.name || 'your company'} and Quvera
-          </p>
-        </div>
+      <HeroActions>
         <button onClick={() => setShowCompose(true)}
           style={{ flexShrink:0, display:'inline-flex', alignItems:'center', gap:6, padding:mobile?'9px 13px':'10px 16px', borderRadius:10, border:'none', color:'#fff', fontWeight:600, fontSize:13, background:BRAND, cursor:'pointer', whiteSpace:'nowrap' }}>
           <i className="ti ti-pencil-plus" style={{ fontSize:16 }}/>{!mobile && ' Compose'}
         </button>
-      </div>
+      </HeroActions>
 
       {/* Filters */}
       <div style={{ display:'flex', gap:8, margin:'16px 0', flexWrap:'wrap' }}>

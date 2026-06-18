@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { useToast } from '../lib/toast'
+import HeroActions from '../components/HeroActions'
 
 const fmt = n => 'AED ' + Math.round(Number(n) || 0).toLocaleString('en-AE')
 const todayStr = () => new Date().toISOString().slice(0, 10)
@@ -222,16 +223,11 @@ export default function Purchases() {
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
-        <div>
-          <h1 style={{ fontSize: 21, fontWeight: 700, color: text, margin: 0 }}>Purchases &amp; Suppliers</h1>
-          <p style={{ fontSize: 13, color: textSub, marginTop: 3 }}>Record supplier bills with VAT — flows into your Ledger as Input VAT</p>
-        </div>
+      <HeroActions>
         <button onClick={tab === 'purchases' ? openAddPurchase : openAddSupplier} style={{ padding: '9px 16px', background: BLUE, color: '#fff', border: 'none', borderRadius: 9, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
           <i className="ti ti-plus" style={{ fontSize: 15 }} /> {tab === 'purchases' ? 'New Purchase' : 'Add Supplier'}
         </button>
-      </div>
+      </HeroActions>
 
       {/* Tabs */}
       <div style={{ display: 'inline-flex', background: pillBg, border: `1px solid ${border}`, borderRadius: 10, padding: 3, marginBottom: 14 }}>

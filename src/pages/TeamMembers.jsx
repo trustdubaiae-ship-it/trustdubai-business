@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth'
 import { useToast } from '../lib/toast'
 import { supabase } from '../lib/supabase'
 import PolicyAgree from '../components/PolicyAgree'
+import HeroActions from '../components/HeroActions'
 
 const BRAND = '#0099cc'
 
@@ -92,16 +93,12 @@ export default function TeamMembers() {
         }
       `}</style>
 
-      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:6, flexWrap:'wrap', gap:10 }}>
-        <div>
-          <h1 className="font-syne fw-700" style={{ fontSize:24, marginBottom:4 }}>Our Team</h1>
-          <p className="text-secondary" style={{ fontSize:14 }}>Add your client-facing team. EID-verified members build customer trust.</p>
-        </div>
+      <HeroActions>
         <button onClick={openAdd} disabled={isAtLimit}
           style={{ padding:'9px 16px', borderRadius:9, border:'none', color:'#fff', fontWeight:600, fontSize:13, cursor: isAtLimit?'not-allowed':'pointer', opacity: isAtLimit?0.45:1, background:BRAND }}>
           + Add Member
         </button>
-      </div>
+      </HeroActions>
 
       <div style={{ background:'var(--card-bg)', border:'1px solid var(--card-border)', borderRadius:10, padding:'10px 16px', marginBottom:18, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
         <span style={{ fontSize:12, color:'var(--gold-dark)', fontWeight:600, textTransform:'capitalize' }}>

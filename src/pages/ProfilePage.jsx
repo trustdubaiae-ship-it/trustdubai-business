@@ -3,6 +3,7 @@ import { useAuth } from '../lib/auth'
 import { useToast } from '../lib/toast'
 import { supabase } from '../lib/supabase'
 import { Camera, Save, Globe, Phone, Mail, MapPin, Tag, AlertTriangle, X, Plus } from 'lucide-react'
+import HeroActions from '../components/HeroActions'
 
 export default function ProfilePage() {
   const { company, refreshCompany } = useAuth()
@@ -177,15 +178,11 @@ export default function ProfilePage() {
 
   return (
     <div className="animate-in">
-      <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-        <div>
-          <h1 className="font-syne fw-700" style={{ fontSize: 24, marginBottom: 4 }}>Company Profile</h1>
-          <p className="text-secondary" style={{ fontSize: 14 }}>Manage how your business appears on Quvera</p>
-        </div>
+      <HeroActions>
         <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
           {saving ? <><span className="spinner" style={{ width: 14, height: 14 }} />Saving...</> : <><Save size={15} />Save Changes</>}
         </button>
-      </div>
+      </HeroActions>
 
       <div className="grid-2">
 

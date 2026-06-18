@@ -69,11 +69,6 @@ export default function DocumentVerification() {
 
   return (
     <div className="page-content animate-in" style={{ maxWidth: 760 }}>
-      <div style={{ marginBottom: 6 }}>
-        <h1 className="font-syne fw-700" style={{ fontSize:24, marginBottom:4 }}>Verification</h1>
-        <p className="text-secondary" style={{ fontSize:14 }}>Upload and verify your business documents. The more you verify, the higher your verification score on your public profile.</p>
-      </div>
-
       {/* Score bar */}
       <div style={{ background:'var(--card-bg)', border:'1px solid var(--card-border)', borderRadius:14, padding:'16px 18px', marginBottom:18 }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>

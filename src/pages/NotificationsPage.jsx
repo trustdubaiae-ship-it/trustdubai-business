@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
+import HeroActions from '../components/HeroActions'
 
 const BRAND = '#0099cc'
 const TYPE_ICON = {
@@ -83,20 +84,14 @@ export default function NotificationsPage() {
 
   return (
     <div style={{ padding:24, maxWidth:860, margin:'0 auto' }}>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, flexWrap:'wrap', marginBottom:6 }}>
-        <h1 style={{ fontSize:22, fontWeight:800, color:'#0f172a', margin:0 }}>
-          Notifications {unread>0 && <span style={{ fontSize:13, color:BRAND }}>({unread} new)</span>}
-        </h1>
-        {canSend && (
+      {canSend && (
+        <HeroActions>
           <button onClick={() => setShowSend(true)}
             style={{ padding:'9px 16px', borderRadius:9, border:'none', color:'#fff', fontWeight:600, fontSize:13, background:BRAND, cursor:'pointer' }}>
             + Send Notification
           </button>
-        )}
-      </div>
-      <p style={{ fontSize:13, color:'#64748b', marginBottom:16 }}>
-        Internal team reminders &amp; tasks · {company?.name}
-      </p>
+        </HeroActions>
+      )}
 
       <div style={{ display:'flex', gap:8, marginBottom:16, flexWrap:'wrap' }}>
         {FILTERS.map(f => (

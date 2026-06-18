@@ -3,6 +3,7 @@ import { useAuth } from '../lib/auth'
 import { useToast } from '../lib/toast'
 import { supabase } from '../lib/supabase'
 import { Upload, Trash2, Edit3, X, Check, Image as ImageIcon, Lock, Heart } from 'lucide-react'
+import HeroActions from '../components/HeroActions'
 
 export default function PortfolioPage() {
   const { company, getLimit } = useAuth()
@@ -108,17 +109,13 @@ export default function PortfolioPage() {
         .pf-upload.drag { border-color:#e8b84b; background:#fffbeb; }
       `}</style>
 
-      <div style={{ marginBottom: 18, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap:'wrap', gap:10 }}>
-        <div>
-          <h1 className="font-syne fw-700" style={{ fontSize: 24, marginBottom: 4 }}>Portfolio</h1>
-          <p className="text-secondary" style={{ fontSize: 14 }}>Showcase your best work to attract more clients</p>
-        </div>
+      <HeroActions>
         <div style={{ background: isAtLimit ? '#fef2f2' : '#fffbeb', border: `1px solid ${isAtLimit ? '#fecaca' : '#fcd34d'}`, borderRadius: 8, padding: '8px 14px', fontSize: 12, color: isAtLimit ? '#ef4444' : '#d97706', display: 'flex', alignItems: 'center', gap: 6 }}>
           <ImageIcon size={12} />
           {items.length} / {limitLabel} photos
           {isAtLimit && <span style={{ fontWeight: 600 }}>· Limit reached</span>}
         </div>
-      </div>
+      </HeroActions>
 
       <div style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 10, padding: '10px 16px', marginBottom: 18, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>

@@ -178,13 +178,6 @@ export default function AIAssistant({ onNavigate }) {
         @keyframes spin{to{transform:rotate(360deg)}}
       `}</style>
 
-      <div style={{ marginBottom: 14 }}>
-        <h1 style={{ fontSize:'clamp(20px,5vw,26px)', fontWeight:800, color:'var(--text)', margin:0, display:'flex', alignItems:'center', gap:9 }}>
-          <i className="ti ti-robot" style={{ color:'#22c55e' }}/> AI Assistant
-        </h1>
-        <p style={{ fontSize:13, color:'var(--text2)', margin:'4px 0 0' }}>Lead conversations with AI-suggested replies. AI reads the whole thread.</p>
-      </div>
-
       {loading ? (
         <Spinner/>
       ) : leads.length === 0 ? (

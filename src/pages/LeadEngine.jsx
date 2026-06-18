@@ -5,6 +5,7 @@ import { useToast } from '../lib/toast'
 import MetaConnect from './MetaConnect'
 import MetaAds from './MetaAds'
 import MetaAdBuilder from './MetaAdBuilder'
+import HeroActions from '../components/HeroActions'
 
 const SOURCES = [
   { key:'trustdubai', icon:'ti-shield-check',   name:'Quvera Leads', sub:'Platform verified leads',
@@ -121,17 +122,14 @@ export default function LeadEngine() {
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12, marginBottom:18, flexWrap:'wrap' }}>
-        <div>
-          <h1 style={{ fontSize:21, fontWeight:700, color:text, margin:0 }}>Lead Engine</h1>
-          <p style={{ fontSize:13, color:textSub, marginTop:3 }}>Connect &amp; run all your lead sources from one place</p>
-        </div>
+      {/* Title + description now live in the global OS hero. Primary status pill is
+          teleported into the hero's actions slot. */}
+      <HeroActions>
         <div style={{ display:'flex', gap:8, alignItems:'center', background:subBg, padding:'7px 12px', borderRadius:8 }}>
           <i className="ti ti-bolt" style={{ fontSize:16, color:'#d97706' }}/>
           <span style={{ fontSize:12, color:textSub }}>{activeCount} active sources</span>
         </div>
-      </div>
+      </HeroActions>
 
       {/* Source cards */}
       <div style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'.5px', color:textMuted, marginBottom:10 }}>Lead sources</div>

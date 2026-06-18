@@ -1706,16 +1706,6 @@ export default function LeadsPage() {
       <ShareModal />
       <input ref={fileRef} type="file" accept=".csv" onChange={handleCSV} style={{ display: 'none' }} />
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-        <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--primary-bg)', border: '0.5px solid var(--primary-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <i className="ti ti-users-group" style={{ fontSize: 22, color: 'var(--primary-dark)' }} />
-        </div>
-        <div>
-          <h1 className="font-syne fw-700" style={{ fontSize: 23, marginBottom: 2, color: 'var(--text)' }}>Lead Hub</h1>
-          <p style={{ fontSize: 13, color: 'var(--text2)' }}>Capture, track and close — every lead in one place</p>
-        </div>
-      </div>
-
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
       <div style={{ display: 'inline-flex', gap: 3, maxWidth: '100%', background: 'var(--bg2)', border: '0.5px solid var(--border)', borderRadius: 11, padding: 3, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
         {[
