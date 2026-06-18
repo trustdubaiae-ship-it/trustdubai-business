@@ -1,5 +1,5 @@
 // trustdubai-business/src/pages/DashboardPage.jsx
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 import { MENU } from '../components/Sidebar'
@@ -152,6 +152,27 @@ export default function DashboardPage({ onNavigate, theme }) {
   useEffect(() => { const r = () => setVw(window.innerWidth); window.addEventListener('resize', r); return () => window.removeEventListener('resize', r) }, [])
   const mobile = vw < 768
 
+  // ---- Fixed page: scale the whole cockpit down so it always fits the viewport (no scroll, any device)
+  const fitWrapRef = useRef(null)
+  const fitInnerRef = useRef(null)
+  const [fitScale, setFitScale] = useState(1)
+  useLayoutEffect(() => {
+    const measure = () => {
+      const wrap = fitWrapRef.current, inner = fitInnerRef.current
+      if (!wrap || !inner) return
+      const availH = wrap.clientHeight
+      const natH = inner.offsetHeight
+      if (!availH || !natH) return
+      setFitScale(Math.min(1, availH / natH))
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    if (fitInnerRef.current) ro.observe(fitInnerRef.current)
+    if (fitWrapRef.current) ro.observe(fitWrapRef.current)
+    window.addEventListener('resize', measure)
+    return () => { ro.disconnect(); window.removeEventListener('resize', measure) }
+  }, [vw])
+
   // Share Profile + QR (mobile header button)
   const [shareOpen, setShareOpen] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -303,8 +324,9 @@ export default function DashboardPage({ onNavigate, theme }) {
 
   const go = (id) => onNavigate && onNavigate(id)
 
-  /* ---------------- mobile render (tile launcher preserved) ---------------- */
-  if (mobile) {
+  /* ---------------- mobile tile launcher (disabled: Command Center now shows the
+     scaled cockpit on every device; the launcher still lives on the All Features page) ---------------- */
+  if (false) {
     // Theme-aware (follows the 555 shell light/dark) — greeting now lives in the global hero.
     const MC = { card:'var(--card)', border:'var(--border)', text:'var(--text)', text2:'var(--text2)', text3:'var(--text3)', row:'var(--bg2)', green:'#22c55e', cyan:'#06b6d4', gold:'#f59e0b', shadow:'var(--shadow)' }
     return (
@@ -416,6 +438,8 @@ export default function DashboardPage({ onNavigate, theme }) {
   )
 
   return (
+    <div className="qc-fit" ref={fitWrapRef}>
+    <div className="qc-fit-inner" ref={fitInnerRef} style={{ transform:`scale(${fitScale})` }}>
     <div ref={cockpitRef} className={`qc-root${isDark?' qc-dark':' qc-light'}`} style={{ position:'relative', overflow:'hidden',
       background:T.rootGrad, color:T.text,
       '--qc-text':T.text, '--qc-text2':T.text2, '--qc-glass-bg':T.glassBg, '--qc-glass-bd':T.glassBd,
@@ -594,7 +618,8 @@ export default function DashboardPage({ onNavigate, theme }) {
           </div>
         </div>
       </div>
-
+        </div>
+      </div>
       {shareOpen && <ShareModal {...{ company, _slug, _publicLink, _profileQr, copied, copyProfileLink, downloadProfileQR, shareProfileWhatsApp, onClose:()=>setShareOpen(false), onNavigate }}/>}
     </div>
   )

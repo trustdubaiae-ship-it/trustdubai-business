@@ -439,7 +439,7 @@ function Portal() {
         open={sidebarOpen}
       />
 
-      <main className="main" style={{ background: pageBg }}>
+      <main className={`main${activePage==='dashboard' ? ' os-fixed' : ''}`} style={{ background: pageBg }}>
 
         <header className="os-hero">
           <div className="os-hero-skyline" aria-hidden="true"/>
