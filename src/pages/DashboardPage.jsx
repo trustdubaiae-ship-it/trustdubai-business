@@ -798,11 +798,11 @@ const QC_CSS = `
 @media (max-width:1024px){
   .qc-kpis{ grid-template-columns:1fr; gap:10px; }   /* 5 KPI tiles in a single column, one per line */
 
-  .qc-core-sec{ height:auto; display:flex; flex-wrap:wrap; align-items:stretch; justify-content:center; gap:10px; padding:8px 0 4px; }
+  .qc-core-sec{ height:auto; display:flex; flex-direction:column; align-items:stretch; gap:10px; padding:8px 0 4px; }
   .qc-neural{ display:none; }
   .qc-ring{ display:none; }
-  .qc-core{ position:static; flex-basis:100%; margin:2px auto 14px; }
-  .qc-node-card{ position:static; flex:1 1 calc(50% - 6px); width:auto; max-width:calc(50% - 6px); }
+  .qc-core{ position:static; align-self:center; margin:2px auto 14px; }
+  .qc-node-card{ position:static; width:100%; max-width:100%; }   /* full-width single column — clean & premium */
   .qc-node-card.right{ flex-direction:row; text-align:left; }
   .qc-node-card.right .qc-eng-online{ justify-content:flex-start; }
 
