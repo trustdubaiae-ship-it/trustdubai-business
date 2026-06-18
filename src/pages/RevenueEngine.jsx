@@ -75,6 +75,17 @@ const Ic = {
   clock:  'M12 8v4l3 2M12 21a9 9 0 100-18 9 9 0 000 18z',
   trophy: 'M8 21h8M12 17v4M7 4h10v4a5 5 0 01-10 0V4zM7 6H4v1a3 3 0 003 3M17 6h3v1a3 3 0 01-3 3',
   arrows: 'M4 12h16M14 6l6 6-6 6',
+  funnel: 'M3 4h18l-7 8v6l-4 2v-8L3 4z',
+  share:  'M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7M16 6l-4-4-4 4M12 2v14',
+  trend:  'M3 17l6-6 4 4 7-7M14 8h6v6',
+  grid:   'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
+  pie:    'M12 3a9 9 0 109 9h-9V3z',
+  cal:    'M3 9h18M7 3v4M17 3v4M5 5h14a1 1 0 011 1v13a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1z',
+  target: 'M12 21a9 9 0 100-18 9 9 0 000 18zM12 16a4 4 0 100-8 4 4 0 000 8z',
+  bars:   'M4 20V10M10 20V4M16 20v-7M22 20H2',
+  pulse:  'M3 12h4l3 8 4-16 3 8h4',
+  maximize:'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5',
+  minimize:'M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5',
 }
 
 /* --------------------------- mini components ---------------------------- */
@@ -115,7 +126,7 @@ function Legend({ data, suffix = '' }) {
   )
 }
 
-function LineTrend({ points, height = 160 }) {
+function LineTrend({ points, height = 132 }) {
   const ref = useRef(null)
   const [w, setW] = useState(600)
   useEffect(() => {
@@ -133,7 +144,7 @@ function LineTrend({ points, height = 160 }) {
   const last = points[points.length - 1]
   return (
     <div ref={ref} style={{ width: '100%' }}>
-      <svg width={w} height={height} className="re-line">
+      <svg width={w} height={height} viewBox={`0 0 ${w} ${height}`} preserveAspectRatio="none" className="re-line">
         <defs><linearGradient id="reBizArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#22c55e" stopOpacity="0.35" /><stop offset="100%" stopColor="#22c55e" stopOpacity="0" /></linearGradient></defs>
         {[0, 0.5, 1].map((g, i) => (
           <line key={i} x1={pad} x2={w - pad} y1={pad/2+innerH-g*innerH} y2={pad/2+innerH-g*innerH} stroke="var(--re-track)" strokeWidth="1" strokeDasharray="3 4" />
@@ -200,11 +211,14 @@ function VBars({ rows }) {
   )
 }
 
-function Card({ title, action, children }) {
+function Card({ title, icon, accent = '#00D4FF', action, children }) {
   return (
-    <div className="re-card">
+    <div className="re-card" style={{ '--ca': accent }}>
       <div className="re-card-head">
-        <h3 className="re-card-title">{title}</h3>
+        <div className="re-card-titlewrap">
+          {icon && <span className="re-card-ic"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={icon} /></svg></span>}
+          <h3 className="re-card-title">{title}</h3>
+        </div>
         {action && <button className="re-card-action" onClick={action.fn}>{action.label}</button>}
       </div>
       <div className="re-card-body">{children}</div>
@@ -215,9 +229,9 @@ function Card({ title, action, children }) {
 function KPI({ icon, tint, label, value, change, sub }) {
   const up = (change ?? 0) >= 0
   return (
-    <div className="re-kpi">
+    <div className="re-kpi" style={{ '--c': tint }}>
       <div className="re-kpi-top">
-        <span className="re-kpi-icon" style={{ background: `${tint}22`, color: tint }}>
+        <span className="re-kpi-icon">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={icon} /></svg>
         </span>
         <span className="re-kpi-label">{label}</span>
@@ -236,6 +250,25 @@ export default function RevenueEngine({ onNavigate, theme = 'dark' }) {
   const isDark = theme !== 'light'
   const [loading, setLoading] = useState(true)
   const [leads, setLeads] = useState([])
+
+  // ---- Fit-to-screen / fullscreen: everything fills ONE screen, no scroll ----
+  const wrapRef = useRef(null)
+  const [fit, setFit] = useState(false)
+  const toggleFit = () => {
+    if (!fit) {
+      setFit(true)
+      try { const el = wrapRef.current; (el?.requestFullscreen || el?.webkitRequestFullscreen || el?.msRequestFullscreen)?.call(el) } catch (e) { /* overlay still applies */ }
+    } else {
+      setFit(false)
+      try { if (document.fullscreenElement) (document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen)?.call(document) } catch (e) { /* ignore */ }
+    }
+  }
+  useEffect(() => {
+    const onFs = () => { if (!document.fullscreenElement && !document.webkitFullscreenElement) setFit(false) }
+    document.addEventListener('fullscreenchange', onFs)
+    document.addEventListener('webkitfullscreenchange', onFs)
+    return () => { document.removeEventListener('fullscreenchange', onFs); document.removeEventListener('webkitfullscreenchange', onFs) }
+  }, [])
 
   useEffect(() => { if (company) load() }, [company])
 
@@ -318,8 +351,15 @@ export default function RevenueEngine({ onNavigate, theme = 'dark' }) {
 
   const heatColor = (cnt) => { if(cnt===0)return'var(--re-track)'; const r=cnt/m.heatMax; if(r>0.66)return'#ef4444'; if(r>0.33)return'#fbbf24'; return'#22c55e' }
 
+  // orbital pipeline nodes around the Revenue Core (2 left, 2 right)
+  const stageIcons = [Ic.users, Ic.clock, Ic.arrows, Ic.trophy]
+  const coreNodes = m.pipeline.slice(0, 4).map((s, i) => ({
+    label: s.label, value: s.value, color: s.color, icon: stageIcons[i] || Ic.arrows,
+    side: i < 2 ? 'left' : 'right', y: i % 2 === 0 ? 12 : 60, ly: i % 2 === 0 ? 95 : 330,
+  }))
+
   return (
-    <div className="re-root" data-theme={isDark ? 'dark' : 'light'}>
+    <div className={'re-root' + (fit ? ' re-fit' : '')} ref={wrapRef} data-theme={isDark ? 'dark' : 'light'}>
       <style>{CSS}</style>
 
       <HeroActions>
@@ -329,49 +369,101 @@ export default function RevenueEngine({ onNavigate, theme = 'dark' }) {
         </button>
       </HeroActions>
 
+      {fit && (
+        <button onClick={toggleFit} className="re-fitexit" title="Exit full screen">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={Ic.minimize} /></svg> Exit
+        </button>
+      )}
+
+      <div className="re-fitwrap">
       {loading && leads.length === 0 ? (
         <div className="re-loading">Loading your leads…</div>
       ) : (
         <>
+          <div className="re-sechead">
+            <h2>Revenue Intelligence</h2>
+            <span className="re-sub">Your sales pipeline, end to end</span>
+            <span className="re-hline" />
+            <span className="re-live"><span className="re-livedot" />Live</span>
+            <button className="re-fitbtn" onClick={toggleFit} title={fit ? 'Exit full screen' : 'Fit everything on one screen'}>
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={fit ? Ic.minimize : Ic.maximize} /></svg>
+              {fit ? 'Exit' : 'Fit screen'}
+            </button>
+          </div>
           <div className="re-kpis">
-            <KPI icon={Ic.users}   tint="#6366f1" label="Total Leads"     value={m.total}            change={m.totalChange} />
-            <KPI icon={Ic.refresh} tint="#3b82f6" label="Conversion Rate" value={`${m.conversion}%`} sub="won / total" />
-            <KPI icon={Ic.fire}    tint="#f97316" label="Hot Leads"       value={m.hot}              sub="high priority" />
-            <KPI icon={Ic.clock}   tint="#06b6d4" label="Follow-ups Due"  value={m.followDue}        sub="pending" />
+            <KPI icon={Ic.users}   tint="#00D4FF" label="Total Leads"     value={m.total}            change={m.totalChange} />
+            <KPI icon={Ic.refresh} tint="#00FFCC" label="Conversion Rate" value={`${m.conversion}%`} sub="won / total" />
+            <KPI icon={Ic.fire}    tint="#ffb020" label="Hot Leads"       value={m.hot}              sub="high priority" />
+            <KPI icon={Ic.clock}   tint="#ec4899" label="Follow-ups Due"  value={m.followDue}        sub="pending" />
             <KPI icon={Ic.trophy}  tint="#22c55e" label="Leads Won"       value={m.won}              sub="closed" />
-            <KPI icon={Ic.arrows}  tint="#8b5cf6" label="Active Pipeline" value={m.active}           sub="in progress" />
+            <KPI icon={Ic.arrows}  tint="#8B5CF6" label="Active Pipeline" value={m.active}           sub="in progress" />
           </div>
 
-          <div className="re-grid re-grid-4">
-            <Card title="Pipeline Funnel"><Funnel stages={m.pipeline} /></Card>
-            <Card title="Leads by Source">
-              <div className="re-donut-wrap"><Donut data={m.sources} total={m.total} size={140} /><Legend data={m.sources} /></div>
-            </Card>
-            <Card title="Leads Trend (30 days)"><LineTrend points={m.trend} /></Card>
-            <Card title="Follow-ups">
-              <div className="re-follow">
-                <button className="re-follow-box re-amber" onClick={() => onNavigate && onNavigate('leads')}>
-                  <span className="re-follow-num">{m.dueToday}</span><span className="re-follow-label">Due Today</span>
-                </button>
-                <button className="re-follow-box re-red" onClick={() => onNavigate && onNavigate('leads')}>
-                  <span className="re-follow-num">{m.overdue}</span><span className="re-follow-label">Overdue</span>
-                </button>
+          {/* ===== Revenue Core — cockpit hero (Command Center concept) ===== */}
+          <div className="re-cockpit">
+            <div className="re-glass re-core-card">
+              <div className="re-core-sec">
+                <svg className="re-neural" viewBox="0 0 1000 440" preserveAspectRatio="none" aria-hidden="true">
+                  <defs>
+                    <linearGradient id="reLine" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stopColor="#00D4FF" /><stop offset="1" stopColor="#8B5CF6" /></linearGradient>
+                    <filter id="reGlow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.2" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+                  </defs>
+                  <g filter="url(#reGlow)" stroke="url(#reLine)" strokeWidth="1.6" fill="none" strokeLinecap="round">
+                    {coreNodes.map((n, i) => { const ex = n.side === 'left' ? 250 : 750; const mx = (500 + ex) / 2; return <path key={i} className="re-flowline" d={`M ${ex} ${n.ly} C ${mx} ${n.ly}, ${mx} 220, 500 220`} /> })}
+                  </g>
+                  {coreNodes.map((n, i) => { const ex = n.side === 'left' ? 250 : 750; const mx = (500 + ex) / 2; return (
+                    <circle key={'d' + i} r="3" fill={n.color} className="re-flowdot"><animateMotion dur={`${2.6 + i * 0.3}s`} repeatCount="indefinite" path={`M ${ex} ${n.ly} C ${mx} ${n.ly}, ${mx} 220, 500 220`} /></circle>
+                  ) })}
+                </svg>
+                <div className="re-ring r3" /><div className="re-ring r2" /><div className="re-ring r1" />
+                <div className="re-core" onClick={() => onNavigate && onNavigate('leads')}><div className="re-core-inner">
+                  <div className="re-core-k">Conversion</div>
+                  <div className="re-core-v re-grad">{m.conversion}%</div>
+                  <div className="re-core-sub">{m.won} won · {m.total} leads</div>
+                </div></div>
+                {coreNodes.map((n, i) => (
+                  <div key={i} className={`re-node ${n.side}`} style={{ '--c': n.color, top: `${n.y}%`, [n.side]: 0 }} onClick={() => onNavigate && onNavigate('leads')}>
+                    <div className="re-node-ic"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={n.icon} /></svg></div>
+                    <div style={{ minWidth: 0 }}><div className="re-node-name">{n.label}</div><div className="re-node-val">{n.value}</div></div>
+                  </div>
+                ))}
               </div>
-              <div className="re-insights">
-                <div className="re-insights-head">✨ Insights</div>
-                {m.insights.map((t, i) => <p className="re-insight" key={i}>{t}</p>)}
+              <div className="re-core-cap">Lead → Contact → Quote → Negotiation → Won</div>
+            </div>
+
+            <div className="re-rail">
+              <div className="re-glass re-rpanel">
+                <div className="re-rpanel-h"><span className="re-rpanel-orb">✨</span> AI Insights</div>
+                {m.insights.map((t, i) => <div className="re-insight2" key={i}>{t}</div>)}
               </div>
-            </Card>
+              <div className="re-glass re-rpanel">
+                <div className="re-rpanel-h">Follow-ups</div>
+                <div className="re-follow2">
+                  <div className="re-fbox" onClick={() => onNavigate && onNavigate('leads')}><span className="n" style={{ color: '#ffb020' }}>{m.dueToday}</span><span className="l">Due Today</span></div>
+                  <div className="re-fbox" onClick={() => onNavigate && onNavigate('leads')}><span className="n" style={{ color: '#ec4899' }}>{m.overdue}</span><span className="l">Overdue</span></div>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div className="re-grid re-grid-3">
-            <Card title="Leads by Project Type">
-              <div className="re-donut-wrap"><Donut data={m.types} total={m.total} centerLabel={m.total} centerSub="Total" size={150} /><Legend data={m.types} /></div>
+          {/* masonry bento — cards pack by their own height, no ragged gaps */}
+          <div className="re-bento">
+            <Card title="Pipeline Funnel" icon={Ic.funnel} accent="#8B5CF6"><Funnel stages={m.pipeline} /></Card>
+            <Card title="Leads Trend (30 days)" icon={Ic.trend} accent="#22c55e"><LineTrend points={m.trend} /></Card>
+            <Card title="Leads by Source" icon={Ic.share} accent="#00D4FF">
+              <div className="re-donut-wrap"><Donut data={m.sources} total={m.total} size={120} /><Legend data={m.sources} /></div>
             </Card>
-            <Card title="Lead Status">
-              <div className="re-donut-wrap"><Donut data={m.statusDonut} total={m.total} centerLabel={m.total} centerSub="Total" size={140} /><Legend data={m.statusDonut} /></div>
+            <Card title="Conversion Rate by Source" icon={Ic.bars} accent="#8B5CF6"><VBars rows={m.convBySrc} /></Card>
+            <Card title="Leads by Project Type" icon={Ic.grid} accent="#ffb020">
+              <div className="re-donut-wrap"><Donut data={m.types} total={m.total} centerLabel={m.total} centerSub="Total" size={126} /><Legend data={m.types} /></div>
             </Card>
-            <Card title="Follow-ups Heatmap">
+            <Card title="Lead Score Distribution" icon={Ic.target} accent="#00D4FF">
+              <div className="re-score"><Gauge value={m.avgScore} /><Legend data={m.scoreBuckets} /></div>
+            </Card>
+            <Card title="Lead Status" icon={Ic.pie} accent="#ec4899">
+              <div className="re-donut-wrap"><Donut data={m.statusDonut} total={m.total} centerLabel={m.total} centerSub="Total" size={120} /><Legend data={m.statusDonut} /></div>
+            </Card>
+            <Card title="Follow-ups Heatmap" icon={Ic.cal} accent="#00FFCC">
               <div className="re-heat">
                 <div className="re-heat-days">{['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d => <span key={d}>{d}</span>)}</div>
                 {m.heat.map((row, wi) => (
@@ -384,27 +476,20 @@ export default function RevenueEngine({ onNavigate, theme = 'dark' }) {
                 </div>
               </div>
             </Card>
-          </div>
-
-          <div className="re-grid re-grid-2">
-            <Card title="Lead Score Distribution">
-              <div className="re-score"><Gauge value={m.avgScore} /><Legend data={m.scoreBuckets} /></div>
+            <Card title="Recent Lead Activity" icon={Ic.pulse} accent="#22c55e">
+              <div className="re-activity">
+                {m.activity.length === 0 && <div className="re-empty">No recent activity</div>}
+                {m.activity.map((a, i) => (
+                  <div className="re-activity-row" key={i}>
+                    <span className="re-activity-dot" /><span className="re-activity-text">{a.text}</span><span className="re-activity-time">{a.time}</span>
+                  </div>
+                ))}
+              </div>
             </Card>
-            <Card title="Conversion Rate by Source"><VBars rows={m.convBySrc} /></Card>
           </div>
-
-          <Card title="Recent Lead Activity">
-            <div className="re-activity">
-              {m.activity.length === 0 && <div className="re-empty">No recent activity</div>}
-              {m.activity.map((a, i) => (
-                <div className="re-activity-row" key={i}>
-                  <span className="re-activity-dot" /><span className="re-activity-text">{a.text}</span><span className="re-activity-time">{a.time}</span>
-                </div>
-              ))}
-            </div>
-          </Card>
         </>
       )}
+      </div>
     </div>
   )
 }
@@ -412,56 +497,120 @@ export default function RevenueEngine({ onNavigate, theme = 'dark' }) {
 /* ------------------------------- STYLES -------------------------------- */
 const CSS = `
 .re-root{
-  --re-blue:#6366f1; --re-up:#22c55e; --re-down:#ef4444;
+  --re-glow1:#00D4FF; --re-glow2:#8B5CF6; --re-up:#22c55e; --re-down:#ef4444;
   font-family:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
-  width:100%; box-sizing:border-box;
+  width:100%; box-sizing:border-box; position:relative;
 }
 .re-root *{box-sizing:border-box;}
 .re-root[data-theme="dark"]{
-  --re-card:#161b22; --re-card2:#1c232c;
-  --re-border:rgba(255,255,255,.08); --re-text:#e6edf3; --re-muted:#8b949e;
-  --re-track:rgba(255,255,255,.08); --re-hover:rgba(255,255,255,.04);
+  --re-card:rgba(255,255,255,0.045); --re-card2:rgba(255,255,255,0.06);
+  --re-border:rgba(255,255,255,.10); --re-text:#e8f0ff; --re-muted:#aeb9d6; --re-muted2:#7e8aa8;
+  --re-track:rgba(255,255,255,.09); --re-hover:rgba(255,255,255,.06);
+  --re-grad:radial-gradient(900px 480px at 50% -8%, rgba(0,212,255,0.10), transparent 60%), radial-gradient(720px 520px at 96% 28%, rgba(139,92,246,0.10), transparent 55%), radial-gradient(640px 520px at 3% 82%, rgba(0,255,204,0.06), transparent 55%);
   color:var(--re-text);
 }
 .re-root[data-theme="light"]{
-  --re-card:#ffffff; --re-card2:#f8fafc;
-  --re-border:#e5e7eb; --re-text:#111827; --re-muted:#6b7280;
-  --re-track:#eef2f6; --re-hover:#f3f4f6;
+  --re-card:rgba(255,255,255,0.82); --re-card2:#f5f9ff;
+  --re-border:rgba(12,32,64,.10); --re-text:#0b1530; --re-muted:#46587a; --re-muted2:#6b7a98;
+  --re-track:#e9eef6; --re-hover:#f1f5fb;
+  --re-grad:radial-gradient(900px 480px at 50% -8%, rgba(0,160,220,0.10), transparent 60%), radial-gradient(720px 520px at 96% 28%, rgba(139,92,246,0.07), transparent 55%);
   color:var(--re-text);
 }
+.re-root::before{ content:''; position:absolute; inset:0; background:var(--re-grad); z-index:0; pointer-events:none; }
+.re-root>*{ position:relative; z-index:1; }
+.re-glass{ border:1px solid var(--re-border); background:var(--re-card); backdrop-filter:blur(12px); }
+
+/* cockpit section header */
+.re-sechead{ display:flex; align-items:center; gap:12px; margin:0 0 16px; flex-wrap:wrap; }
+.re-sechead h2{ font-weight:800; font-size:clamp(16px,2vw,20px); letter-spacing:-.3px; margin:0; }
+.re-sechead .re-sub{ font-size:12.5px; color:var(--re-muted); }
+.re-hline{ flex:1; min-width:24px; height:1px; background:linear-gradient(90deg,var(--re-border),transparent); }
+.re-live{ display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--re-up); font-weight:700; }
+.re-livedot{ width:7px; height:7px; border-radius:50%; background:var(--re-up); box-shadow:0 0 8px var(--re-up); animation:repulse 1.8s infinite; }
+@keyframes repulse{ 0%,100%{opacity:1} 50%{opacity:.4} }
+.re-fitbtn{ display:inline-flex; align-items:center; gap:6px; border:1px solid var(--re-border); background:var(--re-card); color:var(--re-text); padding:6px 11px; border-radius:9px; font-size:12px; font-weight:600; cursor:pointer; backdrop-filter:blur(8px); transition:.15s; }
+.re-fitbtn:hover{ border-color:color-mix(in srgb,var(--re-glow1) 50%, var(--re-border)); color:var(--re-glow1); }
+.re-fitexit{ position:fixed; top:14px; right:16px; z-index:10000; display:inline-flex; align-items:center; gap:6px; border:1px solid rgba(255,255,255,.18); background:rgba(10,16,30,.72); color:#e8f0ff; padding:8px 13px; border-radius:10px; font-size:12.5px; font-weight:700; cursor:pointer; backdrop-filter:blur(10px); box-shadow:0 6px 20px -6px rgba(0,0,0,.6); }
+.re-fitexit:hover{ border-color:rgba(0,212,255,.6); color:#00D4FF; }
 .re-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:20px;}
 .re-title{font-size:clamp(20px,2.4vw,28px);font-weight:800;margin:0;display:flex;align-items:center;gap:10px;}
 .re-badge{font-size:11px;font-weight:700;letter-spacing:.5px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;padding:3px 9px;border-radius:6px;}
 .re-subtitle{color:var(--re-muted);margin:6px 0 0;font-size:clamp(12px,1.4vw,14px);}
-.re-refresh{display:flex;align-items:center;gap:7px;background:var(--re-card);border:1px solid var(--re-border);color:var(--re-text);padding:9px 14px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;transition:.15s;}
-.re-refresh:hover{background:var(--re-hover);}
+.re-refresh{display:flex;align-items:center;gap:7px;background:var(--re-card);border:1px solid var(--re-border);color:var(--re-text);padding:9px 14px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;transition:.15s;backdrop-filter:blur(8px);}
+.re-refresh:hover{border-color:color-mix(in srgb,var(--re-glow1) 50%, var(--re-border));color:var(--re-glow1);}
 .re-refresh:disabled{opacity:.6;cursor:default;}
 .re-loading{padding:60px;text-align:center;color:var(--re-muted);}
 
-.re-kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-bottom:18px;}
-.re-kpi{background:var(--re-card);border:1px solid var(--re-border);border-radius:16px;padding:16px;transition:.15s;}
-.re-kpi:hover{transform:translateY(-2px);border-color:var(--re-up);}
+.re-kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:18px;}
+.re-kpi{background:var(--re-card);border:1px solid var(--re-border);backdrop-filter:blur(12px);border-radius:16px;padding:15px 16px;transition:transform .15s,border-color .15s,box-shadow .15s;}
+.re-kpi:hover{transform:translateY(-3px);border-color:color-mix(in srgb,var(--c) 55%, transparent);box-shadow:0 14px 34px -16px var(--c);}
 .re-kpi-top{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
-.re-kpi-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-.re-kpi-label{font-size:12.5px;color:var(--re-muted);font-weight:600;line-height:1.25;}
-.re-kpi-value{font-size:clamp(22px,2.6vw,30px);font-weight:800;margin-bottom:6px;}
-.re-kpi-change{font-size:12px;font-weight:700;}
+.re-kpi-icon{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:color-mix(in srgb,var(--c) 20%, transparent);color:var(--c);border:1px solid color-mix(in srgb,var(--c) 45%, transparent);box-shadow:0 0 18px -3px color-mix(in srgb,var(--c) 60%, transparent);}
+.re-kpi-label{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--re-muted2);font-weight:600;line-height:1.3;}
+.re-kpi-value{font-size:clamp(22px,2.6vw,29px);font-weight:800;margin-bottom:5px;font-variant-numeric:tabular-nums;line-height:1;color:var(--c);}
+.re-kpi-change{font-size:11.5px;font-weight:700;}
 .re-kpi-change span{color:var(--re-muted);font-weight:500;}
 .re-kpi-change.up{color:var(--re-up);}
 .re-kpi-change.down{color:var(--re-down);}
 .re-kpi-change.muted{color:var(--re-muted);font-weight:600;}
 
-.re-grid{display:grid;gap:14px;margin-bottom:18px;}
+.re-grid{display:grid;gap:14px;margin-bottom:14px;align-items:start;}
 .re-grid-4{grid-template-columns:repeat(4,1fr);}
 .re-grid-3{grid-template-columns:repeat(3,1fr);}
 .re-grid-2{grid-template-columns:repeat(2,1fr);}
 .re-kpis>*,.re-grid>*{min-width:0;}
 
-.re-card{background:var(--re-card);border:1px solid var(--re-border);border-radius:16px;padding:18px;display:flex;flex-direction:column;}
-.re-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:8px;}
-.re-card-title{font-size:14.5px;font-weight:700;margin:0;}
-.re-card-action{background:none;border:none;color:var(--re-up);font-size:12.5px;font-weight:600;cursor:pointer;}
-.re-card-body{flex:1;}
+.re-card{position:relative;background:var(--re-card);border:1px solid var(--re-border);backdrop-filter:blur(12px);border-radius:16px;padding:15px 16px;display:flex;flex-direction:column;overflow:hidden;transition:border-color .18s,box-shadow .18s,transform .18s;}
+.re-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--ca),transparent 70%);opacity:.55;}
+.re-card:hover{transform:translateY(-3px);border-color:color-mix(in srgb,var(--ca) 45%, var(--re-border));box-shadow:0 18px 44px -24px rgba(0,0,0,.6),0 0 28px -16px var(--ca);}
+.re-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;gap:8px;}
+.re-card-titlewrap{display:flex;align-items:center;gap:9px;min-width:0;}
+.re-card-ic{width:28px;height:28px;border-radius:9px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--ca) 18%, transparent);color:var(--ca);border:1px solid color-mix(in srgb,var(--ca) 40%, transparent);box-shadow:0 0 14px -4px var(--ca);}
+.re-card-title{font-size:11.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;margin:0;color:var(--re-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.re-card-action{background:none;border:none;color:var(--ca);font-size:12.5px;font-weight:600;cursor:pointer;}
+.re-card-body{flex:1;display:flex;flex-direction:column;justify-content:center;min-height:0;}
+.re-card-head{margin-bottom:13px;}
+
+/* masonry bento — varied-height cards pack tightly, no ragged empty space */
+.re-bento{ columns:3 300px; column-gap:14px; }
+.re-bento>.re-card{ break-inside:avoid; -webkit-column-break-inside:avoid; page-break-inside:avoid; width:100%; margin:0 0 14px; }
+@media (max-width:1100px){ .re-bento{ columns:2 280px; } }
+@media (max-width:680px){ .re-bento{ column-count:1; } }
+
+/* ===== Fit-to-screen: fill the WHOLE screen (full width), no scroll ===== */
+.re-fit{ position:fixed; inset:0; z-index:9999; width:100vw; height:100dvh; overflow:hidden; display:flex; flex-direction:column; padding:12px clamp(14px,1.6vw,26px); }
+.re-fit[data-theme="dark"]{ background:#070b16; }
+.re-fit[data-theme="light"]{ background:#eef3fa; }
+.re-fit .re-fitwrap{ flex:1; min-height:0; display:flex; flex-direction:column; gap:10px; width:100%; }
+.re-fit .re-sechead{ margin:0; flex:none; }
+.re-fit .re-kpis{ margin:0; flex:none; gap:10px; }
+.re-fit .re-kpi{ padding:10px 13px; }
+.re-fit .re-kpi-top{ margin-bottom:6px; }
+.re-fit .re-kpi-value{ font-size:21px; }
+.re-fit .re-cockpit{ margin:0; flex:none; }
+.re-fit .re-core-card{ min-height:0; padding:12px; }
+.re-fit .re-core-sec{ min-height:200px; }
+.re-fit .re-bento{ flex:1; min-height:0; columns:auto; display:grid; grid-template-columns:repeat(3,1fr); grid-auto-rows:1fr; gap:10px; overflow:hidden; }
+.re-fit .re-bento>.re-card{ margin:0; min-height:0; overflow:hidden; padding:12px 14px; }
+.re-fit .re-card-body{ overflow:hidden; }
+.re-fit .re-card-head{ margin-bottom:9px; }
+/* shrink each chart so it fills its cell without overflowing/overlapping */
+.re-fit .re-funnel{ gap:6px; }
+.re-fit .re-funnel-bar{ height:15px; }
+.re-fit .re-vbars{ height:100%; min-height:0; padding-top:2px; }
+.re-fit .re-line{ height:94px; }
+.re-fit .re-donut{ width:88px; height:88px; }
+.re-fit .re-donut-num{ font-size:15px; }
+.re-fit .re-donut-sub{ font-size:9px; }
+.re-fit .re-gauge{ width:128px; height:78px; }
+.re-fit .re-score{ gap:10px; flex-wrap:nowrap; }
+.re-fit .re-donut-wrap{ flex-wrap:nowrap; gap:10px; }
+.re-fit .re-legend{ gap:5px; font-size:11px; min-width:0; }
+.re-fit .re-heat{ gap:3px; }
+.re-fit .re-heat-cell{ aspect-ratio:auto; height:15px; min-height:0; }
+.re-fit .re-heat-legend{ margin-top:5px; }
+.re-fit .re-activity-row{ padding:5px 0; font-size:12px; }
+@media (max-width:900px){ .re-fit{ overflow:auto; } .re-fit .re-bento{ grid-template-columns:repeat(2,1fr); grid-auto-rows:minmax(150px,auto); } }
 
 .re-donut-wrap{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
 .re-donut-num{font-size:22px;font-weight:800;fill:var(--re-text);}
@@ -496,17 +645,17 @@ const CSS = `
 .re-insight{font-size:12px;color:var(--re-muted);margin:0 0 7px;line-height:1.5;}
 .re-insight:last-child{margin-bottom:0;}
 
-.re-vbars{display:flex;align-items:flex-end;justify-content:space-around;gap:8px;height:170px;padding-top:10px;}
+.re-vbars{display:flex;align-items:flex-end;justify-content:space-around;gap:8px;height:148px;padding-top:8px;}
 .re-vbar-col{display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;height:100%;justify-content:flex-end;}
 .re-vbar-num{font-size:12px;font-weight:700;}
 .re-vbar-track{width:60%;max-width:40px;flex:1;display:flex;align-items:flex-end;}
 .re-vbar-fill{width:100%;border-radius:6px 6px 0 0;min-height:4px;transition:height .5s;}
 .re-vbar-label{font-size:11px;color:var(--re-muted);font-weight:600;text-align:center;}
 
-.re-score{display:flex;flex-direction:column;align-items:center;gap:14px;}
+.re-score{display:flex;flex-direction:row;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;}
 .re-gauge-num{font-size:30px;font-weight:800;}
 .re-gauge-sub{font-size:11px;fill:var(--re-muted);}
-.re-score .re-legend{width:100%;}
+.re-score .re-legend{flex:1;min-width:120px;}
 
 .re-heat{display:flex;flex-direction:column;gap:4px;}
 .re-heat-days{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;font-size:10px;color:var(--re-muted);text-align:center;margin-bottom:2px;}
@@ -523,6 +672,62 @@ const CSS = `
 .re-activity-text{flex:1;}
 .re-activity-time{color:var(--re-muted);font-size:11.5px;}
 .re-empty{color:var(--re-muted);font-size:13px;text-align:center;padding:20px;}
+
+/* ===== Revenue Core — cockpit hero ===== */
+.re-grad{ background:linear-gradient(100deg,#00D4FF,#00FFCC 55%,#8B5CF6); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.re-cockpit{ display:grid; grid-template-columns:1.9fr 1fr; gap:16px; margin-bottom:18px; }
+.re-rail{ display:flex; flex-direction:column; gap:14px; min-width:0; }
+.re-core-card{ border-radius:22px; padding:16px; position:relative; overflow:hidden; display:flex; flex-direction:column; min-height:380px; }
+.re-core-sec{ position:relative; width:100%; flex:1; min-height:330px; }
+.re-neural{ position:absolute; inset:0; width:100%; height:100%; z-index:0; opacity:.85; }
+.re-flowline{ stroke-dasharray:6 10; animation:redash 1s linear infinite; opacity:.7; }
+@keyframes redash{ to{ stroke-dashoffset:-16; } }
+.re-flowdot{ filter:drop-shadow(0 0 4px currentColor); }
+.re-ring{ position:absolute; left:50%; top:50%; border-radius:50%; border:1px solid rgba(0,212,255,.38); z-index:1; box-shadow:0 0 22px -6px rgba(0,212,255,.4); }
+.re-ring.r1{ width:178px; height:178px; margin:-89px 0 0 -89px; border-style:dashed; animation:respin 26s linear infinite; }
+.re-ring.r2{ width:226px; height:226px; margin:-113px 0 0 -113px; border-color:rgba(139,92,246,.34); box-shadow:0 0 26px -6px rgba(139,92,246,.4); animation:respin 40s linear infinite reverse; }
+.re-ring.r3{ width:282px; height:282px; margin:-141px 0 0 -141px; border-color:rgba(0,255,204,.22); box-shadow:0 0 30px -8px rgba(0,255,204,.3); }
+@keyframes respin{ to{ transform:rotate(360deg); } }
+.re-core{ position:absolute; left:50%; top:50%; width:170px; height:170px; margin:-85px 0 0 -85px; border-radius:50%; display:flex; align-items:center; justify-content:center; z-index:2; cursor:pointer;
+  background:radial-gradient(circle at 50% 40%, rgba(0,212,255,.48), rgba(139,92,246,.26) 60%, transparent 72%);
+  box-shadow:0 0 90px rgba(0,212,255,.5), 0 0 180px rgba(139,92,246,.4); }
+.re-core-inner{ width:126px; height:126px; border-radius:50%; background:radial-gradient(circle at 50% 38%,#0bd,#1b2b6b); display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; box-shadow:0 0 40px rgba(0,212,255,.6) inset; animation:refloat 6s ease-in-out infinite; color:#eaf6ff; }
+@keyframes refloat{ 0%,100%{transform:translateY(0)} 50%{transform:translateY(-7px)} }
+.re-core-k{ font-size:9px; letter-spacing:2.5px; text-transform:uppercase; color:#bfe9ff; }
+.re-core-v{ font-size:30px; font-weight:800; margin-top:3px; font-variant-numeric:tabular-nums; }
+.re-core-sub{ font-size:9.5px; color:#bfe9ff; margin-top:3px; }
+.re-node{ position:absolute; width:clamp(150px,14vw,200px); display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:14px; cursor:pointer; z-index:3;
+  border:1px solid color-mix(in srgb, var(--c) 38%, var(--re-border)); background:var(--re-card2); backdrop-filter:blur(6px);
+  box-shadow:0 0 24px -14px var(--c); transition:transform .15s, border-color .15s, box-shadow .15s; }
+.re-node.right{ flex-direction:row-reverse; text-align:right; }
+.re-node:hover{ transform:translateY(-2px); border-color:var(--c); box-shadow:0 12px 30px -12px var(--c); }
+.re-node-ic{ width:38px; height:38px; border-radius:11px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+  background:color-mix(in srgb, var(--c) 18%, transparent); color:var(--c); border:1px solid color-mix(in srgb, var(--c) 40%, transparent); }
+.re-node-name{ font-weight:700; font-size:12.5px; }
+.re-node-val{ font-size:18px; font-weight:800; color:var(--c); font-variant-numeric:tabular-nums; }
+.re-core-cap{ text-align:center; color:var(--re-muted2); font-size:10px; letter-spacing:2px; text-transform:uppercase; margin-top:10px; }
+.re-rpanel{ border-radius:18px; padding:16px; display:flex; flex-direction:column; }
+.re-rpanel-h{ display:flex; align-items:center; gap:9px; margin-bottom:12px; font-weight:800; font-size:13px; }
+.re-rpanel-orb{ width:30px; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:15px;
+  background:radial-gradient(circle at 50% 38%, rgba(0,212,255,.5), rgba(139,92,246,.25) 65%, transparent); box-shadow:0 0 16px -2px rgba(0,212,255,.5); }
+.re-insight2{ font-size:12px; color:var(--re-muted); line-height:1.5; padding:9px 11px; border:1px solid var(--re-border); border-radius:11px; background:var(--re-card2); margin-bottom:8px; }
+.re-insight2:last-child{ margin-bottom:0; }
+.re-follow2{ display:flex; gap:10px; }
+.re-fbox{ flex:1; border:1px solid var(--re-border); border-radius:12px; padding:13px; text-align:center; cursor:pointer; background:var(--re-card2); transition:.15s; }
+.re-fbox:hover{ transform:translateY(-2px); }
+.re-fbox .n{ font-size:24px; font-weight:800; display:block; line-height:1; }
+.re-fbox .l{ font-size:11px; color:var(--re-muted2); font-weight:600; }
+
+@media (max-width:1100px){
+  .re-cockpit{ grid-template-columns:1fr; }
+}
+@media (max-width:760px){
+  .re-core-sec{ display:flex; flex-direction:column; align-items:center; gap:12px; min-height:0; }
+  .re-neural,.re-ring{ display:none; }
+  .re-core{ position:relative; left:auto; top:auto; margin:6px auto 4px; }
+  .re-node{ position:relative !important; left:auto !important; right:auto !important; top:auto !important; width:100%; max-width:360px; }
+  .re-node.right{ flex-direction:row; text-align:left; }
+}
 
 @media (max-width:1280px){
   .re-kpis{grid-template-columns:repeat(3,1fr);}
