@@ -228,9 +228,6 @@ export default function Ledger() {
 
   // All-time running balance = money the company actually holds (ignores the period filter),
   // split by where it sits — cash in hand (petty cash) vs bank vs other methods.
-  const allIncome  = rows.filter(r => r.kind === 'income').reduce((s, r) => s + r.total, 0)
-  const allExpense = rows.filter(r => r.kind === 'expense').reduce((s, r) => s + r.total, 0)
-  const balanceAll = allIncome - allExpense
   const allByMethod = {}
   METHOD_KEYS.forEach(k => { allByMethod[k] = { in: 0, out: 0 } })
   rows.forEach(r => {
@@ -249,6 +246,10 @@ export default function Ledger() {
   const balPetty = balOf('Petty')
   const balBank  = balOf('Bank')
   const balOther = balOf('Card') + balOf('Cheque') + balOf('Online') + balOf('Other')
+  // Money the company actually holds now = sum of every account balance.
+  // Each balOf() already includes that account's opening balance + income − expenses + transfers,
+  // so this total correctly reflects opening capital (was previously left out).
+  const balanceAll = balCash + balPetty + balBank + balOther
 
   // Petty cash account — its own statement (top-ups in, small expenses out)
   function pettyDelta(r) {
@@ -498,7 +499,7 @@ export default function Ledger() {
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 12, opacity: 0.88, display: 'flex', alignItems: 'center', gap: 6 }}><i className="ti ti-wallet" /> Total balance · all time</div>
             <div style={{ fontSize: 30, fontWeight: 800, marginTop: 5, lineHeight: 1 }}>{balanceAll < 0 ? '− ' : ''}{fmt(Math.abs(balanceAll))}</div>
-            <div style={{ fontSize: 11, opacity: 0.8, marginTop: 6 }}>Money the company holds now · income − expenses</div>
+            <div style={{ fontSize: 11, opacity: 0.8, marginTop: 6 }}>Money the company holds now · opening + income − expenses</div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: 10, padding: '8px 12px', textAlign: 'right' }}>
