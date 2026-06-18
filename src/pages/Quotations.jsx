@@ -39,36 +39,42 @@ const blankItemT = (trade) => ({ desc:'', unit:'Nos', qty:1, rate:0, trade: trad
 function LibPicker({ libItems, onPick, isDark }) {
   const [q, setQ] = useState('')
   const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState(null)
+  const boxRef = useRef(null)
   const text = isDark?'#f1f5f9':'#0f172a', sub = isDark?'#94a3b8':'#64748b'
   const border = isDark?'rgba(255,255,255,0.10)':'#e2e8f0', card = isDark?'#1e293b':'#ffffff', inp = isDark?'#0f172a':'#ffffff'
+  // title = label, falling back to the first line of the description (so older title-less items still show)
+  const titleOf = li => ((li.label||'').trim()) || ((li.description||'').trim().split(/[.\n]/)[0].slice(0,48))
   const seen = new Set()
-  const uniq = (libItems||[]).filter(li => { const t=(li.label||'').trim().toLowerCase(); if(!t||seen.has(t)) return false; seen.add(t); return true })
+  const uniq = (libItems||[]).filter(li => { const t=titleOf(li).toLowerCase(); if(!t||seen.has(t)) return false; seen.add(t); return true })
   const ql = q.trim().toLowerCase()
-  const matches = (ql ? uniq.filter(li => (li.label||'').toLowerCase().includes(ql) || (li.description||'').toLowerCase().includes(ql)) : uniq).slice(0, 10)
+  const matches = (ql ? uniq.filter(li => titleOf(li).toLowerCase().includes(ql) || (li.description||'').toLowerCase().includes(ql)) : uniq).slice(0, 30)
+  function place() { const r = boxRef.current?.getBoundingClientRect(); if (r) setPos({ left:r.left, top:r.bottom+4, width:r.width }) }
+  function openIt() { place(); setOpen(true) }
   return (
     <div style={{ position:'relative', flex:1, minWidth:210 }}>
-      <div style={{ display:'flex', alignItems:'center', gap:7, background:inp, border:`1px solid ${open?'#0099cc':border}`, borderRadius:8, padding:'7px 10px' }}>
+      <div ref={boxRef} style={{ display:'flex', alignItems:'center', gap:7, background:inp, border:`1px solid ${open?'#0099cc':border}`, borderRadius:8, padding:'7px 10px' }}>
         <i className="ti ti-books" style={{ fontSize:15, color:'#0099cc' }}/>
-        <input value={q} onFocus={()=>setOpen(true)} onChange={e=>{ setQ(e.target.value); setOpen(true) }}
+        <input value={q} onFocus={openIt} onClick={openIt} onChange={e=>{ setQ(e.target.value); openIt() }}
           placeholder="Add from library — search title…"
           style={{ flex:1, minWidth:0, border:'none', background:'none', outline:'none', fontSize:12.5, color:text }}/>
         <i className="ti ti-chevron-down" style={{ fontSize:13, color:sub }}/>
       </div>
-      {open && (
+      {open && pos && (
         <>
-          <div onClick={()=>setOpen(false)} style={{ position:'fixed', inset:0, zIndex:60 }}/>
-          <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:61, background:card, border:`1px solid ${border}`, borderRadius:10, boxShadow:'0 14px 36px rgba(0,0,0,0.20)', maxHeight:300, overflowY:'auto' }}>
+          <div onClick={()=>setOpen(false)} style={{ position:'fixed', inset:0, zIndex:9998 }}/>
+          <div style={{ position:'fixed', left:pos.left, top:pos.top, width:pos.width, zIndex:9999, background:card, border:`1px solid ${border}`, borderRadius:10, boxShadow:'0 14px 36px rgba(0,0,0,0.28)', maxHeight:320, overflowY:'auto' }}>
             {matches.length===0 ? (
               <div style={{ padding:'14px 12px', fontSize:12, color:sub, textAlign:'center' }}>
                 {(libItems||[]).length===0 ? 'Library is empty — add items in Description Library first.' : 'No titles match.'}
               </div>
             ) : matches.map(li => (
-              <div key={li.id} onClick={()=>{ onPick(li); setQ(''); setOpen(false) }}
+              <div key={li.id} onMouseDown={e=>{ e.preventDefault(); onPick(li); setQ(''); setOpen(false) }}
                 style={{ padding:'9px 12px', cursor:'pointer', borderBottom:`1px solid ${border}` }}
                 onMouseEnter={e=>{ e.currentTarget.style.background = isDark?'rgba(255,255,255,0.05)':'#f6fafe' }}
                 onMouseLeave={e=>{ e.currentTarget.style.background = 'transparent' }}>
                 <div style={{ display:'flex', justifyContent:'space-between', gap:10, alignItems:'baseline' }}>
-                  <span style={{ fontWeight:700, fontSize:12.5, color:text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{li.label}</span>
+                  <span style={{ fontWeight:700, fontSize:12.5, color:text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{titleOf(li)}</span>
                   <span style={{ fontSize:11.5, color:'#0099cc', fontWeight:700, whiteSpace:'nowrap' }}>AED {Number(li.default_rate||0).toLocaleString()}<span style={{ color:sub, fontWeight:400 }}> /{li.unit||'nos'}</span></span>
                 </div>
                 <div style={{ fontSize:11, color:sub, marginTop:2, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{li.description}</div>
