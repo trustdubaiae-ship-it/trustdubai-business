@@ -102,6 +102,7 @@ export default function Ledger() {
   const [oForm, setOForm]     = useState({ date: new Date().toISOString().slice(0, 10), balances: {} })
   const [saving, setSaving]   = useState(false)
   const [hasTable, setHasTable] = useState(true)     // false until the migration is run
+  const [flowSel, setFlowSel] = useState(null)       // { key, label, kind } — clicked candle bar drill-down
 
   useEffect(() => {
     if (company?.id) load()
@@ -598,15 +599,17 @@ export default function Ledger() {
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 6, borderBottom: `1px solid ${border}`, paddingBottom: 0 }}>
             {monthSeries.map(m => (
               <div key={m.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 100, width: '100%', justifyContent: 'center' }} title={`${m.label} · Income ${fmt(m.inc)} · Expenses ${fmt(m.exp)}`}>
-                  <div style={{ width: '42%', maxWidth: 16, minHeight: 4, height: `${(m.inc / maxBar) * 100}%`, background: m.inc > 0 ? GREEN : GREEN + '2e', borderRadius: '3px 3px 0 0' }} />
-                  <div style={{ width: '42%', maxWidth: 16, minHeight: 4, height: `${(m.exp / maxBar) * 100}%`, background: m.exp > 0 ? AMBER : AMBER + '2e', borderRadius: '3px 3px 0 0' }} />
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 100, width: '100%', justifyContent: 'center' }}>
+                  <div onClick={() => m.inc > 0 && setFlowSel({ key: m.key, label: m.label, kind: 'income' })} title={m.inc > 0 ? `${m.label} income ${fmt(m.inc)} — click to see all sources` : `${m.label} · no income`} style={{ width: '42%', maxWidth: 16, minHeight: 4, height: `${(m.inc / maxBar) * 100}%`, background: m.inc > 0 ? GREEN : GREEN + '2e', borderRadius: '3px 3px 0 0', cursor: m.inc > 0 ? 'pointer' : 'default' }} />
+                  <div onClick={() => m.exp > 0 && setFlowSel({ key: m.key, label: m.label, kind: 'expense' })} title={m.exp > 0 ? `${m.label} expenses ${fmt(m.exp)} — click to see all expenses` : `${m.label} · no expenses`} style={{ width: '42%', maxWidth: 16, minHeight: 4, height: `${(m.exp / maxBar) * 100}%`, background: m.exp > 0 ? AMBER : AMBER + '2e', borderRadius: '3px 3px 0 0', cursor: m.exp > 0 ? 'pointer' : 'default' }} />
                 </div>
                 <span style={{ fontSize: 10, color: textMuted }}>{m.label}</span>
               </div>
             ))}
           </div>
-          {!hasFlow && <div style={{ fontSize: 10.5, color: textMuted, textAlign: 'center', marginTop: 9 }}>Bars fill in as you record invoice payments &amp; expenses.</div>}
+          {hasFlow
+            ? <div style={{ fontSize: 10, color: textMuted, textAlign: 'center', marginTop: 9 }}>Tap a bar to see all its income / expense sources.</div>
+            : <div style={{ fontSize: 10.5, color: textMuted, textAlign: 'center', marginTop: 9 }}>Bars fill in as you record invoice payments &amp; expenses.</div>}
         </div>
         <div style={card}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12 }}><i className="ti ti-chart-donut" style={{ fontSize: 16, color: AMBER }} /><span style={{ fontSize: 13.5, fontWeight: 700, color: text }}>Top expenses · {periodLabel}</span></div>
@@ -766,6 +769,52 @@ export default function Ledger() {
           })}
         </div>
       )}
+
+      {/* Candle drill-down: all income / expense sources for the clicked month */}
+      {flowSel && (() => {
+        const accent = flowSel.kind === 'income' ? GREEN : AMBER
+        const det = rows.filter(r => r.kind === flowSel.kind && monthKey(r.date) === flowSel.key).sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+        const detTotal = det.reduce((s, r) => s + r.total, 0)
+        const yr = (flowSel.key || '').slice(0, 4)
+        const srcLabel = { invoice: 'Invoice', manual: 'Manual', site: 'Site / Project', purchase: 'Purchase' }
+        return (
+          <div onClick={() => setFlowSel(null)} style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: cardBg, borderRadius: 16, width: '100%', maxWidth: 520, maxHeight: 'calc(100vh - 32px)', overflowY: 'auto', border: `1px solid ${border}` }}>
+              <div style={{ padding: '15px 18px', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: 3, background: accent, flexShrink: 0 }} />
+                  <div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: text }}>{flowSel.kind === 'income' ? 'Income' : 'Expenses'} · {flowSel.label} {yr}</div>
+                    <div style={{ fontSize: 12, color: textMuted }}>{det.length} {det.length === 1 ? 'entry' : 'entries'} · all sources</div>
+                  </div>
+                </div>
+                <button onClick={() => setFlowSel(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: textMuted, fontSize: 18 }}><i className="ti ti-x" /></button>
+              </div>
+              <div style={{ padding: '12px 18px', borderBottom: `1px solid ${border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 12.5, color: textSub, fontWeight: 600 }}>Total {flowSel.kind === 'income' ? 'income' : 'expenses'}</span>
+                <span style={{ fontSize: 18, fontWeight: 800, color: accent }}>{fmt(detTotal)}</span>
+              </div>
+              <div style={{ padding: '4px 14px 14px' }}>
+                {det.length === 0 ? (
+                  <div style={{ fontSize: 12.5, color: textMuted, textAlign: 'center', padding: '24px 0' }}>No {flowSel.kind} recorded in {flowSel.label} {yr}.</div>
+                ) : det.map(r => (
+                  <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 4px', borderBottom: `1px solid ${border}` }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 13.5, fontWeight: 600, color: text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.party || '—'}</span>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: accent, background: accent + '1f', padding: '2px 7px', borderRadius: 99, textTransform: 'uppercase', letterSpacing: '.3px' }}>{srcLabel[r.source] || r.source}</span>
+                      </div>
+                      {[r.category, r.description].filter(Boolean).length > 0 && <div style={{ fontSize: 11.5, color: textSub, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>{[r.category, r.description].filter(Boolean).join(' · ')}</div>}
+                      <div style={{ fontSize: 10.5, color: textMuted, marginTop: 1 }}>{fmtDate(r.date)}{r.method ? ' · ' + r.method : ''}</div>
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: accent, whiteSpace: 'nowrap' }}>{fmt(r.total)}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Add / Edit modal */}
       {modalOpen && (
