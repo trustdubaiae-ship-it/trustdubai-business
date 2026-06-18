@@ -763,10 +763,20 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   // Pick a library item by title → add a ready-made line (desc + unit + rate). No duplicates.
   function addFromLib(lib, trade='') {
     const norm = s => (s||'').trim().toLowerCase()
-    if (items.some(it => norm(it.desc) === norm(lib.description))) { toast.error(`"${lib.label||'Item'}" is already in this quote`); return }
+    const desc = lib.description || ''
+    // block only a real duplicate (same non-empty description already in the quote)
+    if (desc.trim() && items.some(it => (it.desc||'').trim() && norm(it.desc) === norm(desc))) {
+      toast.error(`"${lib.label||'Item'}" is already in this quote`); return
+    }
     const u = mapUnit(lib.unit)
-    const t = (lib.label||'').trim() || ((lib.description||'').split(/[.\n]/)[0]||'').slice(0,48)
-    setItems(prev => [...prev, { title: t, desc: lib.description||'', unit: u || 'Nos', qty: 1, rate: Number(lib.default_rate)||0, trade: trade||'', img:'', _new:true }])
+    const t = (lib.label||'').trim() || (desc.split(/[.\n]/)[0]||'').slice(0,48)
+    const row = { title: t, desc, unit: u || 'Nos', qty: 1, rate: Number(lib.default_rate)||0, trade: trade||'', img:'', _new:true }
+    setItems(prev => {
+      // drop trailing empty rows so the picked item is the visible result (no stray blank line)
+      const kept = prev.filter(it => (it.desc||'').trim() || (it.title||'').trim())
+      return [...kept, row]
+    })
+    toast.success(`Added "${t}"`)
   }
   function removeItemBoq(idx) { setItems(prev => prev.filter((_,i)=>i!==idx)) }
   function addTradeSection() { if (!addTradePick) return; addItemToTrade(addTradePick); setAddTradePick('') }
