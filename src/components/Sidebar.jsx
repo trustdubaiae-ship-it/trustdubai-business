@@ -173,16 +173,15 @@ export default function Sidebar({ activePage, onNavigate, limitedMode = false, l
   return (
     <aside className={`sidebar${open ? ' open' : ''}`}>
       <div className="sidebar-logo">
-        <div className="sidebar-logo-mark" style={{ background: 'transparent' }}><img src="/quvera-icon.png" alt="Quvera" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /></div>
+        <div className="sidebar-logo-mark"><img src="/quvera-icon.png" alt="Quvera" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /></div>
         <div>
-          <div className="sidebar-logo-text">Quvera</div>
-          <div className="sidebar-logo-sub">Business Portal</div>
-          <div className="sidebar-logo-sub" style={{ fontSize: 9, opacity: 0.7, letterSpacing: '0.03em' }}>Find. Verify. Trust.</div>
+          <div className="sidebar-logo-text">QUVERA</div>
+          <div className="sidebar-logo-sub">Business OS</div>
         </div>
       </div>
 
       {company && (
-        <div className="sidebar-company">
+        <div className="sidebar-company" onClick={() => onNavigate('profile')} title="Your business profile">
           <div className="sidebar-company-avatar">
             {company.logo_url ? <img src={company.logo_url} alt={company.name}/> : initials}
           </div>
@@ -192,9 +191,10 @@ export default function Sidebar({ activePage, onNavigate, limitedMode = false, l
             </div>
             <div className="sidebar-company-plan" style={{ color: isTrial ? '#8b5cf6' : (isExpired?'#ef4444':planColor) }}>
               <i className={`ti ${isTrial ? 'ti-rocket' : (planIcons[planName]||'ti-building')}`} style={{ fontSize:9 }}/>
-              {isTrial ? 'Launch Plan' : (isExpired ? 'Expired' : planName.charAt(0).toUpperCase()+planName.slice(1))}
+              {isTrial ? 'Launch Plan' : (isExpired ? 'Expired' : planName.charAt(0).toUpperCase()+planName.slice(1)+' Plan')}
             </div>
           </div>
+          <i className="ti ti-chevron-right sidebar-company-go"/>
         </div>
       )}
 

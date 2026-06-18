@@ -113,7 +113,22 @@ html, body, .layout, .main, .topbar, .sidebar, .card, .stat-card, .nav-item, .bt
   background:var(--primary); box-shadow:0 0 10px 1px var(--os-glow); border-radius:2px;
 }
 .os555 .nav-item.active i { color:var(--primary); filter:drop-shadow(0 0 6px var(--os-glow)); }
-.os555 .sidebar-company { box-shadow:inset 0 0 22px -10px var(--os-glow); }
+
+/* ---- premium sidebar header: brand lockup + tappable account card ---- */
+.os555 .sidebar-logo { padding:16px 14px 14px; gap:11px; align-items:center; }
+.os555 .sidebar-logo-mark { width:38px; height:38px; border-radius:11px; overflow:visible;
+  background:radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--primary) 22%, transparent), transparent 72%) !important;
+  filter:drop-shadow(0 0 12px var(--os-glow)); }
+.os555 .sidebar-logo-text { font-size:16px; font-weight:800; letter-spacing:2px; }
+.os555 .sidebar-logo-sub { font-size:9px; letter-spacing:2.5px; text-transform:uppercase; color:var(--text3); margin-top:2px; opacity:1; }
+.os555 .sidebar-company { margin:6px 10px 6px; padding:11px 12px; border-radius:12px; cursor:pointer; gap:10px;
+  box-shadow:inset 0 0 22px -10px var(--os-glow); transition:transform .15s, border-color .15s, box-shadow .15s; }
+.os555 .sidebar-company:hover { transform:translateY(-1px); border-color:var(--primary); box-shadow:0 8px 22px -10px var(--os-glow), inset 0 0 22px -10px var(--os-glow); }
+.os555 .sidebar-company-avatar { width:36px; height:36px; border-radius:10px; }
+.os555 .sidebar-company-name { font-size:12.5px; font-weight:700; }
+.os555 .sidebar-company-plan { font-size:9.5px; font-weight:700; margin-top:3px; }
+.os555 .sidebar-company-go { margin-left:auto; font-size:15px; color:var(--text3); flex-shrink:0; transition:color .15s, transform .15s; }
+.os555 .sidebar-company:hover .sidebar-company-go { color:var(--primary); transform:translateX(2px); }
 
 /* neon scrollbar inside the shell */
 .os555 .sidebar::-webkit-scrollbar, .os555 .main::-webkit-scrollbar { width:8px; }

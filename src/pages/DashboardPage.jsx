@@ -662,9 +662,10 @@ const QC_CSS = `
 /* ---- stage: AI Core hub (hero) + right rail ---- */
 .qc-stage{ display:grid; grid-template-columns:1.9fr 1fr; gap:16px; min-height:0; }
 .qc-rail{ display:flex; flex-direction:column; gap:14px; min-height:0; }
-.qc-core-card{ border-radius:22px; padding:14px; position:relative; overflow:hidden; height:100%; min-height:0; }
+.qc-core-card{ border-radius:22px; padding:14px; position:relative; overflow:hidden; height:100%; min-height:0; display:flex; flex-direction:column; }
 .qc-loadbar{ position:absolute; top:0; left:0; right:0; height:2px; background:linear-gradient(90deg,transparent,#00D4FF,transparent); background-size:50% 100%; animation:qcload 1.1s linear infinite; z-index:6; }
-.qc-core-sec{ position:relative; width:100%; height:100%; min-height:0; }
+.qc-core-sec{ position:relative; width:100%; flex:1 1 auto; min-height:0; }
+.qc-flow-cap{ flex-shrink:0; }
 .qc-neural{ position:absolute; inset:0; width:100%; height:100%; z-index:0; opacity:.9; }
 .qc-flowline{ stroke-dasharray:6 10; animation:qcdash 1s linear infinite; opacity:.75; stroke-width:1.9; }
 .qc-flowdot{ filter:drop-shadow(0 0 4px currentColor); }
