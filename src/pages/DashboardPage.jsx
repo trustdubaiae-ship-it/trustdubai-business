@@ -796,7 +796,7 @@ const QC_CSS = `
    - Intelligence cards 2-col (they're dense), Recent Activity spans full width
    - AI assistant, workflow & priorities are already stacked from the rule above */
 @media (max-width:1024px){
-  .qc-kpis{ grid-template-columns:repeat(3,1fr); gap:12px; }
+  .qc-kpis{ grid-template-columns:1fr; gap:10px; }   /* 5 KPI tiles in a single column, one per line */
 
   .qc-core-sec{ height:auto; display:flex; flex-wrap:wrap; align-items:stretch; justify-content:center; gap:10px; padding:8px 0 4px; }
   .qc-neural{ display:none; }
@@ -809,9 +809,8 @@ const QC_CSS = `
   .qc-metrics{ grid-template-columns:repeat(2,1fr); }   /* 5 cards + Activity = a tidy 3×2 */
 }
 
-/* ===== Narrow tablets / large phones (≤700): 2-col KPIs, single-column cards ===== */
+/* ===== Narrow tablets / large phones (≤700): single-column cards ===== */
 @media (max-width:700px){
-  .qc-kpis{ grid-template-columns:repeat(2,1fr); }
   .qc-metrics{ grid-template-columns:1fr; }
   .qc-node-card{ flex-basis:100%; max-width:100%; }
 }
