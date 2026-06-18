@@ -49,7 +49,18 @@ function LibPicker({ libItems, onPick, isDark }) {
   const uniq = (libItems||[]).filter(li => { const t=titleOf(li).toLowerCase(); if(!t||seen.has(t)) return false; seen.add(t); return true })
   const ql = q.trim().toLowerCase()
   const matches = (ql ? uniq.filter(li => titleOf(li).toLowerCase().includes(ql) || (li.description||'').toLowerCase().includes(ql)) : uniq).slice(0, 30)
-  function place() { const r = boxRef.current?.getBoundingClientRect(); if (r) setPos({ left:r.left, top:r.bottom+4, width:r.width }) }
+  function place() {
+    const r = boxRef.current?.getBoundingClientRect(); if (!r) return
+    const vh = window.innerHeight, gap = 6
+    const below = vh - r.bottom, above = r.top
+    const openUp = below < 220 && above > below
+    const maxH = Math.max(150, Math.min(320, (openUp ? above : below) - 14))
+    setPos({
+      left: Math.max(8, Math.min(r.left, window.innerWidth - r.width - 8)),
+      width: r.width, maxH,
+      top: openUp ? Math.max(8, r.top - maxH - gap) : r.bottom + gap,
+    })
+  }
   function openIt() { place(); setOpen(true) }
   return (
     <div style={{ position:'relative', flex:1, minWidth:210 }}>
@@ -63,7 +74,7 @@ function LibPicker({ libItems, onPick, isDark }) {
       {open && pos && (
         <>
           <div onClick={()=>setOpen(false)} style={{ position:'fixed', inset:0, zIndex:9998 }}/>
-          <div style={{ position:'fixed', left:pos.left, top:pos.top, width:pos.width, zIndex:9999, background:card, border:`1px solid ${border}`, borderRadius:10, boxShadow:'0 14px 36px rgba(0,0,0,0.28)', maxHeight:320, overflowY:'auto' }}>
+          <div style={{ position:'fixed', left:pos.left, top:pos.top, width:pos.width, zIndex:9999, background:card, border:`1px solid ${border}`, borderRadius:10, boxShadow:'0 14px 36px rgba(0,0,0,0.28)', maxHeight:pos.maxH||320, overflowY:'auto' }}>
             {matches.length===0 ? (
               <div style={{ padding:'14px 12px', fontSize:12, color:sub, textAlign:'center' }}>
                 {(libItems||[]).length===0 ? 'Library is empty — add items in Description Library first.' : 'No titles match.'}
