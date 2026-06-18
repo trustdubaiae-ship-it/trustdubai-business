@@ -12,6 +12,9 @@ function parsePayments(raw) {
 const cap = s => s ? String(s).charAt(0).toUpperCase() + String(s).slice(1) : ''
 const monthKey = d => (d || '').slice(0, 7)
 const yearKey  = d => (d || '').slice(0, 4)
+// month key from a Date using LOCAL year/month (NOT toISOString, which shifts to
+// UTC and lands on the previous month in +ve timezones like Dubai UTC+4)
+const ymKey = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 
 const INCOME_CATS  = ['Sale / Service', 'Advance', 'Other income']
 const EXPENSE_CATS = ['Material', 'Labour', 'Subcontractor', 'Rent', 'Salary', 'Transport', 'Utilities', 'Marketing', 'Tools / Equipment', 'Govt / Fees', 'Bank charges', 'Misc']
@@ -209,9 +212,9 @@ export default function Ledger() {
 
   // ---------- period filter ----------
   const now = new Date()
-  const thisMonth = monthKey(now.toISOString())
+  const thisMonth = ymKey(now)
   const lastMonthD = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-  const lastMonth = monthKey(lastMonthD.toISOString())
+  const lastMonth = ymKey(lastMonthD)
   const thisYear = String(now.getFullYear())
   function inPeriod(date) {
     if (!date) return period === 'all'
@@ -278,7 +281,7 @@ export default function Ledger() {
   function inPrevPeriod(date) {
     if (!date || period === 'all') return false
     if (period === 'month') return monthKey(date) === lastMonth
-    if (period === 'lastMonth') return monthKey(date) === monthKey(new Date(now.getFullYear(), now.getMonth() - 2, 1).toISOString())
+    if (period === 'lastMonth') return monthKey(date) === ymKey(new Date(now.getFullYear(), now.getMonth() - 2, 1))
     if (period === 'year') return yearKey(date) === String(now.getFullYear() - 1)
     return false
   }
@@ -292,7 +295,7 @@ export default function Ledger() {
   const monthSeries = []
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    const key = monthKey(d.toISOString())
+    const key = ymKey(d)
     let inc = 0, exp = 0
     rows.forEach(r => { if (monthKey(r.date) === key) { if (r.kind === 'income') inc += r.total; else if (r.kind === 'expense') exp += r.total } })
     monthSeries.push({ key, label: d.toLocaleDateString('en-GB', { month: 'short' }), inc, exp })
