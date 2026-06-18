@@ -673,7 +673,10 @@ export default function Ledger() {
           <div style={{ overflowX: 'auto' }}>
             <div style={{ minWidth: 380 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr', gap: 8, padding: '0 0 6px', fontSize: 10.5, color: textMuted, textTransform: 'uppercase', letterSpacing: '.3px', borderBottom: `1px solid ${border}` }}>
-                <span>Method</span><span style={{ textAlign: 'right' }}>In</span><span style={{ textAlign: 'right' }}>Out</span><span style={{ textAlign: 'right' }}>Balance</span>
+                <span>Method</span>
+                <span style={{ textAlign: 'right' }}>In<span style={{ display: 'block', fontSize: 8, fontWeight: 400, textTransform: 'none', letterSpacing: 0, opacity: .8 }}>{periodLabel}</span></span>
+                <span style={{ textAlign: 'right' }}>Out<span style={{ display: 'block', fontSize: 8, fontWeight: 400, textTransform: 'none', letterSpacing: 0, opacity: .8 }}>{periodLabel}</span></span>
+                <span style={{ textAlign: 'right', color: '#0099cc' }}>Balance<span style={{ display: 'block', fontSize: 8, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>now · all&#8209;time</span></span>
               </div>
               {activeMethods.map(k => {
                 const bal = balOf(k)   // current true balance for this account (all time, incl. transfers)
@@ -694,7 +697,7 @@ export default function Ledger() {
               </div>
             </div>
           </div>
-          <div style={{ fontSize: 10.5, color: textMuted, marginTop: 9, lineHeight: 1.5 }}>In / Out = money in &amp; out this period (income/expenses). <b>Balance</b> = each account’s current total now (all time, including transfers) — matches “Money in hand” above.</div>
+          <div style={{ fontSize: 10.5, color: textMuted, marginTop: 9, lineHeight: 1.5 }}><b>In / Out</b> = this period’s income &amp; expenses only. <b>Balance</b> = each account’s real money <i>right now</i> (all‑time — includes opening balance &amp; transfers), so In − Out won’t equal Balance. The Total Balance matches “Total balance” at the top.</div>
         </div>
       )}
 
