@@ -120,7 +120,7 @@ html, body, .layout, .main, .topbar, .sidebar, .card, .stat-card, .nav-item, .bt
 .os555 .sidebar::-webkit-scrollbar-thumb, .os555 .main::-webkit-scrollbar-thumb { background:var(--os-glow); border-radius:8px; }
 
 /* ===== 555 OS hero header — same greeting hero on every page ===== */
-.os-hero { position:sticky; top:0; z-index:50; overflow:hidden; padding:12px clamp(16px,2.4vw,28px) 10px;
+.os-hero { position:sticky; top:0; z-index:50; overflow:hidden; padding:calc(12px + env(safe-area-inset-top)) clamp(16px,2.4vw,28px) 10px;
   background:var(--os-topbar); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); border-bottom:0.5px solid var(--os-topbar-bd); }
 .os-hero-glow { position:absolute; inset:0; z-index:0; pointer-events:none;
   background:radial-gradient(620px 220px at 16% -50%, var(--primary-bg), transparent 70%),

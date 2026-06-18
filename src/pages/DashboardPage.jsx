@@ -671,7 +671,8 @@ const QC_CSS = `
   border:1px solid var(--qc-glass-bd); background:var(--qc-glass-bg); backdrop-filter:blur(10px); transition:transform .15s, border-color .15s; }
 .qc-kpi:hover{ transform:translateY(-2px); border-color:color-mix(in srgb, var(--c) 55%, transparent); }
 .qc-kpi-ic{ width:42px; height:42px; border-radius:12px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:21px;
-  background:color-mix(in srgb, var(--c) 18%, transparent); color:var(--c); border:1px solid color-mix(in srgb, var(--c) 40%, transparent); }
+  background:color-mix(in srgb, var(--c) 20%, transparent); color:var(--c); border:1px solid color-mix(in srgb, var(--c) 45%, transparent);
+  box-shadow:0 0 18px -2px color-mix(in srgb, var(--c) 60%, transparent), 0 0 6px -1px color-mix(in srgb, var(--c) 50%, transparent) inset; }
 .qc-kpi-k{ font-size:10px; letter-spacing:1px; text-transform:uppercase; color:#7e8aa8; white-space:nowrap; }
 .qc-kpi-v{ font-size:23px; font-weight:800; margin-top:3px; font-variant-numeric:tabular-nums; line-height:1; color:var(--c); }
 
@@ -686,11 +687,12 @@ const QC_CSS = `
 .qc-loadbar{ position:absolute; top:0; left:0; right:0; height:2px; background:linear-gradient(90deg,transparent,#00D4FF,transparent); background-size:50% 100%; animation:qcload 1.1s linear infinite; z-index:6; }
 .qc-core-sec{ position:relative; width:100%; height:440px; }
 .qc-neural{ position:absolute; inset:0; width:100%; height:100%; z-index:0; opacity:.9; }
-.qc-flowline{ stroke-dasharray:6 10; animation:qcdash 1s linear infinite; opacity:.5; }
+.qc-flowline{ stroke-dasharray:6 10; animation:qcdash 1s linear infinite; opacity:.75; stroke-width:1.9; }
 .qc-flowdot{ filter:drop-shadow(0 0 4px currentColor); }
 
 .qc-node-card{ position:absolute; width:clamp(186px,15vw,224px); display:flex; align-items:center; gap:11px; padding:11px 13px; border-radius:14px; cursor:pointer; z-index:3;
-  border:1px solid color-mix(in srgb, var(--c) 32%, var(--qc-glass-bd)); background:var(--qc-node-bg); backdrop-filter:blur(6px);
+  border:1px solid color-mix(in srgb, var(--c) 38%, var(--qc-glass-bd)); background:var(--qc-node-bg); backdrop-filter:blur(6px);
+  box-shadow:0 0 26px -14px var(--c), 0 0 0 1px color-mix(in srgb, var(--c) 12%, transparent) inset;
   transition:transform .15s, border-color .15s, box-shadow .15s; }
 .qc-node-card.right{ flex-direction:row-reverse; text-align:right; }
 .qc-node-card:hover{ transform:translateY(-2px); border-color:var(--c); box-shadow:0 12px 32px -10px var(--c); }
@@ -701,13 +703,13 @@ const QC_CSS = `
 .qc-eng-tag{ font-size:10.5px; color:var(--qc-text2); margin-top:2px; line-height:1.3; }
 .qc-eng-online{ font-size:9.5px; font-weight:700; letter-spacing:.6px; color:#22c55e; margin-top:5px; display:flex; align-items:center; gap:5px; }
 
-.qc-ring{ position:absolute; left:50%; top:50%; border-radius:50%; border:1px solid rgba(0,212,255,0.25); z-index:1; }
+.qc-ring{ position:absolute; left:50%; top:50%; border-radius:50%; border:1px solid rgba(0,212,255,0.38); z-index:1; box-shadow:0 0 22px -6px rgba(0,212,255,0.4); }
 .qc-ring.r1{ width:184px; height:184px; margin:-92px 0 0 -92px; border-style:dashed; animation:qcspin 26s linear infinite; }
-.qc-ring.r2{ width:230px; height:230px; margin:-115px 0 0 -115px; border-color:rgba(139,92,246,0.22); animation:qcspin 40s linear infinite reverse; }
-.qc-ring.r3{ width:286px; height:286px; margin:-143px 0 0 -143px; border-color:rgba(0,255,204,0.12); }
+.qc-ring.r2{ width:230px; height:230px; margin:-115px 0 0 -115px; border-color:rgba(139,92,246,0.34); box-shadow:0 0 26px -6px rgba(139,92,246,0.4); animation:qcspin 40s linear infinite reverse; }
+.qc-ring.r3{ width:286px; height:286px; margin:-143px 0 0 -143px; border-color:rgba(0,255,204,0.22); box-shadow:0 0 30px -8px rgba(0,255,204,0.3); }
 .qc-core{ position:absolute; left:50%; top:50%; width:176px; height:176px; margin:-88px 0 0 -88px; border-radius:50%; display:flex; align-items:center; justify-content:center; z-index:2;
-  background:radial-gradient(circle at 50% 40%, rgba(0,212,255,0.40), rgba(139,92,246,0.22) 60%, transparent 72%);
-  box-shadow:0 0 70px rgba(0,212,255,0.45), 0 0 150px rgba(139,92,246,0.30); }
+  background:radial-gradient(circle at 50% 40%, rgba(0,212,255,0.48), rgba(139,92,246,0.26) 60%, transparent 72%);
+  box-shadow:0 0 95px rgba(0,212,255,0.55), 0 0 190px rgba(139,92,246,0.42); }
 .qc-core-inner{ width:128px; height:128px; border-radius:50%; background:radial-gradient(circle at 50% 38%,#0bd,#1b2b6b);
   display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; box-shadow:0 0 40px rgba(0,212,255,0.6) inset; animation:qcfloat 6s ease-in-out infinite; }
 .qc-flow-cap{ text-align:center; color:#7e8aa8; font-size:10.5px; letter-spacing:2px; text-transform:uppercase; margin-top:8px; }
@@ -741,7 +743,8 @@ const QC_CSS = `
 .qc-metric:hover::before{ opacity:.10; }
 .qc-metric-top{ display:flex; align-items:center; gap:9px; margin-bottom:12px; }
 .qc-metric-ic{ width:36px; height:36px; border-radius:10px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:18px;
-  background:color-mix(in srgb, var(--c) 18%, transparent); color:var(--c); border:1px solid color-mix(in srgb, var(--c) 40%, transparent); }
+  background:color-mix(in srgb, var(--c) 20%, transparent); color:var(--c); border:1px solid color-mix(in srgb, var(--c) 45%, transparent);
+  box-shadow:0 0 16px -3px color-mix(in srgb, var(--c) 55%, transparent); }
 .qc-metric-name{ font-size:10.5px; font-weight:800; letter-spacing:.7px; color:var(--c); line-height:1.2; }
 .qc-metric-big{ font-size:30px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1; }
 .qc-metric-label{ font-size:11px; color:#7e8aa8; margin-top:3px; }
@@ -782,36 +785,37 @@ const QC_CSS = `
 @keyframes qcload{ 0%{ background-position:-50% 0; } 100%{ background-position:150% 0; } }
 @keyframes qcdash{ to{ stroke-dashoffset:-16; } }
 
-/* ===== Laptop (1024–1240): single-column core + bottom, KPIs/metrics 3-col ===== */
+/* ===== Laptop (1024–1240): single-column core + bottom; KPIs stay 5-up ===== */
 @media (max-width:1240px){
-  .qc-kpis{ grid-template-columns:repeat(3,1fr); }
   .qc-core-band{ grid-template-columns:1fr; }
   .qc-metrics{ grid-template-columns:repeat(3,1fr); }
   .qc-bottom{ grid-template-columns:1fr; }
 }
 
-/* ===== iPad / tablet portrait (≤1024): intentional, aligned cockpit =====
-   - KPIs stay 3-col (5 tiles → a tidy 3 + 2)
-   - AI Core: sphere on top, 6 engine cards in a clean 2×3 grid
-   - Intelligence cards 2-col (they're dense), Recent Activity spans full width
-   - AI assistant, workflow & priorities are already stacked from the rule above */
+/* ===== iPad / tablet portrait (≤1024): KEEP the PC radial AI Core.
+   KPIs stay 5 in one row (compact vertical tiles so they fit). ===== */
 @media (max-width:1024px){
-  .qc-kpis{ grid-template-columns:1fr; gap:10px; }   /* 5 KPI tiles in a single column, one per line */
-
-  .qc-core-sec{ height:auto; display:flex; flex-direction:column; align-items:stretch; gap:10px; padding:8px 0 4px; }
-  .qc-neural{ display:none; }
-  .qc-ring{ display:none; }
-  .qc-core{ position:static; align-self:center; margin:2px auto 14px; }
-  .qc-node-card{ position:static; width:100%; max-width:100%; }   /* full-width single column — clean & premium */
-  .qc-node-card.right{ flex-direction:row; text-align:left; }
-  .qc-node-card.right .qc-eng-online{ justify-content:flex-start; }
-
-  .qc-metrics{ grid-template-columns:repeat(2,1fr); }   /* 5 cards + Activity = a tidy 3×2 */
+  .qc-kpis{ grid-template-columns:repeat(5,1fr); gap:8px; }
+  .qc-kpi{ flex-direction:column; align-items:flex-start; gap:7px; padding:12px 11px; }
+  .qc-kpi-ic{ width:34px; height:34px; border-radius:10px; }
+  .qc-kpi-ic i{ font-size:18px; }
+  .qc-kpi-k{ font-size:9px; letter-spacing:.5px; white-space:normal; line-height:1.25; }
+  .qc-kpi-v{ font-size:19px; }
+  /* keep the radial hub fitting on tablet width */
+  .qc-core-sec{ height:400px; }
+  .qc-node-card{ width:clamp(158px,21vw,206px); }
+  .qc-metrics{ grid-template-columns:repeat(2,1fr); }
 }
 
-/* ===== Narrow tablets / large phones (≤700): single-column cards ===== */
-@media (max-width:700px){
+/* ===== Safety net only — the cockpit isn't shown below 768 (tile launcher takes over).
+   If it ever renders narrow, stack the hub and drop to 2/1 columns. ===== */
+@media (max-width:680px){
+  .qc-kpis{ grid-template-columns:repeat(2,1fr); }
   .qc-metrics{ grid-template-columns:1fr; }
-  .qc-node-card{ flex-basis:100%; max-width:100%; }
+  .qc-core-sec{ height:auto; display:flex; flex-direction:column; align-items:center; gap:10px; padding:8px 0; }
+  .qc-neural{ display:none; } .qc-ring{ display:none; }
+  .qc-core{ position:static; align-self:center; }
+  .qc-node-card{ position:static; width:100%; max-width:100%; }
+  .qc-node-card.right{ flex-direction:row; text-align:left; }
 }
 `
