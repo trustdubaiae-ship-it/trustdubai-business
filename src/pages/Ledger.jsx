@@ -589,13 +589,13 @@ export default function Ledger() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: 12, marginBottom: 14 }}>
         <div style={card}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><i className="ti ti-chart-bar" style={{ fontSize: 16, color: '#0099cc' }} /><span style={{ fontSize: 13.5, fontWeight: 700, color: text }}>Cash flow · last 6 months</span></div>
-            <div style={{ display: 'flex', gap: 10, fontSize: 10.5 }}><span style={{ color: GREEN }}>● In</span><span style={{ color: AMBER }}>● Out</span></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><i className="ti ti-chart-bar" style={{ fontSize: 16, color: '#0099cc' }} /><span style={{ fontSize: 13.5, fontWeight: 700, color: text }}>Income vs Expenses · last 6 months</span></div>
+            <div style={{ display: 'flex', gap: 10, fontSize: 10.5 }}><span style={{ color: GREEN }}>● Income</span><span style={{ color: AMBER }}>● Expenses</span></div>
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 6, borderBottom: `1px solid ${border}`, paddingBottom: 0 }}>
             {monthSeries.map(m => (
               <div key={m.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 100, width: '100%', justifyContent: 'center' }} title={`${m.label} · In ${fmt(m.inc)} · Out ${fmt(m.exp)}`}>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 100, width: '100%', justifyContent: 'center' }} title={`${m.label} · Income ${fmt(m.inc)} · Expenses ${fmt(m.exp)}`}>
                   <div style={{ width: '42%', maxWidth: 16, height: `${m.inc > 0 ? Math.max(4, (m.inc / maxBar) * 100) : 0}%`, background: GREEN, borderRadius: '3px 3px 0 0' }} />
                   <div style={{ width: '42%', maxWidth: 16, height: `${m.exp > 0 ? Math.max(4, (m.exp / maxBar) * 100) : 0}%`, background: AMBER, borderRadius: '3px 3px 0 0' }} />
                 </div>
