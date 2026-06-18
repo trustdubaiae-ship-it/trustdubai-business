@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Quvera Business OS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#050816; --bg2:#0a1024; --primary:#00D4FF; --secondary:#8B5CF6; --accent:#00FFCC;
+    --glass:rgba(255,255,255,0.04); --glass-bd:rgba(255,255,255,0.10); --txt:#e8f0ff; --mut:#7e8aa8;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ background:var(--bg); color:var(--txt); font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased; overflow-x:hidden; }
+  #stars{ position:fixed; inset:0; z-index:0; }
+  .bg-grad{ position:fixed; inset:0; z-index:0; pointer-events:none;
+    background:
+      radial-gradient(900px 500px at 50% -5%, rgba(0,212,255,0.16), transparent 60%),
+      radial-gradient(700px 500px at 12% 30%, rgba(139,92,246,0.14), transparent 55%),
+      radial-gradient(700px 500px at 88% 65%, rgba(0,255,204,0.10), transparent 55%); }
+  .wrap{ position:relative; z-index:2; max-width:1180px; margin:0 auto; padding:34px 20px 70px; }
+
+  .mono{ font-family:'JetBrains Mono',monospace; }
+  .grad-text{ background:linear-gradient(100deg,var(--primary),var(--accent) 55%,var(--secondary)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+
+  /* ---------- hero ---------- */
+  .badge{ display:inline-flex; align-items:center; gap:8px; font-size:11px; font-weight:700; letter-spacing:2px; text-transform:uppercase;
+    color:var(--primary); border:1px solid rgba(0,212,255,0.35); background:rgba(0,212,255,0.07); padding:7px 14px; border-radius:99px; box-shadow:0 0 24px rgba(0,212,255,0.18) inset; }
+  .badge .dot{ width:7px; height:7px; border-radius:50%; background:var(--accent); box-shadow:0 0 10px var(--accent); animation:pulse 1.8s infinite; }
+  h1.title{ font-family:'Sora',sans-serif; font-weight:800; font-size:clamp(38px,7vw,84px); line-height:0.98; letter-spacing:-2px; margin:18px 0 10px; }
+  .tagline{ font-size:clamp(14px,2vw,18px); color:#aeb9d6; max-width:640px; }
+  .pillars{ display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; }
+  .pillar{ font-size:12px; font-weight:600; color:#c8d3f0; border:1px solid var(--glass-bd); background:var(--glass); padding:7px 13px; border-radius:10px; backdrop-filter:blur(8px); }
+  .pillar b{ color:var(--accent); }
+
+  .stat-strip{ display:flex; gap:12px; flex-wrap:wrap; margin-top:26px; }
+  .stat{ flex:1; min-width:130px; border:1px solid var(--glass-bd); background:var(--glass); border-radius:16px; padding:14px 16px; backdrop-filter:blur(10px); position:relative; overflow:hidden; }
+  .stat::after{ content:''; position:absolute; top:-1px; left:14px; right:14px; height:2px; background:linear-gradient(90deg,transparent,var(--primary),transparent); opacity:.7; }
+  .stat .k{ font-size:10.5px; letter-spacing:1px; text-transform:uppercase; color:var(--mut); }
+  .stat .v{ font-family:'JetBrains Mono',monospace; font-size:24px; font-weight:700; margin-top:5px; }
+
+  /* ---------- AI core ---------- */
+  .core-sec{ position:relative; height:420px; display:flex; align-items:center; justify-content:center; margin:46px 0 30px; }
+  .core{ position:relative; width:200px; height:200px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(circle at 50% 40%, rgba(0,212,255,0.35), rgba(139,92,246,0.18) 60%, transparent 72%);
+    box-shadow:0 0 80px rgba(0,212,255,0.45), 0 0 160px rgba(139,92,246,0.30); }
+  .core-inner{ width:118px; height:118px; border-radius:50%; background:radial-gradient(circle at 50% 40%,#0bd, #1b2b6b);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; box-shadow:0 0 40px rgba(0,212,255,0.6) inset; }
+  .core-inner .c1{ font-family:'Sora',sans-serif; font-weight:800; font-size:15px; letter-spacing:.5px; }
+  .core-inner .c2{ font-size:8.5px; letter-spacing:2px; color:#bfe9ff; text-transform:uppercase; margin-top:2px; }
+  .ring{ position:absolute; border-radius:50%; border:1px solid rgba(0,212,255,0.25); }
+  .ring.r1{ width:260px; height:260px; border-style:dashed; animation:spin 26s linear infinite; }
+  .ring.r2{ width:340px; height:340px; border-color:rgba(139,92,246,0.22); animation:spin 40s linear infinite reverse; }
+  .ring.r3{ width:420px; height:420px; border-color:rgba(0,255,204,0.12); }
+  .node{ position:absolute; left:50%; top:50%; font-size:11px; font-weight:700; letter-spacing:.5px; color:#dbe6ff;
+    background:rgba(10,16,36,0.8); border:1px solid var(--glass-bd); padding:6px 12px; border-radius:99px; backdrop-filter:blur(6px); white-space:nowrap;
+    transform:translate(-50%,-50%); box-shadow:0 0 22px rgba(0,212,255,0.18); }
+  .node i{ width:6px; height:6px; border-radius:50%; display:inline-block; margin-right:6px; vertical-align:middle; }
+  svg.links{ position:absolute; inset:0; width:100%; height:100%; z-index:-1; }
+  svg.links line{ stroke:url(#lg); stroke-width:1; opacity:.5; }
+
+  /* ---------- engines ---------- */
+  .sec-head{ display:flex; align-items:center; gap:10px; margin:34px 0 16px; }
+  .sec-head h2{ font-family:'Sora',sans-serif; font-weight:800; font-size:20px; letter-spacing:-.3px; }
+  .sec-head .line{ flex:1; height:1px; background:linear-gradient(90deg,var(--glass-bd),transparent); }
+  .engines{ display:grid; grid-template-columns:repeat(2,1fr); gap:16px; }
+  .engine{ position:relative; border:1px solid var(--glass-bd); border-radius:20px; padding:20px; overflow:hidden; cursor:pointer;
+    background:linear-gradient(160deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015)); backdrop-filter:blur(12px);
+    transition:transform .2s ease, border-color .2s ease, box-shadow .2s ease; }
+  .engine::before{ content:''; position:absolute; inset:0; opacity:0; transition:opacity .2s ease; pointer-events:none;
+    background:radial-gradient(120% 80% at 100% 0%, var(--c, var(--primary)), transparent 50%); }
+  .engine:hover{ transform:translateY(-5px); border-color:var(--c,var(--primary)); box-shadow:0 20px 50px rgba(0,0,0,0.5), 0 0 30px -8px var(--c,var(--primary)); }
+  .engine:hover::before{ opacity:.10; }
+  .eng-top{ display:flex; align-items:center; gap:12px; margin-bottom:14px; }
+  .eng-ic{ width:46px; height:46px; border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:23px; flex-shrink:0;
+    background:color-mix(in srgb, var(--c) 20%, transparent); color:var(--c); border:1px solid color-mix(in srgb, var(--c) 45%, transparent); box-shadow:0 6px 20px -6px var(--c); }
+  .eng-name{ font-family:'Sora',sans-serif; font-weight:700; font-size:15px; }
+  .eng-tag{ font-size:10.5px; letter-spacing:1.2px; text-transform:uppercase; color:var(--c); font-weight:700; }
+  .eng-stats{ display:flex; gap:14px; flex-wrap:wrap; margin-bottom:14px; }
+  .eng-stats div{ }
+  .eng-stats .v{ font-family:'JetBrains Mono',monospace; font-size:18px; font-weight:700; }
+  .eng-stats .k{ font-size:10px; color:var(--mut); letter-spacing:.4px; }
+  .chips{ display:flex; gap:7px; flex-wrap:wrap; margin-bottom:16px; }
+  .chip{ font-size:11px; font-weight:500; color:#c2cdec; border:1px solid var(--glass-bd); background:rgba(255,255,255,0.03); padding:4px 10px; border-radius:8px; }
+  .open{ display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; letter-spacing:.5px; color:var(--c); }
+  .open .arr{ transition:transform .2s ease; }
+  .engine:hover .open .arr{ transform:translateX(4px); }
+
+  /* ---------- AI assistant ---------- */
+  .ai{ margin-top:30px; border:1px solid rgba(0,255,204,0.28); border-radius:22px; padding:26px; text-align:center; position:relative; overflow:hidden;
+    background:radial-gradient(120% 120% at 50% 0%, rgba(0,255,204,0.10), rgba(139,92,246,0.06) 55%, transparent); backdrop-filter:blur(12px); }
+  .ai h3{ font-family:'Sora',sans-serif; font-weight:800; font-size:22px; letter-spacing:-.3px; }
+  .ai p{ color:var(--mut); font-size:13px; margin-top:4px; }
+  .ai-prompts{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin:18px 0; }
+  .ai-prompt{ font-size:12.5px; color:#d6e2ff; border:1px solid var(--glass-bd); background:rgba(255,255,255,0.04); padding:9px 14px; border-radius:99px; cursor:pointer; transition:all .15s; }
+  .ai-prompt:hover{ border-color:var(--accent); color:var(--accent); }
+  .ai-bar{ max-width:520px; margin:0 auto; display:flex; gap:8px; align-items:center; background:rgba(5,8,22,0.7); border:1px solid var(--glass-bd); border-radius:14px; padding:10px 14px; }
+  .ai-bar input{ flex:1; background:none; border:none; outline:none; color:var(--txt); font-size:14px; font-family:inherit; }
+  .ai-bar .send{ width:36px; height:36px; border-radius:10px; border:none; background:linear-gradient(135deg,var(--primary),var(--secondary)); color:#03101c; font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+
+  /* ---------- workflow ---------- */
+  .flow{ margin-top:34px; }
+  .flow-track{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; justify-content:center; border:1px solid var(--glass-bd); background:var(--glass); border-radius:18px; padding:18px; backdrop-filter:blur(10px); }
+  .step{ display:flex; align-items:center; gap:8px; font-size:13px; font-weight:700; }
+  .step .b{ width:30px; height:30px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:15px;
+    background:color-mix(in srgb, var(--primary) 16%, transparent); color:var(--primary); border:1px solid rgba(0,212,255,0.3); }
+  .arrowf{ color:var(--mut); font-size:14px; }
+  .flow-cap{ text-align:center; color:var(--mut); font-size:11px; letter-spacing:2px; text-transform:uppercase; margin-top:14px; }
+
+  .foot{ text-align:center; margin-top:46px; color:var(--mut); font-size:12px; }
+  .foot b{ font-family:'Sora',sans-serif; color:var(--txt); letter-spacing:1px; }
+
+  .reveal{ opacity:0; transform:translateY(18px); transition:opacity .6s ease, transform .6s ease; }
+  .reveal.in{ opacity:1; transform:none; }
+
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  @keyframes pulse{ 0%,100%{ opacity:1; } 50%{ opacity:.3; } }
+  @keyframes float{ 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(-8px); } }
+  .core{ animation:float 6s ease-in-out infinite; }
+
+  @media (max-width:780px){
+    .engines{ grid-template-columns:1fr; }
+    .core-sec{ height:340px; }
+    .ring.r3{ width:330px; height:330px; } .ring.r2{ width:280px; height:280px; } .ring.r1{ width:220px; height:220px; }
+    .node{ font-size:9.5px; padding:4px 9px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="stars"></canvas>
+<div class="bg-grad"></div>
+
+<div class="wrap">
+
+  <!-- HERO -->
+  <section class="reveal">
+    <span class="badge"><span class="dot"></span> AI Business Operating System</span>
+    <h1 class="title">QUVERA <span class="grad-text">BUSINESS&nbsp;OS</span></h1>
+    <p class="tagline">The AI-powered operating system for construction, interior fit-out &amp; service companies — every lead, quote, project and dirham, run by intelligent engines.</p>
+    <div class="pillars">
+      <div class="pillar"><b>Lead</b> Intelligence</div>
+      <div class="pillar"><b>Project</b> Intelligence</div>
+      <div class="pillar"><b>Finance</b> Intelligence</div>
+    </div>
+    <div class="stat-strip">
+      <div class="stat"><div class="k">AI Score</div><div class="v grad-text">92%</div></div>
+      <div class="stat"><div class="k">Active Leads</div><div class="v">94</div></div>
+      <div class="stat"><div class="k">Pipeline</div><div class="v">AED 2.8M</div></div>
+      <div class="stat"><div class="k">Live Projects</div><div class="v">17</div></div>
+      <div class="stat"><div class="k">AI Actions</div><div class="v">4</div></div>
+    </div>
+  </section>
+
+  <!-- AI CORE -->
+  <section class="core-sec reveal">
+    <svg class="links" viewBox="0 0 600 420" preserveAspectRatio="xMidYMid meet">
+      <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#00D4FF"/><stop offset="1" stop-color="#8B5CF6"/></linearGradient></defs>
+      <line x1="300" y1="210" x2="120" y2="80"/><line x1="300" y1="210" x2="480" y2="80"/>
+      <line x1="300" y1="210" x2="80" y2="210"/><line x1="300" y1="210" x2="520" y2="210"/>
+      <line x1="300" y1="210" x2="150" y2="350"/><line x1="300" y1="210" x2="450" y2="350"/>
+    </svg>
+    <div class="ring r3"></div><div class="ring r2"></div><div class="ring r1"></div>
+    <div class="core"><div class="core-inner"><div class="c1">QUVERA</div><div class="c2">AI CORE</div></div></div>
+    <span class="node" style="left:20%;top:19%"><i style="background:#00D4FF;box-shadow:0 0 8px #00D4FF"></i>Lead AI</span>
+    <span class="node" style="left:80%;top:19%"><i style="background:#8B5CF6;box-shadow:0 0 8px #8B5CF6"></i>Revenue AI</span>
+    <span class="node" style="left:13%;top:50%"><i style="background:#00FFCC;box-shadow:0 0 8px #00FFCC"></i>Project AI</span>
+    <span class="node" style="left:87%;top:50%"><i style="background:#ffb020;box-shadow:0 0 8px #ffb020"></i>Finance AI</span>
+    <span class="node" style="left:25%;top:83%"><i style="background:#22c55e;box-shadow:0 0 8px #22c55e"></i>Trust AI</span>
+    <span class="node" style="left:75%;top:83%"><i style="background:#ec4899;box-shadow:0 0 8px #ec4899"></i>Client AI</span>
+  </section>
+
+  <!-- ENGINES -->
+  <div class="sec-head reveal"><h2>Intelligence Engines</h2><span class="line"></span></div>
+  <div class="engines">
+
+    <div class="engine reveal" style="--c:#00D4FF">
+      <div class="eng-top"><div class="eng-ic">⚡</div><div><div class="eng-tag">Engine 01</div><div class="eng-name">Lead Intelligence</div></div></div>
+      <div class="eng-stats"><div><div class="v">46</div><div class="k">Leads</div></div><div><div class="v" style="color:#ff7a59">12</div><div class="k">Hot</div></div><div><div class="v" style="color:#22c55e">68%</div><div class="k">Win rate</div></div></div>
+      <div class="chips"><span class="chip">Lead Hub</span><span class="chip">Lead Engine</span><span class="chip">Planner</span><span class="chip">Meta Ads</span></div>
+      <span class="open">OPEN ENGINE <span class="arr">→</span></span>
+    </div>
+
+    <div class="engine reveal" style="--c:#8B5CF6">
+      <div class="eng-top"><div class="eng-ic">◆</div><div><div class="eng-tag">Engine 02</div><div class="eng-name">Revenue Intelligence</div></div></div>
+      <div class="eng-stats"><div><div class="v">AED 2.4M</div><div class="k">Pipeline</div></div><div><div class="v">82</div><div class="k">Quotes</div></div><div><div class="v" style="color:#22c55e">54</div><div class="k">Approved</div></div></div>
+      <div class="chips"><span class="chip">Quotations</span><span class="chip">Invoices</span><span class="chip">Approvals</span><span class="chip">AI Quote Builder</span><span class="chip">Description Library</span></div>
+      <span class="open">OPEN ENGINE <span class="arr">→</span></span>
+    </div>
+
+    <div class="engine reveal" style="--c:#00FFCC">
+      <div class="eng-top"><div class="eng-ic">▣</div><div><div class="eng-tag">Engine 03</div><div class="eng-name">Project Intelligence</div></div></div>
+      <div class="eng-stats"><div><div class="v">17</div><div class="k">Projects</div></div><div><div class="v" style="color:#ff5d5d">2</div><div class="k">At risk</div></div><div><div class="v" style="color:#22c55e">91%</div><div class="k">Health</div></div></div>
+      <div class="chips"><span class="chip">Projects</span><span class="chip">Material Requests</span><span class="chip">Site Expenses</span><span class="chip">Client Portal</span></div>
+      <span class="open">OPEN ENGINE <span class="arr">→</span></span>
+    </div>
+
+    <div class="engine reveal" style="--c:#ffb020">
+      <div class="eng-top"><div class="eng-ic">$</div><div><div class="eng-tag">Engine 04</div><div class="eng-name">Finance Intelligence</div></div></div>
+      <div class="eng-stats"><div><div class="v">AED 4.2M</div><div class="k">Revenue</div></div><div><div class="v" style="color:#22c55e">AED 1.1M</div><div class="k">Profit</div></div><div><div class="v">Ready</div><div class="k">VAT</div></div></div>
+      <div class="chips"><span class="chip">Ledger</span><span class="chip">Purchases</span></div>
+      <span class="open">OPEN ENGINE <span class="arr">→</span></span>
+    </div>
+
+    <div class="engine reveal" style="--c:#ec4899">
+      <div class="eng-top"><div class="eng-ic">◎</div><div><div class="eng-tag">Engine 05</div><div class="eng-name">Client Intelligence</div></div></div>
+      <div class="eng-stats"><div><div class="v">9</div><div class="k">Conversations</div></div><div><div class="v" style="color:#ff7a59">3</div><div class="k">Awaiting</div></div></div>
+      <div class="chips"><span class="chip">Inbox</span><span class="chip">Notifications</span><span class="chip">Share Profile</span><span class="chip">Public Profile</span></div>
+      <span class="open">OPEN ENGINE <span class="arr">→</span></span>
+    </div>
+
+    <div class="engine reveal" style="--c:#22c55e">
+      <div class="eng-top"><div class="eng-ic">✦</div><div><div class="eng-tag">Engine 06</div><div class="eng-name">Trust Intelligence</div></div></div>
+      <div class="eng-stats"><div><div class="v" style="color:#22c55e">94</div><div class="k">Trust score</div></div><div><div class="v">48</div><div class="k">Reviews</div></div><div><div class="v">✓</div><div class="k">Verified</div></div></div>
+      <div class="chips"><span class="chip">Trust Score</span><span class="chip">Reviews</span><span class="chip">Verification</span></div>
+      <span class="open">OPEN ENGINE <span class="arr">→</span></span>
+    </div>
+
+    <div class="engine reveal" style="--c:#3b82f6">
+      <div class="eng-top"><div class="eng-ic">↗</div><div><div class="eng-tag">Engine 07</div><div class="eng-name">Growth Intelligence</div></div></div>
+      <div class="eng-stats"><div><div class="v">+24%</div><div class="k">Profile views</div></div><div><div class="v">Live</div><div class="k">Sponsored</div></div></div>
+      <div class="chips"><span class="chip">Analytics</span><span class="chip">Sponsored Placement</span></div>
+      <span class="open">OPEN ENGINE <span class="arr">→</span></span>
+    </div>
+
+    <div class="engine reveal" style="--c:#64748b">
+      <div class="eng-top"><div class="eng-ic">⚙</div><div><div class="eng-tag">Engine 08</div><div class="eng-name">Operations Intelligence</div></div></div>
+      <div class="eng-stats"><div><div class="v">5</div><div class="k">Team</div></div><div><div class="v">100%</div><div class="k">Uptime</div></div></div>
+      <div class="chips"><span class="chip">Command Center</span><span class="chip">Organizer</span><span class="chip">Staff &amp; Access</span><span class="chip">Control Panel</span><span class="chip">Profile</span><span class="chip">Portfolio</span></div>
+      <span class="open">OPEN ENGINE <span class="arr">→</span></span>
+    </div>
+
+  </div>
+
+  <!-- AI ASSISTANT -->
+  <div class="ai reveal">
+    <h3>Ask <span class="grad-text">Quvera AI</span></h3>
+    <p>Your operating system, in natural language.</p>
+    <div class="ai-prompts">
+      <span class="ai-prompt">Which projects are delayed?</span>
+      <span class="ai-prompt">How many quotations need approval?</span>
+      <span class="ai-prompt">Show expected profit this month.</span>
+    </div>
+    <div class="ai-bar"><input placeholder="Ask anything about your business…" /><button class="send">↑</button></div>
+  </div>
+
+  <!-- WORKFLOW -->
+  <div class="flow reveal">
+    <div class="sec-head"><h2>One workflow, one source of truth</h2><span class="line"></span></div>
+    <div class="flow-track">
+      <div class="step"><span class="b">◷</span> Lead</div><span class="arrowf">→</span>
+      <div class="step"><span class="b">▤</span> Quote</div><span class="arrowf">→</span>
+      <div class="step"><span class="b">▣</span> Project</div><span class="arrowf">→</span>
+      <div class="step"><span class="b">▦</span> Invoice</div><span class="arrowf">→</span>
+      <div class="step"><span class="b">$</span> Payment</div><span class="arrowf">→</span>
+      <div class="step"><span class="b">★</span> Review</div><span class="arrowf">→</span>
+      <div class="step"><span class="b">✦</span> Trust</div>
+    </div>
+    <div class="flow-cap">One platform · one workflow · one source of truth</div>
+  </div>
+
+  <div class="foot reveal"><b>QUVERA BUSINESS OS</b><br/>Engineered for the build.</div>
+
+</div>
+
+<script>
+  // particle starfield
+  const c = document.getElementById('stars'), x = c.getContext('2d');
+  let w, h, pts;
+  function init(){
+    w = c.width = innerWidth; h = c.height = innerHeight;
+    pts = Array.from({length: Math.min(120, Math.floor(w/12))}, () => ({
+      x: Math.random()*w, y: Math.random()*h, r: Math.random()*1.6+0.3,
+      vx:(Math.random()-0.5)*0.25, vy:(Math.random()-0.5)*0.25, a: Math.random()*0.5+0.2
+    }));
+  }
+  function draw(){
+    x.clearRect(0,0,w,h);
+    for(const p of pts){
+      p.x+=p.vx; p.y+=p.vy;
+      if(p.x<0)p.x=w; if(p.x>w)p.x=0; if(p.y<0)p.y=h; if(p.y>h)p.y=0;
+      x.beginPath(); x.arc(p.x,p.y,p.r,0,7); x.fillStyle='rgba(0,212,255,'+p.a+')'; x.fill();
+    }
+    // faint links
+    for(let i=0;i<pts.length;i++) for(let j=i+1;j<pts.length;j++){
+      const a=pts[i], b=pts[j], d=Math.hypot(a.x-b.x,a.y-b.y);
+      if(d<110){ x.beginPath(); x.moveTo(a.x,a.y); x.lineTo(b.x,b.y); x.strokeStyle='rgba(139,92,246,'+(0.10*(1-d/110))+')'; x.stroke(); }
+    }
+    requestAnimationFrame(draw);
+  }
+  addEventListener('resize', init); init(); draw();
+
+  // reveal on scroll
+  const io = new IntersectionObserver(es => es.forEach(e => { if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} }), {threshold:.12});
+  document.querySelectorAll('.reveal').forEach((el,i)=>{ el.style.transitionDelay=(i%4*0.04)+'s'; io.observe(el); });
+</script>
+</body>
+</html>

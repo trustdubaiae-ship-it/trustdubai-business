@@ -7,6 +7,7 @@ import { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../lib/toast'
+import HeroActions from '../components/HeroActions'
 
 const KINDS = {
   meeting:    { label: 'Meeting',    icon: 'ti-calendar-event', color: '#3b82f6' },
@@ -223,26 +224,10 @@ export default function MeetingsPage({ onNavigate }) {
   return (
     <div style={{ color: C.text }}>
       <style>{MEET_CSS}</style>
-      {/* gradient hero header */}
-      <div style={{ background: GRAD, borderRadius: 18, padding: 'clamp(16px,4vw,22px) clamp(18px,4vw,26px)', marginBottom: 16, position: 'relative', overflow: 'hidden', boxShadow: '0 16px 44px -18px rgba(99,102,241,.65)' }}>
-        <div style={{ position: 'absolute', top: -45, right: -30, width: 170, height: 170, borderRadius: '50%', background: 'rgba(255,255,255,0.13)' }} />
-        <div style={{ position: 'absolute', bottom: -55, left: 40, width: 130, height: 130, borderRadius: '50%', background: 'rgba(255,255,255,0.08)' }} />
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 13, minWidth: 0 }}>
-            <div style={{ width: 48, height: 48, borderRadius: 14, background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <i className="ti ti-calendar-event" style={{ fontSize: 25, color: '#fff' }} />
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <h1 className="font-syne fw-700" style={{ fontSize: 'clamp(21px,5vw,27px)', margin: 0, color: '#fff', letterSpacing: '-0.5px' }}>Planner</h1>
-              <p style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.85)', margin: '2px 0 0' }}>Meetings, site visits &amp; follow-ups — synced with every lead.</p>
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-            <button onClick={() => setSyncOpen(true)} title="Sync to your phone calendar" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '11px 14px', borderRadius: 11, border: '1px solid rgba(255,255,255,0.45)', background: 'rgba(255,255,255,0.15)', color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: 'pointer' }}><i className="ti ti-device-mobile" style={{ fontSize: 16 }} /> Sync</button>
-            <button onClick={() => openNew()} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '11px 18px', borderRadius: 11, border: 'none', background: '#fff', color: '#4f46e5', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: '0 6px 16px -6px rgba(0,0,0,0.3)' }}><i className="ti ti-plus" style={{ fontSize: 17 }} /> New</button>
-          </div>
-        </div>
-      </div>
+      <HeroActions>
+        <button onClick={() => setSyncOpen(true)} title="Sync to your phone calendar" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '11px 14px', borderRadius: 11, border: '1px solid rgba(255,255,255,0.45)', background: 'rgba(255,255,255,0.15)', color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: 'pointer' }}><i className="ti ti-device-mobile" style={{ fontSize: 16 }} /> Sync</button>
+        <button onClick={() => openNew()} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '11px 18px', borderRadius: 11, border: 'none', background: '#fff', color: '#4f46e5', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: '0 6px 16px -6px rgba(0,0,0,0.3)' }}><i className="ti ti-plus" style={{ fontSize: 17 }} /> New</button>
+      </HeroActions>
 
       {syncOpen && (
         <div onClick={() => setSyncOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>

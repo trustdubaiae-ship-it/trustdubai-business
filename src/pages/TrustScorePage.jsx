@@ -70,11 +70,6 @@ export default function TrustScorePage() {
 
   return (
     <div className="animate-in">
-      <div style={{ marginBottom: 20 }}>
-        <h1 className="font-syne fw-700" style={{ fontSize: 24, marginBottom: 4 }}>Trust Score</h1>
-        <p className="text-secondary" style={{ fontSize: 14 }}>Your credibility rating on Quvera — higher score means more leads.</p>
-      </div>
-
       <div className="grid-2">
         {/* Score gauge card */}
         <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '28px 20px' }}>

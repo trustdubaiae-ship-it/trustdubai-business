@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
+import HeroActions from '../components/HeroActions'
 
 /* =========================================================================
    DESCRIPTION LIBRARY — reusable BOQ line items.
@@ -128,18 +129,11 @@ export default function QuoteLibrary() {
 
   return (
     <div style={{ maxWidth: 1080, margin: '0 auto' }}>
-      {/* header */}
-      <div style={{ display:'flex', alignItems:'flex-start', gap:12, flexWrap:'wrap', marginBottom:16 }}>
-        <div style={{ flex:1, minWidth:200 }}>
-          <h1 style={{ fontSize:'clamp(20px,5vw,26px)', fontWeight:800, color:'var(--text)', margin:0, display:'flex', alignItems:'center', gap:9 }}>
-            <i className="ti ti-books" style={{ color:ACCENT }}/> Description Library
-          </h1>
-          <p style={{ fontSize:13, color:'var(--text2)', margin:'4px 0 0' }}>Save BOQ descriptions once, reuse them in quotations — no more re-typing.</p>
-        </div>
+      <HeroActions>
         <button onClick={() => setModal({})} style={{ ...btnPrimary, padding:'11px 18px' }}>
           <i className="ti ti-plus" style={{ fontSize:16 }}/> Add item
         </button>
-      </div>
+      </HeroActions>
 
       {/* search */}
       <div style={{ display:'flex', gap:10, flexWrap:'wrap', alignItems:'center', marginBottom:14 }}>

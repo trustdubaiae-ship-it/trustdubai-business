@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../lib/toast'
+import HeroActions from '../components/HeroActions'
 
 const PSTATUS = {
   planning:       { label: 'Planning',           color: '#64748b', icon: 'ti-pencil' },
@@ -527,15 +528,9 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
     return (
       <div style={{ color: 'var(--text)' }}>
         <style>{FX}</style>
-        <div className="fx-hero" style={{ borderRadius: 18, padding: '22px 24px', marginBottom: 16, background: heroBg, color: '#fff' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', position: 'relative' }}>
-            <div>
-              <h1 className="font-syne fw-700" style={{ fontSize: 24, margin: 0, display: 'flex', alignItems: 'center', gap: 10, letterSpacing: '-.4px' }}><i className="ti ti-briefcase" /> Projects</h1>
-              <p style={{ fontSize: 13, color: 'rgba(255,255,255,.78)', margin: '5px 0 0' }}>Track jobs, scope, subcontractors & site spend — profit at a glance.</p>
-            </div>
-            <button onClick={newProject} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '11px 18px', borderRadius: 11, border: 'none', background: '#fff', color: '#0a2540', fontWeight: 700, fontSize: 14, cursor: 'pointer', boxShadow: '0 6px 18px rgba(0,0,0,.22)' }}><i className="ti ti-plus" style={{ fontSize: 16 }} /> New project</button>
-          </div>
-        </div>
+        <HeroActions>
+          <button onClick={newProject} className="btn btn-primary"><i className="ti ti-plus" style={{ fontSize: 16 }} /> New project</button>
+        </HeroActions>
 
         {projects.length > 0 && (() => {
           const s = summary || { totalContract: totals.value, totalReceived: 0, totalOutstanding: totals.value, totalCost: 0, profit: totals.value, subBalance: 0, siteSpend: 0, counts: { total: projects.length, ongoing: totals.ongoing, completed: totalCompleted, planning: 0, on_hold: 0 }, topSubs: [] }

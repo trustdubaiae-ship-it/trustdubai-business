@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
+import HeroActions from '../components/HeroActions'
 
 /* =========================================================================
    MY ORGANIZER — private diary (owner only). Meetings · Tasks · Notes.
@@ -175,19 +176,11 @@ export default function Organizer({ onNavigate }) {
   return (
     <div style={{ maxWidth: 920, margin: '0 auto' }}>
       {/* header */}
-      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12, flexWrap:'wrap', marginBottom:6 }}>
-        <div>
-          <h1 style={{ fontSize:'clamp(20px,5vw,26px)', fontWeight:800, color:'var(--text)', margin:0, display:'flex', alignItems:'center', gap:9 }}>
-            <i className="ti ti-calendar-event" style={{ color:'#22c55e' }}/> My Organizer
-          </h1>
-          <p style={{ fontSize:13, color:'var(--text2)', margin:'4px 0 0' }}>Your private diary — meetings, tasks & notes. Only you can see this.</p>
-        </div>
-        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-          <button onClick={() => openNew('meeting')} style={btnGhost}><i className="ti ti-calendar-plus" style={{ fontSize:15 }}/> Meeting</button>
-          <button onClick={() => openNew('task')} style={btnGhost}><i className="ti ti-plus" style={{ fontSize:15 }}/> Task</button>
-          <button onClick={() => openNew('note')} style={btnPrimary}><i className="ti ti-note" style={{ fontSize:15 }}/> Note</button>
-        </div>
-      </div>
+      <HeroActions>
+        <button onClick={() => openNew('meeting')} style={btnGhost}><i className="ti ti-calendar-plus" style={{ fontSize:15 }}/> Meeting</button>
+        <button onClick={() => openNew('task')} style={btnGhost}><i className="ti ti-plus" style={{ fontSize:15 }}/> Task</button>
+        <button onClick={() => openNew('note')} style={btnPrimary}><i className="ti ti-note" style={{ fontSize:15 }}/> Note</button>
+      </HeroActions>
 
       {/* view tabs */}
       <div style={{ display:'flex', gap:6, flexWrap:'wrap', margin:'16px 0 18px' }}>

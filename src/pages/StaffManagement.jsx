@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { PERMISSIONS, presetForRole, allPermsTrue, allPermsFalse } from "../lib/permissions";
+import HeroActions from '../components/HeroActions';
 
 const BRAND = "#0099cc";
 const PLAN_RANK = { free:0, silver:1, gold:2, platinum:3 };
@@ -67,15 +68,14 @@ export default function StaffManagement() {
 
   return (
     <div style={{ padding: "clamp(16px,4vw,24px)", maxWidth: 880, margin: "0 auto" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 4 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: "#0f172a", margin: 0 }}>Team / Staff</h1>
+      <HeroActions>
         <button onClick={() => setShowAdd(true)} disabled={!canAdd}
           style={{ padding: "9px 16px", borderRadius: 9, border: "none", color: "#fff",
             fontWeight: 600, fontSize: 13, cursor: canAdd ? "pointer" : "not-allowed",
             opacity: canAdd ? 1 : 0.4, background: BRAND }}>
           + Add Staff
         </button>
-      </div>
+      </HeroActions>
 
       <p style={{ fontSize: 13, color: "#64748b", marginBottom: 20 }}>
         {company?.name} · Plan: <b style={{ textTransform: "capitalize" }}>{planName}</b> ·{" "}

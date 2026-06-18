@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
+import HeroActions from '../components/HeroActions'
 
 const DURATION_OPTIONS = [
   { months: 1, label: '1 Month',  desc: 'Monthly visibility' },
@@ -145,20 +146,15 @@ export default function SponsoredPage({ onNavigate }) {
   return (
     <div className="animate-in">
 
-      {/* Header */}
-      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:20, flexWrap:'wrap', gap:10 }}>
-        <div>
-          <h1 style={{ fontSize:20, fontWeight:700, color:'var(--text)', letterSpacing:'-0.3px' }}>Sponsored Placement</h1>
-          <p style={{ fontSize:12, color:'var(--text2)', marginTop:3 }}>Get featured on quvera.ae homepage — reach more customers</p>
-        </div>
-        {(!mySlot || mySlot.status === 'rejected' || mySlot.status === 'expired') && (
+      {(!mySlot || mySlot.status === 'rejected' || mySlot.status === 'expired') && (
+        <HeroActions>
           <button onClick={()=>setShowRequest(true)}
             style={{ padding:'9px 18px', background:'linear-gradient(135deg,#e8b84b,#c9952a)', color:'#0d1117', border:'none', borderRadius:9, fontSize:12, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:6 }}>
             <i className="ti ti-ad-2" style={{ fontSize:14 }}/>
             Request Sponsor Slot
           </button>
-        )}
-      </div>
+        </HeroActions>
+      )}
 
       {/* No slot yet */}
       {!mySlot && (

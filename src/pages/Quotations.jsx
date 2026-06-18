@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { useToast } from '../lib/toast'
 import UpgradeLockModal from '../components/UpgradeLockModal'
+import HeroActions from '../components/HeroActions'
 
 const STATUS_STYLE = {
   draft:    { label:'draft',    color:'#64748b', bg:'#f1f5f9' },
@@ -2216,15 +2217,11 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   ]
   return (
     <div>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, marginBottom:18, flexWrap:'wrap' }}>
-        <div>
-          <h1 style={{ fontSize:21, fontWeight:700, color:text, margin:0 }}>Quotations</h1>
-          <p style={{ fontSize:13, color:textSub, marginTop:3 }}>Create, send &amp; track your quotes · {total} total</p>
-        </div>
+      <HeroActions>
         <button onClick={openBuilder} style={{ padding:'9px 16px', background:'#0099cc', color:'#fff', border:'none', borderRadius:9, fontSize:13, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:5 }}>
           <i className="ti ti-plus" style={{ fontSize:15 }}/> New Quotation
         </button>
-      </div>
+      </HeroActions>
 
       {draftExists && (
         <div style={{ display:'flex', alignItems:'center', gap:10, background:isDark?'rgba(232,184,75,0.1)':'#fffbeb', border:`1px solid ${isDark?'rgba(232,184,75,0.25)':'#fcd34d'}`, borderRadius:10, padding:'11px 14px', marginBottom:14 }}>
