@@ -81,12 +81,12 @@ export default function ReviewsPage() {
   })
 
   const avgRating = reviews.length > 0
-    ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)
+    ? (reviews.reduce((s, r) => s + (Number(r.rating) || 0), 0) / reviews.length).toFixed(1)
     : 0
 
   const ratingCounts = [5, 4, 3, 2, 1].map(n => ({
     star: n,
-    count: reviews.filter(r => r.rating === n).length
+    count: reviews.filter(r => (Number(r.rating) || 0) === n).length
   }))
 
   const repliedCount = reviews.filter(r => r.owner_reply).length

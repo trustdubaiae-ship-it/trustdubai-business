@@ -62,7 +62,7 @@ function isOverdue(l) {
   const t = l.assigned_at || l.created_at
   return t ? (Date.now() - new Date(t).getTime()) / 3600000 > 12 : false
 }
-function initial(name) { return (name || 'A').replace(/^(Mr|Mrs|Ms)\.?\s*/, '')[0].toUpperCase() }
+function initial(name) { return ((name || 'A').replace(/^(Mr|Mrs|Ms)\.?\s*/, '')[0] || 'A').toUpperCase() }
 
 export default function LeadVisualViews({ mode = 'flow', leads = [], onOpenLead, mobile = false }) {
   const rootRef = useRef(null)

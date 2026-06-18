@@ -34,7 +34,7 @@ function MiniChart({ data, color, height = 40 }) {
 export default function SponsoredPage({ onNavigate }) {
   const { company } = useAuth()
   const [mySlot,     setMySlot]     = useState(null)
-  const [analytics,  setAnalytics]  = useState({ views:0, clicks:0, leads:0, daily:[] })
+  const [analytics,  setAnalytics]  = useState({ views:0, clicks:0, leadsC:0, daily:[] })
   const [leads,      setLeads]      = useState([])
   const [pricing,    setPricing]    = useState([])
   const [loading,    setLoading]    = useState(true)
@@ -53,7 +53,7 @@ export default function SponsoredPage({ onNavigate }) {
     setLoading(true)
     try {
       const [slotRes, pricingRes] = await Promise.all([
-        supabase.from('sponsor_slots').select('*').eq('company_id', company.id).order('created_at', { ascending:false }).limit(1).single(),
+        supabase.from('sponsor_slots').select('*').eq('company_id', company.id).order('created_at', { ascending:false }).limit(1).maybeSingle(),
         supabase.from('sponsor_slot_pricing').select('*').order('duration_months'),
       ])
 
@@ -74,12 +74,13 @@ export default function SponsoredPage({ onNavigate }) {
         // Daily clicks last 14 days
         const dailyMap = {}
         const today = new Date()
+        const ymdL = dt => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`  // LOCAL day key (toISOString is UTC, shifts in Dubai UTC+4)
         for (let i=13; i>=0; i--) {
           const d = new Date(today); d.setDate(d.getDate()-i)
-          dailyMap[d.toISOString().split('T')[0]] = 0
+          dailyMap[ymdL(d)] = 0
         }
         ;(analyticsData||[]).filter(a=>a.event_type==='click').forEach(a => {
-          const day = a.created_at.split('T')[0]
+          const day = ymdL(new Date(a.created_at))
           if (dailyMap[day] !== undefined) dailyMap[day]++
         })
 

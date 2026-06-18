@@ -238,7 +238,7 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme, e
 
     // reviews growth 6mo
     const months=[]; const nd=new Date()
-    for(let i=5;i>=0;i--){ const dt=new Date(nd.getFullYear(),nd.getMonth()-i,1); const key=dt.toISOString().slice(0,7); months.push({ label:dt.toLocaleDateString('en-AE',{month:'short'}), value:reviews.filter(r=>(r.created_at||'').slice(0,7)===key).length, color:'#22c55e' }) }
+    for(let i=5;i>=0;i--){ const dt=new Date(nd.getFullYear(),nd.getMonth()-i,1); const key=`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`; months.push({ label:dt.toLocaleDateString('en-AE',{month:'short'}), value:reviews.filter(r=>(r.created_at||'').slice(0,7)===key).length, color:'#22c55e' }) }
 
     // rating distribution 5..1
     const dist={5:0,4:0,3:0,2:0,1:0}; reviews.forEach(r=>{ const k=Math.round(r.rating||0); if(dist[k]!==undefined)dist[k]++ })
@@ -261,16 +261,16 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme, e
     const convBySrc=sources.map(s=>{ const t=leads.filter(l=>normSource(pick(l,['source','lead_source']))===s.label).length; const w=leads.filter(l=>normSource(pick(l,['source','lead_source']))===s.label && normStatus(pick(l,['status']))==='won').length; return { label:s.label.replace(' Ads',''), value:t?Math.round((w/t)*100):0, color:s.color } })
 
     // recent reviews
-    const recentReviews=[...reviews].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,4).map(r=>({ name:pick(r,['reviewer_name','customer_name','name'])||'Anonymous', rating:r.rating||0, time:r.created_at }))
+    const recentReviews=[...reviews].sort((a,b)=>(+new Date(b.created_at)||0)-(+new Date(a.created_at)||0)).slice(0,4).map(r=>({ name:pick(r,['reviewer_name','customer_name','name'])||'Anonymous', rating:r.rating||0, time:r.created_at }))
 
     // recent activity (reviews + leads)
     const act=[]
     reviews.slice(-3).forEach(r=>act.push({ icon:'ti-star', color:'#f59e0b', text:`New review by ${pick(r,['reviewer_name','name'])||'a customer'}`, time:r.created_at }))
     leads.slice(-3).forEach(l=>act.push({ icon:'ti-user-plus', color:'#22c55e', text:`New lead from ${normSource(pick(l,['source','lead_source']))}`, time:pick(l,['created_at']) }))
-    act.sort((a,b)=>new Date(b.time)-new Date(a.time))
+    act.sort((a,b)=>(+new Date(b.time)||0)-(+new Date(a.time)||0))
 
     // live lead activity
-    const liveLeads=[...leads].sort((a,b)=>new Date(pick(b,['created_at']))-new Date(pick(a,['created_at']))).slice(0,5).map(l=>({ src:normSource(pick(l,['source','lead_source'])), name:pick(l,['name','customer_name','full_name'])||'New lead', time:pick(l,['created_at']) }))
+    const liveLeads=[...leads].sort((a,b)=>(+new Date(pick(b,['created_at']))||0)-(+new Date(pick(a,['created_at']))||0)).slice(0,5).map(l=>({ src:normSource(pick(l,['source','lead_source'])), name:pick(l,['name','customer_name','full_name'])||'New lead', time:pick(l,['created_at']) }))
 
     // company-level (trust / verification / profile)
     const verified = company.is_verified ? 1 : 0

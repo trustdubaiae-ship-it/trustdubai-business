@@ -759,7 +759,7 @@ export default function LeadsPage() {
 
   const isTD = mainTab === 'trustdubai'
   const baseLeads = isTD ? tdLeads : myLeads
-  const today = new Date().toISOString().split('T')[0]
+  const today = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` })()  // LOCAL day (toISOString is UTC, shifts in Dubai UTC+4)
   // follow_up_date may be a date ('YYYY-MM-DD') or a timestamp — compare on the date part only
   const dateOnly = (d) => (d || '').slice(0, 10)
 

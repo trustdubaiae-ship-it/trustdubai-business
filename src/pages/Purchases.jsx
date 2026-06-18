@@ -9,6 +9,8 @@ const todayStr = () => new Date().toISOString().slice(0, 10)
 const fmtDate = d => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 const initials = nm => nm ? nm.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase() : '?'
 const monthKey = d => (d || '').slice(0, 7)
+// current month key from LOCAL parts — NOT toISOString (UTC shifts to prev month in Dubai UTC+4)
+const ymKeyNow = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` }
 const VAT_RATE = 5
 
 const CATEGORIES = ['Material', 'Tools / Equipment', 'Subcontractor', 'Transport', 'Rent', 'Utilities', 'Office', 'Misc']
@@ -202,7 +204,7 @@ export default function Purchases() {
   )
 
   // ---------- derived ----------
-  const thisMonth = monthKey(new Date().toISOString())
+  const thisMonth = ymKeyNow()
   const monthPurch = purchases.filter(p => monthKey(p.invoice_date) === thisMonth)
   const totMonth = monthPurch.reduce((s, p) => s + Number(p.total || 0), 0)
   const inputVatMonth = monthPurch.reduce((s, p) => s + Number(p.vat_amount || 0), 0)
