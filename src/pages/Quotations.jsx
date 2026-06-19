@@ -328,6 +328,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   const [voItems, setVoItems]     = useState([blankItem()])
   const [voMode, setVoMode]       = useState('simple')
   const [voVat, setVoVat]         = useState(true)
+  const [voOmission, setVoOmission] = useState(false)   // true = removed/omitted work (subtracts from contract)
   const [voAddTrade, setVoAddTrade] = useState('')
   const [voSaving, setVoSaving]   = useState(false)
   const [voPreview, setVoPreview] = useState(null)
@@ -950,7 +951,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     setVoDescription('')
     setVoMode(activeQuote?.mode === 'boq' && canBoq ? 'boq' : 'simple')
     setVoItems(activeQuote?.mode === 'boq' && canBoq ? [] : [blankItem()])
-    setVoVat(true); setVoAddTrade('')
+    setVoVat(true); setVoOmission(false); setVoAddTrade('')
     setView('voBuilder', `voBuilder/${activeQuote.id}`)
   }
   function editVo(v) {
@@ -961,7 +962,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     setVoItems(Array.isArray(v.items) && v.items.length
       ? v.items.map(it => ({ title:it.title||'', desc:it.desc||'', unit:it.unit||'Nos', qty:it.qty??1, rate:it.rate??0, trade: it.trade || '' }))
       : [blankItem()])
-    setVoVat(!!v.vat_amount); setVoAddTrade('')
+    setVoVat(!!v.vat_amount); setVoOmission(Number(v.total) < 0); setVoAddTrade('')
     setView('voBuilder', `voBuilder/${activeQuote.id}`)
   }
   function updateVoItem(idx, field, val) { setVoItems(prev => prev.map((it,i)=> i===idx?{...it,[field]:val}:it)) }
@@ -983,7 +984,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
           title:(it.title||'').trim(), desc:it.desc.trim(), unit:it.unit||'Nos', qty:Number(it.qty)||0, rate:Number(it.rate)||0,
           ...(voMode === 'boq' ? { trade: it.trade || 'Misc' } : {}),
         })),
-        subtotal: voSubtotal, vat_enabled: voVat, vat_amount: voVatAmount, total: voTotal,
+        subtotal: (voOmission ? -1 : 1) * voSubtotal, vat_enabled: voVat, vat_amount: (voOmission ? -1 : 1) * voVatAmount, total: (voOmission ? -1 : 1) * voTotal,
         status: 'draft',
       }
       if (voEditId) {
@@ -1509,8 +1510,15 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
           </div>
         </div>
 
+        <label style={{ fontSize:12, color:textSub, display:'block', marginBottom:5 }}>Variation type</label>
+        <div style={{ display:'flex', gap:8, marginBottom:14 }}>
+          {[['add','Addition (+)','#0f6e56','Adds work / cost to the contract'],['omit','Omission (−)','#b45309','Removes work / cost from the contract']].map(([k,l,c,sub])=>{
+            const on = (k==='omit') === voOmission
+            return <button key={k} type="button" onClick={()=>setVoOmission(k==='omit')} title={sub} style={{ flex:1, padding:'9px 10px', borderRadius:9, border:`1px solid ${on?c:border}`, background: on ? c+'18' : 'transparent', color: on?c:textSub, fontSize:12.5, fontWeight:700, cursor:'pointer' }}>{l}</button>
+          })}
+        </div>
         <label style={{ fontSize:12, color:textSub, display:'block', marginBottom:5 }}>Variation description <span style={{ color:'#dc2626' }}>*</span></label>
-        <input value={voDescription} onChange={e=>setVoDescription(e.target.value)} placeholder="e.g. Added bidet + extra wall niche in Bathroom 2" style={{ ...inputStyle, marginBottom:14 }}/>
+        <input value={voDescription} onChange={e=>setVoDescription(e.target.value)} placeholder={voOmission ? 'e.g. Removed false ceiling in Bedroom 2' : 'e.g. Added bidet + extra wall niche in Bathroom 2'} style={{ ...inputStyle, marginBottom:14 }}/>
 
         {canBoq && (
           <div style={{ display:'inline-flex', background:pillBg, border:`1px solid ${border}`, borderRadius:10, padding:3, marginBottom:14 }}>
@@ -1614,7 +1622,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
           <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, padding:'10px 14px', minWidth:200 }}>
             <div style={{ display:'flex', justifyContent:'space-between', fontSize:13, color:textSub, padding:'2px 0' }}><span>Subtotal</span><span>{fmt(voSubtotal)}</span></div>
             {voVat && <div style={{ display:'flex', justifyContent:'space-between', fontSize:13, color:textSub, padding:'2px 0' }}><span>VAT 5%</span><span>{fmt(voVatAmount)}</span></div>}
-            <div style={{ display:'flex', justifyContent:'space-between', fontSize:15, fontWeight:700, color:text, padding:'5px 0 0', borderTop:`1px solid ${border}`, marginTop:3 }}><span>VO Total</span><span>{fmt(voTotal)}</span></div>
+            <div style={{ display:'flex', justifyContent:'space-between', fontSize:15, fontWeight:700, color: voOmission ? '#b45309' : text, padding:'5px 0 0', borderTop:`1px solid ${border}`, marginTop:3 }}><span>{voOmission ? 'VO Total (omission)' : 'VO Total'}</span><span>{voOmission ? '− ' : '+ '}{fmt(voTotal)}</span></div>
           </div>
         </div>
 
@@ -1795,7 +1803,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
                             <div style={{ fontSize:11, color:textSub }}>{(v.items?.length||0)} item{(v.items?.length||0)!==1?'s':''} · {new Date(v.created_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</div>
                           </div>
                           <div style={{ textAlign:'right', flexShrink:0 }}>
-                            <div style={{ fontSize:13, fontWeight:600, color:text }}>+ {fmt(v.total||0)}</div>
+                            <div style={{ fontSize:13, fontWeight:600, color: Number(v.total) < 0 ? '#b45309' : text }}>{Number(v.total) < 0 ? '− ' : '+ '}{fmt(Math.abs(Number(v.total) || 0))}</div>
                             <span style={{ fontSize:10, color:vst.color, background:isDark?vst.color+'22':vst.bg, padding:'2px 8px', borderRadius:99 }}>{vst.label}</span>
                           </div>
                         </div>
@@ -1829,7 +1837,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
                     return (
                       <div key={v.id} style={{ display:'flex', justifyContent:'space-between', fontSize:13, color: appr?textSub:textMuted, padding:'3px 0' }}>
                         <span>VO-{String(v.vo_number).padStart(2,'0')} {appr?'(approved)':`(${v.status||'draft'} · not counted)`}</span>
-                        <span>+ {fmt(v.total||0)}</span>
+                        <span style={{ color: Number(v.total) < 0 ? '#b45309' : undefined }}>{Number(v.total) < 0 ? '− ' : '+ '}{fmt(Math.abs(Number(v.total) || 0))}</span>
                       </div>
                     )
                   })}
