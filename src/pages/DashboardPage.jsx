@@ -282,7 +282,7 @@ export default function DashboardPage({ onNavigate, theme }) {
       /* Activity feed */
       const feed = []
       ;(recentReviews||[]).forEach(r=>feed.push({ dot:'#f59e0b', text:`New review by ${r.reviewer_name||'a customer'}`, time:r.created_at }))
-      ;leads.slice(-6).forEach(l=>feed.push({ dot:'#00D4FF', text:`New lead from ${normSource(l.source||l.lead_source)}`, time:l.created_at }))
+      ;leads.slice(-6).forEach(l=>feed.push({ dot:'#00D4FF', text:`New lead from ${normSource(l.answers?.Source||l.source||l.lead_source)}`, time:l.created_at }))
       feed.sort((a,b)=>new Date(b.time)-new Date(a.time))
       setActivity(feed.slice(0,6))
 
