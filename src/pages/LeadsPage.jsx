@@ -51,6 +51,9 @@ const PUBLIC_BASE = 'https://quvera.ae'
 // (so +971 50…, 0050…, 50… all match the same UAE number)
 const normPhone = p => { const d = (p || '').replace(/\D/g, ''); return d.length > 9 ? d.slice(-9) : d }
 
+// extract a number from a budget string ("AED 50,000" / "50000-80000" -> 80000)
+const parseBudget = raw => { if (raw == null) return 0; const d = String(raw).replace(/[, ]/g, '').match(/\d+/g); return d ? Math.max(...d.map(Number)) : 0 }
+
 const SOURCE_CARDS = [
   { key:'meta',     label:'Meta',        icon:'ti-brand-meta',     color:'#3b82f6' },
   { key:'whatsapp', label:'WhatsApp',    icon:'ti-brand-whatsapp', color:'#22c55e' },
@@ -126,6 +129,14 @@ export default function LeadsPage() {
   const [fSource, setFSource] = useState('all')
   const [fStatus, setFStatus] = useState('all')
   const [quickFilter, setQuickFilter] = useState('')
+  const [minBudget, setMinBudget] = useState(() => { try { return Number(localStorage.getItem('lead_min_budget')) || 0 } catch { return 0 } })
+  function saveMinBudget(v) { const n = Math.max(0, Math.round(Number(v) || 0)); setMinBudget(n); try { localStorage.setItem('lead_min_budget', String(n)) } catch {} }
+  function promptMinBudget() {
+    const v = window.prompt('Minimum budget (AED) — leads below this are flagged "below budget". Set 0 to turn off.', minBudget || '')
+    if (v === null) return
+    saveMinBudget(v)
+    if (!(Number(v) > 0) && quickFilter === 'belowbudget') setQuickFilter('')
+  }
   const [mobileStage, setMobileStage] = useState('new')
   const [dragId, setDragId] = useState(null)
 
@@ -820,11 +831,18 @@ export default function LeadsPage() {
   // follow_up_date may be a date ('YYYY-MM-DD') or a timestamp — compare on the date part only
   const dateOnly = (d) => (d || '').slice(0, 10)
 
+  // minimum-budget rule: a lead with a budget below the threshold is flagged
+  function belowBudget(l) {
+    if (minBudget <= 0) return false
+    const b = parseBudget(l.answers?.['Budget (AED)'] || l.answers?.budget)
+    return b > 0 && b < minBudget
+  }
   function matchesQuick(l) {
     const fu = dateOnly(l.follow_up_date)
     if (quickFilter === 'due') return fu === today && !['won','lost'].includes(l.status)
     if (quickFilter === 'overdue') return fu && fu < today && !['won','lost'].includes(l.status)
     if (quickFilter === 'hot') return l.temperature === 'hot' && !['won','lost'].includes(l.status)
+    if (quickFilter === 'belowbudget') return belowBudget(l) && !['won','lost'].includes(l.status)
     return true
   }
 
@@ -843,6 +861,7 @@ export default function LeadsPage() {
   const dueToday = baseLeads.filter(l => dateOnly(l.follow_up_date) === today && !['won','lost'].includes(l.status)).length
   const overdue  = baseLeads.filter(l => { const fu = dateOnly(l.follow_up_date); return fu && fu < today && !['won','lost'].includes(l.status) }).length
   const hotCount = baseLeads.filter(l => l.temperature === 'hot' && !['won','lost'].includes(l.status)).length
+  const belowCount = baseLeads.filter(l => belowBudget(l) && !['won','lost'].includes(l.status)).length
   const wonCount = baseLeads.filter(l => l.status === 'won').length
   const wonRate  = baseLeads.length > 0 ? Math.round((wonCount / baseLeads.length) * 100) : 0
   const mySrcCount = (k) => myLeads.filter(l => mySource(l) === k).length
@@ -857,7 +876,7 @@ export default function LeadsPage() {
     return stage
   }
 
-  const QUICK_LABELS = { due: 'Due today', overdue: 'Overdue', hot: 'Hot leads' }
+  const QUICK_LABELS = { due: 'Due today', overdue: 'Overdue', hot: 'Hot leads', belowbudget: 'Below budget' }
 
   const card = { background: 'var(--card)', border: '0.5px solid var(--border)', borderRadius: 14, padding: 16 }
   const inputStyle = { border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--text)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }
@@ -1054,6 +1073,11 @@ export default function LeadsPage() {
           {lead.status === 'lost' && lead.lostReason && (
             <span title={'Closed: ' + lead.lostReason} style={{ fontSize: 10, fontWeight: 600, padding: '3px 9px', borderRadius: 99, background: 'rgba(239,68,68,0.12)', color: '#ef4444', display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               <i className="ti ti-ban" style={{ fontSize: 11 }} /> {lead.lostReason}
+            </span>
+          )}
+          {!isClosed && belowBudget(lead) && (
+            <span title={'Budget is below your minimum (AED ' + minBudget.toLocaleString() + ')'} style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 99, background: 'rgba(245,158,11,0.14)', color: '#b45309', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <i className="ti ti-cash-off" style={{ fontSize: 11 }} /> Below budget
             </span>
           )}
         </div>
@@ -1586,7 +1610,7 @@ export default function LeadsPage() {
       )
     }
     if (quickFilter && filtered.length === 0) {
-      const msg = quickFilter === 'due' ? "No follow-ups due today — you're all caught up!" : quickFilter === 'overdue' ? 'No overdue follow-ups — nicely done!' : 'No hot leads right now.'
+      const msg = quickFilter === 'due' ? "No follow-ups due today — you're all caught up!" : quickFilter === 'overdue' ? 'No overdue follow-ups — nicely done!' : quickFilter === 'belowbudget' ? 'No leads below your minimum budget. 👍' : 'No hot leads right now.'
       return (
         <div style={{ ...card, textAlign: 'center', padding: '50px 20px' }}>
           <i className="ti ti-circle-check" style={{ fontSize: 40, color: '#10b981', display: 'block', marginBottom: 12 }} />
@@ -1684,6 +1708,7 @@ export default function LeadsPage() {
       { key: 'due',     label: 'Due today', value: dueToday, color: '#0891b2', icon: 'ti-clock', click: true },
       { key: 'overdue', label: 'Overdue',   value: overdue,  color: '#ef4444', icon: 'ti-alert-triangle', click: true },
       { key: 'hot',     label: 'Hot',       value: hotCount, color: '#d85a30', icon: 'ti-flame', click: true },
+      ...(minBudget > 0 ? [{ key: 'belowbudget', label: 'Below budget', value: belowCount, color: '#f59e0b', icon: 'ti-cash-off', click: true }] : []),
       { key: 'won',     label: 'Won rate',  value: wonRate + '%', color: '#10b981', icon: 'ti-trophy', click: false },
     ]
     return (
@@ -1703,6 +1728,13 @@ export default function LeadsPage() {
                 </button>
               )
             })}
+            <button onClick={promptMinBudget} title="Set a minimum budget — leads below it are flagged"
+              style={{ flex: mobile ? '1 1 40%' : '0 0 auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '7px 13px', borderRadius: 10, fontFamily: 'inherit', cursor: 'pointer',
+                background: minBudget > 0 ? 'rgba(245,158,11,0.10)' : 'var(--card)', border: `1px dashed ${minBudget > 0 ? '#f59e0b' : 'var(--border)'}` }}>
+              <i className="ti ti-adjustments-dollar" style={{ fontSize: 14, color: minBudget > 0 ? '#f59e0b' : 'var(--text3)' }} />
+              <span style={{ fontSize: 11.5, fontWeight: 500, color: 'var(--text2)' }}>{minBudget > 0 ? 'Min budget' : 'Set min budget'}</span>
+              {minBudget > 0 && <span style={{ fontSize: 13, fontWeight: 800, color: '#f59e0b' }}>AED {minBudget.toLocaleString()}</span>}
+            </button>
             {!isTD && myLeads.length > 0 && <span style={{ width: 1, height: 22, background: 'var(--border)', margin: '0 2px' }} />}
             {!isTD && myLeads.length > 0 && SOURCE_CARDS.map(s => {
               const active = fSource === s.key
