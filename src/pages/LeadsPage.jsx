@@ -44,6 +44,10 @@ const SLA_HOURS = 12
 // Public site base (where the shareable lead form lives) — NOT the business portal origin
 const PUBLIC_BASE = 'https://quvera.ae'
 
+// normalise a phone for duplicate matching — digits only, compare the last 9
+// (so +971 50…, 0050…, 50… all match the same UAE number)
+const normPhone = p => { const d = (p || '').replace(/\D/g, ''); return d.length > 9 ? d.slice(-9) : d }
+
 const SOURCE_CARDS = [
   { key:'meta',     label:'Meta',        icon:'ti-brand-meta',     color:'#3b82f6' },
   { key:'whatsapp', label:'WhatsApp',    icon:'ti-brand-whatsapp', color:'#22c55e' },
@@ -155,6 +159,7 @@ export default function LeadsPage() {
   const [savingAdd, setSavingAdd] = useState(false)
   const blankAdd = { name:'', phone:'', source:'Meta Ads', projectType:'', email:'', whatsapp:'', location:'', budget:'', followUp:'', status:'new', temp:'warm', notes:'' }
   const [addF, setAddF] = useState(blankAdd)
+  const [dupMatch, setDupMatch] = useState(null)   // existing lead found while adding a duplicate
   const [editId, setEditId] = useState(null)
 
   const [vw, setVw] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200)
@@ -255,9 +260,30 @@ export default function LeadsPage() {
   function closeAdd() { setShowAdd(false); setEditId(null) }
   function setA(k, v) { setAddF(p => ({ ...p, [k]: v })) }
 
-  async function saveAddLead() {
+  // find an existing lead with the same phone (or email) — across my leads + Quvera leads
+  function findDuplicate() {
+    const t = normPhone(addF.phone); if (!t) return null
+    const em = (addF.email || '').trim().toLowerCase()
+    for (const s of submissions) {
+      if (editId && s.id === editId) continue
+      if (normPhone(s.phone) === t || (em && (s.email || '').toLowerCase() === em))
+        return { name: s.name, phone: s.phone, status: s.status, source: s.answers?.Source || s.source, created_at: s.created_at, kind: 'My lead' }
+    }
+    for (const d of distLeads) {
+      const s = d.lead_submissions || {}
+      if (normPhone(s.phone) === t || (em && (s.email || '').toLowerCase() === em))
+        return { name: s.name, phone: s.phone, status: d.status, source: s.answers?.Source || s.source, created_at: s.created_at, kind: 'Quvera lead' }
+    }
+    return null
+  }
+
+  async function saveAddLead(force = false) {
     if (!addF.name.trim()) { toast.error('Client name is required'); return }
     if (!addF.phone.trim()) { toast.error('Phone is required'); return }
+    if (!editId && !force) {
+      const dup = findDuplicate()
+      if (dup) { setDupMatch(dup); return }   // show duplicate popup instead of saving
+    }
     setSavingAdd(true)
     const answers = {}
     answers['Source'] = addF.source
@@ -1173,7 +1199,7 @@ export default function LeadsPage() {
           )}
 
           <div style={{ display: 'flex', gap: 8, paddingBottom: mobile ? `calc(4px + env(safe-area-inset-bottom))` : 0 }}>
-            <button onClick={saveAddLead} disabled={savingAdd} style={{ flex: 1, padding: 10, borderRadius: 8, background: '#0099cc', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>{savingAdd ? (editId ? 'Updating...' : 'Saving...') : (editId ? 'Update lead' : 'Save lead')}</button>
+            <button onClick={() => saveAddLead()} disabled={savingAdd} style={{ flex: 1, padding: 10, borderRadius: 8, background: '#0099cc', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>{savingAdd ? (editId ? 'Updating...' : 'Saving...') : (editId ? 'Update lead' : 'Save lead')}</button>
             <button onClick={closeAdd} style={{ padding: '10px 18px', borderRadius: 8, border: '0.5px solid var(--border)', background: 'transparent', color: 'var(--text2)', cursor: 'pointer', fontSize: 12 }}>Cancel</button>
           </div>
           </div>
@@ -1703,6 +1729,36 @@ export default function LeadsPage() {
     <div className="animate-in" style={{ color: 'var(--text)' }}>
       {Modal()}
       {AddLeadModal()}
+      {dupMatch && (
+        <div onClick={() => setDupMatch(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 260, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, background: 'var(--card)', borderRadius: 14, border: '0.5px solid var(--border)', overflow: 'hidden' }}>
+            <div style={{ padding: '16px 18px', borderBottom: '0.5px solid var(--border)', display: 'flex', alignItems: 'center', gap: 11 }}>
+              <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(245,158,11,0.16)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><i className="ti ti-alert-triangle" style={{ fontSize: 20 }} /></div>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Possible duplicate</div>
+                <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 2 }}>This phone or email is already in your leads.</div>
+              </div>
+            </div>
+            <div style={{ padding: 16 }}>
+              <div style={{ border: '0.5px solid var(--border)', borderRadius: 11, padding: '12px 13px', background: 'var(--bg2)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{dupMatch.name || '—'}</span>
+                  <span style={{ fontSize: 9.5, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: 'rgba(0,153,204,0.14)', color: '#0099cc' }}>{dupMatch.kind}</span>
+                </div>
+                <div style={{ fontSize: 12.5, color: 'var(--text2)', marginTop: 7, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span><i className="ti ti-phone" style={{ fontSize: 13, verticalAlign: '-2px', marginRight: 6, color: 'var(--text3)' }} />{dupMatch.phone || '—'}</span>
+                  {dupMatch.source && <span><i className="ti ti-target-arrow" style={{ fontSize: 13, verticalAlign: '-2px', marginRight: 6, color: 'var(--text3)' }} />{dupMatch.source}</span>}
+                  <span><i className="ti ti-progress" style={{ fontSize: 13, verticalAlign: '-2px', marginRight: 6, color: 'var(--text3)' }} />{(LEAD_STATUSES.find(x => x.value === dupMatch.status) || {}).label || dupMatch.status || 'New'}{dupMatch.created_at ? ' · added ' + new Date(dupMatch.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}</span>
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, padding: '0 16px 16px' }}>
+              <button onClick={() => { setSearch(dupMatch.name || dupMatch.phone || ''); setMainTab(dupMatch.kind === 'Quvera lead' ? 'trustdubai' : 'mine'); setDupMatch(null); closeAdd() }} style={{ flex: 1, padding: 10, borderRadius: 9, border: '0.5px solid var(--border)', background: 'var(--card)', color: 'var(--text)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>View existing</button>
+              <button onClick={() => { setDupMatch(null); saveAddLead(true) }} style={{ flex: 1, padding: 10, borderRadius: 9, border: 'none', background: '#f59e0b', color: '#fff', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>Add anyway</button>
+            </div>
+          </div>
+        </div>
+      )}
       <ShareModal />
       <input ref={fileRef} type="file" accept=".csv" onChange={handleCSV} style={{ display: 'none' }} />
 
