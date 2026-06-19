@@ -60,10 +60,21 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
   const [payMethod, setPayMethod] = useState('Cash')
   const [payRef, setPayRef] = useState('')
   const [payNote, setPayNote] = useState('')
+  const [selVos, setSelVos] = useState([])   // approved Variation Orders for the selected quote
 
   useEffect(() => {
     if (company?.id) { fetchInvoices(); fetchTemplate() }
   }, [company?.id])
+
+  // load approved VOs for the selected quote → revised contract = quote + VOs
+  useEffect(() => {
+    if (!selQuote?.id || !company?.id) { setSelVos([]); return }
+    supabase.from('quotation_variations')
+      .select('vo_number, description, subtotal, vat_amount, total, items, status')
+      .eq('quotation_id', selQuote.id).eq('company_id', company.id).eq('status', 'approved')
+      .order('vo_number', { ascending: true })
+      .then(({ data }) => setSelVos(data || []))
+  }, [selQuote?.id, company?.id])
 
   async function fetchInvoices() {
     setLoading(true)
@@ -90,24 +101,29 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
     try {
       const q = selQuote
       const schedule = parseSchedule(q.payment_terms)
+      // REVISED contract = original quote + approved Variation Orders (selVos)
+      const voTot = selVos.reduce((s, v) => s + (Number(v.total) || 0), 0)
+      const revTotal = Number(q.total || 0) + voTot
+      const revVat = Number(q.vat_amount || 0) + selVos.reduce((s, v) => s + (Number(v.vat_amount) || 0), 0)
+      const revSub = Number(q.subtotal || 0) + selVos.reduce((s, v) => s + (Number(v.subtotal) || 0), 0)
       let kind = 'full', milestone_label = null, items = [], subtotal = 0, vat_amount = 0, total = 0
       let mode = q.mode || 'simple', vat_enabled = (q.vat_enabled != null ? q.vat_enabled : !!q.vat_amount)
       if (invType === 'full') {
-        items = Array.isArray(q.items) ? q.items : []
-        subtotal = Number(q.subtotal || 0); vat_amount = Number(q.vat_amount || 0); total = Number(q.total || 0)
+        items = [...(Array.isArray(q.items) ? q.items : []), ...selVos.map(v => ({ desc: `Variation VO-${String(v.vo_number).padStart(2, '0')}${v.description ? ' — ' + v.description : ''}`, unit: 'Lump Sum', qty: 1, rate: Number(v.subtotal) || 0 }))]
+        subtotal = revSub; vat_amount = revVat; total = revTotal; vat_enabled = revVat > 0
       } else {
         const m = schedule[invType]
         const pct = Number(m?.percent) || 0
-        // carry-forward: due = (cumulative expected up to this milestone) − (already collected on this quote)
+        // carry-forward on the REVISED contract: due = (cumulative expected up to this milestone) − (already collected)
         const qInv = invoices.filter(iv => iv.quotation_id === q.id && iv.status !== 'cancelled')
         const paidT = qInv.reduce((a, iv) => a + parsePayments(iv.payments).reduce((x, p) => x + (Number(p.amount) || 0), 0), 0)
         let cumPct = 0; for (let k = 0; k <= invType; k++) cumPct += Number(schedule[k]?.percent) || 0
-        const cumExpected = Math.round(Number(q.total || 0) * cumPct / 100)
+        const cumExpected = Math.round(revTotal * cumPct / 100)
         total = Math.max(0, cumExpected - paidT)
-        const ratio = Number(q.total || 0) > 0 ? total / Number(q.total) : 0
-        vat_amount = Math.round(Number(q.vat_amount || 0) * ratio)
+        const ratio = revTotal > 0 ? total / revTotal : 0
+        vat_amount = Math.round(revVat * ratio)
         subtotal = total - vat_amount
-        const baseGross = Math.round(Number(q.total || 0) * pct / 100)
+        const baseGross = Math.round(revTotal * pct / 100)
         const carry = Math.max(0, total - baseGross)
         kind = 'milestone'; milestone_label = `${m?.label || 'Payment'} (${pct}%)`; mode = 'simple'; vat_enabled = Number(vat_amount) > 0
         if (carry > 0) {
@@ -356,7 +372,9 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
     const hasMilestoneInv = quoteInvoices.some(iv => iv.kind === 'milestone')
     const milInv = m => { const lbl = `${m.label || 'Payment'} (${Number(m.percent) || 0}%)`; return quoteInvoices.find(iv => (iv.milestone_label || '') === lbl) }
     const fullDisabled = !!fullInv || hasMilestoneInv
-    const contractTotal = Number(selQuote?.total || 0)
+    const origTotal = Number(selQuote?.total || 0)
+    const voTotal = selVos.reduce((s, v) => s + (Number(v.total) || 0), 0)           // + adds, − omissions
+    const contractTotal = origTotal + voTotal                                        // REVISED contract = quote + approved VOs
     const paidTotal = quoteInvoices.reduce((a, iv) => a + sumPaid(iv), 0)            // collected so far on this quote
     const collectedSummary = { paid: paidTotal, total: contractTotal, remaining: Math.max(0, contractTotal - paidTotal) }
     const nextIdx = schedule.findIndex(m => !milInv(m))                              // first milestone not yet invoiced
@@ -412,18 +430,30 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: text }}>{selQuote.quote_number} · {selQuote.client_name}</div>
-                  <div style={{ fontSize: 12, color: textSub }}>{selQuote.project_title || '—'} · Total {fmt(selQuote.total)}</div>
+                  <div style={{ fontSize: 12, color: textSub }}>{selQuote.project_title || '—'} · {voTotal !== 0 ? 'Revised total' : 'Total'} {fmt(contractTotal)}</div>
                 </div>
                 <button onClick={() => setSelQuote(null)} style={{ fontSize: 12, color: '#0099cc', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Change</button>
               </div>
+              {voTotal !== 0 && (
+                <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${border}`, fontSize: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: textSub }}><span>Original quote</span><span>{fmt(origTotal)}</span></div>
+                  {selVos.map(v => (
+                    <div key={v.vo_number} style={{ display: 'flex', justifyContent: 'space-between', color: Number(v.total) < 0 ? '#b45309' : '#0f6e56', marginTop: 4 }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220 }}>{Number(v.total) < 0 ? '− ' : '+ '}VO-{String(v.vo_number).padStart(2, '0')}{v.description ? ' · ' + v.description : ''}</span>
+                      <span>{Number(v.total) < 0 ? '− ' : '+ '}{fmt(Math.abs(Number(v.total) || 0))}</span>
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, color: text, marginTop: 7, paddingTop: 7, borderTop: `1px solid ${border}` }}><span>Revised contract</span><span>{fmt(contractTotal)}</span></div>
+                </div>
+              )}
             </div>
 
             <div style={card}>
               <div style={{ fontSize: 13, fontWeight: 600, color: text, marginBottom: 10 }}>Invoice for</div>
               <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 11px', borderRadius: 9, border: `1px solid ${invType === 'full' && !fullDisabled ? '#0099cc' : border}`, marginBottom: 8, cursor: fullDisabled ? 'not-allowed' : 'pointer', opacity: fullDisabled ? 0.55 : 1 }}>
                 <input type="radio" disabled={fullDisabled} checked={invType === 'full'} onChange={() => setInvType('full')} />
-                <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: text, display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>Full amount {fullDisabled && <i className="ti ti-lock" style={{ fontSize: 12, marginLeft: 5, color: textMuted }} />}{invBadge(fullInv)}</div><div style={{ fontSize: 11.5, color: textSub }}>{hasMilestoneInv && !fullInv ? 'Milestones already invoiced' : 'Entire quote'}</div></div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: text }}>{fmt(selQuote.total)}</div>
+                <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: text, display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>Full amount {fullDisabled && <i className="ti ti-lock" style={{ fontSize: 12, marginLeft: 5, color: textMuted }} />}{invBadge(fullInv)}</div><div style={{ fontSize: 11.5, color: textSub }}>{hasMilestoneInv && !fullInv ? 'Milestones already invoiced' : (voTotal !== 0 ? 'Entire revised contract (incl. VOs)' : 'Entire quote')}</div></div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: text }}>{fmt(contractTotal)}</div>
               </label>
               {schedule.map((m, i) => {
                 const base = Math.round(contractTotal * (Number(m.percent) || 0) / 100)
