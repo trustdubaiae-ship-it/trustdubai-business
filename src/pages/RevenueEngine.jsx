@@ -14,7 +14,6 @@ const STATUS_ORDER = [
   { key:'new',         label:'New',         color:'#3b82f6' },
   { key:'contacted',   label:'Contacted',   color:'#06b6d4' },
   { key:'quoted',      label:'Quoted',      color:'#22c55e' },
-  { key:'negotiation', label:'Negotiation', color:'#fbbf24' },
   { key:'won',         label:'Won',         color:'#16a34a' },
   { key:'lost',        label:'Lost',        color:'#ef4444' },
 ]
@@ -42,8 +41,7 @@ const normStatus = (raw) => {
   if (/lost|reject|dead|closed.?lost|drop|junk|spam/.test(s)) return 'lost'
   if (/proposal|quot|estimat|sent/.test(s)) return 'quoted'
   if (/in[_ ]?conversation|contact|reach|call|attempt/.test(s)) return 'contacted'
-  if (/qualif|interest/.test(s)) return 'contacted'
-  if (/negoti|discuss|follow/.test(s)) return 'negotiation'
+  if (/qualif|interest|negoti|discuss/.test(s)) return 'contacted'
   return 'new'
 }
 const normSource = (raw) => {
@@ -316,8 +314,8 @@ export default function RevenueEngine({ onNavigate, theme = 'dark' }) {
       trend.push({ v: leads.filter(l=>{const t=fCreated(l)?new Date(fCreated(l)).getTime():0; return t>=day.getTime()&&t<next}).length }) }
 
     const pipeline = STATUS_ORDER.filter(s=>s.key!=='lost').map(s=>({
-      label: s.key==='won'?'Won / Lost':s.label,
-      value: s.key==='won'?statusCount.won+statusCount.lost:statusCount[s.key],
+      label: s.label,
+      value: statusCount[s.key],
       color: s.color,
     }))
 
@@ -435,7 +433,7 @@ export default function RevenueEngine({ onNavigate, theme = 'dark' }) {
                   </div>
                 ))}
               </div>
-              <div className="re-core-cap">Lead → Contact → Quote → Negotiation → Won</div>
+              <div className="re-core-cap">New → Contacted → Quoted → Won</div>
             </div>
 
             <div className="re-rail">
