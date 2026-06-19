@@ -107,9 +107,20 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
         const ratio = Number(q.total || 0) > 0 ? total / Number(q.total) : 0
         vat_amount = Math.round(Number(q.vat_amount || 0) * ratio)
         subtotal = total - vat_amount
-        const carry = Math.max(0, total - Math.round(Number(q.total || 0) * pct / 100))
+        const baseGross = Math.round(Number(q.total || 0) * pct / 100)
+        const carry = Math.max(0, total - baseGross)
         kind = 'milestone'; milestone_label = `${m?.label || 'Payment'} (${pct}%)`; mode = 'simple'; vat_enabled = Number(vat_amount) > 0
-        items = [{ desc: `${m?.label || 'Payment'} — ${pct}% of ${q.quote_number}${carry > 0 ? ' + carried balance from previous' : ''}`, unit: 'Lump Sum', qty: 1, rate: subtotal }]
+        if (carry > 0) {
+          // two clear lines: the milestone's own % amount, and the balance carried from the previous payment
+          const baseSub = Math.round(subtotal * baseGross / (total || 1))
+          const carrySub = Math.max(0, subtotal - baseSub)
+          items = [
+            { desc: `${m?.label || 'Payment'} — ${pct}% of ${q.quote_number}`, unit: 'Lump Sum', qty: 1, rate: baseSub },
+            { desc: `Carried balance from previous payment`, unit: 'Lump Sum', qty: 1, rate: carrySub },
+          ]
+        } else {
+          items = [{ desc: `${m?.label || 'Payment'} — ${pct}% of ${q.quote_number}`, unit: 'Lump Sum', qty: 1, rate: subtotal }]
+        }
       }
       const { data: seq, error: seqErr } = await supabase.rpc('fn_next_invoice_seq', { p_company_id: company.id })
       if (seqErr) throw seqErr
