@@ -27,6 +27,7 @@ const daysBetween = (a,b) => Math.floor((a-b)/864e5)
 const pctChange = (n,p) => p===0 ? (n>0?100:0) : Math.round(((n-p)/p)*100)
 const timeAgo = s => { if(!s)return''; const d=(Date.now()-new Date(s).getTime())/1000; if(d<60)return'just now'; if(d<3600)return`${Math.floor(d/60)}m ago`; if(d<86400)return`${Math.floor(d/3600)}h ago`; if(d<604800)return`${Math.floor(d/86400)}d ago`; return new Date(s).toLocaleDateString() }
 const fmtN = n => (n||0).toLocaleString()
+const fmtMoney = n => { n = Number(n) || 0; const a = Math.abs(n); if (a >= 1e6) return 'AED ' + (n/1e6).toFixed(1).replace(/\.0$/,'') + 'M'; if (a >= 1e3) return 'AED ' + Math.round(n/1e3) + 'k'; return 'AED ' + Math.round(n) }
 // read the lead's real source like Lead Hub does: answers.Source first, then the column
 const leadSrcRaw = l => (l && l.answers && l.answers.Source) || pick(l,['source','lead_source'])
 const aiScore = l => { let s=0; const t=normTemp(pick(l,['temperature','temp','priority'])); s+=t==='hot'?40:t==='warm'?25:t==='cold'?10:15; const c=pick(l,['created_at','createdAt']); const dys=c?daysBetween(Date.now(),new Date(c).getTime()):999; s+=dys<=3?25:dys<=7?20:dys<=14?15:dys<=30?10:5; const src=normSource(leadSrcRaw(l)); s+=(src==='Meta Ads'||src==='Form'||src==='Quvera')?20:src==='WhatsApp'?15:src==='Manual'?10:12; const b=parseBudget(pick(l,['budget','budget_range','amount'])); s+=b>=1e5?15:b>=5e4?12:b>=2e4?8:b>0?5:6; return Math.min(100,s) }
@@ -197,6 +198,24 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme, e
 
     const reviews = (await safe(() => supabase.from('reviews').select('*').eq('company_id', company.id).limit(5000).then(r=>r.data))) || []
     const leads   = (await safe(() => supabase.from('lead_submissions').select('*').eq('company_id', company.id).limit(10000).then(r=>r.data))) || []
+    const invoices = (await safe(() => supabase.from('invoices').select('total,payments,status,created_at').eq('company_id', company.id).limit(5000).then(r=>r.data))) || []
+    const quotes   = (await safe(() => supabase.from('quotations').select('total,status,created_at').eq('company_id', company.id).limit(5000).then(r=>r.data))) || []
+    const projects = (await safe(() => supabase.from('ops_projects').select('status,health,contract_value').eq('company_id', company.id).limit(2000).then(r=>r.data))) || []
+    const viewLogs = (await safe(() => supabase.from('profile_views_log').select('visited_at').eq('company_id', company.id).limit(20000).then(r=>r.data))) || []
+
+    // ---- revenue / quotes / projects (the business side) ----
+    const liveInv = invoices.filter(iv => iv.status !== 'cancelled' && iv.status !== 'hold')
+    const sumPay = iv => (Array.isArray(iv.payments) ? iv.payments : []).reduce((a,p)=>a+(Number(p.amount)||0),0)
+    const collected = liveInv.reduce((a,iv)=>a+sumPay(iv),0)
+    const invoicedTot = liveInv.reduce((a,iv)=>a+(Number(iv.total)||0),0)
+    const outstanding = Math.max(0, invoicedTot - collected)
+    const profit = Math.round(collected * 0.26)        // indicative margin (same basis as Dashboard)
+    const approvedQ = quotes.filter(q => norm(q.status)==='approved').length
+    const pendingQ  = quotes.filter(q => /sent|pending/.test(norm(q.status))).length
+    const quotePipeline = quotes.filter(q => !/reject/.test(norm(q.status))).reduce((a,q)=>a+(Number(q.total)||0),0)
+    const liveProjects = projects.filter(p => !/complete|closed|done|cancel/.test(norm(p.status))).length
+    const atRiskProjects = projects.filter(p => /risk|delay|hold|stuck/.test(norm(p.status)) || (p.health!=null && Number(p.health)<60)).length
+    const realProfileViews = viewLogs.length || (company.profile_views||0)
 
     const avgRating = reviews.length ? (reviews.reduce((s,r)=>s+(r.rating||0),0)/reviews.length).toFixed(1) : '0.0'
     const inWin = (rows, from, to) => (rows||[]).filter(r=>{ const t=pick(r,['created_at','createdAt'])?new Date(pick(r,['created_at','createdAt'])).getTime():0; return t>=now-from*864e5 && t<now-to*864e5 }).length
@@ -294,8 +313,9 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme, e
     ]
 
     setD({
-      stats:{ trust, totalReviews:reviews.length, avgRating, profileViews:company.profile_views||0,
-              newReviews:inWin(reviews,30,0), totalLeads, conversion, hot, followDue, won },
+      stats:{ trust, totalReviews:reviews.length, avgRating, profileViews:realProfileViews,
+              newReviews:inWin(reviews,30,0), totalLeads, conversion, hot, followDue, won,
+              collected, outstanding, profit, quotePipeline, approvedQ, pendingQ, liveProjects, atRiskProjects },
       delta:{ reviews:pctChange(inWin(reviews,30,0),inWin(reviews,60,30)), leads:pctChange(inWin(leads,30,0),inWin(leads,60,30)) },
       spark:{ reviews:dailyN(reviews), leads:dailyN(leads) },
       rTrend, trend, sources, cats, pipeline, statusDonut, heat, heatMax, months, dist, sentiment,
@@ -313,14 +333,16 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme, e
 
   /* ---------- theme tokens ---------- */
   const C = isDark ? {
-    page:'#070b12', card:'#0f1521', card2:'#141b29', border:'rgba(255,255,255,0.07)', track:'rgba(255,255,255,0.08)',
-    text:'#f1f5f9', text2:'#94a3b8', text3:'#64748b', topbar:'#0b111c',
+    page:'#070b16', card:'rgba(255,255,255,0.045)', card2:'rgba(255,255,255,0.07)', border:'rgba(255,255,255,0.10)', track:'rgba(255,255,255,0.09)',
+    text:'#eaf2ff', text2:'#9fb0d0', text3:'#6b7a98', topbar:'rgba(255,255,255,0.04)',
+    glow:'radial-gradient(1100px 620px at 50% -8%, rgba(0,212,255,0.12), transparent 60%), radial-gradient(900px 620px at 93% 28%, rgba(139,92,246,0.12), transparent 55%), radial-gradient(820px 600px at 5% 88%, rgba(0,255,204,0.07), transparent 55%)',
   } : {
-    page:'#eef1f6', card:'#ffffff', card2:'#f8fafc', border:'#e6eaf1', track:'#eef2f7',
-    text:'#0f172a', text2:'#64748b', text3:'#94a3b8', topbar:'#ffffff',
+    page:'#eaf0f8', card:'rgba(255,255,255,0.80)', card2:'#f4f8fe', border:'rgba(12,32,64,0.10)', track:'#e9eef6',
+    text:'#0b1530', text2:'#46587a', text3:'#7a8aa6', topbar:'rgba(255,255,255,0.75)',
+    glow:'radial-gradient(1100px 620px at 50% -8%, rgba(0,160,220,0.12), transparent 60%), radial-gradient(900px 620px at 93% 28%, rgba(139,92,246,0.08), transparent 55%)',
   }
   const G={green:'#22c55e',blue:'#3b82f6',purple:'#8b5cf6',amber:'#f59e0b',cyan:'#06b6d4',red:'#ef4444',pink:'#ec4899'}
-  const card={ background:C.card, border:`1px solid ${C.border}`, borderRadius:13, padding:'9px 11px', display:'flex', flexDirection:'column', minWidth:0, overflow:'hidden' }
+  const card={ background:C.card, border:`1px solid ${C.border}`, borderRadius:13, padding:'9px 11px', display:'flex', flexDirection:'column', minWidth:0, overflow:'hidden', backdropFilter:'blur(11px)', WebkitBackdropFilter:'blur(11px)' }
   const Title=({children,right})=>(<div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6, gap:6 }}><span style={{ fontSize:12, fontWeight:700, color:C.text, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{children}</span>{right}</div>)
   const delChip=v=>(<span style={{ fontSize:9.5, fontWeight:700, color:v>=0?G.green:G.red }}>{v>=0?'↑':'↓'} {Math.abs(v)}% <span style={{ color:C.text3, fontWeight:500 }}>30d</span></span>)
 
@@ -342,10 +364,10 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme, e
   const stat = (icon,tint,label,value,delta,spark,sub) => (
     <div style={{ ...card, padding:'8px 10px', justifyContent:'center' }}>
       <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:3 }}>
-        <span style={{ width:26, height:26, borderRadius:7, background:tint+'22', color:tint, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><i className={`ti ${icon}`} style={{ fontSize:14 }}/></span>
+        <span style={{ width:26, height:26, borderRadius:7, background:tint+'26', color:tint, border:`1px solid ${tint}55`, boxShadow:`0 0 14px -3px ${tint}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><i className={`ti ${icon}`} style={{ fontSize:14 }}/></span>
         <span style={{ fontSize:10, color:C.text2, fontWeight:600, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{label}</span>
       </div>
-      <div style={{ fontSize:21, fontWeight:800, color:C.text, lineHeight:1.05 }}>{value}</div>
+      <div style={{ fontSize:19, fontWeight:800, color:C.text, lineHeight:1.05, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{value}</div>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:4, marginTop:2 }}>
         {delta!=null ? delChip(delta) : <span style={{ fontSize:9.5, color:C.text3 }}>{sub}</span>}
         {spark && <Spark data={spark} color={tint} w={56} h={20}/>}
@@ -357,7 +379,7 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme, e
 
   return (
     <div ref={wrapRef} style={outerStyle}>
-      <div style={{ width:BASE_W, height:BASE_H, transform:`scale(${scale})`, transformOrigin:'center center', display:'flex', flexDirection:'column', gap:9, padding:16, color:C.text, fontFamily:"'Inter',system-ui,sans-serif", boxSizing:'border-box' }}>
+      <div style={{ width:BASE_W, height:BASE_H, transform:`scale(${scale})`, transformOrigin:'center center', display:'flex', flexDirection:'column', gap:9, padding:16, color:C.text, fontFamily:"'Inter',system-ui,sans-serif", boxSizing:'border-box', background:C.glow }}>
 
         {/* TOP BAR */}
         <div style={{ flex:'0 0 46px', display:'flex', alignItems:'center', justifyContent:'space-between', background:C.topbar, border:`1px solid ${C.border}`, borderRadius:12, padding:'0 14px' }}>
@@ -368,7 +390,7 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme, e
               <button onClick={goBack} title="Back" style={{ display:'flex', alignItems:'center', gap:6, background:C.card2, border:`1px solid ${C.border}`, color:C.text, borderRadius:9, padding:'6px 12px', fontSize:12, fontWeight:600, cursor:'pointer' }}><i className="ti ti-arrow-left" style={{ fontSize:15 }}/> Back</button>
             ))}
             <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <div style={{ width:28, height:28, borderRadius:8, background:`linear-gradient(135deg,${G.green},#15803d)`, display:'flex', alignItems:'center', justifyContent:'center', color:'#fff' }}><i className="ti ti-brain" style={{ fontSize:16 }}/></div>
+              <div style={{ width:28, height:28, borderRadius:8, background:'linear-gradient(135deg,#00D4FF,#8B5CF6)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', boxShadow:'0 0 16px -3px #00D4FF' }}><i className="ti ti-brain" style={{ fontSize:16 }}/></div>
               <div>
                 <div style={{ fontSize:14, fontWeight:800, lineHeight:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:240 }}>{company?.name || 'My Business'}</div>
                 <div style={{ fontSize:9, color:C.text3 }}>Control Wall · Command + Revenue</div>
@@ -385,17 +407,19 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme, e
         </div>
 
         {/* STATS (5 command + 5 revenue) */}
-        <div style={{ flex:'0 0 92px', display:'grid', gridTemplateColumns:'repeat(10,1fr)', gap:8 }}>
+        <div style={{ flex:'0 0 92px', display:'grid', gridTemplateColumns:'repeat(12,1fr)', gap:7 }}>
           {stat('ti-shield-check',G.green,'Trust Score',fmtN(Math.round(d.stats.trust)),null,null,'/ 100')}
-          {stat('ti-star',G.amber,'Total Reviews',fmtN(d.stats.totalReviews),d.delta.reviews,d.spark.reviews)}
-          {stat('ti-star-half-filled',G.gold||'#f59e0b','Avg. Rating',`${d.stats.avgRating}`,null,null,'/ 5')}
+          {stat('ti-star-half-filled','#f59e0b','Avg. Rating',`${d.stats.avgRating}`,null,null,'/ 5')}
+          {stat('ti-star',G.amber,'Reviews',fmtN(d.stats.totalReviews),d.delta.reviews,d.spark.reviews)}
           {stat('ti-eye',G.blue,'Profile Views',fmtN(d.stats.profileViews),null,null,'all time')}
-          {stat('ti-calendar-plus',G.purple,'New Reviews',fmtN(d.stats.newReviews),null,null,'last 30d')}
-          {stat('ti-address-book',G.cyan,'Total Leads',fmtN(d.stats.totalLeads),d.delta.leads,d.spark.leads)}
-          {stat('ti-chart-line',G.blue,'Conversion',`${d.stats.conversion}%`,null,null,'won/total')}
+          {stat('ti-address-book',G.cyan,'Leads',fmtN(d.stats.totalLeads),d.delta.leads,d.spark.leads)}
+          {stat('ti-chart-line',G.blue,'Conversion',`${d.stats.conversion}%`,null,null,'won / total')}
           {stat('ti-flame',G.amber,'Hot Leads',fmtN(d.stats.hot),null,null,'priority')}
-          {stat('ti-clock',G.purple,'Follow-ups Due',fmtN(d.stats.followDue),null,null,'pending')}
-          {stat('ti-trophy',G.green,'Leads Won',fmtN(d.stats.won),null,null,'closed')}
+          {stat('ti-clock',G.purple,'Follow-ups',fmtN(d.stats.followDue),null,null,'due')}
+          {stat('ti-cash',G.green,'Collected',fmtMoney(d.stats.collected),null,null,'revenue')}
+          {stat('ti-clock-dollar',G.amber,'Outstanding',fmtMoney(d.stats.outstanding),null,null,'to collect')}
+          {stat('ti-file-invoice',G.purple,'Quote Pipeline',fmtMoney(d.stats.quotePipeline),null,null,`${d.stats.approvedQ} approved`)}
+          {stat('ti-stack-2',G.cyan,'Active Projects',fmtN(d.stats.liveProjects),null,null,`${d.stats.atRiskProjects} at risk`)}
         </div>
 
         {/* ROW 2 */}
