@@ -24,7 +24,9 @@ const TYPE_COLORS   = ['#8b5cf6', '#3b82f6', '#22c55e', '#fbbf24', '#06b6d4', '#
 /* ----------------------------- helpers ---------------------------------- */
 const pick = (obj, keys) => { for (const k of keys) if (obj && obj[k]!==undefined && obj[k]!==null && obj[k]!=='') return obj[k]; return null }
 const fStatus = (l) => pick(l, ['status', 'stage', 'lead_status', 'pipeline_status'])
-const fSource = (l) => pick(l, ['source', 'lead_source', 'channel'])
+// read the lead's real source the SAME way Lead Hub does: the answers.Source
+// field first (e.g. "Meta Ads"), then the source column — so both pages agree
+const fSource = (l) => (l && l.answers && l.answers.Source) || pick(l, ['source', 'lead_source', 'channel'])
 const fTemp   = (l) => pick(l, ['temperature', 'temp', 'priority'])
 const fType   = (l) => pick(l, ['project_type', 'projectType', 'category', 'service', 'service_type', 'project'])
 const fBudget = (l) => pick(l, ['budget', 'budget_range', 'estimated_budget', 'amount'])
@@ -33,12 +35,15 @@ const fCreated= (l) => pick(l, ['created_at', 'createdAt', 'created', 'inserted_
 
 const norm = (v) => String(v || '').trim().toLowerCase()
 const normStatus = (raw) => {
+  // align with Lead Hub canonical statuses: new | qualified | in_conversation
+  // (Contacted) | proposal_given (Quoted) | won | lost
   const s = norm(raw); if (!s) return 'new'
-  if (/contact|reach|call|attempt/.test(s)) return 'contacted'
-  if (/quot|propos|estimat|sent/.test(s)) return 'quoted'
-  if (/negoti|discuss|follow/.test(s)) return 'negotiation'
   if (/won|closed.?won|success|convert|deal/.test(s)) return 'won'
   if (/lost|reject|dead|closed.?lost|drop|junk|spam/.test(s)) return 'lost'
+  if (/proposal|quot|estimat|sent/.test(s)) return 'quoted'
+  if (/in[_ ]?conversation|contact|reach|call|attempt/.test(s)) return 'contacted'
+  if (/qualif|interest/.test(s)) return 'contacted'
+  if (/negoti|discuss|follow/.test(s)) return 'negotiation'
   return 'new'
 }
 const normSource = (raw) => {
@@ -159,11 +164,13 @@ function LineTrend({ points, height = 132 }) {
 
 function Funnel({ stages }) {
   const max = Math.max(1, ...stages.map(s => s.value))
+  // percentage is share of ALL leads (sum of stages), so it matches the
+  // Conversion Rate + Lead Status cards — not relative to the first stage
+  const total = stages.reduce((a, s) => a + s.value, 0) || 1
   return (
     <div className="re-funnel">
       {stages.map((s, i) => {
         const pct = Math.round((s.value / max) * 100)
-        const total = stages[0].value || 1
         return (
           <div className="re-funnel-row" key={i}>
             <div className="re-funnel-bar-wrap"><div className="re-funnel-bar" style={{ width: `${Math.max(pct, 8)}%`, background: s.color }} /></div>

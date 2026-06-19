@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Quvera Business OS — How It Works</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#050816; --bg2:#0a1024; --primary:#00D4FF; --secondary:#8B5CF6; --accent:#00FFCC;
+    --glass:rgba(255,255,255,0.04); --glass-bd:rgba(255,255,255,0.10); --txt:#e8f0ff; --mut:#7e8aa8;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html{ scroll-behavior:smooth; }
+  body{ background:var(--bg); color:var(--txt); font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased; overflow-x:hidden; }
+  #stars{ position:fixed; inset:0; z-index:0; }
+  .bg-grad{ position:fixed; inset:0; z-index:0; pointer-events:none;
+    background:
+      radial-gradient(900px 520px at 50% -5%, rgba(0,212,255,0.16), transparent 60%),
+      radial-gradient(760px 520px at 10% 32%, rgba(139,92,246,0.14), transparent 55%),
+      radial-gradient(760px 520px at 90% 68%, rgba(0,255,204,0.10), transparent 55%); }
+  .wrap{ position:relative; z-index:2; max-width:1120px; margin:0 auto; padding:0 20px 80px; }
+
+  .mono{ font-family:'JetBrains Mono',monospace; }
+  .grad-text{ background:linear-gradient(100deg,var(--primary),var(--accent) 55%,var(--secondary)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+
+  /* scroll progress bar */
+  #progress{ position:fixed; top:0; left:0; height:3px; width:0%; z-index:50;
+    background:linear-gradient(90deg,var(--primary),var(--accent),var(--secondary)); box-shadow:0 0 14px var(--primary); }
+
+  /* ---------- hero ---------- */
+  .hero{ min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:60px 0 40px; }
+  .badge{ display:inline-flex; align-items:center; gap:8px; font-size:11px; font-weight:700; letter-spacing:2px; text-transform:uppercase;
+    color:var(--primary); border:1px solid rgba(0,212,255,0.35); background:rgba(0,212,255,0.07); padding:7px 14px; border-radius:99px; box-shadow:0 0 24px rgba(0,212,255,0.18) inset; }
+  .badge .dot{ width:7px; height:7px; border-radius:50%; background:var(--accent); box-shadow:0 0 10px var(--accent); animation:pulse 1.8s infinite; }
+  h1.title{ font-family:'Sora',sans-serif; font-weight:800; font-size:clamp(40px,8vw,90px); line-height:0.96; letter-spacing:-2px; margin:22px 0 14px; }
+  .tagline{ font-size:clamp(15px,2.1vw,20px); color:#aeb9d6; max-width:660px; margin:0 auto; }
+  .hero-sub{ margin-top:18px; font-family:'JetBrains Mono',monospace; font-size:12.5px; letter-spacing:1px; color:var(--accent); min-height:18px; }
+  .cta{ display:inline-flex; align-items:center; gap:9px; margin-top:34px; font-weight:700; font-size:14px; letter-spacing:.4px; color:#03101c; cursor:pointer;
+    background:linear-gradient(135deg,var(--primary),var(--accent)); padding:13px 24px; border-radius:13px; border:none; box-shadow:0 12px 36px -10px var(--primary); transition:transform .15s; }
+  .cta:hover{ transform:translateY(-3px); }
+  .scroll-hint{ margin-top:30px; color:var(--mut); font-size:11px; letter-spacing:2px; text-transform:uppercase; animation:bob 2s ease-in-out infinite; }
+
+  /* ---------- mini AI core (hero) ---------- */
+  .core-sec{ position:relative; height:340px; width:100%; display:flex; align-items:center; justify-content:center; margin:10px 0 6px; }
+  .core{ position:relative; width:172px; height:172px; border-radius:50%; display:flex; align-items:center; justify-content:center; animation:float 6s ease-in-out infinite;
+    background:radial-gradient(circle at 50% 40%, rgba(0,212,255,0.38), rgba(139,92,246,0.20) 60%, transparent 72%);
+    box-shadow:0 0 90px rgba(0,212,255,0.5), 0 0 180px rgba(139,92,246,0.34); }
+  .core-inner{ width:108px; height:108px; border-radius:50%; background:radial-gradient(circle at 50% 40%,#0bd,#1b2b6b);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; box-shadow:0 0 40px rgba(0,212,255,0.6) inset; }
+  .core-inner .c1{ font-family:'Sora',sans-serif; font-weight:800; font-size:15px; letter-spacing:.5px; }
+  .core-inner .c2{ font-size:8px; letter-spacing:2px; color:#bfe9ff; text-transform:uppercase; margin-top:3px; }
+  .core-inner .c3{ font-family:'JetBrains Mono',monospace; font-size:18px; font-weight:700; margin-top:5px; }
+  .ring{ position:absolute; border-radius:50%; border:1px solid rgba(0,212,255,0.25); }
+  .ring.r1{ width:230px; height:230px; border-style:dashed; animation:spin 26s linear infinite; }
+  .ring.r2{ width:300px; height:300px; border-color:rgba(139,92,246,0.22); animation:spin 40s linear infinite reverse; }
+  .ring.r3{ width:370px; height:370px; border-color:rgba(0,255,204,0.12); }
+  .node{ position:absolute; left:50%; top:50%; font-size:10.5px; font-weight:700; letter-spacing:.4px; color:#dbe6ff;
+    background:rgba(10,16,36,0.82); border:1px solid var(--glass-bd); padding:6px 11px; border-radius:99px; backdrop-filter:blur(6px); white-space:nowrap;
+    transform:translate(-50%,-50%); box-shadow:0 0 22px rgba(0,212,255,0.18); }
+  .node i{ width:6px; height:6px; border-radius:50%; display:inline-block; margin-right:6px; vertical-align:middle; }
+  svg.links{ position:absolute; inset:0; width:100%; height:100%; z-index:-1; }
+  svg.links line{ stroke:url(#lg); stroke-width:1; opacity:.5; }
+
+  /* ---------- section heads ---------- */
+  .sec-head{ display:flex; align-items:center; gap:12px; margin:54px 0 8px; }
+  .sec-head h2{ font-family:'Sora',sans-serif; font-weight:800; font-size:clamp(20px,3vw,28px); letter-spacing:-.4px; }
+  .sec-head .line{ flex:1; height:1px; background:linear-gradient(90deg,var(--glass-bd),transparent); }
+  .sec-sub{ color:var(--mut); font-size:13.5px; margin-bottom:20px; }
+
+  /* ---------- horizontal pipeline ---------- */
+  .flow-track{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; justify-content:center; border:1px solid var(--glass-bd); background:var(--glass); border-radius:18px; padding:18px; backdrop-filter:blur(10px); position:relative; overflow:hidden; }
+  .flow-track::after{ content:''; position:absolute; left:-30%; top:0; bottom:0; width:30%; pointer-events:none;
+    background:linear-gradient(90deg,transparent,rgba(0,212,255,0.22),transparent); animation:sweep 3.4s linear infinite; }
+  .step{ display:flex; align-items:center; gap:8px; font-size:13px; font-weight:700; }
+  .step .b{ width:32px; height:32px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:15px;
+    background:color-mix(in srgb, var(--primary) 16%, transparent); color:var(--primary); border:1px solid rgba(0,212,255,0.3); }
+  .arrowf{ color:var(--mut); font-size:14px; }
+  .flow-cap{ text-align:center; color:var(--mut); font-size:11px; letter-spacing:2px; text-transform:uppercase; margin-top:14px; }
+
+  /* ---------- vertical journey ---------- */
+  .journey{ position:relative; margin:14px 0 10px; }
+  .journey::before{ content:''; position:absolute; left:41px; top:18px; bottom:18px; width:2px;
+    background:linear-gradient(180deg,var(--primary),var(--secondary) 50%,var(--accent)); opacity:.45; }
+  .stage{ display:grid; grid-template-columns:84px 1fr; gap:20px; align-items:start; padding:13px 0; }
+  .stage-node{ width:54px; height:54px; margin-left:14px; border-radius:16px; display:flex; align-items:center; justify-content:center;
+    font-family:'JetBrains Mono',monospace; font-weight:700; font-size:18px; color:var(--c); position:relative; z-index:2;
+    background:color-mix(in srgb,var(--c) 15%, #0a1024); border:1px solid color-mix(in srgb,var(--c) 52%, transparent); box-shadow:0 0 24px -4px var(--c); }
+  .stage-card{ position:relative; border:1px solid var(--glass-bd); border-left:2px solid var(--c); border-radius:18px; padding:18px 20px; overflow:hidden;
+    background:linear-gradient(160deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015)); backdrop-filter:blur(12px);
+    transition:transform .2s ease, border-color .2s ease, box-shadow .2s ease; }
+  .stage-card::before{ content:''; position:absolute; inset:0; opacity:0; transition:opacity .2s ease; pointer-events:none;
+    background:radial-gradient(120% 80% at 100% 0%, var(--c), transparent 50%); }
+  .stage-card:hover{ transform:translateX(4px); border-color:var(--c); box-shadow:0 18px 44px rgba(0,0,0,0.5), 0 0 28px -10px var(--c); }
+  .stage-card:hover::before{ opacity:.08; }
+  .stage-tag{ font-size:10.5px; letter-spacing:1.4px; text-transform:uppercase; color:var(--c); font-weight:700; }
+  .stage-name{ font-family:'Sora',sans-serif; font-weight:700; font-size:clamp(17px,2.4vw,21px); margin:3px 0 7px; }
+  .stage-desc{ color:#aeb9d6; font-size:13.5px; line-height:1.6; max-width:760px; }
+  .chips{ display:flex; gap:7px; flex-wrap:wrap; margin-top:13px; }
+  .chip{ font-size:11px; font-weight:500; color:#c2cdec; border:1px solid var(--glass-bd); background:rgba(255,255,255,0.03); padding:4px 10px; border-radius:8px; }
+
+  /* ---------- assistant + close ---------- */
+  .ai{ margin-top:18px; border:1px solid rgba(0,255,204,0.28); border-radius:22px; padding:30px 26px; text-align:center; position:relative; overflow:hidden;
+    background:radial-gradient(120% 120% at 50% 0%, rgba(0,255,204,0.10), rgba(139,92,246,0.06) 55%, transparent); backdrop-filter:blur(12px); }
+  .ai h3{ font-family:'Sora',sans-serif; font-weight:800; font-size:clamp(22px,3.4vw,30px); letter-spacing:-.4px; }
+  .ai p{ color:var(--mut); font-size:14px; margin-top:8px; max-width:620px; margin-left:auto; margin-right:auto; line-height:1.6; }
+  .ai .big-tag{ font-family:'Sora',sans-serif; font-weight:800; font-size:clamp(20px,3vw,26px); margin-top:20px; }
+  .cta-row{ display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:22px; }
+  .cta.ghost{ background:transparent; color:var(--txt); border:1px solid var(--glass-bd); box-shadow:none; }
+  .cta.ghost:hover{ border-color:var(--primary); color:var(--primary); }
+
+  .foot{ text-align:center; margin-top:50px; color:var(--mut); font-size:12px; }
+  .foot b{ font-family:'Sora',sans-serif; color:var(--txt); letter-spacing:1px; }
+
+  .reveal{ opacity:0; transform:translateY(20px); transition:opacity .6s ease, transform .6s ease; }
+  .reveal.in{ opacity:1; transform:none; }
+
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  @keyframes pulse{ 0%,100%{ opacity:1; } 50%{ opacity:.3; } }
+  @keyframes float{ 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(-8px); } }
+  @keyframes bob{ 0%,100%{ transform:translateY(0); opacity:.7 } 50%{ transform:translateY(5px); opacity:1 } }
+  @keyframes sweep{ to{ left:130%; } }
+
+  @media (max-width:680px){
+    .core-sec{ height:300px; }
+    .ring.r3{ width:300px; height:300px; } .ring.r2{ width:250px; height:250px; } .ring.r1{ width:200px; height:200px; }
+    .node{ font-size:9px; padding:4px 9px; }
+    .stage{ grid-template-columns:58px 1fr; gap:12px; }
+    .stage-node{ width:42px; height:42px; margin-left:8px; font-size:14px; border-radius:13px; }
+    .journey::before{ left:29px; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{ animation:none !important; scroll-behavior:auto; }
+    .reveal{ opacity:1; transform:none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="stars"></canvas>
+<div class="bg-grad"></div>
+<div id="progress"></div>
+
+<div class="wrap">
+
+  <!-- HERO -->
+  <section class="hero reveal">
+    <span class="badge"><span class="dot"></span> The AI Business Operating System</span>
+    <h1 class="title">QUVERA <span class="grad-text">BUSINESS&nbsp;OS</span></h1>
+    <p class="tagline">Run your entire business from one intelligent core — every lead, quote, project, dirham and review, connected.</p>
+    <div class="hero-sub" id="rotating">One platform · one workflow · one source of truth</div>
+
+    <section class="core-sec">
+      <svg class="links" viewBox="0 0 600 340" preserveAspectRatio="xMidYMid meet">
+        <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#00D4FF"/><stop offset="1" stop-color="#8B5CF6"/></linearGradient></defs>
+        <line x1="300" y1="170" x2="120" y2="62"/><line x1="300" y1="170" x2="480" y2="62"/>
+        <line x1="300" y1="170" x2="78" y2="170"/><line x1="300" y1="170" x2="522" y2="170"/>
+        <line x1="300" y1="170" x2="150" y2="282"/><line x1="300" y1="170" x2="450" y2="282"/>
+      </svg>
+      <div class="ring r3"></div><div class="ring r2"></div><div class="ring r1"></div>
+      <div class="core"><div class="core-inner"><div class="c1">QUVERA</div><div class="c2">AI Core</div><div class="c3 grad-text">92</div></div></div>
+      <span class="node" style="left:20%;top:18%"><i style="background:#00D4FF;box-shadow:0 0 8px #00D4FF"></i>Lead AI</span>
+      <span class="node" style="left:80%;top:18%"><i style="background:#8B5CF6;box-shadow:0 0 8px #8B5CF6"></i>Revenue AI</span>
+      <span class="node" style="left:11%;top:50%"><i style="background:#00FFCC;box-shadow:0 0 8px #00FFCC"></i>Project AI</span>
+      <span class="node" style="left:89%;top:50%"><i style="background:#ffb020;box-shadow:0 0 8px #ffb020"></i>Finance AI</span>
+      <span class="node" style="left:25%;top:83%"><i style="background:#22c55e;box-shadow:0 0 8px #22c55e"></i>Growth AI</span>
+      <span class="node" style="left:75%;top:83%"><i style="background:#ec4899;box-shadow:0 0 8px #ec4899"></i>Trust AI</span>
+    </section>
+
+    <button class="cta" onclick="document.getElementById('how').scrollIntoView()">Enter the OS <span>↓</span></button>
+    <div class="scroll-hint">Scroll to see how it works</div>
+  </section>
+
+  <!-- PIPELINE TEASER -->
+  <div id="how" class="reveal">
+    <div class="sec-head"><h2>How your business <span class="grad-text">runs</span></h2><span class="line"></span></div>
+    <p class="sec-sub">Not a pile of apps — one continuous flow. Data moves with the work, never re-entered.</p>
+    <div class="flow-track">
+      <div class="step"><span class="b">◷</span> Lead</div><span class="arrowf">→</span>
+      <div class="step"><span class="b">▤</span> Quote</div><span class="arrowf">→</span>
+      <div class="step"><span class="b">▣</span> Project</div><span class="arrowf">→</span>
+      <div class="step"><span class="b">▦</span> Invoice</div><span class="arrowf">→</span>
+      <div class="step"><span class="b">$</span> Payment</div><span class="arrowf">→</span>
+      <div class="step"><span class="b">★</span> Review</div><span class="arrowf">→</span>
+      <div class="step"><span class="b">✦</span> Trust</div>
+    </div>
+    <div class="flow-cap">One platform · one workflow · one source of truth</div>
+  </div>
+
+  <!-- SEQUENTIAL JOURNEY -->
+  <div class="sec-head reveal"><h2>The <span class="grad-text">sequence</span>, step by step</h2><span class="line"></span></div>
+  <div class="journey" id="journey"></div>
+
+  <!-- AI CORE — EVERYTHING CONNECTED -->
+  <div class="ai reveal">
+    <h3>One <span class="grad-text">AI Core</span>, everything connected</h3>
+    <p>Every lead, quote, project, dirham and review flows into a single intelligent core — that watches, predicts and recommends your next move. Ask it anything in plain language.</p>
+    <div class="ai-bar-tags" style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:18px;">
+      <span class="chip">“Which projects are delayed?”</span>
+      <span class="chip">“How many quotations need approval?”</span>
+      <span class="chip">“Show expected profit this month.”</span>
+    </div>
+    <div class="big-tag grad-text">One platform · one workflow · one source of truth.</div>
+    <div class="cta-row">
+      <button class="cta" onclick="window.scrollTo({top:0})">Start with Quvera</button>
+      <button class="cta ghost" onclick="document.getElementById('how').scrollIntoView()">See the flow again</button>
+    </div>
+  </div>
+
+  <div class="foot reveal"><b>QUVERA BUSINESS OS</b><br/>Engineered for the build · Find. Verify. Trust.</div>
+
+</div>
+
+<script>
+  /* ----- stage data: the OS in sequence ----- */
+  const STAGES = [
+    { c:'#00D4FF', tag:'Capture · Score · Convert', name:'Capture — Lead Hub & Engine',
+      desc:'Leads pour in from Meta Ads, WhatsApp, your Quvera profile and manual entry. The AI scores every lead hot, warm or cold and flags follow-ups — so not one ever slips through.',
+      chips:['Lead Hub','Lead Engine','AI Lead Scoring','Follow-ups'] },
+    { c:'#8B5CF6', tag:'Quote · Send · Win', name:'Convert — Quotations',
+      desc:'Build beautiful branded quotes — simple, visual-with-photos, or a full BOQ — reuse a smart description library, send a one-tap client approval link, and handle variation orders. All straight from the won lead, nothing retyped.',
+      chips:['Quote Builder','Visual & BOQ','Description Library','Client Approval','Variation Orders'] },
+    { c:'#00FFCC', tag:'Plan · Track · Deliver', name:'Deliver — Projects & Operations',
+      desc:'The approved quote becomes a live project: milestones, subcontractors and site costs, plus a private client portal with a real-time update timeline and approvals. Every update is recorded by name.',
+      chips:['Milestones','Subcontractors','Site Expenses','Client Portal','Update Timeline'] },
+    { c:'#38bdf8', tag:'Invoice · Collect · Control', name:'Bill — Invoices',
+      desc:'A proforma becomes a tax invoice on the first payment. Track every payment, and cancel or hold an unpaid invoice without ever corrupting your records.',
+      chips:['Proforma → Tax','Payment Tracking','Cancel / Hold','WhatsApp Send'] },
+    { c:'#ffb020', tag:'Monitor · Predict · Optimize', name:'See the money — Ledger',
+      desc:'Income, expenses, VAT return, cash flow, receivables and payables — one clear money picture, auto-fed from your invoices, purchases and projects. No spreadsheets.',
+      chips:['Income & Expenses','VAT Return','Cash Flow','Receivable / Payable'] },
+    { c:'#f97316', tag:'Buy · Log · Profit', name:'Procure — Purchases',
+      desc:'Log supplier bills and input VAT once; the cost rolls straight into the right project’s profit — so you always know what you really made.',
+      chips:['Supplier Bills','Input VAT','Project Costing'] },
+    { c:'#22c55e', tag:'Schedule · Remind · Follow up', name:'Plan — Meetings & Planner',
+      desc:'Schedule meetings, set reminders and chase follow-ups from one organizer — so nothing and no one is ever forgotten.',
+      chips:['Meetings','Reminders','Follow-ups','Organizer'] },
+    { c:'#ec4899', tag:'Review · Verify · Trust', name:'Earn trust — Reviews & Trust Score',
+      desc:'Collect reviews, get verified and grow a public profile and trust score that wins your next lead — closing the loop back to the top.',
+      chips:['Reviews','Trust Score','Verification','Public Profile'] },
+    { c:'#3b82f6', tag:'Reach · Target · Grow', name:'Grow — Meta Ads & Sponsored',
+      desc:'Launch and control your own Meta ads and sponsored placement from inside the OS, and watch the analytics — growth without leaving home.',
+      chips:['Meta Ads','Sponsored Placement','Analytics'] },
+    { c:'#00D4FF', tag:'See · Decide · Act', name:'Command — Command Center & Ask Quvera AI',
+      desc:'A neon AI-Core cockpit shows your whole business on one screen, live, with AI recommendations and a natural-language assistant. Fit-to-screen turns any display into a command wall.',
+      chips:['Command Center','Revenue Engine','Ask Quvera AI','Fit-to-Screen Wall'] },
+    { c:'#94a3b8', tag:'Invite · Empower · Track', name:'Your team — Staff & Access',
+      desc:'Bring your team in with role-based logins and permissions, with by-name accountability on every action — the whole company, working as one.',
+      chips:['Staff & Access','Role Permissions','By-name Activity'] },
+  ];
+
+  const journey = document.getElementById('journey');
+  journey.innerHTML = STAGES.map((s,i) => `
+    <div class="stage reveal" style="--c:${s.c}">
+      <div class="stage-rail"><div class="stage-node">${String(i+1).padStart(2,'0')}</div></div>
+      <div class="stage-card">
+        <div class="stage-tag">${s.tag}</div>
+        <div class="stage-name">${s.name}</div>
+        <p class="stage-desc">${s.desc}</p>
+        <div class="chips">${s.chips.map(c=>`<span class="chip">${c}</span>`).join('')}</div>
+      </div>
+    </div>`).join('');
+
+  /* ----- rotating hero sub-tagline ----- */
+  const TAGS = [
+    'One platform · one workflow · one source of truth',
+    'Your entire business — one intelligent core',
+    'From first lead to lasting trust, run it all from one OS',
+  ];
+  let ti = 0; const rot = document.getElementById('rotating');
+  setInterval(() => { ti = (ti+1) % TAGS.length; rot.style.opacity = 0;
+    setTimeout(() => { rot.textContent = TAGS[ti]; rot.style.transition='opacity .4s'; rot.style.opacity = 1; }, 250); }, 3600);
+
+  /* ----- particle starfield ----- */
+  const c = document.getElementById('stars'), x = c.getContext('2d');
+  let w, h, pts;
+  function init(){
+    w = c.width = innerWidth; h = c.height = innerHeight;
+    pts = Array.from({length: Math.min(130, Math.floor(w/11))}, () => ({
+      x: Math.random()*w, y: Math.random()*h, r: Math.random()*1.6+0.3,
+      vx:(Math.random()-0.5)*0.25, vy:(Math.random()-0.5)*0.25, a: Math.random()*0.5+0.2
+    }));
+  }
+  function draw(){
+    x.clearRect(0,0,w,h);
+    for(const p of pts){
+      p.x+=p.vx; p.y+=p.vy;
+      if(p.x<0)p.x=w; if(p.x>w)p.x=0; if(p.y<0)p.y=h; if(p.y>h)p.y=0;
+      x.beginPath(); x.arc(p.x,p.y,p.r,0,7); x.fillStyle='rgba(0,212,255,'+p.a+')'; x.fill();
+    }
+    for(let i=0;i<pts.length;i++) for(let j=i+1;j<pts.length;j++){
+      const a=pts[i], b=pts[j], d=Math.hypot(a.x-b.x,a.y-b.y);
+      if(d<110){ x.beginPath(); x.moveTo(a.x,a.y); x.lineTo(b.x,b.y); x.strokeStyle='rgba(139,92,246,'+(0.10*(1-d/110))+')'; x.stroke(); }
+    }
+    requestAnimationFrame(draw);
+  }
+  addEventListener('resize', init); init(); draw();
+
+  /* ----- reveal on scroll ----- */
+  const io = new IntersectionObserver(es => es.forEach(e => { if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} }), {threshold:.12});
+  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+  /* ----- scroll progress bar ----- */
+  const prog = document.getElementById('progress');
+  addEventListener('scroll', () => {
+    const sc = document.documentElement.scrollTop, mx = document.documentElement.scrollHeight - innerHeight;
+    prog.style.width = (mx>0 ? (sc/mx*100) : 0) + '%';
+  }, {passive:true});
+</script>
+</body>
+</html>
