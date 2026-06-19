@@ -129,8 +129,15 @@ export default function LeadsPage() {
   const [fSource, setFSource] = useState('all')
   const [fStatus, setFStatus] = useState('all')
   const [quickFilter, setQuickFilter] = useState('')
-  const [minBudget, setMinBudget] = useState(() => { try { return Number(localStorage.getItem('lead_min_budget')) || 0 } catch { return 0 } })
-  function saveMinBudget(v) { const n = Math.max(0, Math.round(Number(v) || 0)); setMinBudget(n); try { localStorage.setItem('lead_min_budget', String(n)) } catch {} }
+  const [minBudget, setMinBudget] = useState(0)   // company-wide, from companies.min_lead_budget
+  async function saveMinBudget(v) {
+    const n = Math.max(0, Math.round(Number(v) || 0))
+    setMinBudget(n)
+    if (!company?.id) return
+    const { error } = await supabase.from('companies').update({ min_lead_budget: n || null }).eq('id', company.id)
+    if (error) toast.error('Could not save min budget: ' + error.message)
+  }
+  useEffect(() => { setMinBudget(Number(company?.min_lead_budget) || 0) }, [company?.id, company?.min_lead_budget])
   function promptMinBudget() {
     const v = window.prompt('Minimum budget (AED) — leads below this are flagged "below budget". Set 0 to turn off.', minBudget || '')
     if (v === null) return
