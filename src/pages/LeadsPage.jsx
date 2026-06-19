@@ -28,6 +28,9 @@ const PIPELINE = [
 ]
 const LOST = { stage: 'lost', label: 'Lost', color: '#ef4444' }
 
+// quick reasons shown when closing/losing a lead
+const LOST_REASONS = ['Budget too low', 'Out of our area', 'Out of our scope', 'Not interested', 'No response', 'Timeline mismatch', 'Went with competitor', 'Spam / Junk', 'Duplicate', 'Other']
+
 const STATUS_MAP = {
   'new':'new', 'contacted':'in_conversation', 'in conversation':'in_conversation',
   'interested':'qualified', 'qualified':'qualified',
@@ -160,6 +163,8 @@ export default function LeadsPage() {
   const blankAdd = { name:'', phone:'', source:'Meta Ads', projectType:'', email:'', whatsapp:'', location:'', budget:'', followUp:'', status:'new', temp:'warm', notes:'' }
   const [addF, setAddF] = useState(blankAdd)
   const [dupMatch, setDupMatch] = useState(null)   // existing lead found while adding a duplicate
+  const [lostFor, setLostFor] = useState(null)     // lead being closed — drives the "reason" popup
+  const [lostNote, setLostNote] = useState('')
   const [editId, setEditId] = useState(null)
 
   const [vw, setVw] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200)
@@ -189,7 +194,7 @@ export default function LeadsPage() {
     setSubmissions(subData || [])
     const { data: distData } = await supabase
       .from('lead_distributions')
-      .select('id, rank, status, assigned_at, follow_up_date, notes, temperature, lead_id, lead_submissions(id, name, phone, email, answers, created_at, source)')
+      .select('id, rank, status, assigned_at, follow_up_date, notes, temperature, lost_reason, lead_id, lead_submissions(id, name, phone, email, answers, created_at, source)')
       .eq('company_id', company.id)
       .order('assigned_at', { ascending: false }).limit(1000)
     setDistLeads(distData || [])
@@ -343,6 +348,8 @@ export default function LeadsPage() {
   }
   async function updateLeadStage(lead, newStage) {
     if (newStage === lead.status) return
+    // closing a lead → ask for a reason first (Budget too low, etc.)
+    if (newStage === 'lost') { setLostFor(lead); return }
     setUpdatingStatus(lead.key)
     const ok = await applyStageToDB(lead, newStage)
     if (ok) {
@@ -352,6 +359,30 @@ export default function LeadsPage() {
       })
     }
     setUpdatingStatus(null)
+  }
+
+  // close a lead as Lost with a reason; stores the reason (graceful if the
+  // lost_reason column isn't migrated yet)
+  async function closeAsLost(lead, reason) {
+    const r = (reason || '').trim() || null
+    setUpdatingStatus(lead.key)
+    let res
+    if (lead.distId) {
+      res = await supabase.from('lead_distributions').update({ status: 'lost', status_updated_at: new Date().toISOString(), lost_reason: r }).eq('id', lead.distId)
+      if (res.error) res = await supabase.from('lead_distributions').update({ status: 'lost', status_updated_at: new Date().toISOString() }).eq('id', lead.distId)
+      if (!res.error) setDistLeads(prev => prev.map(d => d.id === lead.distId ? { ...d, status: 'lost', lost_reason: r } : d))
+    } else {
+      res = await supabase.from('lead_submissions').update({ status: 'lost', status_updated_at: new Date().toISOString(), lost_reason: r }).eq('id', lead.subId)
+      if (res.error) res = await supabase.from('lead_submissions').update({ status: 'lost', status_updated_at: new Date().toISOString() }).eq('id', lead.subId)
+      if (!res.error) setSubmissions(prev => prev.map(s => s.id === lead.subId ? { ...s, status: 'lost', lost_reason: r } : s))
+    }
+    if (res.error) { toast.error('Could not close lead: ' + res.error.message) }
+    else {
+      await supabase.from('lead_activity').insert({ lead_id: lead.subId || null, distribution_id: lead.distId || null, company_id: company.id, actor_name: company.name, kind: 'stage_change', old_stage: lead.status, new_stage: 'lost' })
+      toast.success('Lead closed' + (r ? ' · ' + r : ''))
+    }
+    setUpdatingStatus(null); setLostFor(null)
+    if (openLead?.key === lead.key) setOpenLead(null)
   }
 
   function leadReq(lead) {
@@ -741,13 +772,13 @@ export default function LeadsPage() {
       name: s.name, phone: s.phone, email: s.email, answers: s.answers || {},
       status: DIST_TO_PAGE[d.status] || 'new', created_at: d.assigned_at || s.created_at,
       assigned_at: d.assigned_at || s.created_at, nextMeeting: meetingsByLead[s.id] || null,
-      follow_up_date: d.follow_up_date, notes: d.notes, temperature: d.temperature || 'warm' }
+      follow_up_date: d.follow_up_date, notes: d.notes, temperature: d.temperature || 'warm', lostReason: d.lost_reason || null }
   }
   function unifyOwn(s) {
     return { key: 'own-' + s.id, subId: s.id, distId: null, isPlatform: false, rank: null,
       name: s.name, phone: s.phone, email: s.email, answers: s.answers || {}, source: s.source || null,
       status: s.status || 'new', created_at: s.created_at, assigned_at: s.created_at, nextMeeting: meetingsByLead[s.id] || null,
-      follow_up_date: s.follow_up_date, notes: s.notes, temperature: s.temperature || 'warm' }
+      follow_up_date: s.follow_up_date, notes: s.notes, temperature: s.temperature || 'warm', lostReason: s.lost_reason || null }
   }
   const tdLeads = distLeads.map(unifyDist)
   const myLeads = submissions.map(unifyOwn)
@@ -1020,6 +1051,11 @@ export default function LeadsPage() {
           <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 99, background: sc.color + '2b', color: sc.color, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: sc.color }} /> {sc.label}
           </span>
+          {lead.status === 'lost' && lead.lostReason && (
+            <span title={'Closed: ' + lead.lostReason} style={{ fontSize: 10, fontWeight: 600, padding: '3px 9px', borderRadius: 99, background: 'rgba(239,68,68,0.12)', color: '#ef4444', display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <i className="ti ti-ban" style={{ fontSize: 11 }} /> {lead.lostReason}
+            </span>
+          )}
         </div>
       </div>
     )
@@ -1755,6 +1791,30 @@ export default function LeadsPage() {
             <div style={{ display: 'flex', gap: 8, padding: '0 16px 16px' }}>
               <button onClick={() => { setSearch(dupMatch.name || dupMatch.phone || ''); setMainTab(dupMatch.kind === 'Quvera lead' ? 'trustdubai' : 'mine'); setDupMatch(null); closeAdd() }} style={{ flex: 1, padding: 10, borderRadius: 9, border: '0.5px solid var(--border)', background: 'var(--card)', color: 'var(--text)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>View existing</button>
               <button onClick={() => { setDupMatch(null); saveAddLead(true) }} style={{ flex: 1, padding: 10, borderRadius: 9, border: 'none', background: '#f59e0b', color: '#fff', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>Add anyway</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {lostFor && (
+        <div onClick={() => { setLostFor(null); setLostNote('') }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 260, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, background: 'var(--card)', borderRadius: 14, border: '0.5px solid var(--border)', overflow: 'hidden' }}>
+            <div style={{ padding: '16px 18px', borderBottom: '0.5px solid var(--border)' }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Close this lead?</div>
+              <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 2 }}>Why are you closing {lostFor.name || 'this lead'}? Pick a reason — it's saved for your records.</div>
+            </div>
+            <div style={{ padding: 16 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+                {LOST_REASONS.map(r => (
+                  <button key={r} onClick={() => { closeAsLost(lostFor, r); setLostNote('') }} disabled={updatingStatus === lostFor.key}
+                    style={{ fontSize: 12, fontWeight: 600, color: r === 'Budget too low' ? '#b45309' : 'var(--text)', border: '0.5px solid ' + (r === 'Budget too low' ? '#f59e0b' : 'var(--border)'), background: r === 'Budget too low' ? 'rgba(245,158,11,0.12)' : 'var(--bg2)', padding: '8px 12px', borderRadius: 9, cursor: 'pointer' }}>{r}</button>
+                ))}
+              </div>
+              <input value={lostNote} onChange={e => setLostNote(e.target.value)} placeholder="Or type your own reason…"
+                style={{ width: '100%', marginTop: 12, padding: '9px 11px', fontSize: 13, borderRadius: 9, border: '0.5px solid var(--border)', background: 'var(--bg2)', color: 'var(--text)', boxSizing: 'border-box' }} />
+            </div>
+            <div style={{ display: 'flex', gap: 8, padding: '0 16px 16px' }}>
+              <button onClick={() => { setLostFor(null); setLostNote('') }} style={{ flex: 1, padding: 10, borderRadius: 9, border: '0.5px solid var(--border)', background: 'var(--card)', color: 'var(--text)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={() => { closeAsLost(lostFor, lostNote || 'Closed'); setLostNote('') }} disabled={updatingStatus === lostFor.key} style={{ flex: 1, padding: 10, borderRadius: 9, border: 'none', background: '#ef4444', color: '#fff', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>Close lead</button>
             </div>
           </div>
         </div>
