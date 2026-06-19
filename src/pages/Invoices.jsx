@@ -98,11 +98,18 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
       } else {
         const m = schedule[invType]
         const pct = Number(m?.percent) || 0
-        total = Math.round(Number(q.total || 0) * pct / 100)
-        vat_amount = Math.round(Number(q.vat_amount || 0) * pct / 100)
+        // carry-forward: due = (cumulative expected up to this milestone) − (already collected on this quote)
+        const qInv = invoices.filter(iv => iv.quotation_id === q.id && iv.status !== 'cancelled')
+        const paidT = qInv.reduce((a, iv) => a + parsePayments(iv.payments).reduce((x, p) => x + (Number(p.amount) || 0), 0), 0)
+        let cumPct = 0; for (let k = 0; k <= invType; k++) cumPct += Number(schedule[k]?.percent) || 0
+        const cumExpected = Math.round(Number(q.total || 0) * cumPct / 100)
+        total = Math.max(0, cumExpected - paidT)
+        const ratio = Number(q.total || 0) > 0 ? total / Number(q.total) : 0
+        vat_amount = Math.round(Number(q.vat_amount || 0) * ratio)
         subtotal = total - vat_amount
+        const carry = Math.max(0, total - Math.round(Number(q.total || 0) * pct / 100))
         kind = 'milestone'; milestone_label = `${m?.label || 'Payment'} (${pct}%)`; mode = 'simple'; vat_enabled = Number(vat_amount) > 0
-        items = [{ desc: `${m?.label || 'Payment'} — ${pct}% of ${q.quote_number}`, unit: 'Lump Sum', qty: 1, rate: subtotal }]
+        items = [{ desc: `${m?.label || 'Payment'} — ${pct}% of ${q.quote_number}${carry > 0 ? ' + carried balance from previous' : ''}`, unit: 'Lump Sum', qty: 1, rate: subtotal }]
       }
       const { data: seq, error: seqErr } = await supabase.rpc('fn_next_invoice_seq', { p_company_id: company.id })
       if (seqErr) throw seqErr
@@ -331,14 +338,21 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
   // ============ CREATE ============
   if (view === 'create') {
     const schedule = selQuote ? parseSchedule(selQuote.payment_terms) : []
-    // already-invoiced milestones for this quote → grey + lock them so you can't double-invoice
+    // already-invoiced milestones for this quote → grey + lock; carry shortfalls forward
     const quoteInvoices = selQuote ? invoices.filter(iv => iv.quotation_id === selQuote.id && iv.status !== 'cancelled') : []
     const sumPaid = iv => parsePayments(iv.payments).reduce((a, p) => a + (Number(p.amount) || 0), 0)
     const fullInv = quoteInvoices.find(iv => iv.kind === 'full')
     const hasMilestoneInv = quoteInvoices.some(iv => iv.kind === 'milestone')
     const milInv = m => { const lbl = `${m.label || 'Payment'} (${Number(m.percent) || 0}%)`; return quoteInvoices.find(iv => (iv.milestone_label || '') === lbl) }
     const fullDisabled = !!fullInv || hasMilestoneInv
-    const selInvoiced = invType === 'full' ? fullDisabled : (schedule[invType] ? (!!milInv(schedule[invType]) || !!fullInv) : false)
+    const contractTotal = Number(selQuote?.total || 0)
+    const paidTotal = quoteInvoices.reduce((a, iv) => a + sumPaid(iv), 0)            // collected so far on this quote
+    const collectedSummary = { paid: paidTotal, total: contractTotal, remaining: Math.max(0, contractTotal - paidTotal) }
+    const nextIdx = schedule.findIndex(m => !milInv(m))                              // first milestone not yet invoiced
+    const cumExpectedTo = i => { let p = 0; for (let k = 0; k <= i; k++) p += Number(schedule[k]?.percent) || 0; return Math.round(contractTotal * p / 100) }
+    const dueForMilestone = i => Math.max(0, cumExpectedTo(i) - paidTotal)           // this milestone's share + any carried shortfall
+    // only the NEXT milestone (or Full, when nothing invoiced) can be created
+    const selInvoiced = invType === 'full' ? fullDisabled : (invType !== nextIdx || !!fullInv)
     const invBadge = iv => { if (!iv) return null; const p = sumPaid(iv); const paid = p > 0 && p >= Math.round(Number(iv.total) || 0)
       return <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 99, marginLeft: 7, letterSpacing: '.3px', background: paid ? 'rgba(15,110,86,0.14)' : 'rgba(148,163,184,0.18)', color: paid ? '#0f6e56' : '#64748b' }}>{paid ? 'PAID ✓' : 'INVOICED'} · {iv.invoice_number}</span> }
     const qList = approvedQuotes.filter(q => {
@@ -401,18 +415,45 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
                 <div style={{ fontSize: 13, fontWeight: 700, color: text }}>{fmt(selQuote.total)}</div>
               </label>
               {schedule.map((m, i) => {
-                const amt = Math.round(Number(selQuote.total || 0) * (Number(m.percent) || 0) / 100)
-                const exIv = milInv(m)
-                const disabled = !!exIv || !!fullInv
+                const base = Math.round(contractTotal * (Number(m.percent) || 0) / 100)
+                const inv = milInv(m)
+                const isNext = !inv && i === nextIdx && !fullInv
+                const disabled = !isNext
+                const paid = inv ? sumPaid(inv) : 0
+                const invoiced = inv ? (Number(inv.total) || base) : 0
+                const shortfall = inv ? Math.max(0, invoiced - paid) : 0
+                const due = isNext ? dueForMilestone(i) : base
+                const carry = isNext ? Math.max(0, due - base) : 0
+                const rightAmt = inv ? paid : due
                 return (
-                  <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 11px', borderRadius: 9, border: `1px solid ${invType === i && !disabled ? '#0099cc' : border}`, marginBottom: 8, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.55 : 1 }}>
-                    <input type="radio" disabled={disabled} checked={invType === i} onChange={() => setInvType(i)} />
-                    <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: text, display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>{m.label || 'Payment'} <span style={{ color: '#c9952a', marginLeft: 4 }}>({m.percent}%)</span>{disabled && <i className="ti ti-lock" style={{ fontSize: 12, marginLeft: 5, color: textMuted }} />}{invBadge(exIv)}</div>{m.description && <div style={{ fontSize: 11, color: textMuted }}>{m.description}</div>}</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: text }}>{fmt(amt)}</div>
+                  <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 11px', borderRadius: 9, border: `1px solid ${invType === i && isNext ? '#0099cc' : border}`, marginBottom: 8, cursor: disabled ? 'not-allowed' : 'pointer', opacity: inv ? 0.7 : (disabled ? 0.55 : 1) }}>
+                    <input type="radio" disabled={disabled} checked={invType === i && isNext} onChange={() => setInvType(i)} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: text, display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>{m.label || 'Payment'} <span style={{ color: '#c9952a', marginLeft: 4 }}>({m.percent}%)</span>{(inv || disabled) && <i className="ti ti-lock" style={{ fontSize: 12, marginLeft: 5, color: textMuted }} />}{invBadge(inv)}</div>
+                      {inv ? (
+                        <div style={{ fontSize: 11, color: textMuted, marginTop: 2 }}>Invoiced {fmt(invoiced)} · Paid {fmt(paid)}{shortfall > 0 ? <span style={{ color: '#b45309', fontWeight: 600 }}> · {fmt(shortfall)} carried forward →</span> : ''}</div>
+                      ) : isNext ? (
+                        <div style={{ fontSize: 11, color: carry > 0 ? '#b45309' : textMuted, marginTop: 2 }}>{carry > 0 ? `${fmt(base)} (${m.percent}%) + ${fmt(carry)} carried from previous` : (m.description || `${m.percent}% of contract`)}</div>
+                      ) : (
+                        <div style={{ fontSize: 11, color: textMuted, marginTop: 2 }}>Invoice the previous milestone first</div>
+                      )}
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: isNext ? '#0099cc' : text }}>{fmt(rightAmt)}</div>
+                      <div style={{ fontSize: 9, color: textMuted, letterSpacing: '.3px' }}>{inv ? 'PAID' : isNext ? 'DUE NOW' : ''}</div>
+                    </div>
                   </label>
                 )
               })}
               {schedule.length === 0 && <div style={{ fontSize: 11.5, color: textMuted }}>This quote has no payment milestones — only a full invoice is available.</div>}
+              {schedule.length > 0 && quoteInvoices.length > 0 && (
+                <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 9, background: subBg, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+                  <span style={{ color: textSub }}>Collected <b style={{ color: '#0f6e56' }}>{fmt(collectedSummary.paid)}</b> of {fmt(collectedSummary.total)}</span>
+                  {collectedSummary.remaining <= 0
+                    ? <span style={{ color: '#0f6e56', fontWeight: 700 }}><i className="ti ti-circle-check" style={{ verticalAlign: '-2px', marginRight: 3 }} />Fully paid — project can be closed</span>
+                    : <span style={{ color: '#b45309', fontWeight: 700 }}>{fmt(collectedSummary.remaining)} remaining</span>}
+                </div>
+              )}
             </div>
 
             <div style={card}>
