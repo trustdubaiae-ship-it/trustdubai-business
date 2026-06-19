@@ -331,6 +331,16 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
   // ============ CREATE ============
   if (view === 'create') {
     const schedule = selQuote ? parseSchedule(selQuote.payment_terms) : []
+    // already-invoiced milestones for this quote → grey + lock them so you can't double-invoice
+    const quoteInvoices = selQuote ? invoices.filter(iv => iv.quotation_id === selQuote.id && iv.status !== 'cancelled') : []
+    const sumPaid = iv => parsePayments(iv.payments).reduce((a, p) => a + (Number(p.amount) || 0), 0)
+    const fullInv = quoteInvoices.find(iv => iv.kind === 'full')
+    const hasMilestoneInv = quoteInvoices.some(iv => iv.kind === 'milestone')
+    const milInv = m => { const lbl = `${m.label || 'Payment'} (${Number(m.percent) || 0}%)`; return quoteInvoices.find(iv => (iv.milestone_label || '') === lbl) }
+    const fullDisabled = !!fullInv || hasMilestoneInv
+    const selInvoiced = invType === 'full' ? fullDisabled : (schedule[invType] ? (!!milInv(schedule[invType]) || !!fullInv) : false)
+    const invBadge = iv => { if (!iv) return null; const p = sumPaid(iv); const paid = p > 0 && p >= Math.round(Number(iv.total) || 0)
+      return <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 99, marginLeft: 7, letterSpacing: '.3px', background: paid ? 'rgba(15,110,86,0.14)' : 'rgba(148,163,184,0.18)', color: paid ? '#0f6e56' : '#64748b' }}>{paid ? 'PAID ✓' : 'INVOICED'} · {iv.invoice_number}</span> }
     const qList = approvedQuotes.filter(q => {
       if (!quoteSearch.trim()) return true
       const s = quoteSearch.toLowerCase()
@@ -350,7 +360,17 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
             {qList.length === 0 ? (
               <div style={{ fontSize: 12.5, color: textMuted, textAlign: 'center', padding: '20px 0' }}>No approved quotes yet. Approve a quote first to invoice it.</div>
             ) : qList.map(q => (
-              <div key={q.id} onClick={() => { setSelQuote(q); setInvType('full') }}
+              <div key={q.id} onClick={() => {
+                setSelQuote(q)
+                const qInv = invoices.filter(iv => iv.quotation_id === q.id && iv.status !== 'cancelled')
+                const sched = parseSchedule(q.payment_terms)
+                let pick = 'full'
+                if (qInv.length && !qInv.some(iv => iv.kind === 'full')) {
+                  const idx = sched.findIndex(m => !qInv.find(iv => (iv.milestone_label || '') === `${m.label || 'Payment'} (${Number(m.percent) || 0}%)`))
+                  pick = idx >= 0 ? idx : 'full'
+                }
+                setInvType(pick)
+              }}
                 style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 11px', borderRadius: 9, border: `1px solid ${border}`, marginBottom: 7, cursor: 'pointer' }}>
                 <div style={{ width: 34, height: 34, borderRadius: 8, background: subBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: '#0077a3' }}>{initials(q.client_name)}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -375,17 +395,19 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
 
             <div style={card}>
               <div style={{ fontSize: 13, fontWeight: 600, color: text, marginBottom: 10 }}>Invoice for</div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 11px', borderRadius: 9, border: `1px solid ${invType === 'full' ? '#0099cc' : border}`, marginBottom: 8, cursor: 'pointer' }}>
-                <input type="radio" checked={invType === 'full'} onChange={() => setInvType('full')} />
-                <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: text }}>Full amount</div><div style={{ fontSize: 11.5, color: textSub }}>Entire quote</div></div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 11px', borderRadius: 9, border: `1px solid ${invType === 'full' && !fullDisabled ? '#0099cc' : border}`, marginBottom: 8, cursor: fullDisabled ? 'not-allowed' : 'pointer', opacity: fullDisabled ? 0.55 : 1 }}>
+                <input type="radio" disabled={fullDisabled} checked={invType === 'full'} onChange={() => setInvType('full')} />
+                <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: text, display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>Full amount {fullDisabled && <i className="ti ti-lock" style={{ fontSize: 12, marginLeft: 5, color: textMuted }} />}{invBadge(fullInv)}</div><div style={{ fontSize: 11.5, color: textSub }}>{hasMilestoneInv && !fullInv ? 'Milestones already invoiced' : 'Entire quote'}</div></div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: text }}>{fmt(selQuote.total)}</div>
               </label>
               {schedule.map((m, i) => {
                 const amt = Math.round(Number(selQuote.total || 0) * (Number(m.percent) || 0) / 100)
+                const exIv = milInv(m)
+                const disabled = !!exIv || !!fullInv
                 return (
-                  <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 11px', borderRadius: 9, border: `1px solid ${invType === i ? '#0099cc' : border}`, marginBottom: 8, cursor: 'pointer' }}>
-                    <input type="radio" checked={invType === i} onChange={() => setInvType(i)} />
-                    <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: text }}>{m.label || 'Payment'} <span style={{ color: '#c9952a' }}>({m.percent}%)</span></div>{m.description && <div style={{ fontSize: 11, color: textMuted }}>{m.description}</div>}</div>
+                  <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 11px', borderRadius: 9, border: `1px solid ${invType === i && !disabled ? '#0099cc' : border}`, marginBottom: 8, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.55 : 1 }}>
+                    <input type="radio" disabled={disabled} checked={invType === i} onChange={() => setInvType(i)} />
+                    <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: text, display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>{m.label || 'Payment'} <span style={{ color: '#c9952a', marginLeft: 4 }}>({m.percent}%)</span>{disabled && <i className="ti ti-lock" style={{ fontSize: 12, marginLeft: 5, color: textMuted }} />}{invBadge(exIv)}</div>{m.description && <div style={{ fontSize: 11, color: textMuted }}>{m.description}</div>}</div>
                     <div style={{ fontSize: 13, fontWeight: 700, color: text }}>{fmt(amt)}</div>
                   </label>
                 )
@@ -400,8 +422,8 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
               </div>
             </div>
 
-            <button onClick={createInvoice} disabled={saving} style={{ width: '100%', padding: '13px', borderRadius: 10, border: 'none', background: '#0099cc', color: '#fff', fontSize: 15, fontWeight: 700, cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.7 : 1 }}>
-              {saving ? 'Creating…' : 'Create Invoice'}
+            <button onClick={createInvoice} disabled={saving || selInvoiced} style={{ width: '100%', padding: '13px', borderRadius: 10, border: 'none', background: '#0099cc', color: '#fff', fontSize: 15, fontWeight: 700, cursor: (saving || selInvoiced) ? 'default' : 'pointer', opacity: (saving || selInvoiced) ? 0.55 : 1 }}>
+              {saving ? 'Creating…' : selInvoiced ? 'Already invoiced — pick another option' : 'Create Invoice'}
             </button>
           </>
         )}
