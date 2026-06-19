@@ -80,6 +80,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   const [payForm, setPayForm] = useState(null)
   const [invoices, setInvoices] = useState([])     // invoices linked to this project (client cash-in lives here)
   const [purchases, setPurchases] = useState([])   // purchase bills tagged to this project's client
+  const [projVos, setProjVos] = useState([])       // approved Variation Orders on this project's quote
   const [milestones, setMilestones] = useState([])
   const [msForm, setMsForm] = useState(null)
   const [updates, setUpdates] = useState([])   // project history / timeline entries
@@ -203,6 +204,10 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
     if (proj?.quote_id) { const { data } = await supabase.from('invoices').select('id,invoice_number,total,payments,status,kind,milestone_label,issue_date,due_date').eq('company_id', company.id).eq('quotation_id', proj.quote_id).order('issue_date', { ascending: false }); inv = data || [] }
     else if (proj?.client_id) { const { data } = await supabase.from('invoices').select('id,invoice_number,total,payments,status,kind,milestone_label,issue_date,due_date').eq('company_id', company.id).eq('client_id', proj.client_id).order('issue_date', { ascending: false }); inv = data || [] }
     setInvoices(inv)
+    // Approved Variation Orders on the linked quote → revised contract value
+    let voList = []
+    try { if (proj?.quote_id) { const { data } = await supabase.from('quotation_variations').select('total, status').eq('company_id', company.id).eq('quotation_id', proj.quote_id).eq('status', 'approved'); voList = data || [] } } catch (e) { /* VOs optional */ }
+    setProjVos(voList)
     // Purchase bills tagged to this project's client (counted in project cost)
     let pur = []
     try {
@@ -482,7 +487,9 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   const totalMaterials = materials.reduce((s, m) => s + (Number(m.est_cost) || 0), 0)
   const totalSubs = subs.reduce((s, x) => s + (Number(x.contract_amount) || 0), 0)
   const subsPaid = subs.reduce((s, x) => s + (Number(x.paid_amount) || 0), 0)
-  const value = Number(active?.contract_value) || 0
+  const voAdj = projVos.reduce((s, v) => s + (Number(v.total) || 0), 0)   // + additions / − omissions
+  const origValue = Number(active?.contract_value) || 0
+  const value = origValue + voAdj                                          // revised contract value
   const totalPurchases = purchases.reduce((s, x) => s + (Number(x.total) || 0), 0)
   const totalCost = totalSubs + totalExpenses + totalPurchases
   const margin = value - totalCost
@@ -682,14 +689,20 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
       </div>
 
       {/* budget summary */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px,1fr))', gap: 10, marginBottom: 16 }}>
-        <StatTile icon="ti-wallet" label="Contract value" value={AED(value)} color="#0099cc" />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px,1fr))', gap: 10, marginBottom: voAdj !== 0 ? 8 : 16 }}>
+        <StatTile icon="ti-wallet" label={voAdj !== 0 ? 'Contract (revised)' : 'Contract value'} value={AED(value)} color="#0099cc" />
         <StatTile icon="ti-users-group" label="Subcontractors" value={AED(totalSubs)} color="#8b5cf6" />
         <StatTile icon="ti-coin" label="Site expenses" value={AED(totalExpenses)} color="#f59e0b" />
         {totalPurchases > 0 && <StatTile icon="ti-shopping-cart" label="Purchases" value={AED(totalPurchases)} color="#9a3412" />}
         <StatTile icon="ti-receipt" label="Total cost" value={AED(totalCost)} color="#ef4444" />
         <StatTile icon={margin >= 0 ? 'ti-trending-up' : 'ti-trending-down'} label={margin >= 0 ? 'Profit' : 'Loss'} value={AED(Math.abs(margin)) + (value > 0 ? ` · ${marginPct}%` : '')} color={margin >= 0 ? '#22c55e' : '#ef4444'} />
       </div>
+      {voAdj !== 0 && (
+        <div style={{ ...card, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, fontSize: 12.5 }}>
+          <span style={{ color: 'var(--text2)' }}>Original {AED(origValue)} <span style={{ color: voAdj < 0 ? '#b45309' : '#0f6e56', fontWeight: 600 }}>{voAdj < 0 ? '−' : '+'} {AED(Math.abs(voAdj))} variations</span> = <b style={{ color: 'var(--text)' }}>{AED(value)} revised</b></span>
+          {active.quote_id && <button onClick={() => onNavigate && onNavigate('quotations')} className="btn btn-secondary btn-sm"><i className="ti ti-git-branch" /> Manage VOs</button>}
+        </div>
+      )}
 
       {/* live progress bars — work (from timeline) + payment (from invoices) */}
       <div style={{ ...card, marginBottom: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px,1fr))', gap: 16 }}>
