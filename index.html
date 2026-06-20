@@ -25,12 +25,27 @@
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
 
-    <!-- Register service worker (PWA) -->
+    <!-- Register service worker (PWA) — with auto-update so installed apps refresh -->
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', function () {
-          navigator.serviceWorker.register('/sw.js').catch(function () {})
-        })
+          // if an SW already controls this page, a future controller change means
+          // a new version activated → reload once to load the fresh app
+          var hadController = !!navigator.serviceWorker.controller;
+          var refreshing = false;
+          navigator.serviceWorker.addEventListener('controllerchange', function () {
+            if (refreshing || !hadController) return;
+            refreshing = true;
+            window.location.reload();
+          });
+          navigator.serviceWorker.register('/sw.js').then(function (reg) {
+            reg.update();                                   // check for a new SW now
+            setInterval(function () { reg.update(); }, 30 * 60 * 1000); // and every 30 min
+            document.addEventListener('visibilitychange', function () {
+              if (document.visibilityState === 'visible') reg.update();
+            });
+          }).catch(function () {});
+        });
       }
     </script>
   </body>
