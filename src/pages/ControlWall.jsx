@@ -12,7 +12,7 @@ import { supabase } from '../lib/supabase'
    ========================================================================= */
 
 const REFRESH_MS = 30000
-const BASE_W = 1600, BASE_H = 900
+const BASE_W = 1600, BASE_H = 1024   // taller to fit the AI Core hub without squeezing the rows
 
 /* ------------------------------ helpers -------------------------------- */
 const pick = (o, ks) => { for (const k of ks) if (o && o[k]!==undefined && o[k]!==null && o[k]!=='') return o[k]; return null }
@@ -170,12 +170,14 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme, e
 
   // Scale-to-fit based on the ACTUAL container size (works embedded + fullscreen)
   const [scale, setScale] = useState(1)
+  const [narrow, setNarrow] = useState(typeof window !== 'undefined' && window.innerWidth < 760)
   useEffect(() => {
     const fit = () => {
       const el = wrapRef.current
       const w = el ? el.clientWidth : window.innerWidth
       const h = el ? el.clientHeight : window.innerHeight
       setScale(Math.min(w/BASE_W, h/BASE_H))
+      setNarrow((w || window.innerWidth) < 760)
     }
     fit()
     let ro
@@ -335,14 +337,14 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme, e
   const C = isDark ? {
     page:'#070b16', card:'rgba(255,255,255,0.045)', card2:'rgba(255,255,255,0.07)', border:'rgba(255,255,255,0.10)', track:'rgba(255,255,255,0.09)',
     text:'#eaf2ff', text2:'#9fb0d0', text3:'#6b7a98', topbar:'rgba(255,255,255,0.04)',
-    glow:'radial-gradient(1100px 620px at 50% -8%, rgba(0,212,255,0.12), transparent 60%), radial-gradient(900px 620px at 93% 28%, rgba(139,92,246,0.12), transparent 55%), radial-gradient(820px 600px at 5% 88%, rgba(0,255,204,0.07), transparent 55%)',
+    glow:'radial-gradient(1200px 680px at 50% -10%, rgba(0,212,255,0.20), transparent 58%), radial-gradient(1000px 700px at 96% 22%, rgba(139,92,246,0.20), transparent 55%), radial-gradient(900px 640px at 3% 92%, rgba(0,255,204,0.12), transparent 55%), linear-gradient(180deg,#0a1226,#070b16 70%)',
   } : {
     page:'#eaf0f8', card:'rgba(255,255,255,0.80)', card2:'#f4f8fe', border:'rgba(12,32,64,0.10)', track:'#e9eef6',
     text:'#0b1530', text2:'#46587a', text3:'#7a8aa6', topbar:'rgba(255,255,255,0.75)',
-    glow:'radial-gradient(1100px 620px at 50% -8%, rgba(0,160,220,0.12), transparent 60%), radial-gradient(900px 620px at 93% 28%, rgba(139,92,246,0.08), transparent 55%)',
+    glow:'radial-gradient(1200px 680px at 50% -10%, rgba(0,160,220,0.16), transparent 58%), radial-gradient(1000px 700px at 96% 22%, rgba(139,92,246,0.12), transparent 55%), linear-gradient(180deg,#eef3fb,#e7edf6 70%)',
   }
   const G={green:'#22c55e',blue:'#3b82f6',purple:'#8b5cf6',amber:'#f59e0b',cyan:'#06b6d4',red:'#ef4444',pink:'#ec4899'}
-  const card={ background:C.card, border:`1px solid ${C.border}`, borderRadius:13, padding:'9px 11px', display:'flex', flexDirection:'column', minWidth:0, overflow:'hidden', backdropFilter:'blur(11px)', WebkitBackdropFilter:'blur(11px)' }
+  const card={ background: isDark ? 'linear-gradient(160deg, rgba(255,255,255,0.085), rgba(255,255,255,0.025))' : C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:'9px 11px', display:'flex', flexDirection:'column', minWidth:0, overflow:'hidden', backdropFilter:'blur(13px)', WebkitBackdropFilter:'blur(13px)', boxShadow: isDark ? '0 12px 34px -16px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.03) inset' : '0 10px 26px -16px rgba(12,32,64,0.22)' }
   const Title=({children,right})=>(<div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6, gap:6 }}><span style={{ fontSize:12, fontWeight:700, color:C.text, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{children}</span>{right}</div>)
   const delChip=v=>(<span style={{ fontSize:9.5, fontWeight:700, color:v>=0?G.green:G.red }}>{v>=0?'↑':'↓'} {Math.abs(v)}% <span style={{ color:C.text3, fontWeight:500 }}>30d</span></span>)
 
@@ -362,12 +364,12 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme, e
   )
 
   const stat = (icon,tint,label,value,delta,spark,sub) => (
-    <div style={{ ...card, padding:'8px 10px', justifyContent:'center' }}>
+    <div className="cw-card" style={{ ...card, padding:'8px 10px', justifyContent:'center' }}>
       <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:3 }}>
         <span style={{ width:26, height:26, borderRadius:7, background:tint+'26', color:tint, border:`1px solid ${tint}55`, boxShadow:`0 0 14px -3px ${tint}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><i className={`ti ${icon}`} style={{ fontSize:14 }}/></span>
         <span style={{ fontSize:10, color:C.text2, fontWeight:600, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{label}</span>
       </div>
-      <div style={{ fontSize:19, fontWeight:800, color:C.text, lineHeight:1.05, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{value}</div>
+      <div style={{ fontSize:19, fontWeight:800, color:tint, lineHeight:1.05, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', fontVariantNumeric:'tabular-nums' }}>{value}</div>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:4, marginTop:2 }}>
         {delta!=null ? delChip(delta) : <span style={{ fontSize:9.5, color:C.text3 }}>{sub}</span>}
         {spark && <Spark data={spark} color={tint} w={56} h={20}/>}
@@ -376,6 +378,85 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme, e
   )
 
   const heatColor=cnt=>{ if(cnt===0)return C.track; const r=cnt/d.heatMax; if(r>0.66)return G.red; if(r>0.33)return G.amber; return G.green }
+
+  // engine status pills orbiting the AI Core (the master hub)
+  const ENGINES=[
+    { name:'LEAD AI',    c:'#00D4FF', icon:'ti-users',        big:fmtN(d.stats.totalLeads),       sub:`${d.stats.conversion}% conv`,        page:'leads' },
+    { name:'REVENUE AI', c:'#8B5CF6', icon:'ti-file-invoice', big:fmtMoney(d.stats.collected),    sub:`${fmtMoney(d.stats.outstanding)} due`, page:'invoices' },
+    { name:'FINANCE AI', c:'#ffb020', icon:'ti-cash',         big:fmtMoney(d.stats.quotePipeline),sub:`${d.stats.approvedQ} approved`,       page:'ledger' },
+    { name:'PROJECT AI', c:'#00FFCC', icon:'ti-stack-2',      big:fmtN(d.stats.liveProjects),     sub:`${d.stats.atRiskProjects} at risk`,   page:'projects' },
+    { name:'GROWTH AI',  c:'#ec4899', icon:'ti-trending-up',  big:fmtN(d.stats.profileViews),     sub:`${d.stats.newReviews} new reviews`,   page:'analytics' },
+    { name:'TRUST AI',   c:'#22c55e', icon:'ti-shield-check', big:fmtN(Math.round(d.stats.trust)),sub:`${d.stats.avgRating}★ · ${d.stats.totalReviews}`, page:'trust' },
+  ]
+
+  // ---- MOBILE / NARROW: the 1600px wall is unreadable on phones → stacked, scrollable summary ----
+  if (narrow && !isFs) {
+    const mobBtn = { width:32, height:32, borderRadius:9, background:C.card2, border:`1px solid ${C.border}`, color:C.text2, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }
+    return (
+      <div ref={wrapRef} style={{ ...outerStyle, display:'block', alignItems:'stretch', justifyContent:'flex-start', overflowY:'auto' }}>
+        <style>{`@keyframes cwspin{to{transform:rotate(360deg)}}@keyframes cwfloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}@keyframes cwpulse{0%,100%{opacity:1}50%{opacity:.35}}`}</style>
+        <div style={{ minHeight:'100%', background:C.glow, padding:'14px 12px 26px', color:C.text, fontFamily:"'Inter',system-ui,sans-serif", boxSizing:'border-box' }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14, gap:8 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:9, minWidth:0 }}>
+              <div style={{ width:30, height:30, borderRadius:9, background:'linear-gradient(135deg,#00D4FF,#8B5CF6)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', boxShadow:'0 0 16px -3px #00D4FF', flexShrink:0 }}><i className="ti ti-brain" style={{ fontSize:17 }}/></div>
+              <div style={{ minWidth:0 }}><div style={{ fontSize:14, fontWeight:800, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{company?.name || 'My Business'}</div><div style={{ fontSize:9.5, color:C.text3 }}>Control Wall · Master</div></div>
+            </div>
+            <div style={{ display:'flex', gap:7, flexShrink:0 }}>
+              <button onClick={toggleFullscreen} title="Fullscreen" style={mobBtn}><i className="ti ti-maximize" style={{ fontSize:15 }}/></button>
+              <button onClick={toggleTheme} title="Theme" style={mobBtn}><i className={`ti ${isDark?'ti-sun':'ti-moon'}`} style={{ fontSize:15 }}/></button>
+              {!embedded && <button onClick={goBack} title="Back" style={mobBtn}><i className="ti ti-arrow-left" style={{ fontSize:15 }}/></button>}
+            </div>
+          </div>
+
+          <div style={{ ...card, alignItems:'center', textAlign:'center', padding:'18px 14px', marginBottom:12 }}>
+            <div style={{ position:'relative', width:104, height:104, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:10 }}>
+              <div style={{ position:'absolute', inset:0, margin:'auto', width:104, height:104, borderRadius:'50%', border:'1px dashed rgba(0,212,255,0.45)', animation:'cwspin 24s linear infinite' }}/>
+              <div style={{ position:'absolute', inset:0, margin:'auto', width:82, height:82, borderRadius:'50%', border:'1px solid rgba(139,92,246,0.45)', animation:'cwspin 36s linear infinite reverse' }}/>
+              <div style={{ width:68, height:68, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', background:'radial-gradient(circle at 50% 38%, rgba(0,212,255,0.5), rgba(139,92,246,0.3) 60%, transparent 75%)', boxShadow:'0 0 42px rgba(0,212,255,0.6), 0 0 80px rgba(139,92,246,0.4)', animation:'cwfloat 6s ease-in-out infinite' }}>
+                <div style={{ width:54, height:54, borderRadius:'50%', background:'radial-gradient(circle at 50% 38%,#0bd,#1b2b6b)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', boxShadow:'0 0 18px rgba(0,212,255,0.6) inset' }}>
+                  <div style={{ fontSize:19, fontWeight:800, color:'#eaf6ff', lineHeight:1 }}>{Math.round(d.stats.trust)}</div>
+                  <div style={{ fontSize:7, letterSpacing:1.5, color:'#bfe9ff', textTransform:'uppercase' }}>Core</div>
+                </div>
+              </div>
+            </div>
+            <div style={{ fontSize:12, fontWeight:800, letterSpacing:2, textTransform:'uppercase', background:'linear-gradient(100deg,#00D4FF,#00FFCC 55%,#8B5CF6)', WebkitBackgroundClip:'text', backgroundClip:'text', color:'transparent' }}>Quvera AI Core</div>
+            <div style={{ fontSize:11, color:C.text2, marginTop:3 }}>Master command — every engine, live</div>
+          </div>
+
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:9, marginBottom:12 }}>
+            {stat('ti-shield-check',G.green,'Trust Score',fmtN(Math.round(d.stats.trust)),null,null,'/ 100')}
+            {stat('ti-star-half-filled','#f59e0b','Avg. Rating',`${d.stats.avgRating}`,null,null,'/ 5')}
+            {stat('ti-star',G.amber,'Reviews',fmtN(d.stats.totalReviews),d.delta.reviews,d.spark.reviews)}
+            {stat('ti-eye',G.blue,'Profile Views',fmtN(d.stats.profileViews),null,null,'all time')}
+            {stat('ti-address-book',G.cyan,'Leads',fmtN(d.stats.totalLeads),d.delta.leads,d.spark.leads)}
+            {stat('ti-chart-line',G.blue,'Conversion',`${d.stats.conversion}%`,null,null,'won / total')}
+            {stat('ti-cash',G.green,'Collected',fmtMoney(d.stats.collected),null,null,'revenue')}
+            {stat('ti-clock-dollar',G.amber,'Outstanding',fmtMoney(d.stats.outstanding),null,null,'to collect')}
+            {stat('ti-file-invoice',G.purple,'Quote Pipeline',fmtMoney(d.stats.quotePipeline),null,null,`${d.stats.approvedQ} approved`)}
+            {stat('ti-stack-2',G.cyan,'Active Projects',fmtN(d.stats.liveProjects),null,null,`${d.stats.atRiskProjects} at risk`)}
+          </div>
+
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:9, marginBottom:14 }}>
+            {ENGINES.map((n,i)=>(
+              <div key={i} onClick={()=>n.page&&onNavigate&&onNavigate(n.page)} style={{ background:C.card2, border:`1px solid ${n.c}55`, boxShadow:`0 0 18px -10px ${n.c}`, borderRadius:12, padding:'11px 12px', display:'flex', flexDirection:'column', gap:4, cursor:'pointer', minWidth:0 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:7 }}>
+                  <span style={{ width:24, height:24, borderRadius:7, background:n.c+'22', color:n.c, border:`1px solid ${n.c}55`, boxShadow:`0 0 12px -3px ${n.c}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><i className={`ti ${n.icon}`} style={{ fontSize:13 }}/></span>
+                  <span style={{ fontSize:9.5, fontWeight:800, letterSpacing:0.4, color:n.c, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{n.name}</span>
+                </div>
+                <div style={{ fontSize:17, fontWeight:800, color:C.text, lineHeight:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{n.big}</div>
+                <div style={{ fontSize:9, color:C.text3, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{n.sub}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ fontSize:11, color:C.text2, textAlign:'center', lineHeight:1.5, padding:'4px 14px' }}>
+            <i className="ti ti-device-tv" style={{ fontSize:18, color:C.text3, display:'block', marginBottom:6 }}/>
+            The full war-room wall is built for large screens. Rotate to landscape or tap <b>Fullscreen</b> for the complete view.
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div ref={wrapRef} style={outerStyle}>
@@ -422,13 +503,51 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme, e
           {stat('ti-stack-2',G.cyan,'Active Projects',fmtN(d.stats.liveProjects),null,null,`${d.stats.atRiskProjects} at risk`)}
         </div>
 
+        {/* ====== AI CORE — MASTER HUB ====== */}
+        <style>{`@keyframes cwspin{to{transform:rotate(360deg)}}@keyframes cwfloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}@keyframes cwpulse{0%,100%{opacity:1}50%{opacity:.35}}
+          @property --cwang{syntax:'<angle>';initial-value:0deg;inherits:false}
+          .cw-card{position:relative;transition:transform .22s cubic-bezier(.2,.8,.2,1),box-shadow .22s ease}
+          .cw-card:hover{transform:scale(1.04);z-index:9;box-shadow:0 0 38px -6px rgba(0,212,255,0.55)}
+          .cw-card::after{content:'';position:absolute;inset:-1.5px;border-radius:inherit;padding:1.7px;pointer-events:none;background:conic-gradient(from var(--cwang),transparent 0deg,#00D4FF 45deg,#00FFCC 90deg,#8B5CF6 140deg,transparent 190deg,transparent 360deg);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);mask-composite:exclude;opacity:0;transition:opacity .25s}
+          .cw-card:hover::after{opacity:1;animation:cwedge 2.1s linear infinite}
+          @keyframes cwedge{to{--cwang:360deg}}`}</style>
+        <div style={{ flex:'0 0 106px', ...card, flexDirection:'row', alignItems:'center', gap:16, padding:'0 16px', overflow:'visible' }}>
+          <div style={{ position:'relative', width:90, height:90, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <div style={{ position:'absolute', inset:0, margin:'auto', width:90, height:90, borderRadius:'50%', border:'1px dashed rgba(0,212,255,0.45)', boxShadow:'0 0 22px -6px rgba(0,212,255,0.5)', animation:'cwspin 24s linear infinite' }}/>
+            <div style={{ position:'absolute', inset:0, margin:'auto', width:70, height:70, borderRadius:'50%', border:'1px solid rgba(139,92,246,0.45)', animation:'cwspin 36s linear infinite reverse' }}/>
+            <div style={{ width:58, height:58, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', background:'radial-gradient(circle at 50% 38%, rgba(0,212,255,0.5), rgba(139,92,246,0.3) 60%, transparent 75%)', boxShadow:'0 0 40px rgba(0,212,255,0.6), 0 0 76px rgba(139,92,246,0.4)', animation:'cwfloat 6s ease-in-out infinite' }}>
+              <div style={{ width:46, height:46, borderRadius:'50%', background:'radial-gradient(circle at 50% 38%,#0bd,#1b2b6b)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', boxShadow:'0 0 18px rgba(0,212,255,0.6) inset' }}>
+                <div style={{ fontSize:16, fontWeight:800, color:'#eaf6ff', lineHeight:1 }}>{Math.round(d.stats.trust)}</div>
+                <div style={{ fontSize:6, letterSpacing:1.5, color:'#bfe9ff', textTransform:'uppercase', marginTop:1 }}>Core</div>
+              </div>
+            </div>
+          </div>
+          <div style={{ flexShrink:0, minWidth:120 }}>
+            <div style={{ fontSize:11, fontWeight:800, letterSpacing:2, textTransform:'uppercase', background:'linear-gradient(100deg,#00D4FF,#00FFCC 55%,#8B5CF6)', WebkitBackgroundClip:'text', backgroundClip:'text', color:'transparent' }}>Quvera AI Core</div>
+            <div style={{ fontSize:12.5, fontWeight:700, color:C.text, marginTop:3 }}>Master command — every engine, live</div>
+            <div style={{ fontSize:9.5, color:C.text2, marginTop:3, display:'flex', alignItems:'center', gap:5 }}><span style={{ width:6, height:6, borderRadius:'50%', background:G.green, boxShadow:`0 0 8px ${G.green}`, animation:'cwpulse 1.8s infinite' }}/>All 6 engines online</div>
+          </div>
+          <div style={{ flex:1, display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:8, minWidth:0 }}>
+            {ENGINES.map((n,i)=>(
+              <div key={i} className="cw-card" onClick={()=>n.page&&onNavigate&&onNavigate(n.page)} style={{ background:C.card2, border:`1px solid ${n.c}55`, boxShadow:`0 0 18px -10px ${n.c}`, borderRadius:11, padding:'8px 9px', display:'flex', flexDirection:'column', gap:3, cursor:'pointer', minWidth:0 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                  <span style={{ width:22, height:22, borderRadius:7, background:n.c+'22', color:n.c, border:`1px solid ${n.c}55`, boxShadow:`0 0 12px -3px ${n.c}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><i className={`ti ${n.icon}`} style={{ fontSize:12 }}/></span>
+                  <span style={{ fontSize:8.5, fontWeight:800, letterSpacing:0.4, color:n.c, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{n.name}</span>
+                </div>
+                <div style={{ fontSize:15, fontWeight:800, color:C.text, lineHeight:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', fontVariantNumeric:'tabular-nums' }}>{n.big}</div>
+                <div style={{ fontSize:8, color:C.text3, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{n.sub}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* ROW 2 */}
         <div style={{ flex:'1.45', display:'grid', gridTemplateColumns:'1.7fr 1.2fr 1.25fr 1.2fr 1.25fr 1fr', gap:9, minHeight:0 }}>
-          <div style={card}>
+          <div className="cw-card" style={card}>
             <Title right={<span style={{ display:'flex', gap:9, fontSize:9.5 }}><span style={{ color:C.text2, display:'flex', alignItems:'center', gap:3 }}><span style={{ width:7, height:7, borderRadius:'50%', background:G.green }}/>Reviews</span><span style={{ color:C.text2, display:'flex', alignItems:'center', gap:3 }}><span style={{ width:7, height:7, borderRadius:'50%', background:G.purple }}/>Ratings</span></span>}>Reviews &amp; Ratings Overview</Title>
             <div style={{ flex:1, minHeight:0, display:'flex', alignItems:'center' }}><DualLine series={d.rTrend} c1={G.green} c2={G.purple} C={C} h={120}/></div>
           </div>
-          <div style={card}>
+          <div className="cw-card" style={card}>
             <Title>Review Sentiment</Title>
             {d.sentiment.length===0 ? <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:C.text3, fontSize:11 }}>No reviews yet</div> :
             <div style={{ flex:1, display:'flex', alignItems:'center', gap:8, minHeight:0 }}>
@@ -438,7 +557,7 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme, e
               </div>
             </div>}
           </div>
-          <div style={card}>
+          <div className="cw-card" style={card}>
             <Title right={<span style={{ fontSize:9.5, color:G.green, cursor:'pointer' }} onClick={()=>onNavigate&&onNavigate('reviews')}>View All</span>}>Recent Reviews</Title>
             <div style={{ flex:1, overflow:'hidden' }}>
               {d.recentReviews.length===0 ? <div style={{ color:C.text3, fontSize:11, textAlign:'center', padding:14 }}>No reviews yet</div> :
@@ -451,11 +570,11 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme, e
               ))}
             </div>
           </div>
-          <div style={card}>
+          <div className="cw-card" style={card}>
             <Title>Pipeline Funnel</Title>
             <div style={{ flex:1, minHeight:0 }}><Funnel stages={d.pipeline} C={C}/></div>
           </div>
-          <div style={card}>
+          <div className="cw-card" style={card}>
             <Title>Leads by Source</Title>
             <div style={{ flex:1, display:'flex', alignItems:'center', gap:8, minHeight:0 }}>
               <Donut segs={d.sources} total={d.stats.totalLeads} label="Total Leads" size={92} C={C}/>
@@ -482,11 +601,11 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme, e
 
         {/* ROW 3 */}
         <div style={{ flex:'1.4', display:'grid', gridTemplateColumns:'1.25fr 1.1fr 1.3fr 1.25fr 1.3fr 1.45fr', gap:9, minHeight:0 }}>
-          <div style={card}>
+          <div className="cw-card" style={card}>
             <Title right={<span style={{ fontSize:9, color:C.text3 }}>6 months</span>}>Reviews Growth</Title>
             <div style={{ flex:1, minHeight:0, display:'flex', alignItems:'flex-end' }}><VBars rows={d.months} C={C} h={104}/></div>
           </div>
-          <div style={card}>
+          <div className="cw-card" style={card}>
             <Title>Rating Distribution</Title>
             <div style={{ flex:1, display:'flex', flexDirection:'column', justifyContent:'center', gap:5 }}>
               {[5,4,3,2,1].map(star=>{ const v=d.dist[star]; const tot=d.stats.totalReviews||1; const col=star>=4?G.green:star===3?G.amber:G.red; return (
@@ -498,24 +617,24 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme, e
               )})}
             </div>
           </div>
-          <div style={card}>
+          <div className="cw-card" style={card}>
             <Title right={<span style={{ fontSize:9, color:G.green, display:'flex', alignItems:'center', gap:3 }}><span style={{ width:6, height:6, borderRadius:'50%', background:G.green }}/>Live</span>}>Recent Activity</Title>
             <div style={{ flex:1, overflow:'hidden' }}>
               {d.act.length===0 ? <div style={{ color:C.text3, fontSize:11, textAlign:'center', padding:14 }}>No activity</div> :
               d.act.map((a,i)=>(<div key={i} style={{ display:'flex', alignItems:'center', gap:7, padding:'3.5px 0' }}><span style={{ width:22, height:22, borderRadius:6, background:a.color+'22', color:a.color, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><i className={`ti ${a.icon}`} style={{ fontSize:12 }}/></span><span style={{ flex:1, fontSize:10, color:C.text2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{a.text}</span><span style={{ fontSize:9, color:C.text3, flexShrink:0 }}>{timeAgo(a.time)}</span></div>))}
             </div>
           </div>
-          <div style={card}>
+          <div className="cw-card" style={card}>
             <Title>Build Your Trust Score</Title>
             <div style={{ flex:1, display:'flex', flexDirection:'column', justifyContent:'center', gap:6 }}>
               {d.trustSteps.map((s,i)=>(<div key={i} style={{ display:'flex', alignItems:'center', gap:6, fontSize:10 }}><i className={`ti ${s.done?'ti-circle-check-filled':'ti-circle'}`} style={{ fontSize:13, color:s.done?G.green:C.text3, flexShrink:0 }}/><span style={{ flex:1, color:s.done?C.text2:C.text, textDecoration:s.done?'line-through':'none', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{s.label}</span></div>))}
             </div>
           </div>
-          <div style={card}>
+          <div className="cw-card" style={card}>
             <Title right={<span style={{ fontSize:9, color:C.text3 }}>30 Days</span>}>Leads Trend</Title>
             <div style={{ flex:1, minHeight:0, display:'flex', alignItems:'center' }}><DualLine series={d.trend} c1={G.purple} c2={G.purple} C={C} h={100}/></div>
           </div>
-          <div style={card}>
+          <div className="cw-card" style={card}>
             <Title>Follow-ups Heatmap</Title>
             <div style={{ flex:1, display:'flex', flexDirection:'column', gap:3, justifyContent:'center' }}>
               <div style={{ display:'grid', gridTemplateColumns:'34px repeat(7,1fr)', gap:3, fontSize:8, color:C.text3, textAlign:'center' }}><span/>{['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(x=><span key={x}>{x}</span>)}</div>
@@ -527,7 +646,7 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme, e
 
         {/* ROW 4 — Profile & Trust Health (7 rings) + Verification */}
         <div style={{ flex:'1.45', display:'grid', gridTemplateColumns:'1.85fr 1fr', gap:9, minHeight:0 }}>
-          <div style={card}>
+          <div className="cw-card" style={card}>
             <Title right={<span style={{ fontSize:9.5, color:C.text2, fontWeight:600 }}>{d.tierLabel}</span>}>Profile &amp; Trust Health</Title>
             <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'space-between', gap:4, minHeight:0 }}>
               <RingStat value={d.stats.trust}   color={d.stats.trust>=70?G.green:d.stats.trust>=40?G.amber:G.red} display={Math.round(d.stats.trust)} label="Trust Score" C={C}/>
@@ -539,7 +658,7 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme, e
               <RingStat value={d.avgScore} color={d.avgScore>=80?G.green:d.avgScore>=50?G.amber:G.cyan} display={d.avgScore} label="Lead Quality" C={C}/>
             </div>
           </div>
-          <div style={card}>
+          <div className="cw-card" style={card}>
             <Title right={<span style={{ fontSize:9.5, fontWeight:700, color:company?.is_verified?G.green:G.amber }}>{company?.is_verified?'Verified':'Not Verified'}</span>}>Verification Status</Title>
             <div style={{ flex:1, display:'flex', alignItems:'center', gap:12, minHeight:0 }}>
               <Ring value={d.verifPct} color={company?.is_verified?G.green:G.amber} size={66} C={C} sub="Verified"/>
@@ -562,28 +681,28 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme, e
 
         {/* ROW 5 — Score / Status / Category / Conversion */}
         <div style={{ flex:'1.35', display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:9, minHeight:0 }}>
-          <div style={card}>
+          <div className="cw-card" style={card}>
             <Title>AI Lead Score</Title>
             <div style={{ flex:1, display:'flex', alignItems:'center', gap:8, minHeight:0 }}>
               <Gauge value={d.avgScore} C={C}/>
               <div style={{ flex:1, display:'flex', flexDirection:'column', gap:4 }}>{d.scoreBuckets.map((b,i)=>(<div key={i} style={{ display:'flex', alignItems:'center', gap:5, fontSize:9.5 }}><span style={{ width:7, height:7, borderRadius:'50%', background:b.color, flexShrink:0 }}/><span style={{ flex:1, color:C.text2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{b.label}</span><span style={{ color:C.text, fontWeight:700 }}>{b.value}</span></div>))}</div>
             </div>
           </div>
-          <div style={card}>
+          <div className="cw-card" style={card}>
             <Title>Lead Status</Title>
             <div style={{ flex:1, display:'flex', alignItems:'center', gap:8, minHeight:0 }}>
               <Donut segs={d.statusDonut} total={d.stats.totalLeads} label="Total" size={92} C={C}/>
               <div style={{ flex:1, display:'flex', flexDirection:'column', gap:3, minWidth:0 }}>{d.statusDonut.map((s,i)=>(<div key={i} style={{ display:'flex', alignItems:'center', gap:4, fontSize:9.5 }}><span style={{ width:7, height:7, borderRadius:2, background:s.color, flexShrink:0 }}/><span style={{ flex:1, color:C.text2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{s.label}</span><span style={{ color:C.text, fontWeight:700 }}>{s.value}</span></div>))}</div>
             </div>
           </div>
-          <div style={card}>
+          <div className="cw-card" style={card}>
             <Title>Leads by Category</Title>
             <div style={{ flex:1, display:'flex', alignItems:'center', gap:8, minHeight:0 }}>
               <Donut segs={d.cats} total={d.stats.totalLeads} label="Total" size={92} C={C}/>
               <div style={{ flex:1, display:'flex', flexDirection:'column', gap:3, minWidth:0 }}>{d.cats.map((s,i)=>{ const sum=d.cats.reduce((a,x)=>a+x.value,0)||1; return (<div key={i} style={{ display:'flex', alignItems:'center', gap:4, fontSize:9.5 }}><span style={{ width:7, height:7, borderRadius:2, background:s.color, flexShrink:0 }}/><span style={{ flex:1, color:C.text2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{s.label}</span><span style={{ color:C.text, fontWeight:700 }}>{Math.round(s.value/sum*100)}%</span></div>) })}</div>
             </div>
           </div>
-          <div style={card}>
+          <div className="cw-card" style={card}>
             <Title>Conversion by Source</Title>
             <div style={{ flex:1, minHeight:0, display:'flex', alignItems:'flex-end' }}><VBars rows={d.convBySrc} C={C} h={104} suffix="%"/></div>
           </div>
@@ -592,7 +711,7 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme, e
         {/* ROW 6 — alerts + live feed */}
         <div style={{ flex:'1', display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr 2fr', gap:9, minHeight:0 }}>
           {[['ti-calendar-plus',G.green,'New Reviews',d.stats.newReviews,'last 30 days','reviews'],['ti-flame',G.amber,'Hot Leads',d.stats.hot,'priority leads','leads'],['ti-clock',G.purple,'Follow-ups Due',d.stats.followDue,'pending','leads'],['ti-trophy',G.blue,'Leads Won',d.stats.won,'closed deals','leads']].map(([ic,col,lab,val,sub,pg],i)=>(
-            <div key={i} onClick={()=>onNavigate&&onNavigate(pg)} style={{ ...card, justifyContent:'center', borderColor:col+'33', cursor:'pointer' }}>
+            <div key={i} className="cw-card" onClick={()=>onNavigate&&onNavigate(pg)} style={{ ...card, justifyContent:'center', borderColor:col+'33', cursor:'pointer' }}>
               <div style={{ display:'flex', alignItems:'center', gap:9 }}>
                 <span style={{ width:34, height:34, borderRadius:9, background:col+'1e', color:col, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><i className={`ti ${ic}`} style={{ fontSize:17 }}/></span>
                 <div><div style={{ fontSize:20, fontWeight:800, color:C.text, lineHeight:1 }}>{fmtN(val)}</div><div style={{ fontSize:9.5, color:C.text2, marginTop:2 }}>{lab}</div></div>
@@ -600,7 +719,7 @@ export default function ControlWall({ onBack, onNavigate, theme: initialTheme, e
               <div style={{ fontSize:9, color:col, fontWeight:600, marginTop:5 }}>{sub} →</div>
             </div>
           ))}
-          <div style={card}>
+          <div className="cw-card" style={card}>
             <Title right={<span style={{ fontSize:9, color:G.green, display:'flex', alignItems:'center', gap:3 }}><span style={{ width:6, height:6, borderRadius:'50%', background:G.green }}/>Live</span>}>Live Lead Feed</Title>
             <div style={{ flex:1, display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:7, overflow:'hidden' }}>
               {d.liveLeads.length===0 ? <div style={{ color:C.text3, fontSize:11, gridColumn:'1/-1', textAlign:'center', alignSelf:'center' }}>No recent leads</div> :
