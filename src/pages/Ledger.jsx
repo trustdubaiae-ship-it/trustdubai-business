@@ -103,6 +103,10 @@ export default function Ledger() {
   const [saving, setSaving]   = useState(false)
   const [hasTable, setHasTable] = useState(true)     // false until the migration is run
   const [flowSel, setFlowSel] = useState(null)       // { key, label, kind } — clicked candle bar drill-down
+  const [overheads, setOverheads] = useState([])     // company_overheads rows (TL fee, rent, utilities…)
+  const [teamSalary, setTeamSalary] = useState([])   // [{name, salary}] from team_members
+  const [ohOpen, setOhOpen] = useState(false)
+  const [ohForm, setOhForm] = useState({ name: '', category: 'Rent', amount: '', frequency: 'monthly' })
 
   useEffect(() => {
     if (company?.id) load()
@@ -142,6 +146,16 @@ export default function Ledger() {
       let entries = []
       const entRes = await supabase.from('ledger_entries').select('*').eq('company_id', company.id)
       if (entRes.error) setHasTable(false); else { entries = entRes.data || []; setHasTable(true) }
+
+      // company overheads + team salaries (best-effort — tables may not be migrated yet)
+      try {
+        const ohRes = await supabase.from('company_overheads').select('*').eq('company_id', company.id).order('created_at', { ascending: true })
+        setOverheads(ohRes.error ? [] : (ohRes.data || []))
+      } catch (e) { setOverheads([]) }
+      try {
+        const tmRes = await supabase.from('team_members').select('name, salary').eq('company_id', company.id)
+        setTeamSalary(tmRes.error ? [] : (tmRes.data || []).filter(t => Number(t.salary) > 0))
+      } catch (e) { setTeamSalary([]) }
 
       setTrn(tplRes.data?.trn_number || '')
       setClients((clRes.data || []).map(c => c.name).filter(Boolean))
@@ -232,6 +246,12 @@ export default function Ledger() {
   const expense = pRows.filter(r => r.kind === 'expense').reduce((s, r) => s + r.total, 0)
   const netCash = income - expense
 
+  // ---------- company overheads (recurring fixed costs) ----------
+  const ohMonthlyOf = o => (o.frequency === 'yearly' ? (Number(o.amount) || 0) / 12 : (Number(o.amount) || 0))
+  const ohItemsMonthly = overheads.reduce((s, o) => s + ohMonthlyOf(o), 0)
+  const salaryMonthly = teamSalary.reduce((s, t) => s + (Number(t.salary) || 0), 0)
+  const overheadMonthly = ohItemsMonthly + salaryMonthly   // total monthly company overhead
+
   // All-time running balance = money the company actually holds (ignores the period filter),
   // split by where it sits — cash in hand (petty cash) vs bank vs other methods.
   const allByMethod = {}
@@ -319,6 +339,25 @@ export default function Ledger() {
   }
 
   // ---------- actions ----------
+  async function saveOverhead() {
+    const amt = Number(ohForm.amount) || 0
+    if (!ohForm.name.trim()) { toast.error('Name is required'); return }
+    if (amt <= 0) { toast.error('Enter an amount'); return }
+    const { data, error } = await supabase.from('company_overheads').insert({
+      company_id: company.id, name: ohForm.name.trim(), category: ohForm.category, amount: amt, frequency: ohForm.frequency,
+    }).select()
+    if (error) { toast.error('Could not save: ' + error.message); return }
+    setOverheads(prev => [...prev, ...(data || [])])
+    setOhForm({ name: '', category: 'Rent', amount: '', frequency: 'monthly' }); setOhOpen(false)
+    toast.success('Overhead added')
+  }
+  async function deleteOverhead(o) {
+    if (!window.confirm(`Remove "${o.name}" from overheads?`)) return
+    const { error } = await supabase.from('company_overheads').delete().eq('id', o.id).eq('company_id', company.id)
+    if (error) { toast.error('Delete failed'); return }
+    setOverheads(prev => prev.filter(x => x.id !== o.id))
+  }
+
   function openAdd(kind, method) {
     // Expense bills are usually VAT-inclusive (you have the supplier's total);
     // sales you quote net + VAT. Default the amount type to match.
@@ -647,6 +686,52 @@ export default function Ledger() {
         </div>
       </div>
 
+      {/* Company Overheads */}
+      <div style={{ ...card, marginBottom: 14, borderLeft: '3px solid #7c3aed' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+          <div>
+            <span style={{ fontSize: 13.5, fontWeight: 700, color: text }}>Company Overheads <span style={{ fontWeight: 400, color: textMuted }}>· per month</span></span>
+            <div style={{ fontSize: 10.5, color: textMuted, marginTop: 2 }}>Fixed recurring costs — trade license, rent, utilities + team salaries</div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 20, fontWeight: 800, color: '#7c3aed' }}>{fmt(overheadMonthly)}</div>
+              <div style={{ fontSize: 10, color: textMuted }}>/ month{overheadMonthly > 0 ? ` · ${fmt(overheadMonthly * 12)} / yr` : ''}</div>
+            </div>
+            <button onClick={() => setOhOpen(true)} style={{ padding: '8px 13px', borderRadius: 9, border: 'none', background: '#7c3aed', color: '#fff', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}><i className="ti ti-plus" style={{ fontSize: 14 }} /> Add</button>
+          </div>
+        </div>
+        {(overheads.length === 0 && salaryMonthly === 0) ? (
+          <div style={{ fontSize: 12, color: textMuted, padding: '8px 0' }}>No overheads yet. Add trade license, rent, utilities… Team salaries pull in automatically from <b>Team Members</b>.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {overheads.map(o => (
+              <div key={o.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: `1px solid ${border}` }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: text }}>{o.name}</div>
+                  <div style={{ fontSize: 10.5, color: textMuted }}>{o.category || 'Other'} · {o.frequency === 'yearly' ? 'Yearly' : 'Monthly'}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: text }}>{fmt(ohMonthlyOf(o))}<span style={{ fontSize: 10, color: textMuted }}> /mo</span></div>
+                  {o.frequency === 'yearly' && <div style={{ fontSize: 9.5, color: textMuted }}>{fmt(o.amount)} /yr</div>}
+                </div>
+                <button onClick={() => deleteOverhead(o)} title="Remove" style={{ background: 'none', border: 'none', color: textMuted, cursor: 'pointer', fontSize: 15, padding: 4 }}><i className="ti ti-trash" /></button>
+              </div>
+            ))}
+            {salaryMonthly > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: `1px solid ${border}` }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: text }}>Team salaries <span style={{ fontSize: 10, color: '#0099cc' }}>· {teamSalary.length} {teamSalary.length === 1 ? 'member' : 'members'}</span></div>
+                  <div style={{ fontSize: 10.5, color: textMuted }}>From Team Members · Monthly</div>
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: text }}>{fmt(salaryMonthly)}<span style={{ fontSize: 10, color: textMuted }}> /mo</span></div>
+                <span style={{ width: 23 }} />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* VAT return panel */}
       <div style={{ ...card, marginBottom: 14, borderLeft: `3px solid #0099cc` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
@@ -815,6 +900,44 @@ export default function Ledger() {
           </div>
         )
       })()}
+
+      {/* Add overhead modal */}
+      {ohOpen && (
+        <div onClick={() => setOhOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: cardBg, borderRadius: 16, width: '100%', maxWidth: 420, border: `1px solid ${border}`, overflow: 'hidden' }}>
+            <div style={{ padding: '15px 18px', borderBottom: `1px solid ${border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: text }}>Add overhead</div>
+              <button onClick={() => setOhOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: textMuted, fontSize: 18 }}><i className="ti ti-x" /></button>
+            </div>
+            <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 11 }}>
+              <div>
+                <label style={{ fontSize: 11, color: textMuted, display: 'block', marginBottom: 3 }}>Name</label>
+                <input value={ohForm.name} onChange={e => setOhForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Trade License renewal" style={inputStyle} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: textMuted, display: 'block', marginBottom: 3 }}>Category</label>
+                  <select value={ohForm.category} onChange={e => setOhForm(f => ({ ...f, category: e.target.value }))} style={inputStyle}>
+                    {['Trade License', 'Rent', 'Utilities', 'Insurance', 'Marketing', 'Software', 'Transport', 'Other'].map(c => <option key={c} value={c} style={{ background: inputBg, color: text }}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: textMuted, display: 'block', marginBottom: 3 }}>Frequency</label>
+                  <select value={ohForm.frequency} onChange={e => setOhForm(f => ({ ...f, frequency: e.target.value }))} style={inputStyle}>
+                    <option value="monthly" style={{ background: inputBg, color: text }}>Monthly</option>
+                    <option value="yearly" style={{ background: inputBg, color: text }}>Yearly</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: 11, color: textMuted, display: 'block', marginBottom: 3 }}>Amount (AED) · {ohForm.frequency}</label>
+                <input type="number" value={ohForm.amount} onChange={e => setOhForm(f => ({ ...f, amount: e.target.value }))} placeholder="e.g. 4000" style={inputStyle} />
+              </div>
+              <button onClick={saveOverhead} style={{ width: '100%', padding: 12, borderRadius: 9, border: 'none', background: '#7c3aed', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Add overhead</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add / Edit modal */}
       {modalOpen && (

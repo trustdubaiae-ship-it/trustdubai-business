@@ -182,6 +182,7 @@ function MemberForm({ company, member, onClose, onSaved }) {
   const [memberType, setMemberType] = useState(member?.member_type || 'professional')
   const [bio, setBio] = useState(member?.bio || '')
   const [exp, setExp] = useState(member?.experience_years || 0)
+  const [salary, setSalary] = useState(member?.salary ?? '')
   const [eidNumber, setEidNumber] = useState(member?.eid_number || '')
   const [eidExpiry, setEidExpiry] = useState(member?.eid_expiry || '')
   const [photoUrl, setPhotoUrl] = useState(member?.photo_url || '')
@@ -245,6 +246,7 @@ function MemberForm({ company, member, onClose, onSaved }) {
       member_type: memberType,
       bio: bio.trim() || null,
       experience_years: parseInt(exp) || 0,
+      salary: salary === '' ? null : Number(salary) || 0,
       eid_number: formatEid(eidNumber),
       eid_expiry: eidExpiry,
       photo_url: photoUrl || null,
@@ -307,6 +309,9 @@ function MemberForm({ company, member, onClose, onSaved }) {
 
         <label style={lbl}>Experience (years)</label>
         <input type="number" min="0" value={exp} onChange={e => setExp(e.target.value)} style={inp} />
+
+        <label style={lbl}>Monthly salary (AED)</label>
+        <input type="number" min="0" value={salary} onChange={e => setSalary(e.target.value)} placeholder="e.g. 5000 — feeds Company Overheads" style={inp} />
 
         <label style={lbl}>Emirates ID Number *</label>
         <input value={eidNumber} onChange={e => setEidNumber(formatEid(e.target.value))} placeholder="784-XXXX-XXXXXXX-X" inputMode="numeric" style={inp} />
