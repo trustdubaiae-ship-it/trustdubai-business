@@ -818,6 +818,37 @@ export default function LeadsPage() {
     return { label: 'Manual', color: '#8b5cf6', bg: 'rgba(139,92,246,0.14)' }
   }
 
+  // Save the lead to the phone's contacts via a vCard (.vcf) — tapping it on a
+  // phone opens the native "Add contact" screen.
+  function addToContacts(lead) {
+    const name = (lead.name || 'Lead').trim()
+    const phone = (lead.phone || '').trim()
+    const wa = (lead.answers?.['WhatsApp'] || lead.answers?.whatsapp || '').trim()
+    const email = (lead.email || lead.answers?.['Email'] || '').trim()
+    if (!phone && !wa && !email) { toast.error('No phone or email to save'); return }
+    const note = [lead.answers?.['Project Type'], lead.answers?.['Location'], lead.answers?.['Budget (AED)'] && 'AED ' + lead.answers?.['Budget (AED)'], 'via Quvera']
+      .filter(Boolean).join(' · ').replace(/[,;\\]/g, ' ')
+    const esc = s => String(s || '').replace(/[,;\\]/g, ' ').trim()
+    const vcard = [
+      'BEGIN:VCARD', 'VERSION:3.0',
+      `FN:${esc(name)}`, `N:${esc(name)};;;;`,
+      phone ? `TEL;TYPE=CELL:${phone}` : '',
+      wa && wa !== phone ? `TEL;TYPE=CELL,VOICE:${wa}` : '',
+      email ? `EMAIL;TYPE=INTERNET:${email}` : '',
+      note ? `NOTE:${note}` : '',
+      'END:VCARD',
+    ].filter(Boolean).join('\r\n')
+    try {
+      const blob = new Blob([vcard], { type: 'text/vcard;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = `${name.replace(/[^\w\s-]/g, '').trim() || 'contact'}.vcf`
+      document.body.appendChild(a); a.click()
+      setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url) }, 200)
+      toast.success('Contact card ready — open it to save')
+    } catch (e) { toast.error('Could not create contact') }
+  }
+
   // ---- SLA (response window) — REAL, from assigned_at + 12h reassign rule ----
   function slaInfo(lead) {
     // only meaningful for platform leads not yet acted on (still "new")
@@ -1324,6 +1355,7 @@ export default function LeadsPage() {
             {lead.phone && <a href={waMsg(lead)} target="_blank" rel="noreferrer" style={{ flex: 1, textAlign: 'center', fontSize: 11, padding: 8, borderRadius: 8, background: 'rgba(34,197,94,0.14)', color: '#0f7a52', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><i className="ti ti-brand-whatsapp" style={{ fontSize: 15 }} />WhatsApp</a>}
             {lead.phone && <a href={'tel:' + lead.phone} style={{ flex: 1, textAlign: 'center', fontSize: 11, padding: 8, borderRadius: 8, background: 'rgba(8,145,178,0.14)', color: '#0077a3', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><i className="ti ti-phone" style={{ fontSize: 15 }} />Call</a>}
             {lead.email && <a href={'mailto:' + lead.email} style={{ flex: 1, textAlign: 'center', fontSize: 11, padding: 8, borderRadius: 8, background: 'var(--bg2)', color: 'var(--text2)', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><i className="ti ti-mail" style={{ fontSize: 15 }} />Email</a>}
+            {(lead.phone || lead.email) && <button onClick={() => addToContacts(lead)} title="Save to phone contacts" style={{ flex: 1, fontSize: 11, padding: 8, borderRadius: 8, background: 'rgba(139,92,246,0.14)', color: '#7c3aed', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><i className="ti ti-user-plus" style={{ fontSize: 15 }} />Save Contact</button>}
           </div>
 
           <button onClick={() => createQuoteFromLead(lead)} disabled={creatingQuote}
