@@ -325,9 +325,10 @@ export default function DashboardPage({ onNavigate, theme }) {
 
   const go = (id) => onNavigate && onNavigate(id)
 
-  /* ---------------- mobile tile launcher (disabled: Command Center now shows the
-     scaled cockpit on every device; the launcher still lives on the All Features page) ---------------- */
-  if (false) {
+  /* ---------------- mobile tile launcher — the cockpit is a fixed no-scroll
+     desktop layout that overlaps on phones, so on mobile show this clean,
+     scrollable launcher instead ---------------- */
+  if (mobile) {
     // Theme-aware (follows the 555 shell light/dark) — greeting now lives in the global hero.
     const MC = { card:'var(--card)', border:'var(--border)', text:'var(--text)', text2:'var(--text2)', text3:'var(--text3)', row:'var(--bg2)', green:'#22c55e', cyan:'#06b6d4', gold:'#f59e0b', shadow:'var(--shadow)' }
     return (
@@ -342,7 +343,7 @@ export default function DashboardPage({ onNavigate, theme }) {
           ))}
         </div>
         <div style={{ display:'flex', gap:8, marginBottom:18 }}>
-          <button onClick={()=>go('dashboard')} style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:6, background:'transparent', color:MC.text, border:`1px solid ${MC.border}`, borderRadius:10, padding:'10px', fontSize:13, fontWeight:600 }}><i className="ti ti-layout-dashboard" style={{ color:MC.green }}/> Command Center</button>
+          <button onClick={()=>go('menu')} style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:6, background:'transparent', color:MC.text, border:`1px solid ${MC.border}`, borderRadius:10, padding:'10px', fontSize:13, fontWeight:600 }}><i className="ti ti-layout-grid" style={{ color:MC.green }}/> All Features</button>
           <button onClick={()=>{ setShareOpen(true); setCopied(false) }} style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:6, background:'transparent', color:MC.text, border:`1px solid ${MC.border}`, borderRadius:10, padding:'10px', fontSize:13, fontWeight:600 }}><i className="ti ti-qrcode" style={{ color:MC.green }}/> Share Profile</button>
         </div>
         {mobileGroups.map((g, gi) => (

@@ -439,7 +439,7 @@ function Portal() {
         open={sidebarOpen}
       />
 
-      <main className={`main${activePage==='dashboard' ? ' os-fixed' : ''}`} style={{ background: pageBg }}>
+      <main className={`main${activePage==='dashboard' && !mobile ? ' os-fixed' : ''}`} style={{ background: pageBg }}>
 
         <header className="os-hero">
           <div className="os-hero-skyline" aria-hidden="true"/>
@@ -537,7 +537,7 @@ function Portal() {
           </div>
         </header>
 
-        <div className={`page-content${activePage==='dashboard' ? ' page-content--flush' : ''}`}>
+        <div className={`page-content${activePage==='dashboard' && !mobile ? ' page-content--flush' : ''}`}>
           {ReviewBanner}
           {mainContent}
         </div>
