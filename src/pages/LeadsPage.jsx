@@ -957,6 +957,7 @@ export default function LeadsPage() {
     const proj = lead.answers?.['Project Type'] || lead.answers?.category || ''
     const budget = lead.answers?.['Budget (AED)'] || lead.answers?.budget || ''
     const isClosed = ['won','lost'].includes(lead.status)
+    const isWon = lead.status === 'won'
     const dimCard = ['proposal_given','won','lost'].includes(lead.status)  // quoted/won/lost → dim the card
     const callNo = callNumber(lead)
     const waNo = waNumber(lead)
@@ -1005,7 +1006,9 @@ export default function LeadsPage() {
       : { label: 'Set a follow-up', color: '#e2b25f', icon: 'ti-calendar-plus' }
     // Info rows (icon · label · value)
     const infoRows = [
-      { icon: 'ti-sparkles', tint: ring.color, label: ring.label === 'SLA' ? 'Response left' : 'Lead score', value: ring.val + '%', vColor: ring.color },
+      isWon
+        ? { icon: 'ti-trophy', tint: '#f59e0b', label: 'Status', value: 'Won 🏆', vColor: '#b45309' }
+        : { icon: 'ti-sparkles', tint: ring.color, label: ring.label === 'SLA' ? 'Response left' : 'Lead score', value: ring.val + '%', vColor: ring.color },
       budgetTxt && { icon: 'ti-coin', tint: '#34d399', label: 'Budget', value: budgetTxt },
       { icon: 'ti-arrow-up-right', tint: '#60a5fa', label: 'Source', value: lead.isPlatform ? 'Quvera · #' + lead.rank : mySourceBadge(lead).label },
     ].filter(Boolean)
@@ -1035,6 +1038,13 @@ export default function LeadsPage() {
         {/* name + score ring */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ flex: 1, minWidth: 0, fontSize: 18, fontWeight: 800, color: D.text, lineHeight: 1.18, letterSpacing: '-.2px', wordBreak: 'break-word' }}>{lead.name || 'Anonymous'}</div>
+          {isWon ? (
+            /* Won → a gold crown badge instead of the score ring */
+            <div style={{ position: 'relative', width: 56, height: 56, flexShrink: 0, borderRadius: '50%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, background: 'radial-gradient(circle at 50% 35%, rgba(245,158,11,0.28), rgba(245,158,11,0.10))', border: '1.5px solid rgba(245,158,11,0.55)', boxShadow: '0 3px 12px rgba(245,158,11,0.3)' }}>
+              <i className="ti ti-crown" style={{ fontSize: 22, color: '#f59e0b', filter: 'drop-shadow(0 1px 2px rgba(180,83,9,0.4))' }} />
+              <span style={{ fontSize: 7, fontWeight: 800, color: '#b45309', letterSpacing: '.5px' }}>WON</span>
+            </div>
+          ) : (
           <div style={{ position: 'relative', width: 56, height: 56, flexShrink: 0 }}>
             <svg width="56" height="56" style={{ transform: 'rotate(-90deg)' }}>
               <circle cx="28" cy="28" r="22" fill="none" stroke="var(--border)" strokeWidth="4" />
@@ -1046,6 +1056,7 @@ export default function LeadsPage() {
               <span style={{ fontSize: 7, fontWeight: 700, color: ring.color, letterSpacing: '.4px', marginTop: 1 }}>{ring.label}</span>
             </div>
           </div>
+          )}
         </div>
 
         {/* project + location */}
