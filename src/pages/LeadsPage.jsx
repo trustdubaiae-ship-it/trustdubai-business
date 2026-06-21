@@ -838,7 +838,21 @@ export default function LeadsPage() {
       note ? `NOTE:${note}` : '',
       'END:VCARD',
     ].filter(Boolean).join('\r\n')
+    // iOS (iPhone/iPad) ignores the download attribute on a blob and just pops a
+    // share sheet. Opening a data: vCard instead makes Safari show the native
+    // "Add Contact" preview directly. Use the blob download elsewhere (desktop/Android).
+    const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
     try {
+      if (isIOS) {
+        const dataUrl = 'data:text/vcard;charset=utf-8,' + encodeURIComponent(vcard)
+        const a = document.createElement('a')
+        a.href = dataUrl; a.target = '_blank'; a.rel = 'noopener'
+        document.body.appendChild(a); a.click()
+        setTimeout(() => document.body.removeChild(a), 200)
+        toast.success('Opening contact — tap "Create New Contact"')
+        return
+      }
       const blob = new Blob([vcard], { type: 'text/vcard;charset=utf-8' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -943,6 +957,7 @@ export default function LeadsPage() {
     const proj = lead.answers?.['Project Type'] || lead.answers?.category || ''
     const budget = lead.answers?.['Budget (AED)'] || lead.answers?.budget || ''
     const isClosed = ['won','lost'].includes(lead.status)
+    const quoted = lead.status === 'proposal_given'  // already got a quotation → dim the card
     const callNo = callNumber(lead)
     const waNo = waNumber(lead)
     const canMove = !isClosed
@@ -1002,7 +1017,7 @@ export default function LeadsPage() {
         onDragEnd={draggable ? () => setDragId(null) : undefined}
         onClick={() => openModal(lead)}
         className="lead-kard"
-        style={{ position: 'relative', background: `radial-gradient(135% 90% at 50% -12%, ${temp.color}24, transparent 55%), var(--card)`, border: '1px solid var(--border)', borderRadius: 18, padding: 14, marginBottom: 10, cursor: 'pointer', color: 'var(--text)', boxShadow: 'var(--shadow-md)' }}
+        style={{ position: 'relative', background: `radial-gradient(135% 90% at 50% -12%, ${temp.color}24, transparent 55%), var(--card)`, border: '1px solid var(--border)', borderRadius: 18, padding: 14, marginBottom: 10, cursor: 'pointer', color: 'var(--text)', boxShadow: 'var(--shadow-md)', opacity: quoted ? 0.62 : 1 }}
       >
         {/* top bar: HOT/temperature + menu/rank */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 11 }}>
@@ -1358,10 +1373,16 @@ export default function LeadsPage() {
             {(lead.phone || lead.email) && <button onClick={() => addToContacts(lead)} title="Save to phone contacts" style={{ flex: 1, fontSize: 11, padding: 8, borderRadius: 8, background: 'rgba(139,92,246,0.14)', color: '#7c3aed', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><i className="ti ti-user-plus" style={{ fontSize: 15 }} />Save Contact</button>}
           </div>
 
-          <button onClick={() => createQuoteFromLead(lead)} disabled={creatingQuote}
-            style={{ width: '100%', padding: '11px', borderRadius: 9, background: '#0099cc', color: '#fff', border: 'none', cursor: creatingQuote ? 'default' : 'pointer', fontSize: 13, fontWeight: 600, marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, opacity: creatingQuote ? 0.7 : 1 }}>
-            <i className="ti ti-file-invoice" style={{ fontSize: 16 }} /> {creatingQuote ? 'Preparing...' : 'Create Quotation for this lead'}
-          </button>
+          {(() => {
+            const alreadyQuoted = ['proposal_given', 'won'].includes(lead.status)  // quotation already given → grey out, but still allow a re-quote
+            return (
+              <button onClick={() => createQuoteFromLead(lead)} disabled={creatingQuote}
+                title={alreadyQuoted ? 'Quotation already sent — tap to create another' : 'Create a quotation for this lead'}
+                style={{ width: '100%', padding: '11px', borderRadius: 9, background: alreadyQuoted ? 'var(--bg2)' : '#0099cc', color: alreadyQuoted ? 'var(--text3)' : '#fff', border: alreadyQuoted ? '0.5px solid var(--border)' : 'none', cursor: creatingQuote ? 'default' : 'pointer', fontSize: 13, fontWeight: 600, marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, opacity: creatingQuote ? 0.7 : 1 }}>
+                <i className={'ti ' + (alreadyQuoted ? 'ti-file-check' : 'ti-file-invoice')} style={{ fontSize: 16 }} /> {creatingQuote ? 'Preparing...' : alreadyQuoted ? 'Quotation already sent — create another?' : 'Create Quotation for this lead'}
+              </button>
+            )
+          })()}
 
           {meetingForm == null ? (
             <button onClick={() => setMeetingForm(lead.nextMeeting

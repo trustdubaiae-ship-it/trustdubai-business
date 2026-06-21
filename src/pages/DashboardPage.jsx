@@ -193,7 +193,7 @@ export default function DashboardPage({ onNavigate, theme }) {
   const [d, setD] = useState({
     health:0, aiScore:0, pipeline:0, liveProjects:0, aiActions:0,
     leads:0, activeLeads:0, hot:0, newToday:0, qualified:0, won:0, winRate:0, followDue:0,
-    quotes:0, approved:0, conversion:0, quotePipeline:0, pendingQuotes:0,
+    quotes:0, approved:0, approvedAmount:0, conversion:0, quotePipeline:0, pendingQuotes:0,
     projects:0, onTrack:0, atRisk:0, health_proj:0,
     revenue:0, profit:0, outstanding:0,
     trust:0, reviews:0, avgRating:'0.0', verified:false,
@@ -201,6 +201,11 @@ export default function DashboardPage({ onNavigate, theme }) {
   })
   const [activity, setActivity] = useState([])
   const [priorities, setPriorities] = useState([])
+  // privacy: hide money figures (eye toggle) so amounts can be kept private on screen
+  const [hideMoney, setHideMoney] = useState(() => { try { return localStorage.getItem('td_hide_money') === '1' } catch { return false } })
+  const toggleHideMoney = (e) => { e?.stopPropagation?.(); setHideMoney(v => { const nv = !v; try { localStorage.setItem('td_hide_money', nv ? '1' : '0') } catch {} return nv }) }
+  // mask an already-formatted amount string when privacy is on
+  const money = (txt) => hideMoney ? 'AED ••••••' : txt
 
   useEffect(() => { if (company) fetchAll() }, [company])
 
@@ -248,6 +253,8 @@ export default function DashboardPage({ onNavigate, theme }) {
       const pendingQuotes = quotes.filter(q=>/sent|pending/.test(norm(q.status))).length
       const conversion = quoteCount ? Math.round(approved/quoteCount*100) : 0
       const quotePipeline = quotes.filter(q=>!/reject/.test(norm(q.status))).reduce((s,q)=>s+num(q.total),0)
+      // approved value = total of quotations the client has approved (the real, committed pipeline)
+      const approvedAmount = quotes.filter(q=>norm(q.status)==='approved').reduce((s,q)=>s+num(q.total),0)
 
       /* Invoices / finance — cancelled & on-hold invoices don't count toward revenue/outstanding */
       const sumPay = iv => (Array.isArray(iv.payments)?iv.payments:[]).reduce((a,x)=>a+num(x.amount),0)
@@ -270,9 +277,9 @@ export default function DashboardPage({ onNavigate, theme }) {
       const aiActions = followDue + pendingQuotes + atRisk + (outstanding>0?1:0)
 
       setD({
-        health, aiScore, pipeline: quotePipeline, liveProjects, aiActions,
+        health, aiScore, pipeline: approvedAmount, liveProjects, aiActions,
         leads: totalLeads, activeLeads, hot, newToday, qualified, won, winRate, followDue,
-        quotes: quoteCount, approved, conversion, quotePipeline, pendingQuotes,
+        quotes: quoteCount, approved, approvedAmount, conversion, quotePipeline, pendingQuotes,
         projects: liveProjects, onTrack, atRisk, health_proj: projHealth,
         revenue, profit, outstanding,
         trust: Math.round(trust), reviews: reviews.length, avgRating: avg, verified,
@@ -383,7 +390,7 @@ export default function DashboardPage({ onNavigate, theme }) {
   const KPIS = [
     { k:'Business Health',    v:d.health,  suffix:'%', icon:'ti-heartbeat',      c:'#ec4899', page:'analytics' },
     { k:'AI Score',           v:d.aiScore, suffix:'',  icon:'ti-brain',          c:'#00FFCC', page:'analytics' },
-    { k:'Revenue Pipeline',   raw:fmtAED(d.pipeline),  icon:'ti-database',       c:'#8B5CF6', page:'quotations' },
+    { k:'Approved Value',     raw:money(fmtAED(d.pipeline)), icon:'ti-database',  c:'#8B5CF6', page:'quotations', eye:true },
     { k:'Projects Active',    v:d.liveProjects,        icon:'ti-folders',        c:'#ffb020', page:'projects' },
     { k:'AI Recommendations', v:d.aiActions,           icon:'ti-bulb',           c:'#00D4FF', page:'organizer' },
   ]
@@ -409,11 +416,11 @@ export default function DashboardPage({ onNavigate, theme }) {
     { name:'LEAD INTELLIGENCE', c:'#00D4FF', icon:'ti-bolt', big:d.activeLeads, label:'Active Leads', page:'leadengine', open:'Open Lead Hub',
       rows:[['Hot Leads',d.hot],['New Today',d.newToday],['Qualified',d.qualified],['Won',d.won]] },
     { name:'REVENUE ENGINE', c:'#8B5CF6', icon:'ti-file-invoice', big:d.quotes, label:'Quotations', page:'quotations', open:'Open Quotations',
-      rows:[['Approved',d.approved],['Conversion',`${d.conversion}%`],['Pending',d.pendingQuotes],['Pipeline',fmtAED(d.quotePipeline)]] },
+      rows:[['Approved',d.approved],['Conversion',`${d.conversion}%`],['Pending',d.pendingQuotes],['Pipeline',money(fmtAED(d.quotePipeline))]] },
     { name:'PROJECT INTELLIGENCE', c:'#00FFCC', icon:'ti-stack-2', big:d.projects, label:'Active Projects', page:'projects', open:'Open Projects',
       rows:[['On Track',d.onTrack],['At Risk',d.atRisk],['Health',`${d.health_proj}%`]] },
-    { name:'FINANCE INTELLIGENCE', c:'#22c55e', icon:'ti-chart-line', bigRaw:fmtAED(d.revenue), label:'Collected Revenue', page:'ledger', open:'Open Ledger',
-      rows:[['Profit',fmtAED(d.profit)],['Outstanding',fmtAED(d.outstanding)],['VAT','Ready']] },
+    { name:'FINANCE INTELLIGENCE', c:'#22c55e', icon:'ti-chart-line', bigRaw:money(fmtAED(d.revenue)), label:'Collected Revenue', page:'ledger', open:'Open Ledger',
+      rows:[['Profit',money(fmtAED(d.profit))],['Outstanding',money(fmtAED(d.outstanding))],['VAT','Ready']] },
     { name:'REPUTATION ENGINE', c:'#ec4899', icon:'ti-star', big:d.trust, bigSuffix:'/100', label:'Trust Score', page:'trust', open:'Open Reviews',
       rows:[['Reviews',d.reviews],['Rating',d.avgRating],['Verified',d.verified?'✓':'—']] },
   ]
@@ -458,12 +465,18 @@ export default function DashboardPage({ onNavigate, theme }) {
           {/* KPI TILES */}
           <div className="qc-kpis" style={{ marginTop:0 }}>
             {KPIS.map((s,i)=>(
-              <div key={i} className="qc-kpi" onClick={()=>s.page&&go(s.page)} style={{ '--c':s.c }}>
+              <div key={i} className="qc-kpi" onClick={()=>s.page&&go(s.page)} style={{ '--c':s.c, position:'relative' }}>
                 <div className="qc-kpi-ic"><i className={`ti ${s.icon}`}/></div>
                 <div style={{ minWidth:0 }}>
                   <div className="qc-kpi-k">{s.k}</div>
                   <div className="qc-kpi-v">{s.raw ? s.raw : <><AnimatedNumber value={s.v}/>{s.suffix}</>}</div>
                 </div>
+                {s.eye && (
+                  <button onClick={toggleHideMoney} title={hideMoney ? 'Show amount' : 'Hide amount'}
+                    style={{ position:'absolute', top:8, right:8, width:24, height:24, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border:'none', background:'transparent', color:'var(--qc-text2)', cursor:'pointer', opacity:0.7, fontSize:14 }}>
+                    <i className={`ti ${hideMoney ? 'ti-eye-off' : 'ti-eye'}`}/>
+                  </button>
+                )}
               </div>
             ))}
           </div>
