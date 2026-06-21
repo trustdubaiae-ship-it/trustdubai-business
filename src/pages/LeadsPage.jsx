@@ -957,7 +957,7 @@ export default function LeadsPage() {
     const proj = lead.answers?.['Project Type'] || lead.answers?.category || ''
     const budget = lead.answers?.['Budget (AED)'] || lead.answers?.budget || ''
     const isClosed = ['won','lost'].includes(lead.status)
-    const quoted = lead.status === 'proposal_given'  // already got a quotation → dim the card
+    const dimCard = ['proposal_given','won','lost'].includes(lead.status)  // quoted/won/lost → dim the card
     const callNo = callNumber(lead)
     const waNo = waNumber(lead)
     const canMove = !isClosed
@@ -1017,21 +1017,13 @@ export default function LeadsPage() {
         onDragEnd={draggable ? () => setDragId(null) : undefined}
         onClick={() => openModal(lead)}
         className="lead-kard"
-        style={{ position: 'relative', background: `radial-gradient(135% 90% at 50% -12%, ${temp.color}24, transparent 55%), var(--card)`, border: '1px solid var(--border)', borderRadius: 18, padding: 14, marginBottom: 10, cursor: 'pointer', color: 'var(--text)', boxShadow: 'var(--shadow-md)', opacity: quoted ? 0.55 : 1, filter: quoted ? 'grayscale(0.85)' : 'none' }}
+        style={{ position: 'relative', background: `radial-gradient(135% 90% at 50% -12%, ${temp.color}24, transparent 55%), var(--card)`, border: '1px solid var(--border)', borderRadius: 18, padding: 14, marginBottom: 10, cursor: 'pointer', color: 'var(--text)', boxShadow: 'var(--shadow-md)', opacity: dimCard ? 0.62 : 1 }}
       >
         {/* top bar: HOT/temperature + menu/rank */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 11 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-            <span style={{ fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 99, background: temp.color, color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 4, textTransform: 'uppercase', letterSpacing: '.4px', boxShadow: `0 3px 10px ${temp.color}59` }}>
-              <i className="ti ti-flame" style={{ fontSize: 12 }} /> {temp.label}
-            </span>
-            {/* already-quoted → "Quoted" tag so it reads as "done" at a glance */}
-            {quoted && (
-              <span style={{ fontSize: 9.5, fontWeight: 800, padding: '4px 9px', borderRadius: 99, background: 'rgba(245,158,11,0.2)', color: '#b45309', display: 'inline-flex', alignItems: 'center', gap: 3, textTransform: 'uppercase', letterSpacing: '.4px' }}>
-                <i className="ti ti-file-check" style={{ fontSize: 11 }} /> Quoted
-              </span>
-            )}
-          </div>
+          <span style={{ fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 99, background: temp.color, color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 4, textTransform: 'uppercase', letterSpacing: '.4px', boxShadow: `0 3px 10px ${temp.color}59` }}>
+            <i className="ti ti-flame" style={{ fontSize: 12 }} /> {temp.label}
+          </span>
           {!lead.isPlatform
             ? <button onClick={e => { e.stopPropagation(); openEdit(lead) }} title="Edit lead"
                 style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: 'transparent', color: D.mut, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
