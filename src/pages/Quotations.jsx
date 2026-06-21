@@ -839,7 +839,9 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
 
   function openBuilderPreview() {
     if (!client) { toast.error('Select a client first'); return }
-    const validItems = items.filter(it => it.desc.trim())
+    // a row is real if it has a description, a title, or (visual mode) a photo —
+    // photo-only / title-only rows must not be dropped or their image is lost
+    const validItems = items.filter(it => it.desc.trim() || (it.title || '').trim() || it.img)
     if (validItems.length === 0) { toast.error('Add at least one line item'); return }
     const tempQuote = {
       id: '__preview__',
@@ -871,7 +873,9 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
 
   async function saveQuote(sendNow) {
     if (!client) { toast.error('Select a client first'); return }
-    const validItems = items.filter(it => it.desc.trim())
+    // keep rows that carry any real content — a photo or title with no description
+    // is still a valid line (otherwise visual-mode images get dropped on save)
+    const validItems = items.filter(it => it.desc.trim() || (it.title || '').trim() || it.img)
     if (validItems.length === 0) { toast.error('Add at least one line item'); return }
     setSaving(true)
     try {
