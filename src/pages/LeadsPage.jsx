@@ -1398,9 +1398,9 @@ export default function LeadsPage() {
     // small quick-action tile for the header
     const QuickAction = ({ icon, label, onClick, color, disabled }) => (
       <button onClick={onClick} disabled={disabled} title={label}
-        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 11px', borderRadius: 10, border: '0.5px solid var(--border)', background: 'var(--bg2)', color: 'var(--text)', cursor: disabled ? 'default' : 'pointer', fontSize: 12, fontWeight: 600, textAlign: 'left', opacity: disabled ? 0.6 : 1, width: '100%', minWidth: 0 }}>
+        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 11px', borderRadius: 10, border: '0.5px solid var(--border)', background: 'var(--bg2)', color: 'var(--text)', cursor: disabled ? 'default' : 'pointer', fontSize: 12, fontWeight: 600, textAlign: 'left', opacity: disabled ? 0.6 : 1, width: '100%', minWidth: 0, lineHeight: 1.2 }}>
         <span style={{ width: 26, height: 26, borderRadius: 8, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: (color || accent) + '22', color: color || accent }}><i className={'ti ' + icon} style={{ fontSize: 15 }} /></span>
-        <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+        <span style={{ minWidth: 0, wordBreak: 'break-word' }}>{label}</span>
       </button>
     )
     const PANEL = { background: T.panelBg, border: T.panelBd, borderRadius: 14, padding: 15, marginBottom: 12 }
@@ -1447,13 +1447,13 @@ export default function LeadsPage() {
                   </div>
                 </div>
                 {/* buttons | contact info | meta */}
-                <div style={{ display: mobile ? 'flex' : 'grid', flexWrap: 'wrap', gap: mobile ? 8 : 16, gridTemplateColumns: mobile ? undefined : 'auto 1fr 1fr', alignItems: 'start' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                <div style={{ display: mobile ? 'block' : 'grid', gap: 16, gridTemplateColumns: mobile ? undefined : 'auto 1fr 1fr', alignItems: 'start' }}>
+                  <div style={{ display: 'flex', flexDirection: mobile ? 'row' : 'column', flexWrap: 'wrap', gap: 7, marginBottom: mobile ? 12 : 0 }}>
                     {lead.phone && <a href={waMsg(lead)} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 9, background: 'rgba(34,197,94,0.14)', color: '#16a34a', textDecoration: 'none', fontSize: 11.5, fontWeight: 700 }}><i className="ti ti-brand-whatsapp" style={{ fontSize: 15 }} /> WhatsApp</a>}
                     {lead.phone && <a href={'tel:' + lead.phone} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 9, background: 'rgba(8,145,178,0.14)', color: '#0891b2', textDecoration: 'none', fontSize: 11.5, fontWeight: 700 }}><i className="ti ti-phone" style={{ fontSize: 15 }} /> Call</a>}
                     {lead.email && <a href={'mailto:' + lead.email} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 9, background: 'rgba(139,92,246,0.14)', color: '#7c3aed', textDecoration: 'none', fontSize: 11.5, fontWeight: 700 }}><i className="ti ti-mail" style={{ fontSize: 15 }} /> Email</a>}
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0, marginBottom: mobile ? 11 : 0 }}>
                     {lead.phone && <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text2)' }}><i className="ti ti-phone" style={{ fontSize: 14, color: 'var(--text3)', flexShrink: 0 }} /> {lead.phone}</div>}
                     {lead.email && <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text2)', minWidth: 0 }}><i className="ti ti-mail" style={{ fontSize: 14, color: 'var(--text3)', flexShrink: 0 }} /> <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.email}</span></div>}
                     {loc && <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text2)' }}><i className="ti ti-map-pin" style={{ fontSize: 14, color: 'var(--text3)', flexShrink: 0 }} /> {loc}</div>}
@@ -1492,7 +1492,7 @@ export default function LeadsPage() {
               {/* zone 3 — quick actions */}
               <div style={{ minWidth: 0, marginTop: mobile ? 14 : 0, paddingLeft: mobile ? 0 : 18, borderLeft: mobile ? 'none' : '1px solid var(--border)' }}>
                 <div style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>Quick actions</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr 1fr' : '1fr 1fr', gap: 8 }}>
                   <QuickAction icon={['proposal_given', 'won'].includes(lead.status) ? 'ti-file-check' : 'ti-file-invoice'} label={['proposal_given', 'won'].includes(lead.status) ? 'Re-quote' : 'Create Quotation'} color="#0099cc" disabled={creatingQuote} onClick={() => createQuoteFromLead(lead)} />
                   <QuickAction icon="ti-calendar-plus" label="Schedule Meeting" color="#3b82f6" onClick={() => setMeetingForm(lead.nextMeeting ? { start: toLocalInput(lead.nextMeeting.start_at), remind: 30, notes: '', kind: lead.nextMeeting.kind || 'followup' } : { start: '', remind: 30, notes: '', kind: 'followup' })} />
                   {lead.isPlatform
