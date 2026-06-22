@@ -1341,7 +1341,7 @@ function lpoBody(company, project, sub, items, lpo, others = []) {
   } else if (project?.end_date) { subDue = pEnd }
   const NAVY = '#0f2741', ACCENT = '#0099cc', MUT = '#6b7a8d', LINE = '#e7eef4', SOFT = '#f6fafc'
   const serif = "'Playfair Display',Georgia,serif"
-  const timelineRow = (pStart || pEnd) ? `<div style="display:flex;gap:12px;margin-bottom:18px;">
+  const timelineRow = (pStart || pEnd) ? `<div style="display:flex;gap:12px;margin-bottom:13px;">
       <div style="flex:1;border:1px solid ${LINE};border-radius:8px;padding:10px 13px;background:${SOFT};"><div style="font-size:8px;color:${ACCENT};text-transform:uppercase;letter-spacing:1px;font-weight:700;">Project start</div><div style="font-size:12.5px;font-weight:700;margin-top:3px;color:${NAVY};">${pStart || '—'}</div></div>
       <div style="flex:1;border:1px solid ${LINE};border-radius:8px;padding:10px 13px;background:${SOFT};"><div style="font-size:8px;color:${ACCENT};text-transform:uppercase;letter-spacing:1px;font-weight:700;">Project completion</div><div style="font-size:12.5px;font-weight:700;margin-top:3px;color:${NAVY};">${pEnd || '—'}</div></div>
       <div style="flex:1;background:#fff6f5;border:1px solid #f4cdc9;border-radius:8px;padding:10px 13px;"><div style="font-size:8px;color:#c0392b;text-transform:uppercase;letter-spacing:1px;font-weight:700;">Your completion${bufferDays ? ' · ' + bufferDays + 'd early' : ''}</div><div style="font-size:12.5px;font-weight:700;margin-top:3px;color:#c0392b;">${subDue || '—'}</div></div>
@@ -1354,12 +1354,12 @@ function lpoBody(company, project, sub, items, lpo, others = []) {
       <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${NAVY};">${esc(s.description)}</td>
       <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:center;color:${MUT};">${esc(s.quantity || '')} ${esc(s.unit || '')}</td>
       <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;font-weight:600;color:${NAVY};">AED ${n(s.sub_amount)}</td></tr>`).join('')
-  const term = (t, d) => `<div style="margin-bottom:11px;"><div style="font-size:8.5px;font-weight:700;color:${ACCENT};text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;">${t}</div><div style="font-size:9.5px;color:#5d6b7a;line-height:1.7;text-align:justify;">${d}</div></div>`
+  const term = (t, d) => `<div style="margin-bottom:8px;page-break-inside:avoid;"><div style="font-size:8.5px;font-weight:700;color:${ACCENT};text-transform:uppercase;letter-spacing:1px;margin-bottom:2px;">${t}</div><div style="font-size:9.2px;color:#5d6b7a;line-height:1.55;text-align:justify;">${d}</div></div>`
   const logo = company?.logo_url ? `<img src="${esc(company.logo_url)}" style="height:48px;width:48px;object-fit:cover;border-radius:9px;flex-shrink:0;" />` : ''
-  return `<div style="font-family:'Inter','Segoe UI',sans-serif;color:${NAVY};padding:42px 44px;background:#fff;">
+  return `<div style="font-family:'Inter','Segoe UI',sans-serif;color:${NAVY};padding:32px 40px;background:#fff;">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;">
       <div style="display:flex;gap:13px;align-items:center;">${logo}<div>
-        <div style="font-family:${serif};font-size:23px;font-weight:700;color:${NAVY};letter-spacing:.2px;line-height:1.1;">${esc(company?.name || 'Company')}</div>
+        <div style="font-family:${serif};font-size:22px;font-weight:700;color:${NAVY};letter-spacing:.2px;line-height:1.1;">${esc(company?.name || 'Company')}</div>
         <div style="font-size:10px;color:${MUT};margin-top:3px;">${esc(company?.phone || '')}${company?.location ? ' &nbsp;·&nbsp; ' + esc(company.location) : ''}</div>
       </div></div>
       <div style="text-align:right;">
@@ -1368,17 +1368,17 @@ function lpoBody(company, project, sub, items, lpo, others = []) {
         <div style="font-size:10.5px;color:${MUT};margin-top:1px;">Date:&nbsp; <b style="color:${NAVY};">${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</b></div>
       </div>
     </div>
-    <div style="height:2.5px;background:linear-gradient(90deg,${ACCENT} 0%,${ACCENT} 28%,${ACCENT}1f 100%);margin:14px 0 22px;border-radius:2px;"></div>
-    <div style="display:flex;gap:14px;margin-bottom:18px;">
+    <div style="height:2.5px;background:linear-gradient(90deg,${ACCENT} 0%,${ACCENT} 28%,${ACCENT}1f 100%);margin:12px 0 16px;border-radius:2px;"></div>
+    <div style="display:flex;gap:14px;margin-bottom:13px;">
       <div style="flex:1;border:1px solid ${LINE};border-radius:9px;padding:12px 15px;"><div style="font-size:8px;color:${ACCENT};text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">To · Subcontractor</div><div style="font-size:13.5px;font-weight:700;margin-top:4px;color:${NAVY};">${esc(sub.name)}</div><div style="font-size:10.5px;color:${MUT};margin-top:1px;">${esc(sub.trade || '')}${sub.phone ? ' · ' + esc(sub.phone) : ''}</div>${sub.contact_person ? `<div style="font-size:10px;color:${MUT};margin-top:3px;">Contact: <b style="color:${NAVY};">${esc(sub.contact_person)}</b></div>` : ''}${(sub.owner_name || sub.owner_mobile) ? `<div style="font-size:10px;color:${MUT};">Owner: <b style="color:${NAVY};">${esc(sub.owner_name || '')}</b>${sub.owner_mobile ? ' · ' + esc(sub.owner_mobile) : ''}</div>` : ''}${sub.vat_no ? `<div style="font-size:10px;color:${MUT};">TRN: <b style="color:${NAVY};">${esc(sub.vat_no)}</b></div>` : ''}</div>
       <div style="flex:1;border:1px solid ${LINE};border-radius:9px;padding:12px 15px;"><div style="font-size:8px;color:${ACCENT};text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">Project</div><div style="font-size:13.5px;font-weight:700;margin-top:4px;color:${NAVY};">${esc(project.name)}</div><div style="font-size:10.5px;color:${MUT};margin-top:1px;">${esc(project.location || '')}</div>${sub.project_code ? `<div style="font-size:10px;color:${MUT};margin-top:3px;">Project code: <b style="color:${NAVY};">${esc(sub.project_code)}</b></div>` : ''}</div>
     </div>
-    ${fullProject ? `<div style="display:flex;gap:11px;align-items:flex-start;border:1.5px solid ${ACCENT}66;background:${SOFT};border-radius:9px;padding:12px 15px;margin-bottom:18px;">
+    ${fullProject ? `<div style="display:flex;gap:11px;align-items:flex-start;border:1.5px solid ${ACCENT}66;background:${SOFT};border-radius:9px;padding:11px 14px;margin-bottom:13px;page-break-inside:avoid;">
       <div style="width:28px;height:28px;border-radius:8px;background:${ACCENT}1f;color:${ACCENT};display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;font-weight:700;">✓</div>
       <div><div style="font-size:9px;color:${ACCENT};text-transform:uppercase;letter-spacing:1px;font-weight:700;">Whole-Project Responsibility</div><div style="font-size:10.5px;color:#445;line-height:1.6;margin-top:2px;">This Local Purchase Order is issued for the <b>entire project</b>. The Subcontractor is <b>solely and fully responsible</b> for the complete execution, coordination, supervision and on-time delivery of the whole project through to completion, snagging and handover.</div></div>
     </div>` : ''}
     ${timelineRow}
-    <table style="width:100%;border-collapse:separate;border-spacing:0;margin-bottom:16px;border:1px solid ${LINE};border-radius:9px;overflow:hidden;">
+    <table style="width:100%;border-collapse:separate;border-spacing:0;margin-bottom:13px;border:1px solid ${LINE};border-radius:9px;overflow:hidden;">
       <thead><tr style="background:${NAVY};color:#fff;">
         <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;width:34px;">#</th>
         ${withImg ? `<th style="padding:10px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;width:52px;">Photo</th>` : ''}
@@ -1388,27 +1388,27 @@ function lpoBody(company, project, sub, items, lpo, others = []) {
       </tr></thead>
       <tbody>${rows || `<tr><td colspan="${withImg ? 5 : 4}" style="padding:16px;text-align:center;color:#999;font-size:11px;">No scope assigned to this subcontractor yet.</td></tr>`}</tbody>
     </table>
-    <div style="display:flex;justify-content:flex-end;margin-bottom:18px;">
-      <div style="min-width:260px;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:${NAVY};color:#fff;border-radius:9px;">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:13px;page-break-inside:avoid;">
+      <div style="min-width:260px;display:flex;justify-content:space-between;align-items:center;padding:11px 16px;background:${NAVY};color:#fff;border-radius:9px;">
         <span style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;font-weight:600;opacity:.85;">Total Order Value</span><span style="font-family:${serif};font-size:17px;font-weight:700;color:#4fd0f5;">AED ${n(total)}</span>
       </div>
     </div>
-    <div style="border:1px solid ${LINE};border-radius:9px;overflow:hidden;margin-bottom:18px;">
+    <div style="border:1px solid ${LINE};border-radius:9px;overflow:hidden;margin-bottom:13px;page-break-inside:avoid;">
       <div style="background:${SOFT};padding:9px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid ${LINE};"><span style="font-size:8.5px;font-weight:700;color:${ACCENT};text-transform:uppercase;letter-spacing:1px;">Payment Schedule</span><span style="font-size:9px;color:${MUT};">within ${payDays} days of each certified invoice</span></div>
       ${schedule.map((s, i) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;${i < schedule.length - 1 ? 'border-bottom:1px solid ' + LINE + ';' : ''}">
         <span style="font-size:11px;color:${NAVY};">${esc(s.label || ('Stage ' + (i + 1)))}</span>
         <span style="display:flex;gap:16px;align-items:center;"><b style="font-size:11px;color:${ACCENT};min-width:34px;text-align:right;">${Number(s.pct) || 0}%</b><span style="font-size:11.5px;font-weight:700;color:${NAVY};min-width:96px;text-align:right;">AED ${n(total * (Number(s.pct) || 0) / 100)}</span></span>
       </div>`).join('')}
     </div>
-    <div style="border-top:1px solid ${LINE};padding-top:16px;margin-bottom:16px;">
+    <div style="border-top:1px solid ${LINE};padding-top:12px;margin-bottom:8px;">
       ${term('Payment', `Payment shall be released as per the schedule above, against work actually completed and certified by the Company, within <b>${payDays} days</b> of a correct, undisputed invoice for each stage. Each stage payment is subject to satisfactory progress, snagging clearance and the signed NDA. The Company may set off against any sum due any amount owed by the Subcontractor (including back-charges, damages or liquidated damages).`)}
       ${term('Timeline', `The Subcontractor shall complete all works ${subDue ? 'on or before <b style="color:#c0392b;">' + subDue + '</b>' : 'by the agreed completion date'}${bufferDays ? ', which is ' + bufferDays + ' days (15% of the project schedule) before the project completion date' : ''}, to allow time for inspection, snagging and handover. <b>Time is of the essence.</b>`)}
       ${term('Delay / Liquidated Damages', `If the Subcontractor fails to complete by the date above, the Company may, without prejudice to its other rights, levy liquidated damages of <b>1% of this LPO value for each day</b> of delay (or part thereof), up to a maximum of <b>10%</b> of the LPO value, and/or engage others to complete the works and back-charge the Subcontractor with the cost.`)}
       ${term('Coordination with Other Contractors &amp; Team', `Multiple contractors and trades are engaged on this project. The Subcontractor shall fully coordinate and cooperate with ${otherList ? 'the other contractors on this project (<b>' + otherList + '</b>)' : 'all other contractors and trades'} and with the Company’s site team and project engineer, follow the agreed work sequence, programme and site instructions, share access, scaffolding and services, and shall not obstruct, delay or damage the works of others. The Subcontractor shall attend coordination meetings as required and is liable for any delay, rework or damage it causes to other trades.`)}
       ${term('General', `Work to the satisfaction of ${esc(company?.name || 'the company')}; materials &amp; workmanship per approved specifications. This LPO is issued together with, and is subject to, the signed Non-Disclosure Agreement attached overleaf.`)}
     </div>
-    <div style="display:flex;gap:34px;margin-top:30px;">
-      <div style="flex:1;text-align:center;"><div style="border-bottom:1.5px solid ${NAVY};height:34px;"></div><div style="font-size:9px;color:${MUT};margin-top:5px;">For ${esc(company?.name || 'Company')}</div></div>
+    <div style="display:flex;gap:30px;margin-top:20px;page-break-inside:avoid;">
+      <div style="flex:1;text-align:center;"><div style="border-bottom:1.5px solid ${NAVY};height:32px;"></div><div style="font-size:9px;color:${MUT};margin-top:5px;">For ${esc(company?.name || 'Company')}</div></div>
       <div style="flex:1;text-align:center;"><div style="border-bottom:1.5px solid ${NAVY};height:34px;"></div><div style="font-size:9px;color:${MUT};margin-top:5px;">Accepted — ${esc(sub.name)}</div></div>
     </div>
   </div>`
