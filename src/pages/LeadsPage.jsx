@@ -830,9 +830,10 @@ export default function LeadsPage() {
     return { label: 'Manual', color: '#8b5cf6', bg: 'rgba(139,92,246,0.14)' }
   }
 
-  // Save the lead to the phone's contacts via a vCard (.vcf) — tapping it on a
-  // phone opens the native "Add contact" screen.
-  function addToContacts(lead) {
+  // Save the lead to the phone's contacts via a vCard (.vcf).
+  // iPhone/iPad: share the .vcf file (opens the native contact sheet — no blank page).
+  // Desktop/Android: download the .vcf.
+  async function addToContacts(lead) {
     const name = (lead.name || 'Lead').trim()
     const phone = (lead.phone || '').trim()
     const wa = (lead.answers?.['WhatsApp'] || lead.answers?.whatsapp || '').trim()
@@ -850,25 +851,21 @@ export default function LeadsPage() {
       note ? `NOTE:${note}` : '',
       'END:VCARD',
     ].filter(Boolean).join('\r\n')
-    // iOS (iPhone/iPad) ignores the download attribute on a blob and just pops a
-    // share sheet. Opening a data: vCard instead makes Safari show the native
-    // "Add Contact" preview directly. Use the blob download elsewhere (desktop/Android).
-    const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
-      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+    const fileName = `${name.replace(/[^\w\s-]/g, '').trim() || 'contact'}.vcf`
     try {
-      if (isIOS) {
-        const dataUrl = 'data:text/vcard;charset=utf-8,' + encodeURIComponent(vcard)
-        const a = document.createElement('a')
-        a.href = dataUrl; a.target = '_blank'; a.rel = 'noopener'
-        document.body.appendChild(a); a.click()
-        setTimeout(() => document.body.removeChild(a), 200)
-        toast.success('Opening contact — tap "Create New Contact"')
-        return
-      }
       const blob = new Blob([vcard], { type: 'text/vcard;charset=utf-8' })
+      // Phones (iOS especially): share the .vcf → opens the native "Add to Contacts" sheet
+      if (navigator.canShare) {
+        const file = new File([blob], fileName, { type: 'text/vcard' })
+        if (navigator.canShare({ files: [file] })) {
+          try { await navigator.share({ files: [file] }); return }
+          catch (err) { if (err && err.name === 'AbortError') return /* user closed the sheet */ }
+        }
+      }
+      // Fallback (desktop / Android without file-share): download the .vcf
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
-      a.href = url; a.download = `${name.replace(/[^\w\s-]/g, '').trim() || 'contact'}.vcf`
+      a.href = url; a.download = fileName
       document.body.appendChild(a); a.click()
       setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url) }, 200)
       toast.success('Contact card ready — open it to save')
