@@ -1356,7 +1356,7 @@ function lpoBody(company, project, sub, items, lpo, others = []) {
       <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;font-weight:600;color:${NAVY};">AED ${n(s.sub_amount)}</td></tr>`).join('')
   const term = (t, d) => `<div style="margin-bottom:8px;page-break-inside:avoid;"><div style="font-size:8.5px;font-weight:700;color:${ACCENT};text-transform:uppercase;letter-spacing:1px;margin-bottom:2px;">${t}</div><div style="font-size:9.2px;color:#5d6b7a;line-height:1.55;text-align:justify;">${d}</div></div>`
   const logo = company?.logo_url ? `<img src="${esc(company.logo_url)}" style="height:48px;width:48px;object-fit:cover;border-radius:9px;flex-shrink:0;" />` : ''
-  return `<div style="font-family:'Inter','Segoe UI',sans-serif;color:${NAVY};padding:32px 40px;background:#fff;">
+  return `<div class="__page" style="font-family:'Inter','Segoe UI',sans-serif;color:${NAVY};background:#fff;">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;">
       <div style="display:flex;gap:13px;align-items:center;">${logo}<div>
         <div style="font-family:${serif};font-size:22px;font-weight:700;color:${NAVY};letter-spacing:.2px;line-height:1.1;">${esc(company?.name || 'Company')}</div>
@@ -1424,7 +1424,7 @@ function ndaBody(company, project, sub) {
   const NAVY = '#0f2741', ACCENT = '#0099cc', MUT = '#6b7a8d'
   const serif = "'Playfair Display',Georgia,serif"
   const c = (t, d) => `<div style="margin-bottom:9px;"><div style="font-size:11px;font-weight:700;color:${NAVY};margin-bottom:2px;">${t}</div><div style="font-size:10px;color:#5d6b7a;line-height:1.65;text-align:justify;">${d}</div></div>`
-  return `<div style="font-family:'Inter','Segoe UI',sans-serif;color:${NAVY};padding:42px 44px;background:#fff;">
+  return `<div class="__page" style="font-family:'Inter','Segoe UI',sans-serif;color:${NAVY};background:#fff;">
     <div style="text-align:center;padding-bottom:13px;margin-bottom:16px;">
       <div style="font-family:${serif};font-size:21px;font-weight:700;color:${NAVY};">${co}</div>
       <div style="font-size:8.5px;color:${MUT};letter-spacing:1.5px;text-transform:uppercase;margin-top:3px;">${esc(company?.phone || '')}</div>
@@ -1467,12 +1467,19 @@ function printDocs(titleText, sheets, toast) {
       *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;box-sizing:border-box}
       html,body{margin:0}
       body{background:#e9eef3;padding-top:54px;font-family:'Inter','Segoe UI',Roboto,Helvetica,Arial,sans-serif}
-      @page{size:A4;margin:0}
-      /* on screen: show each sheet as a real A4 page */
-      .__sheet{width:794px;min-height:1123px;margin:20px auto;background:#fff;box-shadow:0 12px 44px rgba(15,30,50,.22);border-radius:2px;overflow:hidden}
+      /* real page margins → every printed page gets clean margins (works for 1 or 2 pages) */
+      @page{size:A4;margin:11mm}
+      /* on screen: show each sheet as a real A4 page with inner padding */
+      .__sheet{width:794px;min-height:1123px;margin:20px auto;background:#fff;box-shadow:0 12px 44px rgba(15,30,50,.22);border-radius:2px}
+      .__page{padding:30px 38px}
       .__bar{position:fixed;top:0;left:0;right:0;height:54px;background:#0f1d3a;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 18px;z-index:99}
       .__bar button{padding:8px 16px;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit;font-size:13px}
-      @media print{.__bar{display:none}body{background:#fff;padding:0}.__sheet{box-shadow:none!important;border-radius:0!important;margin:0!important;width:auto!important;min-height:0!important}}
+      @media print{
+        .__bar{display:none}
+        body{background:#fff;padding:0}
+        .__sheet{box-shadow:none!important;border-radius:0!important;margin:0!important;width:auto!important;min-height:0!important}
+        .__page{padding:0!important}
+      }
     </style></head><body>
     <div class="__bar"><span style="font-size:14px;font-weight:600;letter-spacing:.2px;">${esc(titleText)}</span><span><button onclick="window.print()" style="background:#0099cc;color:#fff;">Print / Save PDF</button> <button onclick="window.close()" style="background:rgba(255,255,255,.16);color:#fff;margin-left:8px;">Close</button></span></div>
     ${sheetHtml}</body></html>`)
