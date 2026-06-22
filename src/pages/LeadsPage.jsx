@@ -852,18 +852,20 @@ export default function LeadsPage() {
       'END:VCARD',
     ].filter(Boolean).join('\r\n')
     const fileName = `${name.replace(/[^\w\s-]/g, '').trim() || 'contact'}.vcf`
+    const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
     try {
       const blob = new Blob([vcard], { type: 'text/vcard;charset=utf-8' })
-      // Phones (iOS especially): share the .vcf → opens the native "Add to Contacts" sheet
-      if (navigator.canShare) {
-        const file = new File([blob], fileName, { type: 'text/vcard' })
-        if (navigator.canShare({ files: [file] })) {
-          try { await navigator.share({ files: [file] }); return }
-          catch (err) { if (err && err.name === 'AbortError') return /* user closed the sheet */ }
-        }
-      }
-      // Fallback (desktop / Android without file-share): download the .vcf
       const url = URL.createObjectURL(blob)
+      if (isIOS) {
+        // iOS: navigate the SAME tab to the .vcf so Safari shows the contact
+        // preview screen with an "Add to Contacts" button (one tap saves it).
+        // A new tab (target=_blank) just shows a blank page on iOS.
+        window.location.href = url
+        setTimeout(() => URL.revokeObjectURL(url), 8000)
+        return
+      }
+      // desktop / Android: download the .vcf
       const a = document.createElement('a')
       a.href = url; a.download = fileName
       document.body.appendChild(a); a.click()
