@@ -279,9 +279,12 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
     setSaving(true)
     try {
       // contract_amount comes from assigned scope, paid_amount from the payment ledger — not edited here.
-      const numOr = (v, d) => { const x = Number(v); return Number.isFinite(x) ? x : d }
+      const numOr = (v, d) => { const z = Number(v); return Number.isFinite(z) ? z : d }
+      const schedule = (Array.isArray(x.payment_schedule) ? x.payment_schedule : [])
+        .map(r => ({ label: (r.label || '').trim(), pct: numOr(r.pct, 0) }))
+        .filter(r => r.label || r.pct)
       const payload = { company_id: company.id, project_id: active.id, name: x.name.trim(), trade: x.trade || null, phone: x.phone || null, status: x.status || 'ongoing', notes: x.notes || null,
-        retention_pct: numOr(x.retention_pct, 10), payment_days: numOr(x.payment_days, 30), advance_pct: numOr(x.advance_pct, 0) }
+        payment_days: numOr(x.payment_days, 30), payment_schedule: schedule }
       if (x.id) { const { error } = await supabase.from('project_subcontractors').update(payload).eq('id', x.id).eq('company_id', company.id); if (error) throw error }
       else { const { error } = await supabase.from('project_subcontractors').insert(payload); if (error) throw error }
       setSubForm(null); toast.success('Saved ✓'); reloadChildren()
@@ -947,7 +950,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
             <div style={{ fontSize: 12.5, color: 'var(--text2)' }}>Contracts: <b style={{ color: '#8b5cf6' }}>{AED(totalSubs)}</b> · Paid: <b style={{ color: '#22c55e' }}>{AED(subsPaid)}</b> · Balance: <b style={{ color: '#ef4444' }}>{AED(totalSubs - subsPaid)}</b></div>
-            <button onClick={() => setSubForm({ name: '', trade: 'MEP', phone: '', status: 'ongoing', notes: '', retention_pct: 10, payment_days: 30, advance_pct: 0 })} className="btn btn-primary btn-sm"><i className="ti ti-plus" /> Add subcontractor</button>
+            <button onClick={() => setSubForm({ name: '', trade: 'MEP', phone: '', status: 'ongoing', notes: '', payment_days: 30, payment_schedule: [{ label: 'Advance on signing', pct: 40 }, { label: 'On delivery to site', pct: 30 }, { label: 'On completion & handover', pct: 30 }] })} className="btn btn-primary btn-sm"><i className="ti ti-plus" /> Add subcontractor</button>
           </div>
           {subs.length === 0 ? <div style={{ ...card, textAlign: 'center', color: 'var(--text3)', padding: '34px 16px' }}>No subcontractors yet. Add MEP, Gypsum, Tiles…</div>
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
@@ -962,7 +965,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
                       </div>
                       {s.phone && <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}><i className="ti ti-phone" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {s.phone}{s.notes ? ' · ' + s.notes : ''}</div>}
                     </div>
-                    <button onClick={() => setSubForm({ ...s })} style={iconBtn}><i className="ti ti-edit" style={{ fontSize: 15 }} /></button>
+                    <button onClick={() => setSubForm({ ...s, payment_days: s.payment_days ?? 30, payment_schedule: (Array.isArray(s.payment_schedule) && s.payment_schedule.length) ? s.payment_schedule : [{ label: 'Advance on signing', pct: 40 }, { label: 'On delivery to site', pct: 30 }, { label: 'On completion & handover', pct: 30 }] })} style={iconBtn}><i className="ti ti-edit" style={{ fontSize: 15 }} /></button>
                     <button onClick={() => delSub(s.id)} style={{ ...iconBtn, color: '#ef4444' }}><i className="ti ti-trash" style={{ fontSize: 15 }} /></button>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginTop: 10 }}>
@@ -1151,12 +1154,30 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
         </div>
         <label style={lbl}>Status</label><select value={subForm.status} onChange={e => setSubForm(s => ({ ...s, status: e.target.value }))} style={{ ...input, marginBottom: 10 }}>{Object.entries(SSTATUS).map(([k, v]) => <option key={k} value={k}>{v.l}</option>)}</select>
         <label style={lbl}>Notes / scope detail</label><input value={subForm.notes} onChange={e => setSubForm(s => ({ ...s, notes: e.target.value }))} style={input} placeholder="Scope of work…" />
-        <label style={{ ...lbl, marginTop: 12, display: 'block' }}>Payment terms <span style={{ color: 'var(--text3)', fontWeight: 400 }}>· shown on the LPO</span></label>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-          <div><label style={lbl}>Retention %</label><input type="number" min="0" max="100" value={subForm.retention_pct ?? 10} onChange={e => setSubForm(s => ({ ...s, retention_pct: e.target.value }))} style={input} /></div>
-          <div><label style={lbl}>Payment (days)</label><input type="number" min="0" value={subForm.payment_days ?? 30} onChange={e => setSubForm(s => ({ ...s, payment_days: e.target.value }))} style={input} /></div>
-          <div><label style={lbl}>Advance %</label><input type="number" min="0" max="100" value={subForm.advance_pct ?? 0} onChange={e => setSubForm(s => ({ ...s, advance_pct: e.target.value }))} style={input} /></div>
-        </div>
+        {(() => {
+          const sched = Array.isArray(subForm.payment_schedule) ? subForm.payment_schedule : []
+          const totalPct = sched.reduce((a, r) => a + (Number(r.pct) || 0), 0)
+          const setSched = (next) => setSubForm(s => ({ ...s, payment_schedule: next }))
+          return (
+            <>
+              <label style={{ ...lbl, marginTop: 12, display: 'flex', justifyContent: 'space-between' }}>
+                <span>Payment schedule <span style={{ color: 'var(--text3)', fontWeight: 400 }}>· shown on the LPO</span></span>
+                <span style={{ fontWeight: 700, color: totalPct === 100 ? '#16a34a' : '#e0a000' }}>{totalPct}%{totalPct === 100 ? ' ✓' : ' / 100%'}</span>
+              </label>
+              {sched.map((r, i) => (
+                <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'center' }}>
+                  <input value={r.label} onChange={e => setSched(sched.map((x, j) => j === i ? { ...x, label: e.target.value } : x))} placeholder="Stage — e.g. Advance on signing" style={{ ...input, flex: 1 }} />
+                  <input type="number" min="0" max="100" value={r.pct} onChange={e => setSched(sched.map((x, j) => j === i ? { ...x, pct: e.target.value } : x))} placeholder="%" style={{ ...input, width: 64, textAlign: 'center' }} />
+                  <button onClick={() => setSched(sched.filter((_, j) => j !== i))} style={{ ...iconBtn, flexShrink: 0 }} title="Remove stage"><i className="ti ti-x" style={{ fontSize: 15 }} /></button>
+                </div>
+              ))}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 2 }}>
+                <button onClick={() => setSched([...sched, { label: '', pct: 0 }])} className="btn btn-secondary btn-sm" style={{ flex: 1 }}><i className="ti ti-plus" /> Add stage</button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><label style={{ ...lbl, margin: 0, whiteSpace: 'nowrap' }}>Pay within</label><input type="number" min="0" value={subForm.payment_days ?? 30} onChange={e => setSubForm(s => ({ ...s, payment_days: e.target.value }))} style={{ ...input, width: 60, textAlign: 'center' }} /><span style={{ fontSize: 12, color: 'var(--text3)' }}>days</span></div>
+              </div>
+            </>
+          )
+        })()}
         <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 12, lineHeight: 1.6, background: 'var(--bg2)', borderRadius: 9, padding: '9px 11px' }}><i className="ti ti-info-circle" style={{ color: '#0099cc' }} /> Contract amount auto-fills when you assign Scope-of-Work lines. Record payments from the <b>Payments</b> button on the card.</div>
       </FormModal>}
       {payModal && (() => {
@@ -1278,12 +1299,10 @@ function lpoBody(company, project, sub, items, lpo, others = []) {
   const esc = __escDoc
   const n = v => Math.round(Number(v) || 0).toLocaleString('en-AE')
   const total = items.reduce((a, s) => a + (Number(s.sub_amount) || 0), 0)
-  // subcontractor payment terms — editable per subcontractor (fall back to sensible defaults)
-  const retentionPct = Number(sub?.retention_pct ?? 10)
+  // subcontractor payment terms — a custom schedule of stages (label + %), editable per subcontractor
   const payDays = Number(sub?.payment_days ?? 30)
-  const advancePct = Number(sub?.advance_pct ?? 0)
-  const retention = Math.round(total * retentionPct / 100)
-  const advance = Math.round(total * advancePct / 100)
+  const DEFAULT_SCHEDULE = [{ label: 'Advance on signing', pct: 40 }, { label: 'On delivery to site', pct: 30 }, { label: 'On completion & handover', pct: 30 }]
+  const schedule = (Array.isArray(sub?.payment_schedule) && sub.payment_schedule.length ? sub.payment_schedule : DEFAULT_SCHEDULE).filter(s => s && (s.label || Number(s.pct)))
   const otherList = (others || []).filter(o => o?.name).map(o => esc(o.name) + (o.trade ? ' (' + esc(o.trade) + ')' : '')).join(', ')
   // Project timeline → the subcontractor must finish 15% of the schedule before the project completion date
   const fmtDate = d => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : null
@@ -1341,15 +1360,14 @@ function lpoBody(company, project, sub, items, lpo, others = []) {
       </div>
     </div>
     <div style="border:1px solid ${LINE};border-radius:9px;overflow:hidden;margin-bottom:18px;">
-      <div style="background:${SOFT};padding:8px 14px;font-size:8.5px;font-weight:700;color:${ACCENT};text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid ${LINE};">Payment Terms</div>
-      <div style="display:flex;">
-        <div style="flex:1;padding:11px 14px;border-right:1px solid ${LINE};"><div style="font-size:8px;color:${MUT};text-transform:uppercase;letter-spacing:.6px;">Advance</div><div style="font-size:11.5px;font-weight:700;margin-top:2px;color:${NAVY};">${advancePct > 0 ? advancePct + '% &middot; AED ' + n(advance) : 'Nil'}</div><div style="font-size:8.5px;color:${MUT};">${advancePct > 0 ? 'on mobilization' : 'against certified progress'}</div></div>
-        <div style="flex:1;padding:11px 14px;border-right:1px solid ${LINE};"><div style="font-size:8px;color:${MUT};text-transform:uppercase;letter-spacing:.6px;">Retention</div><div style="font-size:11.5px;font-weight:700;margin-top:2px;color:${NAVY};">${retentionPct}% &middot; AED ${n(retention)}</div><div style="font-size:8.5px;color:${MUT};">released after DLP</div></div>
-        <div style="flex:1;padding:11px 14px;"><div style="font-size:8px;color:${MUT};text-transform:uppercase;letter-spacing:.6px;">Payment</div><div style="font-size:11.5px;font-weight:700;margin-top:2px;color:${NAVY};">${payDays} days</div><div style="font-size:8.5px;color:${MUT};">of certified invoice</div></div>
-      </div>
+      <div style="background:${SOFT};padding:9px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid ${LINE};"><span style="font-size:8.5px;font-weight:700;color:${ACCENT};text-transform:uppercase;letter-spacing:1px;">Payment Schedule</span><span style="font-size:9px;color:${MUT};">within ${payDays} days of each certified invoice</span></div>
+      ${schedule.map((s, i) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;${i < schedule.length - 1 ? 'border-bottom:1px solid ' + LINE + ';' : ''}">
+        <span style="font-size:11px;color:${NAVY};">${esc(s.label || ('Stage ' + (i + 1)))}</span>
+        <span style="display:flex;gap:16px;align-items:center;"><b style="font-size:11px;color:${ACCENT};min-width:34px;text-align:right;">${Number(s.pct) || 0}%</b><span style="font-size:11.5px;font-weight:700;color:${NAVY};min-width:96px;text-align:right;">AED ${n(total * (Number(s.pct) || 0) / 100)}</span></span>
+      </div>`).join('')}
     </div>
     <div style="border-top:1px solid ${LINE};padding-top:16px;margin-bottom:16px;">
-      ${term('Payment', `${advancePct > 0 ? 'An advance of <b>' + advancePct + '% (AED ' + n(advance) + ')</b> is payable on mobilization and recovered pro-rata from interim payments. ' : 'No advance is payable. '}Payment shall be made against work actually completed and certified by the Company, within <b>${payDays} days</b> of a correct, undisputed invoice.${retentionPct > 0 ? ' A retention of <b>' + retentionPct + '% (AED ' + n(retention) + ')</b> shall be deducted and released <b>50% on practical completion</b> and the balance <b>50% after the defects liability period</b>, subject to snagging clearance and the signed NDA.' : ''} The Company may set off against any sum due any amount owed by the Subcontractor (including back-charges, damages or liquidated damages).`)}
+      ${term('Payment', `Payment shall be released as per the schedule above, against work actually completed and certified by the Company, within <b>${payDays} days</b> of a correct, undisputed invoice for each stage. Each stage payment is subject to satisfactory progress, snagging clearance and the signed NDA. The Company may set off against any sum due any amount owed by the Subcontractor (including back-charges, damages or liquidated damages).`)}
       ${term('Timeline', `The Subcontractor shall complete all works ${subDue ? 'on or before <b style="color:#c0392b;">' + subDue + '</b>' : 'by the agreed completion date'}${bufferDays ? ', which is ' + bufferDays + ' days (15% of the project schedule) before the project completion date' : ''}, to allow time for inspection, snagging and handover. <b>Time is of the essence.</b>`)}
       ${term('Delay / Liquidated Damages', `If the Subcontractor fails to complete by the date above, the Company may, without prejudice to its other rights, levy liquidated damages of <b>1% of this LPO value for each day</b> of delay (or part thereof), up to a maximum of <b>10%</b> of the LPO value, and/or engage others to complete the works and back-charge the Subcontractor with the cost.`)}
       ${term('Coordination with Other Contractors &amp; Team', `Multiple contractors and trades are engaged on this project. The Subcontractor shall fully coordinate and cooperate with ${otherList ? 'the other contractors on this project (<b>' + otherList + '</b>)' : 'all other contractors and trades'} and with the Company’s site team and project engineer, follow the agreed work sequence, programme and site instructions, share access, scaffolding and services, and shall not obstruct, delay or damage the works of others. The Subcontractor shall attend coordination meetings as required and is liable for any delay, rework or damage it causes to other trades.`)}
