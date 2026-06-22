@@ -284,6 +284,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
         .map(r => ({ label: (r.label || '').trim(), pct: numOr(r.pct, 0) }))
         .filter(r => r.label || r.pct)
       const payload = { company_id: company.id, project_id: active.id, name: x.name.trim(), trade: x.trade || null, phone: x.phone || null, status: x.status || 'ongoing', notes: x.notes || null,
+        contact_person: x.contact_person?.trim() || null, owner_name: x.owner_name?.trim() || null, owner_mobile: x.owner_mobile?.trim() || null, vat_no: x.vat_no?.trim() || null, project_code: x.project_code?.trim() || null,
         payment_days: numOr(x.payment_days, 30), payment_schedule: schedule, full_project: !!x.full_project }
       if (x.id) { const { error } = await supabase.from('project_subcontractors').update(payload).eq('id', x.id).eq('company_id', company.id); if (error) throw error }
       else { const { error } = await supabase.from('project_subcontractors').insert(payload); if (error) throw error }
@@ -1162,6 +1163,15 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
           <div><label style={lbl}>Trade / scope</label><select value={subForm.trade} onChange={e => setSubForm(s => ({ ...s, trade: e.target.value }))} style={input}>{TRADES.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
           <div><label style={lbl}>Phone</label><input value={subForm.phone} onChange={e => setSubForm(s => ({ ...s, phone: e.target.value }))} style={input} /></div>
         </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+          <div><label style={lbl}>Contact person</label><input value={subForm.contact_person || ''} onChange={e => setSubForm(s => ({ ...s, contact_person: e.target.value }))} style={input} placeholder="On-site contact" /></div>
+          <div><label style={lbl}>VAT / TRN no</label><input value={subForm.vat_no || ''} onChange={e => setSubForm(s => ({ ...s, vat_no: e.target.value }))} style={input} placeholder="100xxxxxxxxxxxx" /></div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+          <div><label style={lbl}>Owner name</label><input value={subForm.owner_name || ''} onChange={e => setSubForm(s => ({ ...s, owner_name: e.target.value }))} style={input} /></div>
+          <div><label style={lbl}>Owner mobile</label><input value={subForm.owner_mobile || ''} onChange={e => setSubForm(s => ({ ...s, owner_mobile: e.target.value }))} style={input} /></div>
+        </div>
+        <label style={lbl}>Project code</label><input value={subForm.project_code || ''} onChange={e => setSubForm(s => ({ ...s, project_code: e.target.value }))} style={{ ...input, marginBottom: 10 }} placeholder="e.g. PRJ-2026-014" />
         <label style={lbl}>Status</label><select value={subForm.status} onChange={e => setSubForm(s => ({ ...s, status: e.target.value }))} style={{ ...input, marginBottom: 10 }}>{Object.entries(SSTATUS).map(([k, v]) => <option key={k} value={k}>{v.l}</option>)}</select>
         <label style={lbl}>Notes / scope detail</label><input value={subForm.notes} onChange={e => setSubForm(s => ({ ...s, notes: e.target.value }))} style={input} placeholder="Scope of work…" />
         <label style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 12, cursor: 'pointer', background: subForm.full_project ? 'rgba(0,153,204,0.08)' : 'var(--bg2)', border: '1px solid ' + (subForm.full_project ? 'rgba(0,153,204,0.4)' : 'var(--border)'), borderRadius: 9, padding: '10px 12px' }}>
@@ -1360,8 +1370,8 @@ function lpoBody(company, project, sub, items, lpo, others = []) {
     </div>
     <div style="height:2.5px;background:linear-gradient(90deg,${ACCENT} 0%,${ACCENT} 28%,${ACCENT}1f 100%);margin:14px 0 22px;border-radius:2px;"></div>
     <div style="display:flex;gap:14px;margin-bottom:18px;">
-      <div style="flex:1;border:1px solid ${LINE};border-radius:9px;padding:12px 15px;"><div style="font-size:8px;color:${ACCENT};text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">To · Subcontractor</div><div style="font-size:13.5px;font-weight:700;margin-top:4px;color:${NAVY};">${esc(sub.name)}</div><div style="font-size:10.5px;color:${MUT};margin-top:1px;">${esc(sub.trade || '')}${sub.phone ? ' · ' + esc(sub.phone) : ''}</div></div>
-      <div style="flex:1;border:1px solid ${LINE};border-radius:9px;padding:12px 15px;"><div style="font-size:8px;color:${ACCENT};text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">Project</div><div style="font-size:13.5px;font-weight:700;margin-top:4px;color:${NAVY};">${esc(project.name)}</div><div style="font-size:10.5px;color:${MUT};margin-top:1px;">${esc(project.location || '')}</div></div>
+      <div style="flex:1;border:1px solid ${LINE};border-radius:9px;padding:12px 15px;"><div style="font-size:8px;color:${ACCENT};text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">To · Subcontractor</div><div style="font-size:13.5px;font-weight:700;margin-top:4px;color:${NAVY};">${esc(sub.name)}</div><div style="font-size:10.5px;color:${MUT};margin-top:1px;">${esc(sub.trade || '')}${sub.phone ? ' · ' + esc(sub.phone) : ''}</div>${sub.contact_person ? `<div style="font-size:10px;color:${MUT};margin-top:3px;">Contact: <b style="color:${NAVY};">${esc(sub.contact_person)}</b></div>` : ''}${(sub.owner_name || sub.owner_mobile) ? `<div style="font-size:10px;color:${MUT};">Owner: <b style="color:${NAVY};">${esc(sub.owner_name || '')}</b>${sub.owner_mobile ? ' · ' + esc(sub.owner_mobile) : ''}</div>` : ''}${sub.vat_no ? `<div style="font-size:10px;color:${MUT};">TRN: <b style="color:${NAVY};">${esc(sub.vat_no)}</b></div>` : ''}</div>
+      <div style="flex:1;border:1px solid ${LINE};border-radius:9px;padding:12px 15px;"><div style="font-size:8px;color:${ACCENT};text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">Project</div><div style="font-size:13.5px;font-weight:700;margin-top:4px;color:${NAVY};">${esc(project.name)}</div><div style="font-size:10.5px;color:${MUT};margin-top:1px;">${esc(project.location || '')}</div>${sub.project_code ? `<div style="font-size:10px;color:${MUT};margin-top:3px;">Project code: <b style="color:${NAVY};">${esc(sub.project_code)}</b></div>` : ''}</div>
     </div>
     ${fullProject ? `<div style="display:flex;gap:11px;align-items:flex-start;border:1.5px solid ${ACCENT}66;background:${SOFT};border-radius:9px;padding:12px 15px;margin-bottom:18px;">
       <div style="width:28px;height:28px;border-radius:8px;background:${ACCENT}1f;color:${ACCENT};display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;font-weight:700;">✓</div>
