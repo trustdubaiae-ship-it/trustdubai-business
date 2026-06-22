@@ -279,7 +279,9 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
     setSaving(true)
     try {
       // contract_amount comes from assigned scope, paid_amount from the payment ledger — not edited here.
-      const payload = { company_id: company.id, project_id: active.id, name: x.name.trim(), trade: x.trade || null, phone: x.phone || null, status: x.status || 'ongoing', notes: x.notes || null }
+      const numOr = (v, d) => { const x = Number(v); return Number.isFinite(x) ? x : d }
+      const payload = { company_id: company.id, project_id: active.id, name: x.name.trim(), trade: x.trade || null, phone: x.phone || null, status: x.status || 'ongoing', notes: x.notes || null,
+        retention_pct: numOr(x.retention_pct, 10), payment_days: numOr(x.payment_days, 30), advance_pct: numOr(x.advance_pct, 0) }
       if (x.id) { const { error } = await supabase.from('project_subcontractors').update(payload).eq('id', x.id).eq('company_id', company.id); if (error) throw error }
       else { const { error } = await supabase.from('project_subcontractors').insert(payload); if (error) throw error }
       setSubForm(null); toast.success('Saved ✓'); reloadChildren()
@@ -945,7 +947,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
             <div style={{ fontSize: 12.5, color: 'var(--text2)' }}>Contracts: <b style={{ color: '#8b5cf6' }}>{AED(totalSubs)}</b> · Paid: <b style={{ color: '#22c55e' }}>{AED(subsPaid)}</b> · Balance: <b style={{ color: '#ef4444' }}>{AED(totalSubs - subsPaid)}</b></div>
-            <button onClick={() => setSubForm({ name: '', trade: 'MEP', phone: '', status: 'ongoing', notes: '' })} className="btn btn-primary btn-sm"><i className="ti ti-plus" /> Add subcontractor</button>
+            <button onClick={() => setSubForm({ name: '', trade: 'MEP', phone: '', status: 'ongoing', notes: '', retention_pct: 10, payment_days: 30, advance_pct: 0 })} className="btn btn-primary btn-sm"><i className="ti ti-plus" /> Add subcontractor</button>
           </div>
           {subs.length === 0 ? <div style={{ ...card, textAlign: 'center', color: 'var(--text3)', padding: '34px 16px' }}>No subcontractors yet. Add MEP, Gypsum, Tiles…</div>
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
@@ -1149,6 +1151,12 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
         </div>
         <label style={lbl}>Status</label><select value={subForm.status} onChange={e => setSubForm(s => ({ ...s, status: e.target.value }))} style={{ ...input, marginBottom: 10 }}>{Object.entries(SSTATUS).map(([k, v]) => <option key={k} value={k}>{v.l}</option>)}</select>
         <label style={lbl}>Notes / scope detail</label><input value={subForm.notes} onChange={e => setSubForm(s => ({ ...s, notes: e.target.value }))} style={input} placeholder="Scope of work…" />
+        <label style={{ ...lbl, marginTop: 12, display: 'block' }}>Payment terms <span style={{ color: 'var(--text3)', fontWeight: 400 }}>· shown on the LPO</span></label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+          <div><label style={lbl}>Retention %</label><input type="number" min="0" max="100" value={subForm.retention_pct ?? 10} onChange={e => setSubForm(s => ({ ...s, retention_pct: e.target.value }))} style={input} /></div>
+          <div><label style={lbl}>Payment (days)</label><input type="number" min="0" value={subForm.payment_days ?? 30} onChange={e => setSubForm(s => ({ ...s, payment_days: e.target.value }))} style={input} /></div>
+          <div><label style={lbl}>Advance %</label><input type="number" min="0" max="100" value={subForm.advance_pct ?? 0} onChange={e => setSubForm(s => ({ ...s, advance_pct: e.target.value }))} style={input} /></div>
+        </div>
         <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 12, lineHeight: 1.6, background: 'var(--bg2)', borderRadius: 9, padding: '9px 11px' }}><i className="ti ti-info-circle" style={{ color: '#0099cc' }} /> Contract amount auto-fills when you assign Scope-of-Work lines. Record payments from the <b>Payments</b> button on the card.</div>
       </FormModal>}
       {payModal && (() => {
@@ -1270,6 +1278,12 @@ function lpoBody(company, project, sub, items, lpo, others = []) {
   const esc = __escDoc
   const n = v => Math.round(Number(v) || 0).toLocaleString('en-AE')
   const total = items.reduce((a, s) => a + (Number(s.sub_amount) || 0), 0)
+  // subcontractor payment terms — editable per subcontractor (fall back to sensible defaults)
+  const retentionPct = Number(sub?.retention_pct ?? 10)
+  const payDays = Number(sub?.payment_days ?? 30)
+  const advancePct = Number(sub?.advance_pct ?? 0)
+  const retention = Math.round(total * retentionPct / 100)
+  const advance = Math.round(total * advancePct / 100)
   const otherList = (others || []).filter(o => o?.name).map(o => esc(o.name) + (o.trade ? ' (' + esc(o.trade) + ')' : '')).join(', ')
   // Project timeline → the subcontractor must finish 15% of the schedule before the project completion date
   const fmtDate = d => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : null
@@ -1280,41 +1294,70 @@ function lpoBody(company, project, sub, items, lpo, others = []) {
     bufferDays = Math.ceil(totalDays * 0.15)
     subDue = fmtDate(new Date(new Date(project.end_date).getTime() - bufferDays * 86400000))
   } else if (project?.end_date) { subDue = pEnd }
-  const timelineRow = (pStart || pEnd) ? `<div style="display:flex;gap:12px;margin-bottom:16px;">
-      <div style="flex:1;border:1px solid #e3eef3;border-radius:5px;padding:8px 11px;"><div style="font-size:8.5px;color:#0077a3;text-transform:uppercase;letter-spacing:.6px;font-weight:700;">Project start</div><div style="font-size:12px;font-weight:700;margin-top:2px;">${pStart || '—'}</div></div>
-      <div style="flex:1;border:1px solid #e3eef3;border-radius:5px;padding:8px 11px;"><div style="font-size:8.5px;color:#0077a3;text-transform:uppercase;letter-spacing:.6px;font-weight:700;">Project completion</div><div style="font-size:12px;font-weight:700;margin-top:2px;">${pEnd || '—'}</div></div>
-      <div style="flex:1;background:#fff4f4;border:1px solid #f3c9c9;border-radius:5px;padding:8px 11px;"><div style="font-size:8.5px;color:#c0392b;text-transform:uppercase;letter-spacing:.6px;font-weight:700;">Your completion${bufferDays ? ' · ' + bufferDays + ' days early' : ''}</div><div style="font-size:12px;font-weight:700;margin-top:2px;color:#c0392b;">${subDue || '—'}</div></div>
+  const NAVY = '#0f2741', ACCENT = '#0099cc', MUT = '#6b7a8d', LINE = '#e7eef4', SOFT = '#f6fafc'
+  const serif = "'Playfair Display',Georgia,serif"
+  const timelineRow = (pStart || pEnd) ? `<div style="display:flex;gap:12px;margin-bottom:18px;">
+      <div style="flex:1;border:1px solid ${LINE};border-radius:8px;padding:10px 13px;background:${SOFT};"><div style="font-size:8px;color:${ACCENT};text-transform:uppercase;letter-spacing:1px;font-weight:700;">Project start</div><div style="font-size:12.5px;font-weight:700;margin-top:3px;color:${NAVY};">${pStart || '—'}</div></div>
+      <div style="flex:1;border:1px solid ${LINE};border-radius:8px;padding:10px 13px;background:${SOFT};"><div style="font-size:8px;color:${ACCENT};text-transform:uppercase;letter-spacing:1px;font-weight:700;">Project completion</div><div style="font-size:12.5px;font-weight:700;margin-top:3px;color:${NAVY};">${pEnd || '—'}</div></div>
+      <div style="flex:1;background:#fff6f5;border:1px solid #f4cdc9;border-radius:8px;padding:10px 13px;"><div style="font-size:8px;color:#c0392b;text-transform:uppercase;letter-spacing:1px;font-weight:700;">Your completion${bufferDays ? ' · ' + bufferDays + 'd early' : ''}</div><div style="font-size:12.5px;font-weight:700;margin-top:3px;color:#c0392b;">${subDue || '—'}</div></div>
     </div>` : ''
-  const rows = items.map((s, i) => `<tr>
-      <td style="padding:7px 8px;border-bottom:.5px solid #eee;font-size:11px;color:#999;">${i + 1}</td>
-      <td style="padding:7px 8px;border-bottom:.5px solid #eee;font-size:11px;">${esc(s.description)}</td>
-      <td style="padding:7px 8px;border-bottom:.5px solid #eee;font-size:11px;text-align:center;color:#777;">${esc(s.quantity || '')} ${esc(s.unit || '')}</td>
-      <td style="padding:7px 8px;border-bottom:.5px solid #eee;font-size:11px;text-align:right;">AED ${n(s.sub_amount)}</td></tr>`).join('')
-  return `<div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;padding:30px;background:#fff;">
-    <div style="height:5px;background:#0099cc;margin:-30px -30px 18px;"></div>
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #0099cc;padding-bottom:12px;margin-bottom:16px;">
-      <div><div style="font-size:17px;font-weight:700;">${esc(company?.name || 'Company')}</div><div style="font-size:11px;color:#666;">${esc(company?.phone || '')}</div></div>
-      <div style="text-align:right;"><div style="font-size:18px;font-weight:700;color:#0099cc;letter-spacing:1px;">LOCAL PURCHASE ORDER</div>
-        <div style="font-size:11px;color:#666;font-family:monospace;">${esc(lpo)}</div>
-        <div style="font-size:11px;color:#666;">Date: ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div></div>
+  const rows = items.map((s, i) => `<tr style="${i % 2 ? 'background:' + SOFT + ';' : ''}">
+      <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${MUT};">${i + 1}</td>
+      <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${NAVY};">${esc(s.description)}</td>
+      <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:center;color:${MUT};">${esc(s.quantity || '')} ${esc(s.unit || '')}</td>
+      <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;font-weight:600;color:${NAVY};">AED ${n(s.sub_amount)}</td></tr>`).join('')
+  const term = (t, d) => `<div style="margin-bottom:11px;"><div style="font-size:8.5px;font-weight:700;color:${ACCENT};text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;">${t}</div><div style="font-size:9.5px;color:#5d6b7a;line-height:1.7;text-align:justify;">${d}</div></div>`
+  const logo = company?.logo_url ? `<img src="${esc(company.logo_url)}" style="height:48px;width:48px;object-fit:cover;border-radius:9px;flex-shrink:0;" />` : ''
+  return `<div style="font-family:'Inter','Segoe UI',sans-serif;color:${NAVY};padding:42px 44px;background:#fff;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div style="display:flex;gap:13px;align-items:center;">${logo}<div>
+        <div style="font-family:${serif};font-size:23px;font-weight:700;color:${NAVY};letter-spacing:.2px;line-height:1.1;">${esc(company?.name || 'Company')}</div>
+        <div style="font-size:10px;color:${MUT};margin-top:3px;">${esc(company?.phone || '')}${company?.location ? ' &nbsp;·&nbsp; ' + esc(company.location) : ''}</div>
+      </div></div>
+      <div style="text-align:right;">
+        <div style="font-family:${serif};font-size:20px;font-weight:700;color:${ACCENT};letter-spacing:.3px;line-height:1;">Local Purchase Order</div>
+        <div style="font-size:10.5px;color:${MUT};margin-top:5px;">No.&nbsp; <b style="color:${NAVY};font-family:monospace;">${esc(lpo)}</b></div>
+        <div style="font-size:10.5px;color:${MUT};margin-top:1px;">Date:&nbsp; <b style="color:${NAVY};">${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</b></div>
+      </div>
     </div>
-    <div style="display:flex;justify-content:space-between;gap:16px;margin-bottom:16px;">
-      <div style="flex:1;background:#f6fafc;border-left:2.5px solid #0099cc;padding:10px 13px;"><div style="font-size:9px;color:#0077a3;text-transform:uppercase;letter-spacing:1px;font-weight:700;">To · Subcontractor</div><div style="font-size:13px;font-weight:700;margin-top:2px;">${esc(sub.name)}</div><div style="font-size:11px;color:#666;">${esc(sub.trade || '')}${sub.phone ? ' · ' + esc(sub.phone) : ''}</div></div>
-      <div style="flex:1;background:#f6fafc;border-left:2.5px solid #0099cc;padding:10px 13px;"><div style="font-size:9px;color:#0077a3;text-transform:uppercase;letter-spacing:1px;font-weight:700;">Project</div><div style="font-size:13px;font-weight:700;margin-top:2px;">${esc(project.name)}</div><div style="font-size:11px;color:#666;">${esc(project.location || '')}</div></div>
+    <div style="height:2.5px;background:linear-gradient(90deg,${ACCENT} 0%,${ACCENT} 28%,${ACCENT}1f 100%);margin:14px 0 22px;border-radius:2px;"></div>
+    <div style="display:flex;gap:14px;margin-bottom:18px;">
+      <div style="flex:1;border:1px solid ${LINE};border-radius:9px;padding:12px 15px;"><div style="font-size:8px;color:${ACCENT};text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">To · Subcontractor</div><div style="font-size:13.5px;font-weight:700;margin-top:4px;color:${NAVY};">${esc(sub.name)}</div><div style="font-size:10.5px;color:${MUT};margin-top:1px;">${esc(sub.trade || '')}${sub.phone ? ' · ' + esc(sub.phone) : ''}</div></div>
+      <div style="flex:1;border:1px solid ${LINE};border-radius:9px;padding:12px 15px;"><div style="font-size:8px;color:${ACCENT};text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">Project</div><div style="font-size:13.5px;font-weight:700;margin-top:4px;color:${NAVY};">${esc(project.name)}</div><div style="font-size:10.5px;color:${MUT};margin-top:1px;">${esc(project.location || '')}</div></div>
     </div>
     ${timelineRow}
-    <table style="width:100%;border-collapse:collapse;margin-bottom:14px;">
-      <thead><tr style="background:#1a1a1a;color:#fff;"><th style="padding:7px 8px;text-align:left;font-size:10px;">#</th><th style="padding:7px 8px;text-align:left;font-size:10px;">Scope of Work</th><th style="padding:7px 8px;text-align:center;font-size:10px;">Qty</th><th style="padding:7px 8px;text-align:right;font-size:10px;">Amount</th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="4" style="padding:14px;text-align:center;color:#999;font-size:11px;">No scope assigned to this subcontractor yet.</td></tr>'}</tbody>
+    <table style="width:100%;border-collapse:separate;border-spacing:0;margin-bottom:16px;border:1px solid ${LINE};border-radius:9px;overflow:hidden;">
+      <thead><tr style="background:${NAVY};color:#fff;">
+        <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;width:34px;">#</th>
+        <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Scope of Work</th>
+        <th style="padding:10px 11px;text-align:center;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Qty</th>
+        <th style="padding:10px 11px;text-align:right;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Amount</th>
+      </tr></thead>
+      <tbody>${rows || '<tr><td colspan="4" style="padding:16px;text-align:center;color:#999;font-size:11px;">No scope assigned to this subcontractor yet.</td></tr>'}</tbody>
     </table>
-    <div style="display:flex;justify-content:flex-end;margin-bottom:18px;"><div style="width:240px;"><div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding:8px 10px;background:#1a1a1a;color:#fff;border-radius:4px;"><span>Total</span><span style="color:#0099cc;">AED ${n(total)}</span></div></div></div>
-    <div style="font-size:9px;color:#888;line-height:1.7;margin-bottom:12px;"><b>Timeline:</b> The Subcontractor shall complete all works ${subDue ? 'on or before <b style="color:#c0392b;">' + subDue + '</b>' : 'by the agreed completion date'}${bufferDays ? ', which is ' + bufferDays + ' days (15% of the project schedule) before the project completion date' : ''}, to allow time for inspection, snagging and handover. <b>Time is of the essence.</b></div>
-    <div style="font-size:9px;color:#888;line-height:1.7;margin-bottom:12px;"><b>Delay / Liquidated Damages:</b> If the Subcontractor fails to complete by the date above, the Company may, without prejudice to its other rights, levy liquidated damages of <b>1% of this LPO value for each day</b> of delay (or part thereof), up to a maximum of <b>10%</b> of the LPO value, and/or engage others to complete the works and back-charge the Subcontractor with the cost.</div>
-    <div style="font-size:9px;color:#888;line-height:1.7;margin-bottom:12px;"><b>Coordination with Other Contractors &amp; Team:</b> Multiple contractors and trades are engaged on this project. The Subcontractor shall fully coordinate and cooperate with ${otherList ? 'the other contractors on this project (<b>' + otherList + '</b>)' : 'all other contractors and trades'} and with the Company’s site team and project engineer, follow the agreed work sequence, programme and site instructions, share access, scaffolding and services, and shall not obstruct, delay or damage the works of others. The Subcontractor shall attend coordination meetings as required and is liable for any delay, rework or damage it causes to other trades.</div>
-    <div style="font-size:9px;color:#888;line-height:1.7;margin-bottom:20px;"><b>General:</b> Work to the satisfaction of ${esc(company?.name || 'the company')}; payment as per agreed milestones; materials &amp; workmanship per approved specifications. This LPO is issued together with, and is subject to, the signed Non-Disclosure Agreement attached overleaf.</div>
-    <div style="display:flex;gap:30px;margin-top:26px;">
-      <div style="flex:1;text-align:center;"><div style="border-bottom:1px solid #1a1a1a;height:30px;"></div><div style="font-size:9px;color:#666;margin-top:4px;">For ${esc(company?.name || 'Company')}</div></div>
-      <div style="flex:1;text-align:center;"><div style="border-bottom:1px solid #1a1a1a;height:30px;"></div><div style="font-size:9px;color:#666;margin-top:4px;">Accepted — ${esc(sub.name)}</div></div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:18px;">
+      <div style="min-width:260px;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:${NAVY};color:#fff;border-radius:9px;">
+        <span style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;font-weight:600;opacity:.85;">Total Order Value</span><span style="font-family:${serif};font-size:17px;font-weight:700;color:#4fd0f5;">AED ${n(total)}</span>
+      </div>
+    </div>
+    <div style="border:1px solid ${LINE};border-radius:9px;overflow:hidden;margin-bottom:18px;">
+      <div style="background:${SOFT};padding:8px 14px;font-size:8.5px;font-weight:700;color:${ACCENT};text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid ${LINE};">Payment Terms</div>
+      <div style="display:flex;">
+        <div style="flex:1;padding:11px 14px;border-right:1px solid ${LINE};"><div style="font-size:8px;color:${MUT};text-transform:uppercase;letter-spacing:.6px;">Advance</div><div style="font-size:11.5px;font-weight:700;margin-top:2px;color:${NAVY};">${advancePct > 0 ? advancePct + '% &middot; AED ' + n(advance) : 'Nil'}</div><div style="font-size:8.5px;color:${MUT};">${advancePct > 0 ? 'on mobilization' : 'against certified progress'}</div></div>
+        <div style="flex:1;padding:11px 14px;border-right:1px solid ${LINE};"><div style="font-size:8px;color:${MUT};text-transform:uppercase;letter-spacing:.6px;">Retention</div><div style="font-size:11.5px;font-weight:700;margin-top:2px;color:${NAVY};">${retentionPct}% &middot; AED ${n(retention)}</div><div style="font-size:8.5px;color:${MUT};">released after DLP</div></div>
+        <div style="flex:1;padding:11px 14px;"><div style="font-size:8px;color:${MUT};text-transform:uppercase;letter-spacing:.6px;">Payment</div><div style="font-size:11.5px;font-weight:700;margin-top:2px;color:${NAVY};">${payDays} days</div><div style="font-size:8.5px;color:${MUT};">of certified invoice</div></div>
+      </div>
+    </div>
+    <div style="border-top:1px solid ${LINE};padding-top:16px;margin-bottom:16px;">
+      ${term('Payment', `${advancePct > 0 ? 'An advance of <b>' + advancePct + '% (AED ' + n(advance) + ')</b> is payable on mobilization and recovered pro-rata from interim payments. ' : 'No advance is payable. '}Payment shall be made against work actually completed and certified by the Company, within <b>${payDays} days</b> of a correct, undisputed invoice.${retentionPct > 0 ? ' A retention of <b>' + retentionPct + '% (AED ' + n(retention) + ')</b> shall be deducted and released <b>50% on practical completion</b> and the balance <b>50% after the defects liability period</b>, subject to snagging clearance and the signed NDA.' : ''} The Company may set off against any sum due any amount owed by the Subcontractor (including back-charges, damages or liquidated damages).`)}
+      ${term('Timeline', `The Subcontractor shall complete all works ${subDue ? 'on or before <b style="color:#c0392b;">' + subDue + '</b>' : 'by the agreed completion date'}${bufferDays ? ', which is ' + bufferDays + ' days (15% of the project schedule) before the project completion date' : ''}, to allow time for inspection, snagging and handover. <b>Time is of the essence.</b>`)}
+      ${term('Delay / Liquidated Damages', `If the Subcontractor fails to complete by the date above, the Company may, without prejudice to its other rights, levy liquidated damages of <b>1% of this LPO value for each day</b> of delay (or part thereof), up to a maximum of <b>10%</b> of the LPO value, and/or engage others to complete the works and back-charge the Subcontractor with the cost.`)}
+      ${term('Coordination with Other Contractors &amp; Team', `Multiple contractors and trades are engaged on this project. The Subcontractor shall fully coordinate and cooperate with ${otherList ? 'the other contractors on this project (<b>' + otherList + '</b>)' : 'all other contractors and trades'} and with the Company’s site team and project engineer, follow the agreed work sequence, programme and site instructions, share access, scaffolding and services, and shall not obstruct, delay or damage the works of others. The Subcontractor shall attend coordination meetings as required and is liable for any delay, rework or damage it causes to other trades.`)}
+      ${term('General', `Work to the satisfaction of ${esc(company?.name || 'the company')}; materials &amp; workmanship per approved specifications. This LPO is issued together with, and is subject to, the signed Non-Disclosure Agreement attached overleaf.`)}
+    </div>
+    <div style="display:flex;gap:34px;margin-top:30px;">
+      <div style="flex:1;text-align:center;"><div style="border-bottom:1.5px solid ${NAVY};height:34px;"></div><div style="font-size:9px;color:${MUT};margin-top:5px;">For ${esc(company?.name || 'Company')}</div></div>
+      <div style="flex:1;text-align:center;"><div style="border-bottom:1.5px solid ${NAVY};height:34px;"></div><div style="font-size:9px;color:${MUT};margin-top:5px;">Accepted — ${esc(sub.name)}</div></div>
     </div>
   </div>`
 }
@@ -1326,13 +1369,15 @@ function ndaBody(company, project, sub) {
   const subName = esc(sub?.name || 'the Subcontractor')
   const dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })
   const proj = esc(project?.name || '')
-  const c = (t, d) => `<div style="margin-bottom:9px;"><div style="font-size:11px;font-weight:700;color:#1a1a1a;margin-bottom:2px;">${t}</div><div style="font-size:10px;color:#444;line-height:1.65;text-align:justify;">${d}</div></div>`
-  return `<div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;padding:32px;background:#fff;">
-    <div style="height:5px;background:#0099cc;margin:-32px -32px 16px;"></div>
-    <div style="text-align:center;border-bottom:2px solid #0099cc;padding-bottom:11px;margin-bottom:14px;">
-      <div style="font-size:18px;font-weight:700;">${co}</div>
-      <div style="font-size:9px;color:#888;letter-spacing:1px;text-transform:uppercase;margin-top:2px;">${esc(company?.phone || '')}</div>
-      <div style="font-size:18px;font-weight:800;color:#0099cc;letter-spacing:1.5px;margin-top:9px;">NON-DISCLOSURE &amp; NON-CIRCUMVENTION AGREEMENT</div>
+  const NAVY = '#0f2741', ACCENT = '#0099cc', MUT = '#6b7a8d'
+  const serif = "'Playfair Display',Georgia,serif"
+  const c = (t, d) => `<div style="margin-bottom:9px;"><div style="font-size:11px;font-weight:700;color:${NAVY};margin-bottom:2px;">${t}</div><div style="font-size:10px;color:#5d6b7a;line-height:1.65;text-align:justify;">${d}</div></div>`
+  return `<div style="font-family:'Inter','Segoe UI',sans-serif;color:${NAVY};padding:42px 44px;background:#fff;">
+    <div style="text-align:center;padding-bottom:13px;margin-bottom:16px;">
+      <div style="font-family:${serif};font-size:21px;font-weight:700;color:${NAVY};">${co}</div>
+      <div style="font-size:8.5px;color:${MUT};letter-spacing:1.5px;text-transform:uppercase;margin-top:3px;">${esc(company?.phone || '')}</div>
+      <div style="height:2.5px;width:64px;background:${ACCENT};margin:12px auto;border-radius:2px;"></div>
+      <div style="font-family:${serif};font-size:17px;font-weight:700;color:${ACCENT};letter-spacing:.4px;">Non-Disclosure &amp; Non-Circumvention Agreement</div>
     </div>
     <div style="font-size:10px;color:#444;line-height:1.65;margin-bottom:13px;text-align:justify;">
       This Non-Disclosure &amp; Non-Circumvention Agreement (the “Agreement”) is made on <b>${dateStr}</b> between <b>${co}</b> (the “Disclosing Party”) and <b>${subName}</b>${sub?.trade ? ' (' + esc(sub.trade) + ')' : ''} (the “Receiving Party”), in connection with the works${proj ? ' on the project <b>' + proj + '</b>' : ''} and any related or future engagement. In consideration of being engaged and given access to the Disclosing Party’s confidential information and clients, the Receiving Party agrees as follows:
@@ -1362,11 +1407,22 @@ function printDocs(titleText, sheets, toast) {
   const esc = __escDoc
   const w = window.open('', '_blank')
   if (!w) { toast?.error?.('Allow pop-ups to print the document'); return }
-  const sheetHtml = sheets.map((h, i) => `<div class="__sheet" style="max-width:760px;margin:16px auto;background:#fff;box-shadow:0 6px 28px rgba(0,0,0,.28);${i < sheets.length - 1 ? 'page-break-after:always;' : ''}">${h}</div>`).join('')
+  const sheetHtml = sheets.map((h, i) => `<div class="__sheet"${i < sheets.length - 1 ? ' style="page-break-after:always;"' : ''}>${h}</div>`).join('')
   w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(titleText)}</title>
-    <style>*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}@page{size:A4;margin:12mm}.__bar{position:fixed;top:0;left:0;right:0;height:48px;background:#0f1623;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-family:sans-serif;z-index:99}@media print{.__bar{display:none}.__sheet{box-shadow:none!important;margin:0!important}}.__bar button{padding:7px 14px;border:none;border-radius:7px;font-weight:600;cursor:pointer}</style>
-    </head><body style="margin:0;background:#eef2f6;padding-top:48px;">
-    <div class="__bar"><span style="font-size:14px;font-weight:600;">${esc(titleText)}</span><span><button onclick="window.print()" style="background:#0099cc;color:#fff;">Print / PDF</button> <button onclick="window.close()" style="background:rgba(255,255,255,.15);color:#fff;margin-left:8px;">Close</button></span></div>
+    <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap');
+      *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;box-sizing:border-box}
+      html,body{margin:0}
+      body{background:#e9eef3;padding-top:54px;font-family:'Inter','Segoe UI',Roboto,Helvetica,Arial,sans-serif}
+      @page{size:A4;margin:0}
+      /* on screen: show each sheet as a real A4 page */
+      .__sheet{width:794px;min-height:1123px;margin:20px auto;background:#fff;box-shadow:0 12px 44px rgba(15,30,50,.22);border-radius:2px;overflow:hidden}
+      .__bar{position:fixed;top:0;left:0;right:0;height:54px;background:#0f1d3a;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 18px;z-index:99}
+      .__bar button{padding:8px 16px;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit;font-size:13px}
+      @media print{.__bar{display:none}body{background:#fff;padding:0}.__sheet{box-shadow:none!important;border-radius:0!important;margin:0!important;width:auto!important;min-height:0!important}}
+    </style></head><body>
+    <div class="__bar"><span style="font-size:14px;font-weight:600;letter-spacing:.2px;">${esc(titleText)}</span><span><button onclick="window.print()" style="background:#0099cc;color:#fff;">Print / Save PDF</button> <button onclick="window.close()" style="background:rgba(255,255,255,.16);color:#fff;margin-left:8px;">Close</button></span></div>
     ${sheetHtml}</body></html>`)
   w.document.close()
 }

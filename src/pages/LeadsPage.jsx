@@ -92,6 +92,18 @@ const TEMP = {
 }
 
 const OUTCOMES = ['Called','WhatsApp','Site visit','Meeting','Email','No answer','Voicemail','Interested','Not interested']
+// each follow-up outcome gets its own colour + icon (colourful chips like the 777 design)
+const OUTCOME_META = {
+  'Called':         { c: '#0891b2', ic: 'ti-phone-call' },
+  'WhatsApp':       { c: '#22c55e', ic: 'ti-brand-whatsapp' },
+  'Site visit':     { c: '#8b5cf6', ic: 'ti-map-pin' },
+  'Meeting':        { c: '#3b82f6', ic: 'ti-calendar-event' },
+  'Email':          { c: '#ec4899', ic: 'ti-mail' },
+  'No answer':      { c: '#94a3b8', ic: 'ti-phone-off' },
+  'Voicemail':      { c: '#f59e0b', ic: 'ti-microphone' },
+  'Interested':     { c: '#16a34a', ic: 'ti-thumb-up' },
+  'Not interested': { c: '#ef4444', ic: 'ti-thumb-down' },
+}
 
 const DEFAULT_TEMPLATES = [
   { name: 'Gentle check-in', body: 'Hi {name}, just following up on your {req} inquiry. Would you like to schedule a quick call this week?' },
@@ -1342,33 +1354,161 @@ export default function LeadsPage() {
     const budget = lead.answers?.['Budget (AED)'] || lead.answers?.budget || ''
     const loc = lead.answers?.['Location'] || lead.answers?.area || ''
     const sla = slaInfo(lead)
+    // --- theme-aware palette: dark = neon glass, light = soft glass ---
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const T = isDark ? {
+      vars: { '--card': '#15203a', '--bg2': 'rgba(255,255,255,0.055)', '--border': 'rgba(255,255,255,0.10)', '--text': '#eaf0fb', '--text2': '#a6b6d4', '--text3': '#7286a8' },
+      modalBg: 'radial-gradient(120% 70% at 0% 0%, rgba(0,212,255,0.20), transparent 52%), radial-gradient(120% 70% at 100% 0%, rgba(139,92,246,0.24), transparent 52%), radial-gradient(100% 60% at 50% 120%, rgba(236,72,153,0.12), transparent 60%), linear-gradient(165deg, #0b1428 0%, #0c1838 55%, #0a1124 100%)',
+      modalBorder: '1px solid rgba(0,212,255,0.30)', modalShadow: '0 30px 100px rgba(0,0,0,0.7), 0 0 80px rgba(0,212,255,0.10) inset',
+      panelBg: 'rgba(255,255,255,0.04)', panelBd: '1px solid rgba(255,255,255,0.09)',
+      headerBg: 'rgba(13,19,40,0.82)', closeBg: 'rgba(255,255,255,0.07)', overlay: 'rgba(4,8,18,0.74)',
+      hoverBd: 'rgba(0,212,255,0.55)', hoverGlow: '0 0 24px rgba(0,212,255,0.28)',
+    } : {
+      vars: { '--card': '#ffffff', '--bg2': '#eef3fb', '--border': 'rgba(15,35,70,0.12)', '--text': '#0f1b33', '--text2': '#44546f', '--text3': '#7c8aa6' },
+      modalBg: 'radial-gradient(120% 70% at 0% 0%, rgba(0,160,220,0.13), transparent 52%), radial-gradient(120% 70% at 100% 0%, rgba(139,92,246,0.13), transparent 52%), linear-gradient(165deg, #f6faff 0%, #eef3fc 100%)',
+      modalBorder: '1px solid rgba(0,160,220,0.30)', modalShadow: '0 30px 80px rgba(20,40,80,0.22)',
+      panelBg: '#ffffff', panelBd: '1px solid rgba(15,35,70,0.10)',
+      headerBg: 'rgba(255,255,255,0.86)', closeBg: 'rgba(15,35,70,0.06)', overlay: 'rgba(15,25,45,0.5)',
+      hoverBd: 'rgba(0,160,220,0.55)', hoverGlow: '0 0 22px rgba(0,160,220,0.22)',
+    }
+    const accent = isDark ? '#00D4FF' : '#0099cc'
+    const isWon = lead.status === 'won'
+    const tmp = TEMP[lead.temperature] || TEMP.warm
+    const initials = (lead.name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?'
+    // AI lead score (0–99) + conversion probability for the header gauge
+    const score = (() => {
+      if (lead.isPlatform && typeof lead.rank === 'number') return Math.max(45, 100 - (lead.rank - 1) * 7)
+      let s = 45
+      if (lead.phone) s += 15
+      if (proj) s += 15
+      if (budget) s += 15
+      if (lead.answers?.['WhatsApp'] || lead.email) s += 8
+      s += lead.temperature === 'hot' ? 12 : lead.temperature === 'warm' ? 6 : 0
+      return Math.min(99, s)
+    })()
+    const convProb = Math.round(score * 0.82)
+    const RING = 2 * Math.PI * 30
+    // next action band
+    const KIND_LABEL = { followup: 'Follow-up', meeting: 'Meeting', site_visit: 'Site visit', call: 'Call' }
+    const nextAction = lead.nextMeeting
+      ? { label: (KIND_LABEL[lead.nextMeeting.kind] || 'Meeting') + ' · ' + new Date(lead.nextMeeting.start_at).toLocaleString('en-AE', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }), color: '#0891b2', icon: 'ti-calendar-clock' }
+      : isOverdue ? { label: 'Overdue — follow up now', color: '#f87171', icon: 'ti-alert-triangle' }
+      : lead.follow_up_date ? { label: 'Follow up ' + new Date(lead.follow_up_date).toLocaleDateString('en-AE', { day: 'numeric', month: 'short' }), color: '#e2b25f', icon: 'ti-calendar' }
+      : { label: 'Set a follow-up', color: '#e2b25f', icon: 'ti-calendar-plus' }
+    // small quick-action tile for the header
+    const QuickAction = ({ icon, label, onClick, color, disabled }) => (
+      <button onClick={onClick} disabled={disabled} title={label}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 11px', borderRadius: 10, border: '0.5px solid var(--border)', background: 'var(--bg2)', color: 'var(--text)', cursor: disabled ? 'default' : 'pointer', fontSize: 12, fontWeight: 600, textAlign: 'left', opacity: disabled ? 0.6 : 1, width: '100%', minWidth: 0 }}>
+        <span style={{ width: 26, height: 26, borderRadius: 8, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: (color || accent) + '22', color: color || accent }}><i className={'ti ' + icon} style={{ fontSize: 15 }} /></span>
+        <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+      </button>
+    )
+    const PANEL = { background: T.panelBg, border: T.panelBd, borderRadius: 14, padding: 15, marginBottom: 12 }
+    const SECT = { fontSize: 11, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 7 }
+    // key/value row used inside the Lead details panel
+    const DetailRow = ({ icon, label, value, color, first, href }) => value ? (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderTop: first ? 'none' : '0.5px solid var(--border)' }}>
+        <i className={'ti ' + icon} style={{ fontSize: 15, color: color || 'var(--text3)', width: 16, textAlign: 'center', flexShrink: 0 }} />
+        <span style={{ fontSize: 11.5, color: 'var(--text3)', flexShrink: 0 }}>{label}</span>
+        {href
+          ? <a href={href} onClick={e => e.stopPropagation()} style={{ marginLeft: 'auto', fontSize: 12.5, fontWeight: 600, color: 'var(--text)', textAlign: 'right', wordBreak: 'break-word', textDecoration: 'none' }}>{value}</a>
+          : <span style={{ marginLeft: 'auto', fontSize: 12.5, fontWeight: 600, color: 'var(--text)', textAlign: 'right', wordBreak: 'break-word' }}>{value}</span>}
+      </div>
+    ) : null
     return (
-      <div onClick={closeModal} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: mobile ? 0 : '24px 16px', overflowY: 'auto' }}>
-        <div onClick={e => e.stopPropagation()} style={{ width: mobile ? '100%' : 940, maxWidth: '100%', minHeight: mobile ? '100%' : 'auto', background: 'var(--card)', borderRadius: mobile ? 0 : 14, border: '0.5px solid var(--border)' }}>
+      <div onClick={closeModal} style={{ position: 'fixed', inset: 0, background: T.overlay, backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', zIndex: 200, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: mobile ? 0 : '24px 16px', overflowY: 'auto' }}>
+        <div onClick={e => e.stopPropagation()} style={{
+          width: mobile ? '100%' : 1180, maxWidth: '100%', minHeight: mobile ? '100%' : 'auto',
+          borderRadius: mobile ? 0 : 18, overflow: 'hidden', color: T.vars['--text'],
+          ...T.vars,
+          background: T.modalBg, border: T.modalBorder, boxShadow: T.modalShadow,
+        }}>
+          <style>{`.ld-card{transition:box-shadow .2s ease,border-color .2s ease,transform .2s ease}.ld-card:hover{border-color:${T.hoverBd} !important;box-shadow:${T.hoverGlow} !important;transform:translateY(-2px)}`}</style>
 
-          <div style={{ position: 'sticky', top: 0, zIndex: 5, background: 'var(--card)', padding: '14px 18px', paddingTop: mobile ? `calc(14px + ${SAFE_TOP})` : 14, borderBottom: '0.5px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderRadius: mobile ? 0 : '14px 14px 0 0' }}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', letterSpacing: '-.2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lead.name || 'Anonymous'}</div>
-              {lead.phone && (
-                <a href={'tel:' + lead.phone} onClick={e => e.stopPropagation()} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 14, fontWeight: 700, color: 'var(--text)', textDecoration: 'none', marginTop: 3 }}>
-                  <i className="ti ti-phone" style={{ fontSize: 14, color: '#0099cc' }} /> {lead.phone}
-                </a>
-              )}
-              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>{srcLabel} · {new Date(lead.created_at).toLocaleDateString('en-AE')}</div>
+          <div style={{ position: 'sticky', top: 0, zIndex: 5, background: T.headerBg, backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', padding: '16px 18px', paddingTop: mobile ? `calc(16px + ${SAFE_TOP})` : 16, borderBottom: '1px solid var(--border)' }}>
+            <button onClick={closeModal} style={{ position: 'absolute', top: 12, right: 12, background: T.closeBg, border: 'none', cursor: 'pointer', color: 'var(--text2)', fontSize: 18, width: 32, height: 32, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3 }}><i className="ti ti-x" /></button>
+
+            <div style={{ display: mobile ? 'block' : 'grid', gridTemplateColumns: mobile ? undefined : '1.95fr 0.8fr 1.2fr', gap: 18, alignItems: 'center' }}>
+
+              {/* zone 1 — identity + contacts + meta */}
+              <div style={{ minWidth: 0 }}>
+                {/* avatar + name + status chips */}
+                <div style={{ display: 'flex', gap: 13, alignItems: 'center', marginBottom: 13 }}>
+                  <div style={{ width: 52, height: 52, borderRadius: 15, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 800, color: '#fff', background: isWon ? 'linear-gradient(135deg, #f59e0b, #b45309)' : 'linear-gradient(135deg, #8B5CF6 0%, #6366f1 100%)', boxShadow: '0 6px 18px rgba(124,58,237,0.45)' }}>
+                    {isWon ? <i className="ti ti-crown" style={{ fontSize: 24 }} /> : initials}
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 19, fontWeight: 800, color: 'var(--text)', letterSpacing: '-.2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lead.name || 'Anonymous'}</div>
+                    <div style={{ display: 'flex', gap: 6, marginTop: 5, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 99, background: tmp.bg, color: tmp.color }}>{tmp.label}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 99, background: sc.bg, color: sc.color }}>{sc.label}</span>
+                      {isOverdue && <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 99, background: 'rgba(239,68,68,0.14)', color: '#ef4444' }}>Overdue</span>}
+                    </div>
+                  </div>
+                </div>
+                {/* buttons | contact info | meta */}
+                <div style={{ display: mobile ? 'flex' : 'grid', flexWrap: 'wrap', gap: mobile ? 8 : 16, gridTemplateColumns: mobile ? undefined : 'auto 1fr 1fr', alignItems: 'start' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                    {lead.phone && <a href={waMsg(lead)} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 9, background: 'rgba(34,197,94,0.14)', color: '#16a34a', textDecoration: 'none', fontSize: 11.5, fontWeight: 700 }}><i className="ti ti-brand-whatsapp" style={{ fontSize: 15 }} /> WhatsApp</a>}
+                    {lead.phone && <a href={'tel:' + lead.phone} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 9, background: 'rgba(8,145,178,0.14)', color: '#0891b2', textDecoration: 'none', fontSize: 11.5, fontWeight: 700 }}><i className="ti ti-phone" style={{ fontSize: 15 }} /> Call</a>}
+                    {lead.email && <a href={'mailto:' + lead.email} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 9, background: 'rgba(139,92,246,0.14)', color: '#7c3aed', textDecoration: 'none', fontSize: 11.5, fontWeight: 700 }}><i className="ti ti-mail" style={{ fontSize: 15 }} /> Email</a>}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}>
+                    {lead.phone && <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text2)' }}><i className="ti ti-phone" style={{ fontSize: 14, color: 'var(--text3)', flexShrink: 0 }} /> {lead.phone}</div>}
+                    {lead.email && <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text2)', minWidth: 0 }}><i className="ti ti-mail" style={{ fontSize: 14, color: 'var(--text3)', flexShrink: 0 }} /> <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.email}</span></div>}
+                    {loc && <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text2)' }}><i className="ti ti-map-pin" style={{ fontSize: 14, color: 'var(--text3)', flexShrink: 0 }} /> {loc}</div>}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}><i className="ti ti-arrow-up-right" style={{ fontSize: 14, color: 'var(--text3)', marginTop: 1, flexShrink: 0 }} /><div style={{ minWidth: 0 }}><div style={{ fontSize: 9.5, color: 'var(--text3)' }}>Source</div><div style={{ fontSize: 12, color: 'var(--text2)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{srcLabel}</div></div></div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}><i className="ti ti-calendar-plus" style={{ fontSize: 14, color: 'var(--text3)', marginTop: 1, flexShrink: 0 }} /><div><div style={{ fontSize: 9.5, color: 'var(--text3)' }}>Created on</div><div style={{ fontSize: 12, color: 'var(--text2)', fontWeight: 600 }}>{new Date(lead.created_at).toLocaleDateString('en-AE', { day: 'numeric', month: 'short', year: 'numeric' })}</div></div></div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}><i className="ti ti-clock" style={{ fontSize: 14, color: 'var(--text3)', marginTop: 1, flexShrink: 0 }} /><div><div style={{ fontSize: 9.5, color: 'var(--text3)' }}>Last activity</div><div style={{ fontSize: 12, color: 'var(--text2)', fontWeight: 600 }}>{new Date(lead.status_updated_at || lead.created_at).toLocaleString('en-AE', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</div></div></div>
+                  </div>
+                </div>
+              </div>
+
+              {/* zone 2 — AI lead score gauge (gradient ring) */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: mobile ? '16px 0 4px' : 0, borderLeft: mobile ? 'none' : '1px solid var(--border)' }}>
+                <div style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 7 }}>AI Lead Score</div>
+                <div style={{ position: 'relative', width: 84, height: 84 }}>
+                  <svg width="84" height="84" style={{ transform: 'rotate(-90deg)' }}>
+                    <defs>
+                      <linearGradient id="ldGaugeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#8B5CF6" />
+                        <stop offset="50%" stopColor="#ec4899" />
+                        <stop offset="100%" stopColor="#f59e0b" />
+                      </linearGradient>
+                    </defs>
+                    <circle cx="42" cy="42" r="34" fill="none" stroke="var(--border)" strokeWidth="7" />
+                    <circle cx="42" cy="42" r="34" fill="none" stroke="url(#ldGaugeGrad)" strokeWidth="7" strokeLinecap="round" strokeDasharray={2 * Math.PI * 34} strokeDashoffset={2 * Math.PI * 34 * (1 - score / 100)} />
+                  </svg>
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ fontSize: 25, fontWeight: 800, color: 'var(--text)', lineHeight: 1 }}>{score}</span>
+                    <span style={{ fontSize: 8.5, fontWeight: 700, color: tmp.color, letterSpacing: '.5px' }}>{tmp.label.toUpperCase()}</span>
+                  </div>
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 8, textAlign: 'center' }}>Conversion Probability <b style={{ color: '#22c55e' }}>{convProb}% <i className="ti ti-trending-up" style={{ fontSize: 11, verticalAlign: '-1px' }} /></b></div>
+              </div>
+
+              {/* zone 3 — quick actions */}
+              <div style={{ minWidth: 0, marginTop: mobile ? 14 : 0, paddingLeft: mobile ? 0 : 18, borderLeft: mobile ? 'none' : '1px solid var(--border)' }}>
+                <div style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>Quick actions</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <QuickAction icon={['proposal_given', 'won'].includes(lead.status) ? 'ti-file-check' : 'ti-file-invoice'} label={['proposal_given', 'won'].includes(lead.status) ? 'Re-quote' : 'Create Quotation'} color="#0099cc" disabled={creatingQuote} onClick={() => createQuoteFromLead(lead)} />
+                  <QuickAction icon="ti-calendar-plus" label="Schedule Meeting" color="#3b82f6" onClick={() => setMeetingForm(lead.nextMeeting ? { start: toLocalInput(lead.nextMeeting.start_at), remind: 30, notes: '', kind: lead.nextMeeting.kind || 'followup' } : { start: '', remind: 30, notes: '', kind: 'followup' })} />
+                  {lead.isPlatform
+                    ? <QuickAction icon="ti-sparkles" label="AI Suggest Reply" color="#8b5cf6" disabled={aiReplyLoading} onClick={suggestChatReply} />
+                    : <QuickAction icon="ti-sparkles" label="AI WhatsApp Msg" color="#8b5cf6" disabled={waDraftLoading} onClick={() => suggestWhatsApp(lead)} />}
+                  <QuickAction icon="ti-brand-whatsapp" label="Open WhatsApp" color="#16a34a" disabled={!lead.phone} onClick={() => lead.phone && window.open(waMsg(lead), '_blank')} />
+                </div>
+              </div>
+
             </div>
-            <button onClick={closeModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 20, flexShrink: 0, marginLeft: 10 }}><i className="ti ti-x" /></button>
           </div>
 
-          <div style={{ padding: 18, display: mobile ? 'block' : 'grid', gridTemplateColumns: mobile ? undefined : 'minmax(0,1fr) 340px', gap: 18, alignItems: 'start' }}>
+          <div style={{ padding: 18, display: mobile ? 'block' : 'grid', gridTemplateColumns: mobile ? undefined : 'minmax(0,2fr) minmax(0,1fr)', gap: 16, alignItems: 'start' }}>
 
-          {/* LEFT column — details, actions, forms */}
+          {/* MAIN — next/project, AI message, log/templates */}
           <div style={{ minWidth: 0 }}>
-
-          <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 9px', borderRadius: 99, background: (TEMP[lead.temperature]||TEMP.warm).bg, color: (TEMP[lead.temperature]||TEMP.warm).color }}>{(TEMP[lead.temperature]||TEMP.warm).label}</span>
-            <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 9px', borderRadius: 99, background: sc.bg, color: sc.color }}>{sc.label}</span>
-            {isOverdue && <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 9px', borderRadius: 99, background: 'rgba(239,68,68,0.14)', color: '#ef4444' }}><i className="ti ti-clock" style={{ fontSize: 11 }} /> Overdue</span>}
-          </div>
 
           {/* Response SLA banner — real countdown to reassign (un-actioned platform leads) */}
           {sla.active && (
@@ -1385,32 +1525,29 @@ export default function LeadsPage() {
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: 7, marginBottom: 14 }}>
-            {lead.phone && <a href={waMsg(lead)} target="_blank" rel="noreferrer" style={{ flex: 1, textAlign: 'center', fontSize: 11, padding: 8, borderRadius: 8, background: 'rgba(34,197,94,0.14)', color: '#0f7a52', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><i className="ti ti-brand-whatsapp" style={{ fontSize: 15 }} />WhatsApp</a>}
-            {lead.phone && <a href={'tel:' + lead.phone} style={{ flex: 1, textAlign: 'center', fontSize: 11, padding: 8, borderRadius: 8, background: 'rgba(8,145,178,0.14)', color: '#0077a3', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><i className="ti ti-phone" style={{ fontSize: 15 }} />Call</a>}
-            {lead.email && <a href={'mailto:' + lead.email} style={{ flex: 1, textAlign: 'center', fontSize: 11, padding: 8, borderRadius: 8, background: 'var(--bg2)', color: 'var(--text2)', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><i className="ti ti-mail" style={{ fontSize: 15 }} />Email</a>}
-            {(lead.phone || lead.email) && <button onClick={() => addToContacts(lead)} title="Save to phone contacts" style={{ flex: 1, fontSize: 11, padding: 8, borderRadius: 8, background: 'rgba(139,92,246,0.14)', color: '#7c3aed', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><i className="ti ti-user-plus" style={{ fontSize: 15 }} />Save Contact</button>}
+          {/* Next action + Project requirement — side by side */}
+          <div style={{ display: mobile ? 'block' : 'grid', gridTemplateColumns: mobile ? undefined : '1fr 1fr', gap: 12, alignItems: 'stretch', marginBottom: 12 }}>
+          {/* Next action — at-a-glance what to do next */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: mobile ? 12 : 0, padding: '14px 16px', borderRadius: 14, background: 'linear-gradient(135deg, ' + nextAction.color + '3d, ' + nextAction.color + '1a)', border: '1.5px solid ' + nextAction.color + '88', boxShadow: '0 0 26px ' + nextAction.color + '33' }}>
+            <div style={{ width: 42, height: 42, borderRadius: 11, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: nextAction.color + '3d', color: nextAction.color }}><i className={'ti ' + nextAction.icon} style={{ fontSize: 21 }} /></div>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: 9.5, fontWeight: 800, color: nextAction.color, textTransform: 'uppercase', letterSpacing: '.5px', opacity: 0.9 }}>Next action</div>
+              <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--text)', lineHeight: 1.25, wordBreak: 'break-word' }}>{nextAction.label}</div>
+            </div>
           </div>
 
-          {(() => {
-            const alreadyQuoted = ['proposal_given', 'won'].includes(lead.status)  // quotation already given → grey out, but still allow a re-quote
-            return (
-              <button onClick={() => createQuoteFromLead(lead)} disabled={creatingQuote}
-                title={alreadyQuoted ? 'Quotation already sent — tap to create another' : 'Create a quotation for this lead'}
-                style={{ width: '100%', padding: '11px', borderRadius: 9, background: alreadyQuoted ? 'var(--bg2)' : '#0099cc', color: alreadyQuoted ? 'var(--text3)' : '#fff', border: alreadyQuoted ? '0.5px solid var(--border)' : 'none', cursor: creatingQuote ? 'default' : 'pointer', fontSize: 13, fontWeight: 600, marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, opacity: creatingQuote ? 0.7 : 1 }}>
-                <i className={'ti ' + (alreadyQuoted ? 'ti-file-check' : 'ti-file-invoice')} style={{ fontSize: 16 }} /> {creatingQuote ? 'Preparing...' : alreadyQuoted ? 'Quotation already sent — create another?' : 'Create Quotation for this lead'}
-              </button>
-            )
-          })()}
+          <div className="ld-card" style={{ ...PANEL, marginBottom: 0 }}>
+            <div style={SECT}><i className="ti ti-home" style={{ fontSize: 14, color: accent }} /> Project requirement</div>
+            <DetailRow first icon="ti-home" label="Requirement" value={proj || '—'} color="#f59e0b" />
+            <DetailRow icon="ti-coin" label="Budget" value={budget ? (/aed/i.test(String(budget)) ? String(budget) : 'AED ' + budget) : '—'} color="#22c55e" />
+            <DetailRow icon="ti-map-pin" label="Location" value={loc || '—'} color="#ef4444" />
+            <DetailRow icon="ti-phone" label="Phone" value={lead.phone} color="#0891b2" href={lead.phone ? 'tel:' + lead.phone : undefined} />
+            <DetailRow icon="ti-mail" label="Email" value={lead.email} color="#8b5cf6" href={lead.email ? 'mailto:' + lead.email : undefined} />
+            <DetailRow icon="ti-arrow-up-right" label="Source" value={srcLabel} color="#60a5fa" />
+          </div>
+          </div>{/* /next+project row */}
 
-          {meetingForm == null ? (
-            <button onClick={() => setMeetingForm(lead.nextMeeting
-              ? { start: toLocalInput(lead.nextMeeting.start_at), remind: 30, notes: '', kind: lead.nextMeeting.kind || 'followup' }
-              : { start: '', remind: 30, notes: '', kind: 'followup' })}
-              style={{ width: '100%', padding: '11px', borderRadius: 9, background: 'transparent', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.4)', cursor: 'pointer', fontSize: 13, fontWeight: 600, marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
-              <i className="ti ti-calendar-plus" style={{ fontSize: 16 }} /> {lead.nextMeeting ? 'Edit next action / meeting' : 'Schedule a meeting'}
-            </button>
-          ) : (
+          {meetingForm != null && (
             <div style={{ border: '1px solid rgba(59,130,246,0.35)', borderRadius: 10, padding: 13, marginBottom: 14, background: 'rgba(59,130,246,0.05)' }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <i className="ti ti-calendar-event" style={{ fontSize: 15, color: '#3b82f6' }} /> Schedule with {lead.name || 'lead'}
@@ -1453,9 +1590,9 @@ export default function LeadsPage() {
           )}
 
           {lead.isPlatform && (
-            <div style={{ border: '0.5px solid var(--border)', borderRadius: 10, padding: 13, marginBottom: 14 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <i className="ti ti-messages" style={{ fontSize: 15, color: '#0099cc' }} /> Chat with customer
+            <div className="ld-card" style={PANEL}>
+              <div style={SECT}>
+                <i className="ti ti-messages" style={{ fontSize: 15, color: accent }} /> Chat with customer
                 <span style={{ fontSize: 9, fontWeight: 600, padding: '1px 7px', borderRadius: 99, background: 'rgba(0,153,204,0.12)', color: '#0099cc' }}>Quvera</span>
               </div>
 
@@ -1494,10 +1631,13 @@ export default function LeadsPage() {
           )}
 
           {!lead.isPlatform && lead.phone && (
-            <div style={{ border: '0.5px solid var(--border)', borderRadius: 10, padding: 13, marginBottom: 14 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <i className="ti ti-brand-whatsapp" style={{ fontSize: 15, color: '#22c55e' }} /> WhatsApp reply
-                <span style={{ fontSize: 9, fontWeight: 600, padding: '1px 7px', borderRadius: 99, background: 'rgba(0,153,204,0.12)', color: '#0099cc' }}>AI</span>
+            <div className="ld-card" style={PANEL}>
+              <div style={SECT}>
+                <i className="ti ti-sparkles" style={{ fontSize: 15, color: accent }} /> AI suggested WhatsApp message
+              </div>
+              <div style={{ display: 'flex', gap: 13, marginBottom: 12, alignItems: 'center' }}>
+                <div style={{ width: 58, height: 58, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #00D4FF, #8B5CF6)', boxShadow: '0 0 26px rgba(0,212,255,0.6)' }}><i className="ti ti-robot" style={{ fontSize: 30, color: '#fff' }} /></div>
+                <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.45 }}>I'll draft a warm, personalised WhatsApp reply for <b style={{ color: 'var(--text)' }}>{lead.name || 'this lead'}</b>.</div>
               </div>
               {waDraft != null ? (
                 <>
@@ -1527,40 +1667,25 @@ export default function LeadsPage() {
             </div>
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
-            <div style={{ background: 'var(--bg2)', borderRadius: 9, padding: 11, minWidth: 0 }}>
-              <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 6 }}>Contacts</div>
-              <div style={{ fontSize: 11, color: 'var(--text)' }}>{lead.phone || '—'}</div>
-              <div style={{ fontSize: 11, color: 'var(--text2)', wordBreak: 'break-all' }}>{lead.email || '—'}</div>
-            </div>
-            <div style={{ background: 'var(--bg2)', borderRadius: 9, padding: 11, minWidth: 0 }}>
-              <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 6 }}>Requirement</div>
-              <div style={{ fontSize: 11, color: 'var(--text)', wordBreak: 'break-word' }}>{proj || '—'}</div>
-              <div style={{ fontSize: 11, color: 'var(--text2)' }}>{[budget, loc].filter(Boolean).join(' · ') || '—'}</div>
-            </div>
-          </div>
+          {/* Log follow-up + Send templates — side by side */}
+          <div style={{ display: mobile ? 'block' : 'grid', gridTemplateColumns: mobile ? undefined : '1fr 1fr', gap: 12, alignItems: 'start' }}>
 
-          {lead.answers && Object.keys(lead.answers).length > 0 && (
-            <div style={{ background: 'var(--bg2)', borderRadius: 9, padding: 11, marginBottom: 14 }}>
-              <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 6 }}>All answers</div>
-              <div style={{ display: 'grid', gap: 4 }}>
-                {Object.entries(lead.answers).map(([q, a]) => (
-                  <div key={q} style={{ fontSize: 11 }}><span style={{ color: 'var(--text3)' }}>{q}: </span><span style={{ color: 'var(--text)' }}>{String(a)}</span></div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div style={{ border: '0.5px solid var(--border)', borderRadius: 10, padding: 13, marginBottom: 12 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 10 }}><i className="ti ti-pencil-plus" style={{ fontSize: 14, color: '#0099cc' }} /> Log follow-up</div>
+          <div className="ld-card" style={PANEL}>
+            <div style={SECT}><i className="ti ti-pencil-plus" style={{ fontSize: 14, color: accent }} /> Log follow-up</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 11 }}>
-              {OUTCOMES.map(o => (
-                <button key={o} onClick={() => setLogOutcome(logOutcome === o ? '' : o)}
-                  style={{ fontSize: 10, padding: '5px 10px', borderRadius: 99, cursor: 'pointer', fontFamily: 'inherit',
-                    border: '0.5px solid ' + (logOutcome === o ? '#0099cc' : 'var(--border)'),
-                    background: logOutcome === o ? 'rgba(0,153,204,0.12)' : 'transparent',
-                    color: logOutcome === o ? '#0099cc' : 'var(--text2)' }}>{o}</button>
-              ))}
+              {OUTCOMES.map(o => {
+                const m = OUTCOME_META[o] || { c: accent, ic: 'ti-point' }
+                const on = logOutcome === o
+                return (
+                  <button key={o} onClick={() => setLogOutcome(on ? '' : o)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 10.5, padding: '5px 10px', borderRadius: 99, cursor: 'pointer', fontFamily: 'inherit', fontWeight: on ? 700 : 600,
+                      border: '1px solid ' + (on ? m.c : m.c + '44'),
+                      background: on ? m.c + '33' : m.c + '14',
+                      color: m.c }}>
+                    <i className={'ti ' + m.ic} style={{ fontSize: 12 }} /> {o}
+                  </button>
+                )
+              })}
             </div>
             <textarea value={logNote} onChange={e => setLogNote(e.target.value)} placeholder="Notes — what was discussed..."
               style={{ width: '100%', minHeight: 50, padding: '8px 10px', ...inputStyle, fontSize: 12, resize: 'vertical', marginBottom: 9, boxSizing: 'border-box' }} />
@@ -1593,8 +1718,8 @@ export default function LeadsPage() {
             </button>
           </div>
 
-          <div style={{ border: '0.5px solid var(--border)', borderRadius: 10, padding: 13, marginBottom: 12 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 10 }}><i className="ti ti-message-2" style={{ fontSize: 14, color: '#0f7a52' }} /> Send follow-up message</div>
+          <div className="ld-card" style={PANEL}>
+            <div style={SECT}><i className="ti ti-message-2" style={{ fontSize: 14, color: '#0f7a52' }} /> Send follow-up message</div>
             <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 6 }}>Quick templates</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
               {DEFAULT_TEMPLATES.map(t => (
@@ -1636,37 +1761,41 @@ export default function LeadsPage() {
             </button>
           </div>
 
-          </div>{/* /LEFT column */}
+          </div>{/* /log+templates row */}
 
-          {/* RIGHT column — logs / history / timeline */}
-          <div style={{ minWidth: 0, ...(mobile ? { marginTop: 4 } : { position: 'sticky', top: 78, alignSelf: 'start', maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' }) }}>
+          </div>{/* /MAIN */}
 
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <i className="ti ti-history" style={{ fontSize: 15, color: '#0099cc' }} /> History &amp; timeline
-          </div>
+          {/* RIGHT — history / timeline */}
+          <div style={{ minWidth: 0, ...(mobile ? { marginTop: 4 } : {}) }}>
+
+          <div className="ld-card" style={{ ...PANEL, marginBottom: 0 }}>
+          <div style={SECT}><i className="ti ti-history" style={{ fontSize: 15, color: accent }} /> History &amp; timeline</div>
           {tlLoading ? (
             <div style={{ fontSize: 12, color: 'var(--text3)', padding: 10 }}>Loading...</div>
           ) : timeline.length === 0 ? (
             <div style={{ fontSize: 12, color: 'var(--text3)', padding: 10 }}>No activity yet — log your first follow-up.</div>
           ) : (
-            <div style={{ borderLeft: '2px solid var(--border)', paddingLeft: 12, marginLeft: 4, paddingBottom: mobile ? `calc(4px + env(safe-area-inset-bottom))` : 0 }}>
-              {timeline.map(t => (
-                <div key={t.id} style={{ marginBottom: 11 }}>
-                  <div style={{ fontSize: 10, color: 'var(--text3)' }}>{new Date(t.created_at).toLocaleDateString('en-AE', { day: 'numeric', month: 'short' })} · {new Date(t.created_at).toLocaleTimeString('en-AE', { hour: '2-digit', minute: '2-digit' })}</div>
-                  <div style={{ background: 'var(--bg2)', borderRadius: 8, padding: '8px 10px', marginTop: 3 }}>
-                    <div style={{ fontSize: 11, color: 'var(--text)' }}>
-                      {t.kind === 'stage_change' && <span><i className="ti ti-arrow-right" style={{ fontSize: 11 }} /> Moved to {(LEAD_STATUSES.find(s=>s.value===t.new_stage)||{}).label || t.new_stage}</span>}
-                      {t.kind === 'follow_up' && <span>{t.outcome || 'Follow-up'}{t.note ? ' · ' + t.note : ''}</span>}
-                      {t.kind === 'created' && <span>Lead received</span>}
-                      {t.kind === 'note' && <span>{t.note}</span>}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 15, paddingBottom: mobile ? `calc(4px + env(safe-area-inset-bottom))` : 0 }}>
+              {timeline.map(t => {
+                const meta = t.kind === 'stage_change' ? { ic: 'ti-arrow-right', c: '#00D4FF', title: 'Moved to ' + ((LEAD_STATUSES.find(s => s.value === t.new_stage) || {}).label || t.new_stage) }
+                  : t.kind === 'follow_up' ? { ic: 'ti-phone-call', c: '#22c55e', title: t.outcome || 'Follow-up' }
+                  : t.kind === 'created' ? { ic: 'ti-user-plus', c: '#8B5CF6', title: 'Lead created' }
+                  : { ic: 'ti-pencil', c: '#f59e0b', title: 'Note added' }
+                return (
+                  <div key={t.id} style={{ display: 'flex', gap: 11 }}>
+                    <div style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: meta.c + '22', color: meta.c }}><i className={'ti ' + meta.ic} style={{ fontSize: 16 }} /></div>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)' }}>{meta.title}</div>
+                      {(t.kind === 'note' ? t.note : t.note) && <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 1, wordBreak: 'break-word' }}>{t.note}</div>}
+                      <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>{new Date(t.created_at).toLocaleDateString('en-AE', { day: 'numeric', month: 'short' })} · {new Date(t.created_at).toLocaleTimeString('en-AE', { hour: '2-digit', minute: '2-digit' })}{t.actor_name ? ' · ' + t.actor_name : ''}</div>
                     </div>
-                    {t.next_follow_up && <div style={{ fontSize: 9, color: 'var(--text3)', marginTop: 2 }}>Next: {new Date(t.next_follow_up).toLocaleDateString('en-AE', { day: 'numeric', month: 'short' })}</div>}
-                    {t.actor_name && <div style={{ fontSize: 9, color: 'var(--text3)' }}>by {t.actor_name}</div>}
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
+
+          </div>{/* /history panel */}
 
           </div>{/* /RIGHT column */}
           </div>{/* /body grid */}
