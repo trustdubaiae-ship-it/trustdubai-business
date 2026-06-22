@@ -1344,17 +1344,25 @@ export default function LeadsPage() {
     const sla = slaInfo(lead)
     return (
       <div onClick={closeModal} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: mobile ? 0 : '24px 16px', overflowY: 'auto' }}>
-        <div onClick={e => e.stopPropagation()} style={{ width: mobile ? '100%' : 560, minHeight: mobile ? '100%' : 'auto', background: 'var(--card)', borderRadius: mobile ? 0 : 14, border: '0.5px solid var(--border)' }}>
+        <div onClick={e => e.stopPropagation()} style={{ width: mobile ? '100%' : 940, maxWidth: '100%', minHeight: mobile ? '100%' : 'auto', background: 'var(--card)', borderRadius: mobile ? 0 : 14, border: '0.5px solid var(--border)' }}>
 
           <div style={{ position: 'sticky', top: 0, zIndex: 5, background: 'var(--card)', padding: '14px 18px', paddingTop: mobile ? `calc(14px + ${SAFE_TOP})` : 14, borderBottom: '0.5px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderRadius: mobile ? 0 : '14px 14px 0 0' }}>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lead.name || 'Anonymous'}</div>
-              <div style={{ fontSize: 11, color: 'var(--text3)' }}>{srcLabel} · {new Date(lead.created_at).toLocaleDateString('en-AE')}</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', letterSpacing: '-.2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lead.name || 'Anonymous'}</div>
+              {lead.phone && (
+                <a href={'tel:' + lead.phone} onClick={e => e.stopPropagation()} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 14, fontWeight: 700, color: 'var(--text)', textDecoration: 'none', marginTop: 3 }}>
+                  <i className="ti ti-phone" style={{ fontSize: 14, color: '#0099cc' }} /> {lead.phone}
+                </a>
+              )}
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>{srcLabel} · {new Date(lead.created_at).toLocaleDateString('en-AE')}</div>
             </div>
             <button onClick={closeModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 20, flexShrink: 0, marginLeft: 10 }}><i className="ti ti-x" /></button>
           </div>
 
-          <div style={{ padding: 18 }}>
+          <div style={{ padding: 18, display: mobile ? 'block' : 'grid', gridTemplateColumns: mobile ? undefined : 'minmax(0,1fr) 340px', gap: 18, alignItems: 'start' }}>
+
+          {/* LEFT column — details, actions, forms */}
+          <div style={{ minWidth: 0 }}>
 
           <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 9px', borderRadius: 99, background: (TEMP[lead.temperature]||TEMP.warm).bg, color: (TEMP[lead.temperature]||TEMP.warm).color }}>{(TEMP[lead.temperature]||TEMP.warm).label}</span>
@@ -1628,7 +1636,14 @@ export default function LeadsPage() {
             </button>
           </div>
 
-          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', marginBottom: 8 }}>Timeline</div>
+          </div>{/* /LEFT column */}
+
+          {/* RIGHT column — logs / history / timeline */}
+          <div style={{ minWidth: 0, ...(mobile ? { marginTop: 4 } : { position: 'sticky', top: 78, alignSelf: 'start', maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' }) }}>
+
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <i className="ti ti-history" style={{ fontSize: 15, color: '#0099cc' }} /> History &amp; timeline
+          </div>
           {tlLoading ? (
             <div style={{ fontSize: 12, color: 'var(--text3)', padding: 10 }}>Loading...</div>
           ) : timeline.length === 0 ? (
@@ -1653,7 +1668,8 @@ export default function LeadsPage() {
             </div>
           )}
 
-          </div>
+          </div>{/* /RIGHT column */}
+          </div>{/* /body grid */}
         </div>
       </div>
     )
