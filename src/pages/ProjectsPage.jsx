@@ -284,7 +284,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
         .map(r => ({ label: (r.label || '').trim(), pct: numOr(r.pct, 0) }))
         .filter(r => r.label || r.pct)
       const payload = { company_id: company.id, project_id: active.id, name: x.name.trim(), trade: x.trade || null, phone: x.phone || null, status: x.status || 'ongoing', notes: x.notes || null,
-        payment_days: numOr(x.payment_days, 30), payment_schedule: schedule }
+        payment_days: numOr(x.payment_days, 30), payment_schedule: schedule, full_project: !!x.full_project }
       if (x.id) { const { error } = await supabase.from('project_subcontractors').update(payload).eq('id', x.id).eq('company_id', company.id); if (error) throw error }
       else { const { error } = await supabase.from('project_subcontractors').insert(payload); if (error) throw error }
       setSubForm(null); toast.success('Saved ✓'); reloadChildren()
@@ -385,7 +385,17 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   async function generateLPO(sub) {
     let lpo = sub.lpo_number
     if (!lpo) { lpo = 'LPO-' + String(Date.now()).slice(-6); await supabase.from('project_subcontractors').update({ lpo_number: lpo, lpo_date: new Date().toISOString().slice(0, 10) }).eq('id', sub.id).eq('company_id', company.id); reloadChildren() }
-    printLPOandNDA(company, active, sub, scope.filter(s => s.sub_id === sub.id), lpo, subs.filter(x => x.id !== sub.id), toast)
+    let mySubScope = scope.filter(s => s.sub_id === sub.id)
+    // pull reference photos from the linked quotation (visual quote) — matched by description
+    if (active?.quote_id) {
+      try {
+        const { data: q } = await supabase.from('quotations').select('items').eq('id', active.quote_id).eq('company_id', company.id).maybeSingle()
+        const imgByDesc = {}
+        ;(Array.isArray(q?.items) ? q.items : []).forEach(it => { if (it?.img && it?.desc) imgByDesc[String(it.desc).trim().toLowerCase()] = it.img })
+        if (Object.keys(imgByDesc).length) mySubScope = mySubScope.map(s => ({ ...s, img: imgByDesc[String(s.description || '').trim().toLowerCase()] || null }))
+      } catch { /* photos are best-effort */ }
+    }
+    printLPOandNDA(company, active, sub, mySubScope, lpo, subs.filter(x => x.id !== sub.id), toast)
   }
 
   // ----- milestones / timeline -----
@@ -1154,6 +1164,10 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
         </div>
         <label style={lbl}>Status</label><select value={subForm.status} onChange={e => setSubForm(s => ({ ...s, status: e.target.value }))} style={{ ...input, marginBottom: 10 }}>{Object.entries(SSTATUS).map(([k, v]) => <option key={k} value={k}>{v.l}</option>)}</select>
         <label style={lbl}>Notes / scope detail</label><input value={subForm.notes} onChange={e => setSubForm(s => ({ ...s, notes: e.target.value }))} style={input} placeholder="Scope of work…" />
+        <label style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 12, cursor: 'pointer', background: subForm.full_project ? 'rgba(0,153,204,0.08)' : 'var(--bg2)', border: '1px solid ' + (subForm.full_project ? 'rgba(0,153,204,0.4)' : 'var(--border)'), borderRadius: 9, padding: '10px 12px' }}>
+          <input type="checkbox" checked={!!subForm.full_project} onChange={e => setSubForm(s => ({ ...s, full_project: e.target.checked }))} style={{ width: 16, height: 16, accentColor: '#0099cc', cursor: 'pointer' }} />
+          <span style={{ fontSize: 12.5, color: 'var(--text)', fontWeight: 600 }}>Responsible for the <b>full project</b><div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 400 }}>Adds a note on the LPO that this contractor owns the entire project.</div></span>
+        </label>
         {(() => {
           const sched = Array.isArray(subForm.payment_schedule) ? subForm.payment_schedule : []
           const totalPct = sched.reduce((a, r) => a + (Number(r.pct) || 0), 0)
@@ -1303,6 +1317,8 @@ function lpoBody(company, project, sub, items, lpo, others = []) {
   const payDays = Number(sub?.payment_days ?? 30)
   const DEFAULT_SCHEDULE = [{ label: 'Advance on signing', pct: 40 }, { label: 'On delivery to site', pct: 30 }, { label: 'On completion & handover', pct: 30 }]
   const schedule = (Array.isArray(sub?.payment_schedule) && sub.payment_schedule.length ? sub.payment_schedule : DEFAULT_SCHEDULE).filter(s => s && (s.label || Number(s.pct)))
+  // whole-project handover — this subcontractor is responsible for the entire project
+  const fullProject = !!sub?.full_project
   const otherList = (others || []).filter(o => o?.name).map(o => esc(o.name) + (o.trade ? ' (' + esc(o.trade) + ')' : '')).join(', ')
   // Project timeline → the subcontractor must finish 15% of the schedule before the project completion date
   const fmtDate = d => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : null
@@ -1320,8 +1336,11 @@ function lpoBody(company, project, sub, items, lpo, others = []) {
       <div style="flex:1;border:1px solid ${LINE};border-radius:8px;padding:10px 13px;background:${SOFT};"><div style="font-size:8px;color:${ACCENT};text-transform:uppercase;letter-spacing:1px;font-weight:700;">Project completion</div><div style="font-size:12.5px;font-weight:700;margin-top:3px;color:${NAVY};">${pEnd || '—'}</div></div>
       <div style="flex:1;background:#fff6f5;border:1px solid #f4cdc9;border-radius:8px;padding:10px 13px;"><div style="font-size:8px;color:#c0392b;text-transform:uppercase;letter-spacing:1px;font-weight:700;">Your completion${bufferDays ? ' · ' + bufferDays + 'd early' : ''}</div><div style="font-size:12.5px;font-weight:700;margin-top:3px;color:#c0392b;">${subDue || '—'}</div></div>
     </div>` : ''
+  const withImg = items.some(s => s.img)
+  const imgCell = s => withImg ? `<td style="padding:7px 10px;border-bottom:1px solid ${LINE};width:52px;">${s.img ? `<img src="${esc(s.img)}" style="width:42px;height:42px;object-fit:cover;border-radius:6px;border:1px solid ${LINE};display:block;" />` : ''}</td>` : ''
   const rows = items.map((s, i) => `<tr style="${i % 2 ? 'background:' + SOFT + ';' : ''}">
       <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${MUT};">${i + 1}</td>
+      ${imgCell(s)}
       <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${NAVY};">${esc(s.description)}</td>
       <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:center;color:${MUT};">${esc(s.quantity || '')} ${esc(s.unit || '')}</td>
       <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;font-weight:600;color:${NAVY};">AED ${n(s.sub_amount)}</td></tr>`).join('')
@@ -1344,15 +1363,20 @@ function lpoBody(company, project, sub, items, lpo, others = []) {
       <div style="flex:1;border:1px solid ${LINE};border-radius:9px;padding:12px 15px;"><div style="font-size:8px;color:${ACCENT};text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">To · Subcontractor</div><div style="font-size:13.5px;font-weight:700;margin-top:4px;color:${NAVY};">${esc(sub.name)}</div><div style="font-size:10.5px;color:${MUT};margin-top:1px;">${esc(sub.trade || '')}${sub.phone ? ' · ' + esc(sub.phone) : ''}</div></div>
       <div style="flex:1;border:1px solid ${LINE};border-radius:9px;padding:12px 15px;"><div style="font-size:8px;color:${ACCENT};text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">Project</div><div style="font-size:13.5px;font-weight:700;margin-top:4px;color:${NAVY};">${esc(project.name)}</div><div style="font-size:10.5px;color:${MUT};margin-top:1px;">${esc(project.location || '')}</div></div>
     </div>
+    ${fullProject ? `<div style="display:flex;gap:11px;align-items:flex-start;border:1.5px solid ${ACCENT}66;background:${SOFT};border-radius:9px;padding:12px 15px;margin-bottom:18px;">
+      <div style="width:28px;height:28px;border-radius:8px;background:${ACCENT}1f;color:${ACCENT};display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;font-weight:700;">✓</div>
+      <div><div style="font-size:9px;color:${ACCENT};text-transform:uppercase;letter-spacing:1px;font-weight:700;">Whole-Project Responsibility</div><div style="font-size:10.5px;color:#445;line-height:1.6;margin-top:2px;">This Local Purchase Order is issued for the <b>entire project</b>. The Subcontractor is <b>solely and fully responsible</b> for the complete execution, coordination, supervision and on-time delivery of the whole project through to completion, snagging and handover.</div></div>
+    </div>` : ''}
     ${timelineRow}
     <table style="width:100%;border-collapse:separate;border-spacing:0;margin-bottom:16px;border:1px solid ${LINE};border-radius:9px;overflow:hidden;">
       <thead><tr style="background:${NAVY};color:#fff;">
         <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;width:34px;">#</th>
+        ${withImg ? `<th style="padding:10px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;width:52px;">Photo</th>` : ''}
         <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Scope of Work</th>
         <th style="padding:10px 11px;text-align:center;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Qty</th>
         <th style="padding:10px 11px;text-align:right;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Amount</th>
       </tr></thead>
-      <tbody>${rows || '<tr><td colspan="4" style="padding:16px;text-align:center;color:#999;font-size:11px;">No scope assigned to this subcontractor yet.</td></tr>'}</tbody>
+      <tbody>${rows || `<tr><td colspan="${withImg ? 5 : 4}" style="padding:16px;text-align:center;color:#999;font-size:11px;">No scope assigned to this subcontractor yet.</td></tr>`}</tbody>
     </table>
     <div style="display:flex;justify-content:flex-end;margin-bottom:18px;">
       <div style="min-width:260px;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:${NAVY};color:#fff;border-radius:9px;">
