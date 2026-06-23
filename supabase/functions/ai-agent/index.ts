@@ -38,10 +38,18 @@ Deno.serve(async (req) => {
   const companyCategory = body.companyCategory ? `, a ${body.companyCategory} business` : "";
   const messages = Array.isArray(body.messages) ? body.messages : [];
 
-  // build the conversation for Claude (last 20 turns)
+  // build the conversation for Claude (last 20 turns); a user turn may carry an image
   const claudeMsgs = messages.slice(-20)
-    .filter((m: any) => m && m.text)
-    .map((m: any) => ({ role: m.role === "assistant" ? "assistant" : "user", content: String(m.text) }));
+    .filter((m: any) => m && (m.text || (m.image && m.image.data)))
+    .map((m: any) => {
+      const role = m.role === "assistant" ? "assistant" : "user";
+      if (m.image && m.image.data) {
+        const content: any[] = [{ type: "image", source: { type: "base64", media_type: m.image.media_type || "image/jpeg", data: m.image.data } }];
+        if (m.text) content.push({ type: "text", text: String(m.text) });
+        return { role, content };
+      }
+      return { role, content: String(m.text) };
+    });
   if (!claudeMsgs.length) return json({ error: "No message" }, 400);
 
   const knowledge = String(body.knowledge || "").trim();
