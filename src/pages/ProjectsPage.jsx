@@ -67,6 +67,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   const [materials, setMaterials] = useState([])
   const [expenses, setExpenses] = useState([])
   const [subs, setSubs] = useState([])
+  const [subDirectory, setSubDirectory] = useState([])   // saved subcontractors (reuse across projects)
   const [subForm, setSubForm] = useState(null)
   const [scope, setScope] = useState([])
   const [scopeForm, setScopeForm] = useState(null)
@@ -134,6 +135,15 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
         if (p) cost[p.id] += num(x.total)
       })
       setCostByProject(cost)
+      // directory of saved subcontractors (dedupe by name, keep latest) — reuse across projects
+      try {
+        const { data: dirRows } = await supabase.from('project_subcontractors')
+          .select('name,trade,phone,contact_person,vat_no,owner_name,owner_mobile,apply_vat,payment_days,payment_schedule,notes,created_at')
+          .eq('company_id', company.id).order('created_at', { ascending: false }).limit(5000)
+        const dmap = {}
+        ;(dirRows || []).forEach(r => { const k = (r.name || '').trim().toLowerCase(); if (!k || dmap[k]) return; dmap[k] = r })
+        setSubDirectory(Object.values(dmap))
+      } catch { /* directory is optional */ }
       const totalContract = projs.reduce((s, p) => s + num(p.contract_value), 0)
       const totalReceived = Object.values(recv).reduce((s, v) => s + num(v), 0)
       const subContract = (allSubs || []).reduce((s, x) => s + num(x.contract_amount), 0)
@@ -1158,6 +1168,30 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
         <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6, lineHeight: 1.5 }}>Client visibility &amp; approval apply once the client view is live (Phase 3). A timeline change updates the project Target end{updForm.needs_approval ? ' after the client approves' : ''}.</div>
       </FormModal>}
       {subForm && <FormModal title={subForm.id ? 'Edit subcontractor' : 'Add subcontractor'} onClose={() => setSubForm(null)} onSave={saveSub} saving={saving}>
+        {!subForm.id && (() => {
+          const usedNames = new Set(subs.map(s => (s.name || '').trim().toLowerCase()))
+          const pickable = subDirectory.filter(r => !usedNames.has((r.name || '').trim().toLowerCase()))
+          if (!pickable.length) return null
+          return (
+            <div style={{ marginBottom: 12, padding: 10, borderRadius: 9, background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.25)' }}>
+              <label style={{ ...lbl, color: '#8b5cf6' }}><i className="ti ti-address-book" /> Pick a saved subcontractor</label>
+              <select value="" onChange={e => {
+                const r = pickable.find(x => x.name === e.target.value); if (!r) return
+                setSubForm(s => ({ ...s,
+                  name: r.name, trade: r.trade || s.trade, phone: r.phone || '', contact_person: r.contact_person || '',
+                  vat_no: r.vat_no || '', owner_name: r.owner_name || '', owner_mobile: r.owner_mobile || '',
+                  apply_vat: r.apply_vat ?? s.apply_vat, payment_days: r.payment_days ?? s.payment_days,
+                  payment_schedule: (Array.isArray(r.payment_schedule) && r.payment_schedule.length) ? r.payment_schedule : s.payment_schedule,
+                  notes: r.notes || s.notes,
+                }))
+              }} style={input}>
+                <option value="">— Select from your subcontractors —</option>
+                {pickable.map((r, i) => <option key={i} value={r.name}>{r.name}{r.trade ? ' · ' + r.trade : ''}</option>)}
+              </select>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>Auto-fills their details. Or type a new one below — it's saved for next time.</div>
+            </div>
+          )
+        })()}
         <label style={lbl}>Name</label><input autoFocus value={subForm.name} onChange={e => setSubForm(s => ({ ...s, name: e.target.value }))} style={{ ...input, marginBottom: 10 }} placeholder="e.g. Al Noor MEP Works" />
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
           <div><label style={lbl}>Trade / scope</label><select value={subForm.trade} onChange={e => setSubForm(s => ({ ...s, trade: e.target.value }))} style={input}>{TRADES.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
