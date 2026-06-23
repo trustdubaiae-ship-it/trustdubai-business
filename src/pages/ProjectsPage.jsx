@@ -33,6 +33,19 @@ const APPROVAL = { none: null, pending: { l: 'Awaiting client', c: '#f59e0b' }, 
 const ECAT = { labour: { l: 'Labour', c: '#8b5cf6' }, material: { l: 'Material', c: '#0099cc' }, transport: { l: 'Transport', c: '#f59e0b' }, misc: { l: 'Misc', c: '#64748b' } }
 const SSTATUS = { ongoing: { l: 'Ongoing', c: '#0099cc' }, completed: { l: 'Completed', c: '#22c55e' }, on_hold: { l: 'On Hold', c: '#f59e0b' } }
 const MILESTONE_ST = { pending: { l: 'Pending', c: '#64748b', ic: 'ti-circle' }, in_progress: { l: 'In progress', c: '#0099cc', ic: 'ti-progress' }, done: { l: 'Done', c: '#22c55e', ic: 'ti-circle-check-filled' } }
+// The project's live status comes from the timeline: the current (in-progress / next) stage,
+// or "Completed" when every stage is done. Single source of truth — no separate status to set.
+function timelineStage(ms) {
+  if (!ms || !ms.length) return null
+  const list = [...ms].sort((a, b) => (Number(a.sort) || 0) - (Number(b.sort) || 0))
+  const total = list.length
+  const done = list.filter(m => m.status === 'done').length
+  if (done >= total) return { label: 'Completed', color: '#22c55e', icon: 'ti-circle-check', complete: true, done, total }
+  const inProg = list.find(m => m.status === 'in_progress')
+  const cur = inProg || list.find(m => m.status !== 'done')
+  const started = done > 0 || !!inProg
+  return { label: cur ? cur.title : 'In progress', color: started ? '#0099cc' : '#64748b', icon: started ? 'ti-progress' : 'ti-pencil', complete: false, done, total }
+}
 // default interior fit-out stages with typical weights (sum = 100%)
 const DEFAULT_STAGES = [
   { title: 'Site survey & measurement', weight: 3 },
@@ -83,6 +96,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   const [purchases, setPurchases] = useState([])   // purchase bills tagged to this project's client
   const [projVos, setProjVos] = useState([])       // approved Variation Orders on this project's quote
   const [milestones, setMilestones] = useState([])
+  const [stageByProject, setStageByProject] = useState({}) // projectId -> timeline current stage (for list cards)
   const [msForm, setMsForm] = useState(null)
   const [updates, setUpdates] = useState([])   // project history / timeline entries
   const [updForm, setUpdForm] = useState(null)
@@ -95,11 +109,21 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
     if (active?.start_date && active?.end_date) setCDays(String(Math.max(0, Math.round((new Date(active.end_date) - new Date(active.start_date)) / 86400000))))
     else setCDays('')
   }, [active?.id, active?.start_date, active?.end_date])
-  // keep project progress in sync with milestone completion (weighted) — covers every edit path
+  // keep project progress + status in sync with the timeline — covers every edit path
   useEffect(() => {
     if (view !== 'detail' || !active || !milestones.length) return
     const pct = weightedPct(milestones)
-    if (pct !== (Number(active.progress) || 0)) patchActive({ progress: pct })
+    const patch = {}
+    if (pct !== (Number(active.progress) || 0)) patch.progress = pct
+    // coarse status follows the timeline (for dashboard counts), but never overrides a manual hold/cancel
+    if (active.status !== 'on_hold' && active.status !== 'cancelled') {
+      const desired = pct >= 100 ? 'completed' : 'ongoing'
+      if (active.status !== desired) patch.status = desired
+    }
+    if (Object.keys(patch).length) patchActive(patch)
+    // refresh this project's card stage immediately
+    const s = timelineStage(milestones)
+    if (s) setStageByProject(prev => ({ ...prev, [active.id]: s }))
   }, [milestones, active?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadProjects() {
@@ -135,6 +159,17 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
         if (p) cost[p.id] += num(x.total)
       })
       setCostByProject(cost)
+      // timeline current-stage per project (so each dashboard card shows the live status)
+      try {
+        const { data: allMs } = await supabase.from('project_milestones')
+          .select('project_id,title,status,weight,sort').eq('company_id', company.id)
+          .order('sort', { ascending: true }).limit(8000)
+        const byProj = {}
+        ;(allMs || []).forEach(m => { (byProj[m.project_id] = byProj[m.project_id] || []).push(m) })
+        const stageMap = {}
+        Object.entries(byProj).forEach(([pid, list]) => { const s = timelineStage(list); if (s) stageMap[pid] = s })
+        setStageByProject(stageMap)
+      } catch { /* timeline status is optional */ }
       // directory of saved subcontractors (dedupe by name, keep latest) — reuse across projects
       try {
         const { data: dirRows } = await supabase.from('project_subcontractors')
@@ -622,7 +657,9 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px,1fr))', gap: 12 }}>
               {projects.map(p => {
-                const st = PSTATUS[p.status] || PSTATUS.planning
+                const tl = stageByProject[p.id]
+                const st = (p.status === 'on_hold' || p.status === 'cancelled' || !tl)
+                  ? (PSTATUS[p.status] || PSTATUS.planning) : tl
                 const recv = Number(recvByProject[p.id]) || 0
                 const cv = Number(p.contract_value) || 0
                 const payPct = cv > 0 ? Math.min(100, Math.round((recv / cv) * 100)) : 0
@@ -641,8 +678,8 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
                     style={{ cursor: 'pointer', background: `radial-gradient(130% 85% at 50% -10%, ${st.color}24, transparent 55%), var(--card)`, border: '1px solid var(--border)', borderRadius: 16, padding: 14, boxShadow: 'var(--shadow-md)' }}>
                     {/* status + contract value */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
-                      <span style={{ fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 99, background: st.color, color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 4, textTransform: 'uppercase', letterSpacing: '.4px', boxShadow: `0 3px 10px ${st.color}55` }}>
-                        <i className={'ti ' + st.icon} style={{ fontSize: 12 }} /> {st.label}
+                      <span style={{ fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 99, background: st.color, color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 4, textTransform: 'uppercase', letterSpacing: '.4px', boxShadow: `0 3px 10px ${st.color}55`, minWidth: 0, maxWidth: '72%' }}>
+                        <i className={'ti ' + st.icon} style={{ fontSize: 12, flexShrink: 0 }} /> <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{st.label}</span>
                       </span>
                       <span style={{ fontSize: 16, fontWeight: 800, color: '#0099cc', letterSpacing: '-.3px' }}>{AED(cv)}</span>
                     </div>
@@ -695,7 +732,9 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   }
 
   // ===== DETAIL =====
-  const st = PSTATUS[active.status] || PSTATUS.planning
+  const activeStage = timelineStage(milestones)
+  const st = (active.status === 'on_hold' || active.status === 'cancelled' || !activeStage)
+    ? (PSTATUS[active.status] || PSTATUS.planning) : activeStage
   return (
     <div style={{ color: 'var(--text)' }}>
       <style>{FX}</style>
@@ -759,10 +798,17 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
         <div style={{ ...card }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px,1fr))', gap: 14 }}>
             <div>
-              <label style={lbl}>Status</label>
-              <select value={active.status} onChange={e => patchActive({ status: e.target.value })} style={input}>
-                {Object.entries(PSTATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+              <label style={lbl}>Status <span style={{ color: 'var(--text3)', fontWeight: 400 }}>· auto from timeline</span></label>
+              <div style={{ marginBottom: 7 }}>
+                <span style={{ fontSize: 11.5, fontWeight: 800, padding: '5px 11px', borderRadius: 99, background: st.color, color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 5, maxWidth: '100%' }}><i className={'ti ' + (st.icon || 'ti-progress')} style={{ flexShrink: 0 }} /> <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{st.label}</span></span>
+              </div>
+              <select value={(active.status === 'on_hold' || active.status === 'cancelled') ? active.status : 'active'}
+                onChange={e => patchActive({ status: e.target.value === 'active' ? (activeStage?.complete ? 'completed' : 'ongoing') : e.target.value })} style={input}>
+                <option value="active">Active — follow timeline</option>
+                <option value="on_hold">On hold</option>
+                <option value="cancelled">Cancelled</option>
               </select>
+              <div style={{ fontSize: 10.5, color: 'var(--text3)', marginTop: 5, lineHeight: 1.4 }}>{activeStage ? 'Status updates as you advance stages in the Timeline tab.' : 'Add stages in the Timeline tab to drive the status.'}</div>
             </div>
             <div><label style={lbl}>Start date</label><input type="date" value={active.start_date || ''} onChange={e => patchActive({ start_date: e.target.value || null })} style={input} /></div>
             <div>
