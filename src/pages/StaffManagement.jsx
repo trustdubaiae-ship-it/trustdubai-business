@@ -220,7 +220,7 @@ function PermissionBoxes({ perms, setPerms }) {
           <button onClick={() => setPerms(allPermsFalse())} style={miniBtn}>Clear All</button>
         </div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 6 }}>
         {PERMISSIONS.map((p) => (
           <label key={p.key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#0f172a", cursor: "pointer" }}>
             <input type="checkbox" checked={!!perms[p.key]} onChange={() => toggle(p.key)}

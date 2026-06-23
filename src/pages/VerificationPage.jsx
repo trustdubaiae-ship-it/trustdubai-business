@@ -284,7 +284,7 @@ export default function VerificationPage() {
         </label>
         <div style={{ display: 'flex', gap: 8 }}>
           <input value={tlNumber} onChange={(e) => setTlNumber(e.target.value)} placeholder="e.g. 1234567"
-            style={{ flex: 1, padding: '10px 12px', borderRadius: 8, border: '1px solid #d8dde4', fontSize: 14 }} />
+            style={{ flex: 1, minWidth: 0, padding: '10px 12px', borderRadius: 8, border: '1px solid #d8dde4', fontSize: 14, boxSizing: 'border-box' }} />
           <button onClick={saveTlNumber} disabled={savingNum || tlNumber === (row?.trade_license_number || '')}
             style={{ background: (savingNum || tlNumber === (row?.trade_license_number || '')) ? '#cbd5e1' : BRAND, color: '#fff', border: 'none', borderRadius: 8, padding: '0 18px', fontWeight: 600, fontSize: 14, cursor: 'pointer', whiteSpace: 'nowrap' }}>
             {savingNum ? 'Saving…' : 'Save'}

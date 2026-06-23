@@ -204,7 +204,7 @@ export default function WhatsAppConnect({ onBack, onConnected }) {
               <label style={lbl}>Phone Number ID <span style={{ color: '#ef4444' }}>*</span></label>
               <input value={f.phone_number_id} onChange={e => set('phone_number_id', e.target.value)} style={input} placeholder="e.g. 123456789012345" />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12, marginBottom: 12 }}>
               <div><label style={lbl}>Display number</label><input value={f.display_number} onChange={e => set('display_number', e.target.value)} style={input} placeholder="+9715xxxxxxxx" /></div>
               <div><label style={lbl}>WABA ID</label><input value={f.waba_id} onChange={e => set('waba_id', e.target.value)} style={input} placeholder="optional" /></div>
             </div>

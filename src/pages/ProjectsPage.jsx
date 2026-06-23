@@ -1045,7 +1045,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
                     <button onClick={() => setSubForm({ ...s, apply_vat: s.apply_vat ?? true, payment_days: s.payment_days ?? 30, payment_schedule: (Array.isArray(s.payment_schedule) && s.payment_schedule.length) ? s.payment_schedule : [{ label: 'Advance on signing', pct: 40 }, { label: 'On delivery to site', pct: 30 }, { label: 'On completion & handover', pct: 30 }] })} style={iconBtn}><i className="ti ti-edit" style={{ fontSize: 15 }} /></button>
                     <button onClick={() => delSub(s.id)} style={{ ...iconBtn, color: '#ef4444' }}><i className="ti ti-trash" style={{ fontSize: 15 }} /></button>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginTop: 10 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', gap: 8, marginTop: 10 }}>
                     {[['Contract', AED(s.contract_amount), 'var(--text)'], ['Paid', AED(s.paid_amount), '#22c55e'], ['Balance', AED(bal), bal > 0 ? '#ef4444' : '#22c55e']].map(([k, v, c]) => (
                       <div key={k} style={{ background: 'var(--bg2)', borderRadius: 8, padding: '8px 10px' }}><div style={{ fontSize: 10, color: 'var(--text3)' }}>{k}</div><div style={{ fontSize: 13.5, fontWeight: 700, color: c }}>{v}</div></div>
                     ))}
@@ -1173,11 +1173,11 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
       {projModal && ProjectModal()}
       {matForm && <FormModal title={matForm.id ? 'Edit material' : 'Add material'} onClose={() => setMatForm(null)} onSave={saveMaterial} saving={saving}>
         <label style={lbl}>Item</label><input autoFocus value={matForm.item} onChange={e => setMatForm(m => ({ ...m, item: e.target.value }))} style={{ ...input, marginBottom: 10 }} placeholder="e.g. MDF board 18mm" />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 10 }}>
           <div><label style={lbl}>Quantity</label><input type="number" value={matForm.quantity} onChange={e => setMatForm(m => ({ ...m, quantity: e.target.value }))} style={input} /></div>
           <div><label style={lbl}>Unit</label><input value={matForm.unit} onChange={e => setMatForm(m => ({ ...m, unit: e.target.value }))} style={input} placeholder="Nos / m² / kg" /></div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 10 }}>
           <div><label style={lbl}>Vendor</label><input value={matForm.vendor} onChange={e => setMatForm(m => ({ ...m, vendor: e.target.value }))} style={input} /></div>
           <div><label style={lbl}>Est. cost (AED)</label><input type="number" value={matForm.est_cost} onChange={e => setMatForm(m => ({ ...m, est_cost: e.target.value }))} style={input} /></div>
         </div>
@@ -1186,14 +1186,14 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
       {expForm && <FormModal title={expForm.id ? 'Edit expense' : 'Add expense'} onClose={() => setExpForm(null)} onSave={saveExpense} saving={saving}>
         <label style={lbl}>Category</label><select value={expForm.category} onChange={e => setExpForm(x => ({ ...x, category: e.target.value }))} style={{ ...input, marginBottom: 10 }}>{Object.entries(ECAT).map(([k, v]) => <option key={k} value={k}>{v.l}</option>)}</select>
         <label style={lbl}>Description</label><input autoFocus value={expForm.description} onChange={e => setExpForm(x => ({ ...x, description: e.target.value }))} style={{ ...input, marginBottom: 10 }} placeholder="e.g. Carpenter — 2 days" />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10 }}>
           <div><label style={lbl}>Amount (AED)</label><input type="number" autoFocus value={expForm.amount} onChange={e => setExpForm(x => ({ ...x, amount: e.target.value }))} style={input} /></div>
           <div><label style={lbl}>Date</label><input type="date" value={expForm.spent_on} onChange={e => setExpForm(x => ({ ...x, spent_on: e.target.value }))} style={input} /></div>
         </div>
       </FormModal>}
       {msForm && <FormModal title={msForm.id ? 'Edit stage' : 'Add stage'} onClose={() => setMsForm(null)} onSave={saveMilestone} saving={saving}>
         <label style={lbl}>Stage / milestone</label><input autoFocus value={msForm.title} onChange={e => setMsForm(s => ({ ...s, title: e.target.value }))} style={{ ...input, marginBottom: 10 }} placeholder="e.g. Gypsum & false ceiling" />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 10 }}>
           <div><label style={lbl}>Target date</label><input type="date" value={msForm.target_date} onChange={e => setMsForm(s => ({ ...s, target_date: e.target.value }))} style={input} /></div>
           <div><label style={lbl}>Weight (% of project)</label><input type="number" value={msForm.weight} onChange={e => setMsForm(s => ({ ...s, weight: e.target.value }))} style={input} placeholder="e.g. 20" /></div>
         </div>
@@ -1201,14 +1201,14 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
         <label style={lbl}>Note</label><input value={msForm.note || ''} onChange={e => setMsForm(s => ({ ...s, note: e.target.value }))} style={input} placeholder="Optional detail…" />
       </FormModal>}
       {updForm && <FormModal title={updForm.id ? 'Edit update' : 'Add project update'} onClose={() => setUpdForm(null)} onSave={saveUpdate} saving={saving} onDelete={updForm.id ? () => delUpdate(updForm.id) : undefined}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 10 }}>
           <div><label style={lbl}>Type</label><select value={updForm.kind} onChange={e => setUpdForm(s => ({ ...s, kind: e.target.value }))} style={input}>{Object.entries(UPD_KIND).map(([k, v]) => <option key={k} value={k}>{v.l}</option>)}</select></div>
           <div><label style={lbl}>Date</label><input type="date" value={updForm.event_date || ''} onChange={e => setUpdForm(s => ({ ...s, event_date: e.target.value }))} style={input} /></div>
         </div>
         <label style={lbl}>Title</label><input autoFocus value={updForm.title || ''} onChange={e => setUpdForm(s => ({ ...s, title: e.target.value }))} style={{ ...input, marginBottom: 10 }} placeholder="e.g. Site meeting — kitchen layout" />
         <label style={lbl}>Details</label><textarea value={updForm.body || ''} onChange={e => setUpdForm(s => ({ ...s, body: e.target.value }))} rows={4} style={{ ...input, marginBottom: 10, resize: 'vertical', minHeight: 80 }} placeholder="What was discussed / decided / changed…" />
         {updForm.kind === 'timeline' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 10 }}>
             <div><label style={lbl}>Previous date</label><input type="date" value={updForm.old_date || active.end_date || ''} onChange={e => setUpdForm(s => ({ ...s, old_date: e.target.value }))} style={input} /></div>
             <div><label style={lbl}>New date</label><input type="date" value={updForm.new_date || ''} onChange={e => setUpdForm(s => ({ ...s, new_date: e.target.value }))} style={input} /></div>
           </div>
@@ -1249,11 +1249,11 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
           )
         })()}
         <label style={lbl}>Name</label><input autoFocus value={subForm.name} onChange={e => setSubForm(s => ({ ...s, name: e.target.value }))} style={{ ...input, marginBottom: 10 }} placeholder="e.g. Al Noor MEP Works" />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 10 }}>
           <div><label style={lbl}>Trade / scope</label><select value={subForm.trade} onChange={e => setSubForm(s => ({ ...s, trade: e.target.value }))} style={input}>{TRADES.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
           <div><label style={lbl}>Phone</label><input value={subForm.phone} onChange={e => setSubForm(s => ({ ...s, phone: e.target.value }))} style={input} /></div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 10 }}>
           <div><label style={lbl}>Contact person</label><input value={subForm.contact_person || ''} onChange={e => setSubForm(s => ({ ...s, contact_person: e.target.value }))} style={input} placeholder="On-site contact" /></div>
           <div><label style={lbl}>VAT / TRN no</label><input value={subForm.vat_no || ''} onChange={e => setSubForm(s => ({ ...s, vat_no: e.target.value }))} style={input} placeholder="100xxxxxxxxxxxx" /></div>
         </div>
@@ -1261,7 +1261,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
           <input type="checkbox" checked={!!subForm.apply_vat} onChange={e => setSubForm(s => ({ ...s, apply_vat: e.target.checked }))} style={{ width: 16, height: 16, accentColor: '#0099cc', cursor: 'pointer' }} />
           <span style={{ fontSize: 12.5, color: 'var(--text)', fontWeight: 600 }}>Add 5% VAT on the LPO <span style={{ color: 'var(--text3)', fontWeight: 400 }}>· tick if the subcontractor is VAT-registered (has TRN)</span></span>
         </label>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 10 }}>
           <div><label style={lbl}>Owner name</label><input value={subForm.owner_name || ''} onChange={e => setSubForm(s => ({ ...s, owner_name: e.target.value }))} style={input} /></div>
           <div><label style={lbl}>Owner mobile</label><input value={subForm.owner_mobile || ''} onChange={e => setSubForm(s => ({ ...s, owner_mobile: e.target.value }))} style={input} /></div>
         </div>
@@ -1313,7 +1313,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
                 </div>
                 <button onClick={() => { setPayModal(null); setPayForm(null) }} style={{ ...iconBtn, width: 30, height: 30 }}><i className="ti ti-x" style={{ fontSize: 15 }} /></button>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', gap: 8, marginBottom: 14 }}>
                 {[['Contract', AED(contract), 'var(--text)'], ['Paid', AED(paid), '#22c55e'], ['Balance', AED(bal), bal > 0 ? '#ef4444' : '#22c55e']].map(([k, v, c]) => (
                   <div key={k} style={{ background: 'var(--bg2)', borderRadius: 9, padding: '9px 11px' }}><div style={{ fontSize: 10, color: 'var(--text3)' }}>{k}</div><div style={{ fontSize: 14, fontWeight: 700, color: c }}>{v}</div></div>
                 ))}
@@ -1321,11 +1321,11 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
               {!payForm && <button onClick={() => setPayForm({ amount: bal > 0 ? bal : '', paid_on: new Date().toISOString().slice(0, 10), method: 'Bank', reference: '', note: '' })} className="btn btn-primary btn-sm" style={{ width: '100%', marginBottom: 12 }}><i className="ti ti-plus" /> Record a payment</button>}
               {payForm && (
                 <div style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 13, marginBottom: 12, background: 'var(--bg2)' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 10 }}>
                     <div><label style={lbl}>Amount (AED)</label><input type="number" autoFocus value={payForm.amount} onChange={e => setPayForm(p => ({ ...p, amount: e.target.value }))} style={input} /></div>
                     <div><label style={lbl}>Date</label><input type="date" value={payForm.paid_on} onChange={e => setPayForm(p => ({ ...p, paid_on: e.target.value }))} style={input} /></div>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 10 }}>
                     <div><label style={lbl}>Method</label><select value={payForm.method} onChange={e => setPayForm(p => ({ ...p, method: e.target.value }))} style={input}>{['Bank', 'Cash', 'Cheque', 'Online'].map(m => <option key={m} value={m}>{m}</option>)}</select></div>
                     <div><label style={lbl}>Reference</label><input value={payForm.reference} onChange={e => setPayForm(p => ({ ...p, reference: e.target.value }))} style={input} placeholder="Cheque / txn no" /></div>
                   </div>
@@ -1356,7 +1356,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
       })()}
       {scopeForm && <FormModal title={scopeForm.id ? 'Edit scope item' : 'Add scope item'} onClose={() => setScopeForm(null)} onSave={saveScopeItem} saving={saving}>
         <label style={lbl}>Description</label><input autoFocus value={scopeForm.description} onChange={e => setScopeForm(s => ({ ...s, description: e.target.value }))} style={{ ...input, marginBottom: 10 }} placeholder="e.g. Gypsum false ceiling — living room" />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', gap: 10, marginBottom: 10 }}>
           <div><label style={lbl}>Qty</label><input type="number" value={scopeForm.quantity} onChange={e => setScopeForm(s => ({ ...s, quantity: e.target.value }))} style={input} /></div>
           <div><label style={lbl}>Unit</label><input value={scopeForm.unit} onChange={e => setScopeForm(s => ({ ...s, unit: e.target.value }))} style={input} placeholder="m² / Nos" /></div>
           <div><label style={lbl}>Trade</label><select value={scopeForm.trade} onChange={e => setScopeForm(s => ({ ...s, trade: e.target.value }))} style={input}><option value="">—</option>{TRADES.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
@@ -1373,15 +1373,15 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
     return (
       <FormModal title={projModal.isNew ? 'New project' : 'Edit project'} onClose={() => setProjModal(null)} onSave={saveProject} saving={saving} onDelete={!projModal.isNew ? () => { setProjModal(null); deleteProject(p.id) } : null}>
         <label style={lbl}>Project name</label><input autoFocus value={p.name} onChange={e => set({ name: e.target.value })} style={{ ...input, marginBottom: 10 }} placeholder="e.g. Villa Fit-out — Palm" />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 10 }}>
           <div><label style={lbl}>Client name</label><input value={p.client_name} onChange={e => set({ client_name: e.target.value })} style={input} /></div>
           <div><label style={lbl}>Client phone</label><input value={p.client_phone} onChange={e => set({ client_phone: e.target.value })} style={input} /></div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 10 }}>
           <div><label style={lbl}>Status</label><select value={p.status} onChange={e => set({ status: e.target.value })} style={input}>{Object.entries(PSTATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div>
           <div><label style={lbl}>Contract value (AED)</label><input type="number" value={p.contract_value} onChange={e => set({ contract_value: e.target.value })} style={input} /></div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 10 }}>
           <div><label style={lbl}>Start date</label><input type="date" value={p.start_date} onChange={e => set({ start_date: e.target.value })} style={input} /></div>
           <div><label style={lbl}>Target end</label><input type="date" value={p.end_date} onChange={e => set({ end_date: e.target.value })} style={input} /></div>
         </div>

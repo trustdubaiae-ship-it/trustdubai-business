@@ -386,7 +386,7 @@ export default function SponsoredPage({ onNavigate }) {
                   </div>
 
                   {/* Summary */}
-                  <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10, marginTop:14 }}>
+                  <div style={{ display:'grid', gridTemplateColumns: mobile?'1fr':'repeat(3,1fr)', gap:10, marginTop:14 }}>
                     {[
                       { label:'Best Day',     value:`${Math.max(...analytics.daily,0)} clicks`, color:'#3b82f6' },
                       { label:'Avg Per Day',  value:`${analytics.daily.length>0?(analytics.clicks/14).toFixed(1):0} clicks`, color:'#10b981' },

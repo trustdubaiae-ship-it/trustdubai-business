@@ -343,11 +343,11 @@ export default function Purchases() {
                 <input list="purchase-supplier-dl" value={pForm.supplier_name} onChange={e => setSupplierName(e.target.value)} placeholder="Type or pick a supplier…" style={inputStyle} />
                 <datalist id="purchase-supplier-dl">{suppliers.map(s => <option key={s.id} value={s.name} />)}</datalist>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 10 }}>
                 <div><label style={{ fontSize: 11, color: textMuted, display: 'block', marginBottom: 3 }}>Bill / invoice no.</label><input value={pForm.invoice_number} onChange={e => setPForm(f => ({ ...f, invoice_number: e.target.value }))} placeholder="e.g. ACE-2291" style={inputStyle} /></div>
                 <div><label style={{ fontSize: 11, color: textMuted, display: 'block', marginBottom: 3 }}>Bill date</label><input type="date" value={pForm.invoice_date} onChange={e => setPForm(f => ({ ...f, invoice_date: e.target.value }))} style={inputStyle} /></div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 10 }}>
                 <div><label style={{ fontSize: 11, color: textMuted, display: 'block', marginBottom: 3 }}>Category</label>
                   <select value={pForm.category} onChange={e => setPForm(f => ({ ...f, category: e.target.value }))} style={inputStyle}>{CATEGORIES.map(c => <option key={c} value={c} style={{ background: inputBg, color: text }}>{c}</option>)}</select>
                 </div>
@@ -383,7 +383,7 @@ export default function Purchases() {
               {/* Payment — how it was paid, by whom */}
               <div style={{ background: subBg, border: `1px solid ${border}`, borderRadius: 9, padding: '10px 12px' }}>
                 <div style={{ fontSize: 11.5, fontWeight: 600, color: textSub, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}><i className="ti ti-wallet" style={{ fontSize: 14, color: BLUE }} /> Payment</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 10 }}>
                   <div><label style={{ fontSize: 11, color: textMuted, display: 'block', marginBottom: 3 }}>Mode of payment</label>
                     <select value={pForm.method} onChange={e => setPForm(f => ({ ...f, method: e.target.value }))} style={inputStyle}>{PAY_METHODS.map(m => <option key={m} value={m} style={{ background: inputBg, color: text }}>{m}</option>)}</select>
                   </div>
@@ -392,7 +392,7 @@ export default function Purchases() {
                 <div style={{ marginTop: 10 }}><label style={{ fontSize: 11, color: textMuted, display: 'block', marginBottom: 3 }}>Payment remark <span>(optional)</span></label><input value={pForm.payment_remark} onChange={e => setPForm(f => ({ ...f, payment_remark: e.target.value }))} placeholder="e.g. Card ****1234 · Cheque #0098 · bank ref" style={inputStyle} /></div>
                 <div style={{ fontSize: 10, color: textMuted, marginTop: 5 }}>Leave Paid as 0 if unpaid · enter the total if fully paid.</div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 10 }}>
                 <div><label style={{ fontSize: 11, color: textMuted, display: 'block', marginBottom: 3 }}>Purchased by</label><input value={pForm.purchased_by} onChange={e => setPForm(f => ({ ...f, purchased_by: e.target.value }))} placeholder="Who bought it" style={inputStyle} /></div>
                 <div><label style={{ fontSize: 11, color: textMuted, display: 'block', marginBottom: 3 }}>Notes <span>(optional)</span></label><input value={pForm.notes} onChange={e => setPForm(f => ({ ...f, notes: e.target.value }))} placeholder="Any note" style={inputStyle} /></div>
               </div>
@@ -415,7 +415,7 @@ export default function Purchases() {
             </div>
             <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 11 }}>
               <div><label style={{ fontSize: 11, color: textMuted, display: 'block', marginBottom: 3 }}>Supplier name <span style={{ color: RED }}>*</span></label><input value={sForm.name} onChange={e => setSForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. ACE Hardware LLC" style={inputStyle} /></div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 10 }}>
                 <div><label style={{ fontSize: 11, color: textMuted, display: 'block', marginBottom: 3 }}>TRN <span>(optional)</span></label><input value={sForm.trn} onChange={e => setSForm(f => ({ ...f, trn: e.target.value }))} placeholder="Tax reg. no." style={inputStyle} /></div>
                 <div><label style={{ fontSize: 11, color: textMuted, display: 'block', marginBottom: 3 }}>Phone</label><input value={sForm.phone} onChange={e => setSForm(f => ({ ...f, phone: e.target.value }))} placeholder="05x…" style={inputStyle} /></div>
               </div>
