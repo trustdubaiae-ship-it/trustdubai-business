@@ -43,7 +43,7 @@ const LABELS: Record<string, string> = {
 const TOOLS = [
   {
     name: "get_projects",
-    description: "List this company's projects (ongoing and past) with status, client name, contract value (AED), location, start/end dates, progress % and health. Use whenever the user asks about project status, ongoing work, deadlines, a particular client's project, or the project pipeline.",
+    description: "List this company's projects (ongoing and past) with status, client name, contract value (AED), location, start/end dates and progress %. Use whenever the user asks about project status, ongoing work, deadlines, a particular client's project, or the project pipeline.",
     input_schema: { type: "object", properties: { status: { type: "string", description: "optional text filter on status, e.g. 'ongoing', 'active', 'completed', 'on hold'" } } },
   },
   {
