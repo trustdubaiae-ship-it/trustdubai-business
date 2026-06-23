@@ -44,8 +44,12 @@ Deno.serve(async (req) => {
     .map((m: any) => ({ role: m.role === "assistant" ? "assistant" : "user", content: String(m.text) }));
   if (!claudeMsgs.length) return json({ error: "No message" }, 400);
 
-  const system = persona.replace("{co}", companyName).replace("{cat}", companyCategory) +
-    `\n\nFormat: clear and well-structured. Use short paragraphs or bullets. Plain text (light markdown is fine). Do not invent prices unless asked for an estimate.`;
+  const knowledge = String(body.knowledge || "").trim();
+  const note = String(body.note || "").trim();
+  let system = persona.replace("{co}", companyName).replace("{cat}", companyCategory);
+  if (knowledge) system += `\n\n--- About ${companyName} (use this to be accurate and specific to this business) ---\n${knowledge.slice(0, 4000)}`;
+  if (note) system += `\n\n--- Extra instructions for you from the owner ---\n${note.slice(0, 1500)}`;
+  system += `\n\nFormat: clear and well-structured. Use short paragraphs or bullets. Plain text (light markdown is fine). Do not invent prices unless asked for an estimate.`;
 
   try {
     const aiRes = await fetch("https://api.anthropic.com/v1/messages", {

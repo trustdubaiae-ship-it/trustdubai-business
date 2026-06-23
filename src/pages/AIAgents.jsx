@@ -38,13 +38,36 @@ export default function AIAgents() {
   const [busy, setBusy] = useState(false)
   const endRef = useRef(null)
 
+  // knowledge + per-agent notes the agents use to stay specific to the business
+  const [cfg, setCfg] = useState({ knowledge: '', notes: {} })
+  const [showKnow, setShowKnow] = useState(false)
+  const [showNote, setShowNote] = useState(false)
+  const [savingCfg, setSavingCfg] = useState(false)
+
+  useEffect(() => { if (company?.id) loadCfg() }, [company?.id])
+  async function loadCfg() {
+    const { data } = await supabase.from('ai_agent_config').select('knowledge, notes').eq('company_id', company.id).maybeSingle()
+    if (data) setCfg({ knowledge: data.knowledge || '', notes: data.notes || {} })
+  }
+  async function saveCfg(next) {
+    const merged = next || cfg
+    setSavingCfg(true)
+    try {
+      const { error } = await supabase.from('ai_agent_config').upsert(
+        { company_id: company.id, knowledge: merged.knowledge || null, notes: merged.notes || {}, updated_at: new Date().toISOString() },
+        { onConflict: 'company_id' })
+      if (error) throw error
+      toast.success('Saved ✓')
+    } catch (e) { toast.error('Could not save: ' + (e?.message || e)) } finally { setSavingCfg(false) }
+  }
+
   const text = 'var(--text)', textSub = 'var(--text2)', textMuted = 'var(--text3)'
   const card = { background: 'var(--card)', border: '0.5px solid var(--border)', borderRadius: 14 }
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [msgs, busy])
 
-  function open(agent) { setActive(agent); setMsgs([]); setInput('') }
-  function back() { setActive(null); setMsgs([]); setInput('') }
+  function open(agent) { setActive(agent); setMsgs([]); setInput(''); setShowNote(false) }
+  function back() { setActive(null); setMsgs([]); setInput(''); setShowNote(false) }
 
   async function send(textToSend) {
     const q = (textToSend ?? input).trim()
@@ -58,6 +81,8 @@ export default function AIAgents() {
           companyName: company?.name || 'our company',
           companyCategory: company?.categories?.[0] || company?.category || '',
           messages: next,
+          knowledge: cfg.knowledge || '',
+          note: cfg.notes?.[active.key] || '',
         },
       })
       if (error) throw error
@@ -72,7 +97,25 @@ export default function AIAgents() {
   if (!active) {
     return (
       <div>
-        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px', color: textMuted, marginBottom: 10 }}>Your AI team</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px', color: textMuted }}>Your AI team</div>
+          <button onClick={() => setShowKnow(v => !v)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, padding: '7px 12px', borderRadius: 9, border: '1px solid var(--border)', background: 'var(--bg2)', color: textSub, cursor: 'pointer' }}>
+            <i className="ti ti-adjustments" /> Business knowledge {cfg.knowledge ? <span style={{ width: 7, height: 7, borderRadius: 99, background: '#16a34a' }} /> : null}
+          </button>
+        </div>
+        {showKnow && (
+          <div style={{ ...card, padding: 16, marginBottom: 14 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: text, marginBottom: 4 }}>Business knowledge</div>
+            <div style={{ fontSize: 12, color: textMuted, marginBottom: 10, lineHeight: 1.6 }}>Tell the agents about your business — services, typical rates, USP, standard terms, target clients. <b>All agents</b> use this to give answers specific to you, not generic.</div>
+            <textarea value={cfg.knowledge} onChange={e => setCfg(c => ({ ...c, knowledge: e.target.value }))}
+              placeholder={'e.g. Fit-out & interior company in Dubai. We do villas, offices and cafes. Typical fit-out AED 250-450/sqft. Premium finishes. Standard payment 40/30/30. Service areas: JVC, Business Bay, Marina.'}
+              style={{ width: '100%', minHeight: 130, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg2)', color: text, fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical', lineHeight: 1.6 }} />
+            <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+              <button onClick={() => saveCfg()} disabled={savingCfg} style={{ padding: '9px 18px', borderRadius: 9, background: '#0099cc', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, opacity: savingCfg ? 0.7 : 1 }}>{savingCfg ? 'Saving…' : 'Save'}</button>
+              <button onClick={() => setShowKnow(false)} style={{ padding: '9px 14px', borderRadius: 9, border: '1px solid var(--border)', background: 'transparent', color: textSub, cursor: 'pointer', fontSize: 13 }}>Close</button>
+            </div>
+          </div>
+        )}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(250px,1fr))', gap: 12 }}>
           {AGENTS.map(a => (
             <button key={a.key} onClick={() => open(a)} style={{ ...card, padding: 16, textAlign: 'left', cursor: 'pointer', color: text }}>
@@ -100,11 +143,27 @@ export default function AIAgents() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginBottom: 12 }}>
         <button onClick={back} style={{ background: 'var(--bg2)', border: 'none', width: 34, height: 34, borderRadius: 9, cursor: 'pointer', color: textSub }}><i className="ti ti-arrow-left" /></button>
         <div style={{ width: 38, height: 38, borderRadius: 10, background: active.color + '22', color: active.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><i className={'ti ' + active.icon} style={{ fontSize: 19 }} /></div>
-        <div>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: text }}>{active.name}</div>
           <div style={{ fontSize: 11.5, color: textMuted }}>{active.tag}</div>
         </div>
+        <button onClick={() => setShowNote(v => !v)} title="Customize this agent" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, padding: '7px 11px', borderRadius: 9, border: '1px solid var(--border)', background: 'var(--bg2)', color: textSub, cursor: 'pointer' }}>
+          <i className="ti ti-settings" /> Customize {cfg.notes?.[active.key] ? <span style={{ width: 7, height: 7, borderRadius: 99, background: '#16a34a' }} /> : null}
+        </button>
       </div>
+
+      {showNote && (
+        <div style={{ ...card, padding: 14, marginBottom: 12 }}>
+          <div style={{ fontSize: 12, color: textMuted, marginBottom: 8, lineHeight: 1.5 }}>Custom instructions just for the <b>{active.name}</b> — e.g. tone, focus, what to always include. (Plus your Business knowledge.)</div>
+          <textarea value={cfg.notes?.[active.key] || ''} onChange={e => setCfg(c => ({ ...c, notes: { ...c.notes, [active.key]: e.target.value } }))}
+            placeholder={'e.g. Always keep a premium, confident tone and end with a clear call to action.'}
+            style={{ width: '100%', minHeight: 70, padding: '9px 11px', borderRadius: 9, border: '1px solid var(--border)', background: 'var(--bg2)', color: text, fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical', lineHeight: 1.5 }} />
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <button onClick={() => { saveCfg(); setShowNote(false) }} disabled={savingCfg} style={{ padding: '8px 16px', borderRadius: 9, background: active.color, color: '#fff', border: 'none', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, opacity: savingCfg ? 0.7 : 1 }}>{savingCfg ? 'Saving…' : 'Save'}</button>
+            <button onClick={() => setShowNote(false)} style={{ padding: '8px 12px', borderRadius: 9, border: '1px solid var(--border)', background: 'transparent', color: textSub, cursor: 'pointer', fontSize: 12.5 }}>Close</button>
+          </div>
+        </div>
+      )}
 
       <div style={{ ...card, flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {msgs.length === 0 && (
