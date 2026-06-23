@@ -732,7 +732,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     setClientSearch(q.client_name || ''); setSuggestions([]); setShowSug(false); setClientPrefix(q.client_prefix || 'Mr.')
     setProjectTitle(q.project_title || '')
     setItems(Array.isArray(q.items) && q.items.length
-      ? q.items.map(it => ({ title:it.title||'', desc:it.desc||'', unit:it.unit||'Nos', qty:it.qty??1, rate:it.rate??0, trade: it.trade || '', img: it.img || '' }))
+      ? q.items.map(it => ({ title:it.title||'', desc:it.desc||'', unit:it.unit||'Nos', qty:it.qty??1, rate:it.rate??0, trade: it.trade || '', img: it.img || '', l: it.l, w: it.w }))
       : [blankItem()])
     setNotes(q.notes || '')
     setVatEnabled(q.vat_enabled != null ? q.vat_enabled : (!!q.vat_amount || (tpl?.default_vat_enabled ?? true)))
@@ -758,6 +758,29 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   }
 
   function updateItem(idx, field, val) { setItems(prev => prev.map((it,i)=> i===idx?{...it,[field]:val}:it)) }
+  // for m² items: capture Length × Width, auto-compute qty (area)
+  const isSqm = (u) => { const s = (u || '').toLowerCase(); return s === 'm²' || s === 'm2' || s === 'sqm' }
+  function setDim(idx, field, val) {
+    setItems(prev => prev.map((it, i) => {
+      if (i !== idx) return it
+      const nx = { ...it, [field]: val }
+      const a = (Number(nx.l) || 0) * (Number(nx.w) || 0)
+      return { ...nx, qty: a ? Math.round(a * 100) / 100 : nx.qty }
+    }))
+  }
+  function qtyCell(it, idx, fs = 12.5) {
+    if (!isSqm(it.unit)) return <input type="number" value={it.qty} onChange={e => updateItem(idx, 'qty', e.target.value)} style={{ ...inputStyle, padding: '7px 4px', fontSize: fs, textAlign: 'center' }} />
+    const a = (Number(it.l) || 0) * (Number(it.w) || 0)
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }} title="Length × Width (m)">
+        <input type="number" placeholder="L" value={it.l ?? ''} onChange={e => setDim(idx, 'l', e.target.value)} style={{ ...inputStyle, padding: '4px 2px', fontSize: 11, textAlign: 'center' }} />
+        <input type="number" placeholder="W" value={it.w ?? ''} onChange={e => setDim(idx, 'w', e.target.value)} style={{ ...inputStyle, padding: '4px 2px', fontSize: 11, textAlign: 'center' }} />
+        <div style={{ fontSize: 8.5, color: 'var(--text3)', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden' }}>{a ? a.toFixed(2) : '—'} m²</div>
+      </div>
+    )
+  }
+  // size label for the quote/PDF, e.g. "3m × 4m"
+  const sizeStr = (it) => (isSqm(it.unit) && Number(it.l) && Number(it.w)) ? `${it.l}m × ${it.w}m` : ''
   function addItem() { setItems(prev => [...prev, blankItem()]) }
   function removeItem(idx) { setItems(prev => prev.length===1?prev:prev.filter((_,i)=>i!==idx)) }
   function addItemToTrade(trade) { setItems(prev => [...prev, blankItemT(trade)]) }
@@ -850,7 +873,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
       items: validItems.map(it => ({
         title: (it.title||'').trim(), desc: it.desc.trim(), unit: it.unit || 'Nos', qty: Number(it.qty)||0, rate: Number(it.rate)||0,
         ...((mode === 'boq' || mode === 'advanced') ? { trade: it.trade || 'Misc' } : {}),
-        ...(it.img ? { img: it.img } : {}),
+        ...(it.img ? { img: it.img } : {}), ...(Number(it.l) && Number(it.w) ? { l: Number(it.l), w: Number(it.w) } : {}),
       })),
       subtotal, vat_amount: vatAmount, total: grandTotal,
       payment_terms: payTerms.length ? payTerms : (selectedPreset?.payment || tpl?.payment_schedule || null),
@@ -891,7 +914,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         items: validItems.map(it => ({
           title:(it.title||'').trim(), desc:it.desc.trim(), unit:it.unit||'Nos', qty:Number(it.qty)||0, rate:Number(it.rate)||0,
           ...((mode === 'boq' || mode === 'advanced') ? { trade: it.trade || 'Misc' } : {}),
-          ...(it.img ? { img: it.img } : {}),
+          ...(it.img ? { img: it.img } : {}), ...(Number(it.l) && Number(it.w) ? { l: Number(it.l), w: Number(it.w) } : {}),
         })),
         subtotal, vat_amount: vatAmount, total: grandTotal,
         discount_type: discountType || null, discount_value: Number(discountValue) || 0, vat_enabled: vatEnabled,
@@ -1075,7 +1098,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     const rowHtml = (it, i) => `<tr>
       <td style="${td}color:#999;">${i}</td>
       ${imgTd(it)}
-      <td style="${tdDesc}">${it.title ? `<div style="font-weight:700;margin-bottom:2px;">${escapeHtml(it.title)}</div>` : ''}${escapeHtml(it.desc||'').replace(/\n/g, '<br>')}</td>
+      <td style="${tdDesc}">${it.title ? `<div style="font-weight:700;margin-bottom:2px;">${escapeHtml(it.title)}</div>` : ''}${escapeHtml(it.desc||'').replace(/\n/g, '<br>')}${sizeStr(it) ? `<div style="font-size:10px;color:#888;margin-top:2px;">Size: ${escapeHtml(sizeStr(it))}</div>` : ''}</td>
       <td style="${td}text-align:center;color:#777;">${escapeHtml(it.unit||'')}</td>
       <td style="${td}text-align:center;color:#777;">${escapeHtml(it.qty||0)}</td>
       <td style="${td}text-align:right;color:#777;">${n(Number(it.rate)||0)}</td>
@@ -1677,7 +1700,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
               <div style={{ minWidth:520 }}>
                 {g.items.map((it,i)=>(
                   <div key={i} style={{ display:'grid', gridTemplateColumns:'1fr 50px 40px 64px 80px', gap:7, padding:'9px 13px', borderTop:`1px solid ${border}`, fontSize:13, color:text }}>
-                    <span style={{ wordBreak:'break-word' }}>{it.desc}</span><span style={{ color:textSub, fontSize:12 }}>{it.unit||'—'}</span><span style={{ color:textSub, textAlign:'center' }}>{it.qty}</span>
+                    <span style={{ wordBreak:'break-word' }}>{it.desc}{sizeStr(it) ? <span style={{ color:textSub }}> · {sizeStr(it)}</span> : null}</span><span style={{ color:textSub, fontSize:12 }}>{it.unit||'—'}</span><span style={{ color:textSub, textAlign:'center' }}>{it.qty}</span>
                     <span style={{ color:textSub, textAlign:'right' }}>{Number(it.rate).toLocaleString('en-AE')}</span>
                     <span style={{ textAlign:'right' }}>{Math.round((Number(it.qty)||0)*(Number(it.rate)||0)).toLocaleString('en-AE')}</span>
                   </div>
@@ -1694,7 +1717,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
                 </div>
                 {qItems.map((it, i) => (
                   <div key={i} style={{ display:'grid', gridTemplateColumns:'1fr 50px 40px 64px 80px', gap:7, padding:'9px 13px', borderTop:`1px solid ${border}`, fontSize:13, color:text }}>
-                    <span style={{ wordBreak:'break-word' }}>{it.desc}</span><span style={{ color:textSub, fontSize:12 }}>{it.unit||'—'}</span><span style={{ color:textSub, textAlign:'center' }}>{it.qty}</span>
+                    <span style={{ wordBreak:'break-word' }}>{it.desc}{sizeStr(it) ? <span style={{ color:textSub }}> · {sizeStr(it)}</span> : null}</span><span style={{ color:textSub, fontSize:12 }}>{it.unit||'—'}</span><span style={{ color:textSub, textAlign:'center' }}>{it.qty}</span>
                     <span style={{ color:textSub, textAlign:'right' }}>{Number(it.rate).toLocaleString('en-AE')}</span>
                     <span style={{ textAlign:'right' }}>{Math.round((Number(it.qty)||0)*(Number(it.rate)||0)).toLocaleString('en-AE')}</span>
                   </div>
@@ -2037,7 +2060,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
                       <select value={it.unit} onChange={e=>updateItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 4px', fontSize:11 }}>
                         {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
                       </select>
-                      <input type="number" value={it.qty} onChange={e=>updateItem(idx,'qty',e.target.value)} style={{ ...inputStyle, padding:'7px 4px', fontSize:12.5, textAlign:'center' }}/>
+                      {qtyCell(it, idx, 12.5)}
                       <input type="number" value={it.rate} onChange={e=>updateItem(idx,'rate',e.target.value)} style={{ ...inputStyle, padding:'7px 6px', fontSize:12.5, textAlign:'right' }}/>
                       <span style={{ textAlign:'right', fontSize:12.5, color:text, alignSelf:'center' }}>{Math.round(lt).toLocaleString('en-AE')}</span>
                       <button onClick={()=>removeItem(idx)} style={{ background:'none', border:'none', cursor:'pointer', color:textMuted, display:'flex', justifyContent:'center', alignItems:'center' }}><i className="ti ti-x" style={{ fontSize:15 }}/></button>
@@ -2092,7 +2115,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
                       <select value={it.unit} onChange={e=>updateItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 4px', fontSize:11 }}>
                         {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
                       </select>
-                      <input type="number" value={it.qty} onChange={e=>updateItem(idx,'qty',e.target.value)} style={{ ...inputStyle, padding:'7px 4px', fontSize:12.5, textAlign:'center' }}/>
+                      {qtyCell(it, idx, 12.5)}
                       <input type="number" value={it.rate} onChange={e=>updateItem(idx,'rate',e.target.value)} style={{ ...inputStyle, padding:'7px 6px', fontSize:12.5, textAlign:'right' }}/>
                       <span style={{ textAlign:'right', fontSize:12.5, color:text, alignSelf:'center' }}>{Math.round(lt).toLocaleString('en-AE')}</span>
                       <button onClick={()=>removeItem(idx)} style={{ background:'none', border:'none', cursor:'pointer', color:textMuted, display:'flex', justifyContent:'center', alignItems:'center' }}><i className="ti ti-x" style={{ fontSize:15 }}/></button>
@@ -2133,7 +2156,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
                           <select value={it.unit} onChange={e=>updateItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 3px', fontSize:10.5 }}>
                             {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
                           </select>
-                          <input type="number" value={it.qty} onChange={e=>updateItem(idx,'qty',e.target.value)} style={{ ...inputStyle, padding:'7px 3px', fontSize:12, textAlign:'center' }}/>
+                          {qtyCell(it, idx, 12)}
                           <input type="number" value={it.rate} onChange={e=>updateItem(idx,'rate',e.target.value)} style={{ ...inputStyle, padding:'7px 5px', fontSize:12, textAlign:'right' }}/>
                           <span style={{ textAlign:'right', fontSize:12, color:text, alignSelf:'center' }}>{Math.round(lt).toLocaleString('en-AE')}</span>
                           <button onClick={()=>removeItemBoq(idx)} style={{ background:'none', border:'none', cursor:'pointer', color:textMuted, display:'flex', justifyContent:'center', alignItems:'center' }}><i className="ti ti-x" style={{ fontSize:14 }}/></button>
