@@ -326,7 +326,7 @@ export default function AIAgents() {
   return (
     <>
       {!entered ? dashboard : (
-        <div style={{ display: 'flex', height: 'calc(100vh - 150px)', minHeight: 520, border: '0.5px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', height: mobile ? 'calc(100dvh - 92px)' : 'calc(100dvh - 110px)', minHeight: mobile ? 420 : 520, border: '0.5px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
           {(!mobile || mobilePane === 'list') && threadList}
           {(!mobile || mobilePane === 'chat') && chatPane}
         </div>
