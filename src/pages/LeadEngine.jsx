@@ -5,6 +5,7 @@ import { useToast } from '../lib/toast'
 import MetaConnect from './MetaConnect'
 import MetaAds from './MetaAds'
 import MetaAdBuilder from './MetaAdBuilder'
+import WhatsAppConnect from './WhatsAppConnect'
 import HeroActions from '../components/HeroActions'
 
 const SOURCES = [
@@ -13,7 +14,7 @@ const SOURCES = [
   { key:'meta',       icon:'ti-brand-meta',      name:'Meta Ads',         sub:'Facebook & Instagram',
     desc:'Connect your Meta account to design, launch & auto-optimize lead ads — all from here.', status:'connect', action:'Connect Meta Account' },
   { key:'whatsapp',   icon:'ti-brand-whatsapp',  name:'WhatsApp',         sub:'Direct enquiries',
-    desc:'Capture leads straight from your WhatsApp Business number.', status:'soon', action:'Coming soon' },
+    desc:'Capture leads straight from your WhatsApp Business number.', status:'connect', action:'Connect WhatsApp' },
   { key:'website',    icon:'ti-world-www',       name:'Website Form',     sub:'Embed on your site',
     desc:'Get an embed code for your own website — leads flow here.', status:'soon', action:'Coming soon' },
   { key:'google',     icon:'ti-brand-google',    name:'Google Ads',       sub:'Search & forms',
@@ -31,6 +32,7 @@ export default function LeadEngine() {
   // sub-view: home | meta-connect | meta-ads | meta-builder
   const [view, setView] = useState('home')
   const [metaConnected, setMetaConnected] = useState(false)
+  const [whatsappConnected, setWhatsappConnected] = useState(false)
 
   const [minValue, setMinValue] = useState('')
   const [savedMin, setSavedMin] = useState('')
@@ -51,6 +53,8 @@ export default function LeadEngine() {
     setMinValue(v); setSavedMin(v)
     const { data: conn } = await supabase.from('meta_connections').select('connected').eq('company_id', company.id).maybeSingle()
     setMetaConnected(!!conn?.connected)
+    const { data: wa } = await supabase.from('whatsapp_accounts').select('id').eq('company_id', company.id).maybeSingle()
+    setWhatsappConnected(!!wa?.id)
     setLoading(false)
   }
 
@@ -69,6 +73,7 @@ export default function LeadEngine() {
       setView(metaConnected ? 'meta-ads' : 'meta-connect')
       return
     }
+    if (s.key === 'whatsapp') { setView('whatsapp-connect'); return }
     if (s.status === 'soon') { toast.info(s.name + ' is coming soon'); return }
     if (s.key === 'manual')  { toast.info('Use Leads → Add Lead / Import CSV'); return }
     if (s.key === 'trustdubai') { toast.info('Quvera leads are already active'); return }
@@ -94,6 +99,12 @@ export default function LeadEngine() {
       onDone={() => setView('meta-ads')}
     />
   )
+  if (view === 'whatsapp-connect') return (
+    <WhatsAppConnect
+      onBack={() => { setView('home'); load() }}
+      onConnected={() => setWhatsappConnected(true)}
+    />
+  )
 
   const text=isDark?'#f1f5f9':'#0f172a', textSub=isDark?'#94a3b8':'#64748b', textMuted=isDark?'#475569':'#94a3b8'
   const border=isDark?'rgba(255,255,255,0.08)':'#e2e8f0', cardBg=isDark?'#1e293b':'#ffffff'
@@ -101,6 +112,7 @@ export default function LeadEngine() {
 
   const statusPill = (st, key) => {
     if (key === 'meta' && metaConnected) return <span style={{ fontSize:10, fontWeight:700, color:'#0f6e56', background:isDark?'rgba(34,197,94,0.15)':'#e1f5ee', padding:'3px 9px', borderRadius:99 }}>CONNECTED</span>
+    if (key === 'whatsapp' && whatsappConnected) return <span style={{ fontSize:10, fontWeight:700, color:'#0f6e56', background:isDark?'rgba(34,197,94,0.15)':'#e1f5ee', padding:'3px 9px', borderRadius:99 }}>CONNECTED</span>
     const map = {
       active:  { t:'Active',        c:'#0f6e56', b:isDark?'rgba(34,197,94,0.15)':'#e1f5ee' },
       connect: { t:'Not connected', c:textSub,   b:subBg },
@@ -137,6 +149,7 @@ export default function LeadEngine() {
         {SOURCES.map(s => {
           const highlight = s.key === 'meta'
           const metaOn = s.key === 'meta' && metaConnected
+          const waOn = s.key === 'whatsapp' && whatsappConnected
           return (
             <div key={s.key} style={{ background:cardBg, border:`${highlight?2:1}px solid ${highlight?'#0099cc':border}`, borderRadius:14, padding:16 }}>
               <div style={{ display:'flex', alignItems:'center', gap:11, marginBottom:10 }}>
@@ -157,7 +170,7 @@ export default function LeadEngine() {
                   color: highlight?'#fff': s.status==='soon'?textMuted:text,
                   opacity: s.status==='soon'?0.7:1 }}>
                 {highlight && <i className={`ti ${metaOn?'ti-settings':'ti-plug'}`} style={{ fontSize:14, verticalAlign:'-2px', marginRight:5 }}/>}
-                {metaOn ? 'Open Ads Manager' : s.action}
+                {metaOn ? 'Open Ads Manager' : waOn ? 'Manage WhatsApp' : s.action}
               </button>
             </div>
           )
