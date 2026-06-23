@@ -14,6 +14,12 @@ const AGENTS = [
     starters: ['Before/after caption for a living room', 'Portfolio description for a cafe fit-out', '8 hashtags for Dubai interior design'] },
   { key: 'advisor', name: 'Business Advisor', icon: 'ti-bulb', color: '#f59e0b', tag: 'Pricing, growth & operations',
     starters: ['How should I price my fit-out quotes?', 'How do I get more repeat clients?', 'Should I hire an in-house carpenter?'] },
+  { key: 'project_manager', name: 'Project Manager', icon: 'ti-stack-2', color: '#06b6d4', tag: 'Schedules, milestones & coordination',
+    starters: ['Make a milestone plan for a 3-month villa fit-out', 'Checklist before site handover', 'How to sequence MEP and joinery work'] },
+  { key: 'tender', name: 'Tender / Proposal', icon: 'ti-file-text', color: '#6366f1', tag: 'Proposals, bids & company profile',
+    starters: ['Write a proposal for an office fit-out tender', 'Company profile intro paragraph', 'Cover letter for a hotel renovation bid'] },
+  { key: 'hr', name: 'HR Agent', icon: 'ti-users', color: '#14b8a6', tag: 'Hiring, letters & team',
+    starters: ['Job post for a site supervisor', 'Offer letter for a carpenter', '5 interview questions for a foreman'] },
 ]
 
 export default function AIAgents() {
