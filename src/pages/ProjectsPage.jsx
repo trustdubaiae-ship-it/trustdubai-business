@@ -46,6 +46,16 @@ function timelineStage(ms) {
   const started = done > 0 || !!inProg
   return { label: cur ? cur.title : 'In progress', color: started ? '#0099cc' : '#64748b', icon: started ? 'ti-progress' : 'ti-pencil', complete: false, done, total }
 }
+// No timeline yet -> show a clean coarse status instead of stale granular labels.
+function coarseStatus(p) {
+  const s = p?.status
+  if (s === 'on_hold') return { label: 'On hold', color: '#f59e0b', icon: 'ti-player-pause' }
+  if (s === 'cancelled') return { label: 'Cancelled', color: '#ef4444', icon: 'ti-x' }
+  const pct = Math.max(0, Math.min(100, Number(p?.progress) || 0))
+  if (s === 'completed' || pct >= 100) return { label: 'Completed', color: '#22c55e', icon: 'ti-circle-check' }
+  if (pct > 0 || (s && s !== 'planning')) return { label: 'Ongoing', color: '#0099cc', icon: 'ti-progress' }
+  return { label: 'Planning', color: '#64748b', icon: 'ti-pencil' }
+}
 // default interior fit-out stages with typical weights (sum = 100%)
 const DEFAULT_STAGES = [
   { title: 'Site survey & measurement', weight: 3 },
@@ -659,7 +669,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
               {projects.map(p => {
                 const tl = stageByProject[p.id]
                 const st = (p.status === 'on_hold' || p.status === 'cancelled' || !tl)
-                  ? (PSTATUS[p.status] || PSTATUS.planning) : tl
+                  ? coarseStatus(p) : tl
                 const recv = Number(recvByProject[p.id]) || 0
                 const cv = Number(p.contract_value) || 0
                 const payPct = cv > 0 ? Math.min(100, Math.round((recv / cv) * 100)) : 0
@@ -734,7 +744,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   // ===== DETAIL =====
   const activeStage = timelineStage(milestones)
   const st = (active.status === 'on_hold' || active.status === 'cancelled' || !activeStage)
-    ? (PSTATUS[active.status] || PSTATUS.planning) : activeStage
+    ? coarseStatus(active) : activeStage
   return (
     <div style={{ color: 'var(--text)' }}>
       <style>{FX}</style>
