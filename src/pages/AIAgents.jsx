@@ -143,6 +143,7 @@ export default function AIAgents() {
       const { data, error } = await supabase.functions.invoke('ai-agent', {
         body: {
           agent: active.key,
+          companyId: company?.id || '',
           companyName: company?.name || 'our company',
           companyCategory: company?.categories?.[0] || company?.category || '',
           messages: next.map(m => ({ role: m.role, text: m.text, ...(m.image ? { image: m.image } : {}) })),

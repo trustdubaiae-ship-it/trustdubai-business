@@ -2,16 +2,25 @@
 // content, advisor, project manager, tender, HR) PLUS an Orchestrator that routes a
 // simple request to one specialist, or coordinates several for a big goal and merges
 // their work into one plan.
+//
+// Agents can also READ the company's live data (projects, leads, revenue) via tools.
+// Security: the data tools run through a Supabase client built from the CALLER's JWT
+// (the Authorization header), so Row-Level Security limits every query to the user's
+// own company. We never trust a company id from the request body for access.
+//
 // Conversational: takes the chat so far, returns the next reply.
-// Uses Claude. Requires secret: ANTHROPIC_API_KEY (same one smart-function uses).
+// Requires secret: ANTHROPIC_API_KEY. SUPABASE_URL / SUPABASE_ANON_KEY are auto-injected.
 //
 // Deploy:  supabase functions deploy ai-agent
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 const json = (o: unknown, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...CORS, "Content-Type": "application/json" } });
+const num = (v: unknown) => Number(v) || 0;
 
 // Each agent = a persona/system prompt. {co} and {cat} are filled per company.
 const AGENTS: Record<string, string> = {
@@ -30,12 +39,88 @@ const LABELS: Record<string, string> = {
   advisor: "Business Advisor", project_manager: "Project Manager", tender: "Tender / Proposal", hr: "HR",
 };
 
-// ---- one Claude call ----
-async function callClaude(apiKey: string, system: string, messages: any[], maxTokens = 1500) {
+// ---- Live-data tools (read-only). RLS keeps every query to the caller's company. ----
+const TOOLS = [
+  {
+    name: "get_projects",
+    description: "List this company's projects (ongoing and past) with status, client name, contract value (AED), location, start/end dates, progress % and health. Use whenever the user asks about project status, ongoing work, deadlines, a particular client's project, or the project pipeline.",
+    input_schema: { type: "object", properties: { status: { type: "string", description: "optional text filter on status, e.g. 'ongoing', 'active', 'completed', 'on hold'" } } },
+  },
+  {
+    name: "get_leads",
+    description: "List recent leads/enquiries with name, phone, source, status, temperature (hot/warm/cold), follow-up date and the date they came in. Use for questions about leads, follow-ups, quiet/cold leads, conversion or the sales pipeline. To find stale leads, look at older created dates with a non-won/non-lost status.",
+    input_schema: { type: "object", properties: { status: { type: "string", description: "optional text filter on lead status, e.g. 'new', 'in_conversation', 'proposal_given', 'won', 'lost'" } } },
+  },
+  {
+    name: "get_revenue",
+    description: "Get a money summary for the business in AED: total quoted value, approved quotation value, total invoiced, total received (collected), and outstanding. Use for any revenue, sales, billing or cash-flow question.",
+    input_schema: { type: "object", properties: {} },
+  },
+];
+
+async function runTool(supa: any, companyId: string, name: string, input: any) {
+  try {
+    if (!supa || !companyId) return { error: "No data access in this session." };
+    if (name === "get_projects") {
+      let q = supa.from("ops_projects")
+        .select("name,status,client_name,location,contract_value,progress,health,start_date,end_date,created_at")
+        .eq("company_id", companyId).order("created_at", { ascending: false }).limit(60);
+      if (input?.status) q = q.ilike("status", `%${String(input.status)}%`);
+      const { data, error } = await q;
+      if (error) throw error;
+      return { count: (data || []).length, projects: data || [] };
+    }
+    if (name === "get_leads") {
+      let q = supa.from("lead_distributions")
+        .select("status,temperature,follow_up_date,assigned_at,lost_reason,lead_submissions(name,phone,source,created_at)")
+        .eq("company_id", companyId).order("assigned_at", { ascending: false }).limit(80);
+      if (input?.status) q = q.ilike("status", `%${String(input.status)}%`);
+      const { data, error } = await q;
+      if (error) throw error;
+      const leads = (data || []).map((d: any) => ({
+        name: d.lead_submissions?.name || null,
+        phone: d.lead_submissions?.phone || null,
+        source: d.lead_submissions?.source || null,
+        status: d.status || null,
+        temperature: d.temperature || null,
+        follow_up_date: d.follow_up_date || null,
+        created_at: d.lead_submissions?.created_at || d.assigned_at || null,
+        lost_reason: d.lost_reason || null,
+      }));
+      return { count: leads.length, leads };
+    }
+    if (name === "get_revenue") {
+      const [{ data: quotes }, { data: invs }] = await Promise.all([
+        supa.from("quotations").select("status,total,created_at").eq("company_id", companyId).limit(3000),
+        supa.from("invoices").select("total,payments,status,created_at").eq("company_id", companyId).limit(3000),
+      ]);
+      const qAll = quotes || [];
+      const approvedValue = qAll.filter((x: any) => String(x.status).toLowerCase() === "approved").reduce((s: number, x: any) => s + num(x.total), 0);
+      const invoiced = (invs || []).reduce((s: number, i: any) => s + num(i.total), 0);
+      const received = (invs || []).reduce((s: number, i: any) => s + (Array.isArray(i.payments) ? i.payments.reduce((a: number, p: any) => a + num(p.amount), 0) : 0), 0);
+      return {
+        currency: "AED",
+        total_quoted: qAll.reduce((s: number, x: any) => s + num(x.total), 0),
+        approved_quotation_value: approvedValue,
+        total_invoiced: invoiced,
+        total_received: received,
+        outstanding: invoiced - received,
+        quotation_count: qAll.length,
+        invoice_count: (invs || []).length,
+      };
+    }
+    return { error: "unknown tool" };
+  } catch (e) {
+    return { error: String((e && (e as any).message) || e) };
+  }
+}
+
+// ---- raw Claude call ----
+async function claudeRaw(apiKey: string, payload: any) {
   const aiRes = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: maxTokens, system, messages }),
+    body: JSON.stringify({ model: "claude-sonnet-4-6", ...payload }),
   });
   if (!aiRes.ok) {
     const t = await aiRes.text();
@@ -47,8 +132,40 @@ async function callClaude(apiKey: string, system: string, messages: any[], maxTo
     else if (aiRes.status === 429) code = "rate_limit";
     return { ok: false as const, status: aiRes.status, code, detail };
   }
-  const data = await aiRes.json();
-  return { ok: true as const, reply: (data?.content?.[0]?.text || "").trim() };
+  return { ok: true as const, data: await aiRes.json() };
+}
+
+// plain text call (no tools) — used by the orchestrator's router & synthesis
+async function callClaude(apiKey: string, system: string, messages: any[], maxTokens = 1500) {
+  const r = await claudeRaw(apiKey, { max_tokens: maxTokens, system, messages });
+  if (!r.ok) return r;
+  return { ok: true as const, reply: (r.data?.content?.[0]?.text || "").trim() };
+}
+
+// agent call WITH data tools — runs the tool-use loop
+async function runAgent(apiKey: string, system: string, messages: any[], maxTokens: number, supa: any, companyId: string, useTools = true) {
+  const convo: any[] = [...messages];
+  for (let hop = 0; hop < 5; hop++) {
+    const payload: any = { max_tokens: maxTokens, system, messages: convo };
+    if (useTools && supa) payload.tools = TOOLS;
+    const r = await claudeRaw(apiKey, payload);
+    if (!r.ok) return r;
+    const data = r.data;
+    if (data.stop_reason === "tool_use") {
+      convo.push({ role: "assistant", content: data.content });
+      const results: any[] = [];
+      for (const blk of data.content) {
+        if (blk.type !== "tool_use") continue;
+        const out = await runTool(supa, companyId, blk.name, blk.input || {});
+        results.push({ type: "tool_result", tool_use_id: blk.id, content: JSON.stringify(out).slice(0, 14000) });
+      }
+      convo.push({ role: "user", content: results });
+      continue;
+    }
+    const reply = (data.content || []).filter((c: any) => c.type === "text").map((c: any) => c.text).join("\n").trim();
+    return { ok: true as const, reply };
+  }
+  return { ok: true as const, reply: "I looked but couldn't finish in time — please ask again a bit more specifically." };
 }
 
 function lastUserText(claudeMsgs: any[]): string {
@@ -63,7 +180,7 @@ function lastUserText(claudeMsgs: any[]): string {
 }
 
 // ---- Orchestrator: route to one specialist, or coordinate several and merge ----
-async function orchestrate(apiKey: string, p: {
+async function orchestrate(apiKey: string, supa: any, companyId: string, p: {
   companyName: string; cat: string; claudeMsgs: any[]; knowledge: string; notes: Record<string, string>; enabled: string[];
 }) {
   const available = p.enabled.filter((k) => AGENTS[k]);
@@ -98,14 +215,15 @@ Order them logically.`;
   chosen = chosen.slice(0, 4);
   if (!chosen.length) chosen = [{ key: pool.includes("advisor") ? "advisor" : pool[0], task: ask }];
 
-  // 2) Run each chosen specialist (in parallel) with the full conversation for context
+  // 2) Run each chosen specialist (in parallel), each with live-data tools
   const runs = await Promise.all(chosen.map(async (c) => {
     let sys = (AGENTS[c.key] || AGENTS.advisor).replace("{co}", p.companyName).replace("{cat}", p.cat);
     if (p.knowledge) sys += `\n\n--- About ${p.companyName} (use this to be accurate) ---\n${p.knowledge.slice(0, 4000)}`;
     const note = (p.notes && p.notes[c.key] ? String(p.notes[c.key]) : "").trim();
     if (note) sys += `\n\n--- The owner's training notes for you ---\n${note.slice(0, 1500)}`;
     if (chosen.length > 1) sys += `\n\nYou are part of a coordinated team handling ONE client request. Your specific job here: ${c.task}. Produce only your part — focused, concrete and ready to use. Another agent (the Orchestrator) will merge everyone's work, so don't repeat the whole brief.`;
-    const out = await callClaude(apiKey, sys, p.claudeMsgs, 1300);
+    sys += `\n\nYou can call tools to read this company's real projects, leads and revenue. Use them when the answer depends on the business's actual data instead of asking the owner to type it.`;
+    const out = await runAgent(apiKey, sys, p.claudeMsgs, 1300, supa, companyId);
     return { key: c.key, task: c.task, ok: out.ok, text: out.ok ? out.reply : "", err: out.ok ? null : out };
   }));
   const good = runs.filter((x) => x.ok && x.text);
@@ -118,7 +236,7 @@ Order them logically.`;
   const parts = good.map((g) => `## ${LABELS[g.key]} — ${g.task}\n${g.text}`).join("\n\n");
   const synthSystem = `You are the Orchestrator for ${p.companyName}${p.cat} in Dubai. Your specialist team has each produced their part for the client request below. Merge them into ONE clear, well-structured action plan for the business owner.
 - Start with a one-line summary of the overall plan.
-- Then a section per area with a bold plain-text heading (no # or * symbols for headings — just bold-style capitalised titles on their own line).
+- Then a section per area with a bold plain-text heading (no # or * symbols for headings — just capitalised titles on their own line).
 - Keep every concrete detail: numbers, AED figures, ready-to-send messages, steps and checklists.
 - Do not repeat content across sections; combine sensibly. Keep it tight and usable.`;
   const synthMsgs = [{ role: "user", content: `Client request: ${ask}\n\n--- Specialist outputs ---\n${parts}` }];
@@ -140,6 +258,16 @@ Deno.serve(async (req) => {
 
   let body: any = {};
   try { body = await req.json(); } catch { return json({ error: "Bad request" }, 400); }
+
+  // Supabase client scoped to the CALLER (RLS limits data to their company)
+  const authHeader = req.headers.get("Authorization") || "";
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+  const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
+  let supa: any = null;
+  if (authHeader && SUPABASE_URL && SUPABASE_ANON_KEY) {
+    supa = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { global: { headers: { Authorization: authHeader } }, auth: { persistSession: false } });
+  }
+  const companyId = String(body.companyId || "");
 
   const agentKey = String(body.agent || "advisor");
   const companyName = String(body.companyName || "our company");
@@ -165,7 +293,7 @@ Deno.serve(async (req) => {
   if (agentKey === "orchestrator") {
     const enabled = Array.isArray(body.enabledAgents) && body.enabledAgents.length
       ? body.enabledAgents.filter((k: any) => AGENTS[k]) : Object.keys(AGENTS);
-    const res = await orchestrate(apiKey, { companyName, cat, claudeMsgs, knowledge, notes: body.notes || {}, enabled });
+    const res = await orchestrate(apiKey, supa, companyId, { companyName, cat, claudeMsgs, knowledge, notes: body.notes || {}, enabled });
     if (!res.ok) return json({ error: "AI request failed", code: res.code || "ai_failed", detail: res.detail || "" }, 502);
     return json({ ok: true, reply: res.reply, used: res.used });
   }
@@ -176,9 +304,10 @@ Deno.serve(async (req) => {
   let system = persona.replace("{co}", companyName).replace("{cat}", cat);
   if (knowledge) system += `\n\n--- About ${companyName} (use this to be accurate and specific to this business) ---\n${knowledge.slice(0, 4000)}`;
   if (note) system += `\n\n--- Extra training/instructions for you from the owner ---\n${note.slice(0, 1500)}`;
+  system += `\n\nYou can call tools to read this company's real projects, leads and revenue. Use them when the answer depends on the business's actual data instead of asking the owner to type it. Otherwise answer directly.`;
   system += `\n\nFormat: clear and well-structured. Use short paragraphs or bullets. Plain text (light markdown is fine). Do not invent prices unless asked for an estimate.`;
 
-  const out = await callClaude(apiKey, system, claudeMsgs, 1500);
-  if (!out.ok) return json({ error: "AI request failed", code: out.code, detail: out.detail }, 502);
+  const out = await runAgent(apiKey, system, claudeMsgs, 1500, supa, companyId);
+  if (!out.ok) return json({ error: "AI request failed", code: (out as any).code, detail: (out as any).detail }, 502);
   return json({ ok: true, reply: out.reply });
 });
