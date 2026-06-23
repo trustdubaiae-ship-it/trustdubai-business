@@ -4,6 +4,8 @@ import { useAuth } from '../lib/auth'
 import { useToast } from '../lib/toast'
 
 const AGENTS = [
+  { key: 'orchestrator', name: 'AI Orchestrator', icon: 'ti-sitemap', color: '#eab308', tag: 'Give a goal — it puts the right agents to work', orchestrator: true, photo: true,
+    starters: ['Win this 1500 sqft office fit-out tender in Business Bay', 'Plan & launch a Ramadan offer campaign end-to-end', 'A villa client is hesitating on price — full plan to close them'] },
   { key: 'marketing', name: 'Marketing Agent', icon: 'ti-speakerphone', color: '#ec4899', tag: 'Ads, social, offers & campaigns',
     starters: ['Write a Meta ad for kitchen renovations', '3 WhatsApp broadcast offers for a Ramadan promo', 'Instagram caption for a finished office fit-out'] },
   { key: 'estimator', name: 'Estimator Agent', icon: 'ti-calculator', color: '#0099cc', tag: 'Rough costs, scope & BOQ', photo: true,
@@ -52,10 +54,16 @@ export default function AIAgents() {
   const endRef = useRef(null)
   const fileRef = useRef(null)
 
-  const [cfg, setCfg] = useState({ knowledge: '', notes: {} })
+  const [cfg, setCfg] = useState({ knowledge: '', notes: {}, access: {} })
   const [showKnow, setShowKnow] = useState(false)
+  const [showAccess, setShowAccess] = useState(false)
   const [showNote, setShowNote] = useState(false)
   const [savingCfg, setSavingCfg] = useState(false)
+
+  // an agent is on unless the owner has explicitly switched it off
+  const isOn = (k) => cfg.access?.[k] !== false
+  const SPECIALISTS = AGENTS.filter(a => !a.orchestrator)
+  const enabledKeys = SPECIALISTS.filter(a => isOn(a.key)).map(a => a.key)
 
   const text = 'var(--text)', textSub = 'var(--text2)', textMuted = 'var(--text3)'
 
@@ -68,20 +76,21 @@ export default function AIAgents() {
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [msgs, busy])
 
   async function loadCfg() {
-    const { data } = await supabase.from('ai_agent_config').select('knowledge, notes').eq('company_id', company.id).maybeSingle()
-    if (data) setCfg({ knowledge: data.knowledge || '', notes: data.notes || {} })
+    const { data } = await supabase.from('ai_agent_config').select('*').eq('company_id', company.id).maybeSingle()
+    if (data) setCfg({ knowledge: data.knowledge || '', notes: data.notes || {}, access: data.access || {} })
   }
   async function saveCfg(next) {
     const merged = next || cfg
     setSavingCfg(true)
     try {
       const { error } = await supabase.from('ai_agent_config').upsert(
-        { company_id: company.id, knowledge: merged.knowledge || null, notes: merged.notes || {}, updated_at: new Date().toISOString() },
+        { company_id: company.id, knowledge: merged.knowledge || null, notes: merged.notes || {}, access: merged.access || {}, updated_at: new Date().toISOString() },
         { onConflict: 'company_id' })
       if (error) throw error
       toast.success('Saved ✓')
     } catch (e) { toast.error('Could not save: ' + (e?.message || e)) } finally { setSavingCfg(false) }
   }
+  function toggleAccess(k) { setCfg(c => ({ ...c, access: { ...(c.access || {}), [k]: !(c.access?.[k] !== false) } })) }
 
   function openAgent(agent) {
     setActive(agent); setEntered(true)
@@ -139,6 +148,8 @@ export default function AIAgents() {
           messages: next.map(m => ({ role: m.role, text: m.text, ...(m.image ? { image: m.image } : {}) })),
           knowledge: cfg.knowledge || '',
           note: cfg.notes?.[active.key] || '',
+          notes: cfg.notes || {},
+          enabledAgents: enabledKeys,
         },
       })
       if (error) throw error
@@ -155,22 +166,48 @@ export default function AIAgents() {
     finally { setBusy(false) }
   }
 
-  // ---------- Landing: agent grid ----------
+  // ---------- Landing: orchestrator + agent grid ----------
+  const orch = AGENTS.find(a => a.orchestrator)
   const dashboard = (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
         <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px', color: textMuted }}>Your AI team</div>
-        <button onClick={() => setShowKnow(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, padding: '7px 12px', borderRadius: 9, border: '1px solid var(--border)', background: 'var(--bg2)', color: textSub, cursor: 'pointer' }}>
-          <i className="ti ti-adjustments" /> Business knowledge {cfg.knowledge ? <span style={{ width: 7, height: 7, borderRadius: 99, background: '#16a34a' }} /> : null}
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button onClick={() => setShowAccess(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, padding: '7px 12px', borderRadius: 9, border: '1px solid var(--border)', background: 'var(--bg2)', color: textSub, cursor: 'pointer' }}>
+            <i className="ti ti-adjustments-horizontal" /> Manage access
+          </button>
+          <button onClick={() => setShowKnow(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, padding: '7px 12px', borderRadius: 9, border: '1px solid var(--border)', background: 'var(--bg2)', color: textSub, cursor: 'pointer' }}>
+            <i className="ti ti-book-2" /> Business knowledge {cfg.knowledge ? <span style={{ width: 7, height: 7, borderRadius: 99, background: '#16a34a' }} /> : null}
+          </button>
+        </div>
       </div>
+
+      {/* Orchestrator hero */}
+      {orch && (
+        <button onClick={() => openAgent(orch)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', color: text, marginBottom: 16, padding: mobile ? 16 : '18px 20px', borderRadius: 16, border: '1px solid ' + orch.color + '55', background: 'linear-gradient(135deg, ' + orch.color + '1f, var(--card) 60%)', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+          <div style={{ width: 54, height: 54, borderRadius: 14, background: orch.color + '26', color: orch.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><i className={'ti ' + orch.icon} style={{ fontSize: 28 }} /></div>
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 16.5, fontWeight: 800 }}>{orch.name}</div>
+              <span style={{ fontSize: 10, fontWeight: 700, color: orch.color, background: orch.color + '22', padding: '2px 8px', borderRadius: 99, textTransform: 'uppercase', letterSpacing: '.4px' }}>Lead</span>
+            </div>
+            <div style={{ fontSize: 12.5, color: textSub, marginTop: 3, lineHeight: 1.5 }}>Tell it a goal — it routes simple asks to the right agent, or sets several agents to work together and merges their plan into one.</div>
+          </div>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: '#fff', background: orch.color, padding: '9px 16px', borderRadius: 10, flexShrink: 0 }}>Start <i className="ti ti-arrow-right" style={{ fontSize: 15 }} /></div>
+        </button>
+      )}
+
+      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px', color: textMuted, marginBottom: 10 }}>Specialist agents</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(250px,1fr))', gap: 12 }}>
-        {AGENTS.map(a => (
+        {SPECIALISTS.filter(a => isOn(a.key)).map(a => (
           <button key={a.key} onClick={() => openAgent(a)} style={{ background: 'var(--card)', border: '0.5px solid var(--border)', borderRadius: 14, padding: 16, textAlign: 'left', cursor: 'pointer', color: text }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
               <div style={{ width: 44, height: 44, borderRadius: 12, background: a.color + '22', color: a.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><i className={'ti ' + a.icon} style={{ fontSize: 22 }} /></div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 14.5, fontWeight: 700 }}>{a.name}</div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ fontSize: 14.5, fontWeight: 700 }}>{a.name}</div>
+                  {cfg.notes?.[a.key] ? <span title="You've trained this agent" style={{ fontSize: 9.5, fontWeight: 700, color: '#16a34a', background: '#16a34a1f', padding: '1px 6px', borderRadius: 99 }}>Trained</span> : null}
+                </div>
                 <div style={{ fontSize: 11.5, color: textMuted }}>{a.tag}</div>
               </div>
             </div>
@@ -178,6 +215,7 @@ export default function AIAgents() {
           </button>
         ))}
       </div>
+      {enabledKeys.length === 0 && <div style={{ fontSize: 12.5, color: textMuted, padding: '14px 4px' }}>All specialist agents are switched off. Use <b>Manage access</b> to turn some on.</div>}
       <div style={{ fontSize: 11.5, color: textMuted, marginTop: 16, lineHeight: 1.6 }}>
         <i className="ti ti-sparkles" style={{ color: '#8b5cf6' }} /> Each agent knows it works for <b>{company?.name || 'your company'}</b> in Dubai. Ask in plain language — English or Hinglish.
       </div>
@@ -223,14 +261,15 @@ export default function AIAgents() {
           <div style={{ fontSize: 14.5, fontWeight: 700, color: text }}>{active.name}</div>
           <div style={{ fontSize: 11, color: textMuted }}>{active.tag}</div>
         </div>
-        <button onClick={() => setShowNote(v => !v)} title="Customize this agent" style={{ background: 'var(--bg2)', border: 'none', width: 32, height: 32, borderRadius: 9, cursor: 'pointer', color: cfg.notes?.[active.key] ? '#16a34a' : textSub }}><i className="ti ti-settings" /></button>
+        {!active.orchestrator && <button onClick={() => setShowNote(v => !v)} title="Train this agent" style={{ background: 'var(--bg2)', border: 'none', width: 32, height: 32, borderRadius: 9, cursor: 'pointer', color: cfg.notes?.[active.key] ? '#16a34a' : textSub }}><i className="ti ti-school" /></button>}
       </div>
 
-      {showNote && (
+      {showNote && !active.orchestrator && (
         <div style={{ padding: 14, borderBottom: '0.5px solid var(--border)', background: 'var(--card)' }}>
-          <div style={{ fontSize: 12, color: textMuted, marginBottom: 8, lineHeight: 1.5 }}>Custom instructions just for the <b>{active.name}</b> (tone, focus, what to always include).</div>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: text, marginBottom: 4 }}><i className="ti ti-school" style={{ color: active.color }} /> Train the {active.name}</div>
+          <div style={{ fontSize: 12, color: textMuted, marginBottom: 8, lineHeight: 1.5 }}>Instructions only this agent follows — tone, focus, what to always include or avoid. (Shared facts go in <b>Business knowledge</b>.)</div>
           <textarea value={cfg.notes?.[active.key] || ''} onChange={e => setCfg(c => ({ ...c, notes: { ...c.notes, [active.key]: e.target.value } }))}
-            placeholder="e.g. Always keep a premium, confident tone and end with a clear call to action."
+            placeholder={'e.g. Always keep a premium, confident tone. End with a clear next step. Prefer WhatsApp-ready short messages.'}
             style={{ width: '100%', minHeight: 64, padding: '9px 11px', borderRadius: 9, border: '1px solid var(--border)', background: 'var(--bg2)', color: text, fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical', lineHeight: 1.5 }} />
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
             <button onClick={() => { saveCfg(); setShowNote(false) }} disabled={savingCfg} style={{ padding: '8px 16px', borderRadius: 9, background: active.color, color: '#fff', border: 'none', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, opacity: savingCfg ? 0.7 : 1 }}>{savingCfg ? 'Saving…' : 'Save'}</button>
@@ -289,6 +328,34 @@ export default function AIAgents() {
         <div style={{ display: 'flex', height: 'calc(100vh - 150px)', minHeight: 520, border: '0.5px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
           {(!mobile || mobilePane === 'list') && threadList}
           {(!mobile || mobilePane === 'chat') && chatPane}
+        </div>
+      )}
+
+      {showAccess && (
+        <div onClick={() => setShowAccess(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: 480, maxWidth: '100%', maxHeight: '88vh', overflowY: 'auto', background: 'var(--card)', border: '0.5px solid var(--border)', borderRadius: 14, padding: 18 }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: text, marginBottom: 4 }}>Manage agent access</div>
+            <div style={{ fontSize: 12, color: textMuted, marginBottom: 14, lineHeight: 1.6 }}>Switch agents on or off for your team. Off agents are hidden from this page, and the <b>Orchestrator</b> won't use them. (The Orchestrator itself is always on.)</div>
+            {SPECIALISTS.map(a => {
+              const on = isOn(a.key)
+              return (
+                <div key={a.key} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '9px 4px', borderBottom: '0.5px solid var(--border)' }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: a.color + '22', color: a.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><i className={'ti ' + a.icon} style={{ fontSize: 18 }} /></div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, color: text }}>{a.name}</div>
+                    <div style={{ fontSize: 11, color: textMuted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.tag}</div>
+                  </div>
+                  <button onClick={() => toggleAccess(a.key)} title={on ? 'On' : 'Off'} style={{ width: 44, height: 25, borderRadius: 99, border: 'none', cursor: 'pointer', background: on ? '#16a34a' : 'var(--border)', position: 'relative', flexShrink: 0, transition: 'background .15s' }}>
+                    <span style={{ position: 'absolute', top: 3, left: on ? 22 : 3, width: 19, height: 19, borderRadius: 99, background: '#fff', transition: 'left .15s', boxShadow: '0 1px 3px rgba(0,0,0,.3)' }} />
+                  </button>
+                </div>
+              )
+            })}
+            <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+              <button onClick={() => { saveCfg(); setShowAccess(false) }} disabled={savingCfg} style={{ padding: '10px 20px', borderRadius: 9, background: '#0099cc', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, opacity: savingCfg ? 0.7 : 1 }}>{savingCfg ? 'Saving…' : 'Save'}</button>
+              <button onClick={() => { setShowAccess(false); loadCfg() }} style={{ padding: '10px 16px', borderRadius: 9, border: '1px solid var(--border)', background: 'transparent', color: textSub, cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+            </div>
+          </div>
         </div>
       )}
 
