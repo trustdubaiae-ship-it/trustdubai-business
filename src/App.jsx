@@ -18,6 +18,7 @@ import MeetingsPage from './pages/MeetingsPage'
 import ProjectsPage from './pages/ProjectsPage'
 import MeetingBell from './components/MeetingBell'
 import AIAssistant from './pages/AIAssistant'
+import AIAgents from './pages/AIAgents'
 import TrustDubaiLeads from './pages/TrustDubaiLeads'
 import ProfilePage from './pages/ProfilePage'
 import ReviewsPage from './pages/ReviewsPage'
@@ -61,6 +62,7 @@ const PAGE_PERM = {
   materials:          'view_profile',
   expenses:           'view_profile',
   aiassistant:        'view_dashboard',
+  aiagents:           'view_dashboard',
   organizer:          'view_dashboard',
   meetings:           'view_leads',
   inbox:              'view_dashboard',
@@ -136,6 +138,7 @@ const PAGE_DESC = {
   quoteSettings:'Branding & defaults for your quotations',
   sponsored:    'Boost your visibility & get more leads on Quvera',
   aiassistant:  'Ask anything about your business',
+  aiagents:     'Specialist AI agents — marketing, estimating, sales & more',
   revenueengine:'Your sales pipeline & revenue at a glance',
   quotations:   'Create, send & track your quotes',
   invoices:     'Invoice approved quotes & track payments',
@@ -312,6 +315,7 @@ function Portal() {
     materials:          <ProjectsPage onNavigate={navigate} subRoute={subRoute} setSubRoute={setPageSub} />,
     expenses:           <ProjectsPage onNavigate={navigate} subRoute={subRoute} setSubRoute={setPageSub} />,
     aiassistant:        <AIAssistant onNavigate={navigate} />,
+    aiagents:           <AIAgents onNavigate={navigate} />,
     organizer:          <Organizer onNavigate={navigate} />,
     meetings:           <MeetingsPage onNavigate={navigate} />,
     quotations:         <Quotations subRoute={subRoute} setSubRoute={setPageSub} />,
