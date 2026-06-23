@@ -95,7 +95,7 @@ export default function AIAgents() {
   function openAgent(agent) {
     setActive(agent); setEntered(true)
     setThreads(loadThreads(agent.key))
-    newChat(); setMobilePane('list')
+    newChat()   // lands on the chat pane (mobile too); history is one tap back
   }
   function exitDash() { setEntered(false); setActive(null); setImg(null); setShowNote(false) }
   function newChat() { setThreadId(null); setMsgs([]); setInput(''); setImg(null); setShowNote(false); setMobilePane('chat') }
@@ -315,7 +315,7 @@ export default function AIAgents() {
         <button onClick={() => fileRef.current?.click()} title="Attach a photo" style={{ width: 42, flexShrink: 0, borderRadius: 11, border: '1px solid var(--border)', background: 'var(--bg2)', color: textSub, cursor: 'pointer', fontSize: 18 }}><i className="ti ti-photo" /></button>
         <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
           placeholder={'Ask the ' + active.name + '…'} disabled={busy}
-          style={{ flex: 1, padding: '11px 14px', borderRadius: 11, border: '1px solid var(--border)', background: 'var(--bg2)', color: text, fontSize: 13.5, fontFamily: 'inherit', boxSizing: 'border-box' }} />
+          style={{ flex: 1, minWidth: 0, padding: '11px 14px', borderRadius: 11, border: '1px solid var(--border)', background: 'var(--bg2)', color: text, fontSize: 13.5, fontFamily: 'inherit', boxSizing: 'border-box' }} />
         <button onClick={() => send()} disabled={busy || (!input.trim() && !img)} style={{ padding: '0 18px', borderRadius: 11, background: active.color, color: '#fff', border: 'none', cursor: (busy || (!input.trim() && !img)) ? 'default' : 'pointer', fontSize: 16, fontWeight: 700, opacity: (busy || (!input.trim() && !img)) ? 0.6 : 1 }}>
           <i className="ti ti-send" />
         </button>
