@@ -145,8 +145,13 @@ export default function AIAgents() {
       if (data?.reply) {
         const withReply = [...next, { role: 'assistant', text: data.reply }]
         setMsgs(withReply); persistThread(active.key, tid, withReply, title)
-      } else { toast.error(data?.code === 'no_credit' ? 'AI credits exhausted' : 'AI could not respond'); setMsgs(msgs) }
-    } catch (e) { toast.error('Could not reach the AI agent'); setMsgs(msgs) }
+      } else {
+        // keep the user's message visible; show why it failed
+        toast.error(data?.code === 'no_credit' ? 'AI credits exhausted' : (data?.error || 'AI could not respond'))
+      }
+    } catch (e) {
+      toast.error('Could not reach the AI agent — deploy the "ai-agent" function. ' + (e?.message ? '(' + e.message + ')' : ''))
+    }
     finally { setBusy(false) }
   }
 
