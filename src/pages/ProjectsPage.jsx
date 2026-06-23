@@ -284,7 +284,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
         .map(r => ({ label: (r.label || '').trim(), pct: numOr(r.pct, 0) }))
         .filter(r => r.label || r.pct)
       const payload = { company_id: company.id, project_id: active.id, name: x.name.trim(), trade: x.trade || null, phone: x.phone || null, status: x.status || 'ongoing', notes: x.notes || null,
-        contact_person: x.contact_person?.trim() || null, owner_name: x.owner_name?.trim() || null, owner_mobile: x.owner_mobile?.trim() || null, vat_no: x.vat_no?.trim() || null, project_code: x.project_code?.trim() || null,
+        contact_person: x.contact_person?.trim() || null, owner_name: x.owner_name?.trim() || null, owner_mobile: x.owner_mobile?.trim() || null, vat_no: x.vat_no?.trim() || null, project_code: x.project_code?.trim() || null, apply_vat: !!x.apply_vat,
         payment_days: numOr(x.payment_days, 30), payment_schedule: schedule, full_project: !!x.full_project }
       if (x.id) { const { error } = await supabase.from('project_subcontractors').update(payload).eq('id', x.id).eq('company_id', company.id); if (error) throw error }
       else { const { error } = await supabase.from('project_subcontractors').insert(payload); if (error) throw error }
@@ -961,7 +961,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
             <div style={{ fontSize: 12.5, color: 'var(--text2)' }}>Contracts: <b style={{ color: '#8b5cf6' }}>{AED(totalSubs)}</b> · Paid: <b style={{ color: '#22c55e' }}>{AED(subsPaid)}</b> · Balance: <b style={{ color: '#ef4444' }}>{AED(totalSubs - subsPaid)}</b></div>
-            <button onClick={() => setSubForm({ name: '', trade: 'MEP', phone: '', status: 'ongoing', notes: '', payment_days: 30, payment_schedule: [{ label: 'Advance on signing', pct: 40 }, { label: 'On delivery to site', pct: 30 }, { label: 'On completion & handover', pct: 30 }] })} className="btn btn-primary btn-sm"><i className="ti ti-plus" /> Add subcontractor</button>
+            <button onClick={() => setSubForm({ name: '', trade: 'MEP', phone: '', status: 'ongoing', notes: '', apply_vat: true, payment_days: 30, payment_schedule: [{ label: 'Advance on signing', pct: 40 }, { label: 'On delivery to site', pct: 30 }, { label: 'On completion & handover', pct: 30 }] })} className="btn btn-primary btn-sm"><i className="ti ti-plus" /> Add subcontractor</button>
           </div>
           {subs.length === 0 ? <div style={{ ...card, textAlign: 'center', color: 'var(--text3)', padding: '34px 16px' }}>No subcontractors yet. Add MEP, Gypsum, Tiles…</div>
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
@@ -976,7 +976,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
                       </div>
                       {s.phone && <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}><i className="ti ti-phone" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {s.phone}{s.notes ? ' · ' + s.notes : ''}</div>}
                     </div>
-                    <button onClick={() => setSubForm({ ...s, payment_days: s.payment_days ?? 30, payment_schedule: (Array.isArray(s.payment_schedule) && s.payment_schedule.length) ? s.payment_schedule : [{ label: 'Advance on signing', pct: 40 }, { label: 'On delivery to site', pct: 30 }, { label: 'On completion & handover', pct: 30 }] })} style={iconBtn}><i className="ti ti-edit" style={{ fontSize: 15 }} /></button>
+                    <button onClick={() => setSubForm({ ...s, apply_vat: s.apply_vat ?? true, payment_days: s.payment_days ?? 30, payment_schedule: (Array.isArray(s.payment_schedule) && s.payment_schedule.length) ? s.payment_schedule : [{ label: 'Advance on signing', pct: 40 }, { label: 'On delivery to site', pct: 30 }, { label: 'On completion & handover', pct: 30 }] })} style={iconBtn}><i className="ti ti-edit" style={{ fontSize: 15 }} /></button>
                     <button onClick={() => delSub(s.id)} style={{ ...iconBtn, color: '#ef4444' }}><i className="ti ti-trash" style={{ fontSize: 15 }} /></button>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginTop: 10 }}>
@@ -1167,6 +1167,10 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
           <div><label style={lbl}>Contact person</label><input value={subForm.contact_person || ''} onChange={e => setSubForm(s => ({ ...s, contact_person: e.target.value }))} style={input} placeholder="On-site contact" /></div>
           <div><label style={lbl}>VAT / TRN no</label><input value={subForm.vat_no || ''} onChange={e => setSubForm(s => ({ ...s, vat_no: e.target.value }))} style={input} placeholder="100xxxxxxxxxxxx" /></div>
         </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10, cursor: 'pointer', background: subForm.apply_vat ? 'rgba(0,153,204,0.08)' : 'var(--bg2)', border: '1px solid ' + (subForm.apply_vat ? 'rgba(0,153,204,0.4)' : 'var(--border)'), borderRadius: 9, padding: '9px 12px' }}>
+          <input type="checkbox" checked={!!subForm.apply_vat} onChange={e => setSubForm(s => ({ ...s, apply_vat: e.target.checked }))} style={{ width: 16, height: 16, accentColor: '#0099cc', cursor: 'pointer' }} />
+          <span style={{ fontSize: 12.5, color: 'var(--text)', fontWeight: 600 }}>Add 5% VAT on the LPO <span style={{ color: 'var(--text3)', fontWeight: 400 }}>· tick if the subcontractor is VAT-registered (has TRN)</span></span>
+        </label>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
           <div><label style={lbl}>Owner name</label><input value={subForm.owner_name || ''} onChange={e => setSubForm(s => ({ ...s, owner_name: e.target.value }))} style={input} /></div>
           <div><label style={lbl}>Owner mobile</label><input value={subForm.owner_mobile || ''} onChange={e => setSubForm(s => ({ ...s, owner_mobile: e.target.value }))} style={input} /></div>
@@ -1323,8 +1327,8 @@ function lpoBody(company, project, sub, items, lpo, others = []) {
   const esc = __escDoc
   const n = v => Math.round(Number(v) || 0).toLocaleString('en-AE')
   const total = items.reduce((a, s) => a + (Number(s.sub_amount) || 0), 0)
-  // 5% VAT — always applied
-  const vat = Math.round(total * 0.05)
+  // 5% VAT — applied when the "Add 5% VAT" option is ticked for this subcontractor
+  const vat = sub?.apply_vat ? Math.round(total * 0.05) : 0
   const grandTotal = total + vat
   // subcontractor payment terms — a custom schedule of stages (label + %), editable per subcontractor
   const payDays = Number(sub?.payment_days ?? 30)
