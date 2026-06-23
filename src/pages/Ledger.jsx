@@ -132,15 +132,16 @@ export default function Ledger() {
   async function load() {
     setLoading(true)
     try {
-      const [invRes, projRes, seRes, spRes, piRes, tplRes, clRes, supRes] = await Promise.all([
+      const [invRes, projRes, seRes, spRes, piRes, tplRes, clRes, supRes, pscRes] = await Promise.all([
         supabase.from('invoices').select('invoice_number, client_name, project_title, issue_date, vat_enabled, vat_amount, total, payments, status').eq('company_id', company.id),
         supabase.from('ops_projects').select('id, name').eq('company_id', company.id),
         supabase.from('site_expenses').select('id, project_id, category, description, amount, spent_on').eq('company_id', company.id),
-        supabase.from('sub_payments').select('id, project_id, amount, paid_on, method, reference, note').eq('company_id', company.id),
+        supabase.from('sub_payments').select('id, project_id, sub_id, amount, paid_on, method, reference, note').eq('company_id', company.id),
         supabase.from('purchase_invoices').select('id, supplier_name, invoice_number, invoice_date, category, description, client_name, method, subtotal, vat_amount, total, paid').eq('company_id', company.id),
         supabase.from('quotation_templates').select('trn_number').eq('company_id', company.id).maybeSingle(),
         supabase.from('clients').select('name').eq('company_id', company.id).order('name'),
         supabase.from('suppliers').select('name').eq('company_id', company.id).order('name'),
+        supabase.from('project_subcontractors').select('id, name, project_id').eq('company_id', company.id),
       ])
       // ledger_entries may not exist until the migration is run — handle gracefully
       let entries = []
@@ -162,6 +163,8 @@ export default function Ledger() {
       setSuppliers((supRes.data || []).map(s => s.name).filter(Boolean))
       const projMap = {}
       ;(projRes.data || []).forEach(p => { projMap[p.id] = p.name })
+      const subMap = {}
+      ;(pscRes?.data || []).forEach(s => { subMap[s.id] = { name: s.name, project_id: s.project_id } })
 
       const out = []
       const vatRows = []
@@ -204,10 +207,13 @@ export default function Ledger() {
       })
       ;(spRes.data || []).forEach(x => {
         const amt = Number(x.amount) || 0
+        const sub = subMap[x.sub_id]
+        const projName = projMap[x.project_id] || projMap[sub?.project_id] || ''
+        const base = x.note || 'Subcontractor payment'
         out.push({
           id: `sp-${x.id}`, source: 'site', kind: 'expense', date: x.paid_on || '',
-          party: projMap[x.project_id] || 'Subcontractor', category: 'Subcontractor',
-          description: x.note || 'Subcontractor payment', method: x.method || '', reference: x.reference || '',
+          party: sub?.name || projName || 'Subcontractor', category: 'Subcontractor',
+          description: projName ? `${base} · Project: ${projName}` : base, method: x.method || '', reference: x.reference || '',
           net: amt, vat: 0, total: amt, editable: false,
         })
       })
