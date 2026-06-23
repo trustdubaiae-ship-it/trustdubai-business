@@ -22,6 +22,9 @@ const AGENTS = [
     starters: ['Job post for a site supervisor', 'Offer letter for a carpenter', '5 interview questions for a foreman'] },
 ]
 
+const newId = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'id-' + Date.now() + '-' + Math.floor(Math.random() * 1e6))
+const makeTitle = (s) => { const t = String(s || '').replace(/\s+/g, ' ').trim(); return t ? (t.length > 42 ? t.slice(0, 42) + '…' : t) : 'New chat' }
+
 export default function AIAgents() {
   const { company } = useAuth()
   const toast = useToast()
@@ -37,12 +40,15 @@ export default function AIAgents() {
     return () => { window.removeEventListener('resize', onResize); ob.disconnect() }
   }, [])
 
-  const [active, setActive] = useState(null)
-  const [entered, setEntered] = useState(false)    // false = agent grid dashboard, true = chat view
-  const [msgs, setMsgs] = useState([])
+  const [active, setActive] = useState(null)        // current agent
+  const [entered, setEntered] = useState(false)     // false = grid dashboard, true = chat workspace
+  const [threads, setThreads] = useState([])        // this agent's conversations
+  const [threadId, setThreadId] = useState(null)    // active thread (null = a new, unsaved chat)
+  const [msgs, setMsgs] = useState([])              // current thread messages
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
-  const [img, setImg] = useState(null)             // pending image { data, media_type, preview }
+  const [img, setImg] = useState(null)
+  const [mobilePane, setMobilePane] = useState('list')   // mobile: 'list' | 'chat'
   const endRef = useRef(null)
   const fileRef = useRef(null)
 
@@ -50,23 +56,16 @@ export default function AIAgents() {
   const [showKnow, setShowKnow] = useState(false)
   const [showNote, setShowNote] = useState(false)
   const [savingCfg, setSavingCfg] = useState(false)
-  const [previews, setPreviews] = useState({})     // last message text per agent
 
   const text = 'var(--text)', textSub = 'var(--text2)', textMuted = 'var(--text3)'
 
-  // ---- chat history (per company + agent, on this device) ----
-  const hkey = (k) => `qv_aiagent_${company?.id || 'x'}_${k}`
-  const loadHistory = (k) => { try { return JSON.parse(localStorage.getItem(hkey(k)) || '[]') } catch { return [] } }
-  const saveHistory = (k, list) => { try { localStorage.setItem(hkey(k), JSON.stringify(list.slice(-40).map(m => ({ role: m.role, text: m.text || (m.image ? '📷 Photo' : '') })))) } catch {} }
+  // ---- threads storage (per company + agent, on this device) ----
+  const tkey = (k) => `qv_aithreads_${company?.id || 'x'}_${k}`
+  const loadThreads = (k) => { try { const a = JSON.parse(localStorage.getItem(tkey(k)) || '[]'); return Array.isArray(a) ? a : [] } catch { return [] } }
+  const saveThreads = (k, list) => { try { localStorage.setItem(tkey(k), JSON.stringify(list.slice(0, 50))) } catch {} }
 
-  useEffect(() => { if (company?.id) { loadCfg(); refreshPreviews() } }, [company?.id])
+  useEffect(() => { if (company?.id) loadCfg() }, [company?.id])
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [msgs, busy])
-
-  function refreshPreviews() {
-    const p = {}
-    for (const a of AGENTS) { const h = loadHistory(a.key); if (h.length) p[a.key] = h[h.length - 1].text }
-    setPreviews(p)
-  }
 
   async function loadCfg() {
     const { data } = await supabase.from('ai_agent_config').select('knowledge, notes').eq('company_id', company.id).maybeSingle()
@@ -84,14 +83,20 @@ export default function AIAgents() {
     } catch (e) { toast.error('Could not save: ' + (e?.message || e)) } finally { setSavingCfg(false) }
   }
 
-  function open(agent) { setActive(agent); setEntered(true); setMsgs(loadHistory(agent.key)); setInput(''); setImg(null); setShowNote(false) }
-  function back() { setActive(null); setImg(null); setShowNote(false) }              // mobile: chat → agents list
-  function exitDash() { setEntered(false); setActive(null); setImg(null); setShowNote(false) }  // → grid dashboard
-  function clearChat() {
-    if (!active) return
-    if (!window.confirm('Clear this chat?')) return
-    try { localStorage.removeItem(hkey(active.key)) } catch {}
-    setMsgs([]); refreshPreviews()
+  function openAgent(agent) {
+    setActive(agent); setEntered(true)
+    setThreads(loadThreads(agent.key))
+    newChat(); setMobilePane('list')
+  }
+  function exitDash() { setEntered(false); setActive(null); setImg(null); setShowNote(false) }
+  function newChat() { setThreadId(null); setMsgs([]); setInput(''); setImg(null); setShowNote(false); setMobilePane('chat') }
+  function selectThread(t) { setThreadId(t.id); setMsgs(t.msgs || []); setInput(''); setImg(null); setMobilePane('chat') }
+  function deleteThread(e, t) {
+    e.stopPropagation()
+    if (!window.confirm('Delete this chat?')) return
+    const nextT = threads.filter(x => x.id !== t.id)
+    setThreads(nextT); saveThreads(active.key, nextT)
+    if (threadId === t.id) newChat()
   }
 
   function pickImage(e) {
@@ -104,12 +109,27 @@ export default function AIAgents() {
     reader.readAsDataURL(file)
   }
 
+  function persistThread(agentKey, tid, list, maybeTitle) {
+    const stored = list.slice(-40).map(m => ({ role: m.role, text: m.text || (m.image ? '📷 Photo' : '') }))
+    setThreads(prev => {
+      const exists = prev.some(t => t.id === tid)
+      let nextT = exists
+        ? prev.map(t => t.id === tid ? { ...t, msgs: stored, updatedAt: Date.now() } : t)
+        : [{ id: tid, title: maybeTitle || makeTitle(stored.find(m => m.role === 'user')?.text), msgs: stored, updatedAt: Date.now() }, ...prev]
+      nextT = [...nextT].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+      saveThreads(agentKey, nextT)
+      return nextT
+    })
+  }
+
   async function send(textToSend) {
     const q = (textToSend ?? input).trim()
     if ((!q && !img) || busy || !active) return
     const userMsg = { role: 'user', text: q, ...(img ? { image: { data: img.data, media_type: img.media_type }, preview: img.preview } : {}) }
     const next = [...msgs, userMsg]
     setMsgs(next); setInput(''); setImg(null); setBusy(true)
+    let tid = threadId, title = ''
+    if (!tid) { tid = newId(); title = makeTitle(q || 'Photo estimate'); setThreadId(tid) }
     try {
       const { data, error } = await supabase.functions.invoke('ai-agent', {
         body: {
@@ -124,124 +144,13 @@ export default function AIAgents() {
       if (error) throw error
       if (data?.reply) {
         const withReply = [...next, { role: 'assistant', text: data.reply }]
-        setMsgs(withReply); saveHistory(active.key, withReply); refreshPreviews()
+        setMsgs(withReply); persistThread(active.key, tid, withReply, title)
       } else { toast.error(data?.code === 'no_credit' ? 'AI credits exhausted' : 'AI could not respond'); setMsgs(msgs) }
     } catch (e) { toast.error('Could not reach the AI agent'); setMsgs(msgs) }
     finally { setBusy(false) }
   }
 
-  // ---------- LEFT: agent list ----------
-  const agentList = (
-    <div style={{ width: mobile ? '100%' : 300, flexShrink: 0, borderRight: mobile ? 'none' : '0.5px solid var(--border)', display: 'flex', flexDirection: 'column', minWidth: 0, background: 'var(--card)' }}>
-      <div style={{ padding: '14px 16px', borderBottom: '0.5px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-          <button onClick={exitDash} title="All agents" style={{ background: 'var(--bg2)', border: 'none', width: 30, height: 30, borderRadius: 8, cursor: 'pointer', color: textSub, flexShrink: 0 }}><i className="ti ti-layout-grid" /></button>
-          <div style={{ fontSize: 15, fontWeight: 800, color: text }}>AI Agents</div>
-        </div>
-        <button onClick={() => setShowKnow(true)} title="Business knowledge" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg2)', color: textSub, cursor: 'pointer', flexShrink: 0 }}>
-          <i className="ti ti-adjustments" /> {cfg.knowledge ? <span style={{ width: 6, height: 6, borderRadius: 99, background: '#16a34a' }} /> : null}
-        </button>
-      </div>
-      <div style={{ flex: 1, overflowY: 'auto' }}>
-        {AGENTS.map(a => {
-          const on = active?.key === a.key
-          return (
-            <button key={a.key} onClick={() => open(a)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 11, padding: '11px 14px', border: 'none', borderBottom: '0.5px solid var(--border)', background: on ? a.color + '14' : 'transparent', cursor: 'pointer', textAlign: 'left', borderLeft: on ? '3px solid ' + a.color : '3px solid transparent' }}>
-              <div style={{ width: 40, height: 40, borderRadius: 11, background: a.color + '22', color: a.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><i className={'ti ' + a.icon} style={{ fontSize: 20 }} /></div>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 700, color: text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</div>
-                <div style={{ fontSize: 11.5, color: textMuted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{previews[a.key] || a.tag}</div>
-              </div>
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  )
-
-  // ---------- RIGHT: chat ----------
-  const chatPane = (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, background: 'var(--bg)' }}>
-      {!active ? (
-        <div style={{ margin: 'auto', textAlign: 'center', color: textMuted, padding: 24 }}>
-          <i className="ti ti-robot-face" style={{ fontSize: 40, color: '#8b5cf6', marginBottom: 10 }} />
-          <div style={{ fontSize: 14, fontWeight: 600, color: textSub }}>Pick an agent on the left to start</div>
-          <div style={{ fontSize: 12, marginTop: 4 }}>Each one is specialised for your business.</div>
-        </div>
-      ) : (
-        <>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '12px 16px', borderBottom: '0.5px solid var(--border)', background: 'var(--card)' }}>
-            {mobile && <button onClick={back} style={{ background: 'var(--bg2)', border: 'none', width: 32, height: 32, borderRadius: 9, cursor: 'pointer', color: textSub }}><i className="ti ti-arrow-left" /></button>}
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: active.color + '22', color: active.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><i className={'ti ' + active.icon} style={{ fontSize: 18 }} /></div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 14.5, fontWeight: 700, color: text }}>{active.name}</div>
-              <div style={{ fontSize: 11, color: textMuted }}>{active.tag}</div>
-            </div>
-            <button onClick={clearChat} title="Clear chat" style={{ background: 'var(--bg2)', border: 'none', width: 32, height: 32, borderRadius: 9, cursor: 'pointer', color: textSub }}><i className="ti ti-trash" /></button>
-            <button onClick={() => setShowNote(v => !v)} title="Customize this agent" style={{ background: 'var(--bg2)', border: 'none', width: 32, height: 32, borderRadius: 9, cursor: 'pointer', color: cfg.notes?.[active.key] ? '#16a34a' : textSub }}><i className="ti ti-settings" /></button>
-          </div>
-
-          {showNote && (
-            <div style={{ padding: 14, borderBottom: '0.5px solid var(--border)', background: 'var(--card)' }}>
-              <div style={{ fontSize: 12, color: textMuted, marginBottom: 8, lineHeight: 1.5 }}>Custom instructions just for the <b>{active.name}</b> (tone, focus, what to always include).</div>
-              <textarea value={cfg.notes?.[active.key] || ''} onChange={e => setCfg(c => ({ ...c, notes: { ...c.notes, [active.key]: e.target.value } }))}
-                placeholder="e.g. Always keep a premium, confident tone and end with a clear call to action."
-                style={{ width: '100%', minHeight: 64, padding: '9px 11px', borderRadius: 9, border: '1px solid var(--border)', background: 'var(--bg2)', color: text, fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical', lineHeight: 1.5 }} />
-              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                <button onClick={() => { saveCfg(); setShowNote(false) }} disabled={savingCfg} style={{ padding: '8px 16px', borderRadius: 9, background: active.color, color: '#fff', border: 'none', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, opacity: savingCfg ? 0.7 : 1 }}>{savingCfg ? 'Saving…' : 'Save'}</button>
-                <button onClick={() => setShowNote(false)} style={{ padding: '8px 12px', borderRadius: 9, border: '1px solid var(--border)', background: 'transparent', color: textSub, cursor: 'pointer', fontSize: 12.5 }}>Close</button>
-              </div>
-            </div>
-          )}
-
-          <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {msgs.length === 0 && (
-              <div style={{ margin: 'auto', textAlign: 'center', maxWidth: 460 }}>
-                <div style={{ width: 56, height: 56, borderRadius: 16, background: active.color + '1f', color: active.color, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}><i className={'ti ' + active.icon} style={{ fontSize: 28 }} /></div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: text, marginBottom: 4 }}>How can I help?</div>
-                <div style={{ fontSize: 12, color: textMuted, marginBottom: 14 }}>Try one of these, or type your own:</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
-                  {active.starters.map((s, i) => (
-                    <button key={i} onClick={() => send(s)} style={{ fontSize: 12, padding: '7px 12px', borderRadius: 99, border: '1px solid var(--border)', background: 'var(--bg2)', color: textSub, cursor: 'pointer' }}>{s}</button>
-                  ))}
-                </div>
-              </div>
-            )}
-            {msgs.map((m, i) => (
-              <div key={i} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '88%' }}>
-                {m.preview && <img src={m.preview} alt="" style={{ display: 'block', maxWidth: 200, borderRadius: 10, marginBottom: 4, marginLeft: 'auto' }} />}
-                {m.text && <div style={{ fontSize: 13.5, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word', padding: '10px 13px', borderRadius: m.role === 'user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px', background: m.role === 'user' ? active.color : 'var(--card)', color: m.role === 'user' ? '#fff' : text, border: m.role === 'user' ? 'none' : '0.5px solid var(--border)' }}>{m.text}</div>}
-              </div>
-            ))}
-            {busy && <div style={{ alignSelf: 'flex-start', fontSize: 12.5, color: textMuted, padding: '8px 12px' }}><i className="ti ti-loader-2" style={{ animation: 'spin 1s linear infinite' }} /> {active.name} is thinking…</div>}
-            <div ref={endRef} />
-          </div>
-
-          {/* pending image preview */}
-          {img && (
-            <div style={{ padding: '8px 16px', borderTop: '0.5px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, background: 'var(--card)' }}>
-              <img src={img.preview} alt="" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} />
-              <div style={{ fontSize: 12, color: textMuted, flex: 1 }}>Photo attached — add details (size, finish, location) and send.</div>
-              <button onClick={() => setImg(null)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 18 }}><i className="ti ti-x" /></button>
-            </div>
-          )}
-
-          <div style={{ display: 'flex', gap: 8, padding: 12, borderTop: '0.5px solid var(--border)', background: 'var(--card)' }}>
-            <input ref={fileRef} type="file" accept="image/*" onChange={pickImage} style={{ display: 'none' }} />
-            <button onClick={() => fileRef.current?.click()} title="Attach a photo" style={{ width: 42, flexShrink: 0, borderRadius: 11, border: '1px solid var(--border)', background: 'var(--bg2)', color: textSub, cursor: 'pointer', fontSize: 18 }}><i className="ti ti-photo" /></button>
-            <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
-              placeholder={'Ask the ' + active.name + '…'} disabled={busy}
-              style={{ flex: 1, padding: '11px 14px', borderRadius: 11, border: '1px solid var(--border)', background: 'var(--bg2)', color: text, fontSize: 13.5, fontFamily: 'inherit', boxSizing: 'border-box' }} />
-            <button onClick={() => send()} disabled={busy || (!input.trim() && !img)} style={{ padding: '0 18px', borderRadius: 11, background: active.color, color: '#fff', border: 'none', cursor: (busy || (!input.trim() && !img)) ? 'default' : 'pointer', fontSize: 16, fontWeight: 700, opacity: (busy || (!input.trim() && !img)) ? 0.6 : 1 }}>
-              <i className="ti ti-send" />
-            </button>
-          </div>
-        </>
-      )}
-    </div>
-  )
-
-  // ---------- Landing: agent grid dashboard ----------
+  // ---------- Landing: agent grid ----------
   const dashboard = (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
@@ -252,7 +161,7 @@ export default function AIAgents() {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(250px,1fr))', gap: 12 }}>
         {AGENTS.map(a => (
-          <button key={a.key} onClick={() => open(a)} style={{ background: 'var(--card)', border: '0.5px solid var(--border)', borderRadius: 14, padding: 16, textAlign: 'left', cursor: 'pointer', color: text }}>
+          <button key={a.key} onClick={() => openAgent(a)} style={{ background: 'var(--card)', border: '0.5px solid var(--border)', borderRadius: 14, padding: 16, textAlign: 'left', cursor: 'pointer', color: text }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
               <div style={{ width: 44, height: 44, borderRadius: 12, background: a.color + '22', color: a.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><i className={'ti ' + a.icon} style={{ fontSize: 22 }} /></div>
               <div style={{ minWidth: 0 }}>
@@ -260,7 +169,7 @@ export default function AIAgents() {
                 <div style={{ fontSize: 11.5, color: textMuted }}>{a.tag}</div>
               </div>
             </div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: a.color }}>Chat with agent <i className="ti ti-arrow-right" style={{ fontSize: 14 }} /></div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: a.color }}>Open agent <i className="ti ti-arrow-right" style={{ fontSize: 14 }} /></div>
           </button>
         ))}
       </div>
@@ -270,16 +179,114 @@ export default function AIAgents() {
     </div>
   )
 
+  // ---------- Threads sidebar (for the open agent) ----------
+  const threadList = active && (
+    <div style={{ width: mobile ? '100%' : 290, flexShrink: 0, borderRight: mobile ? 'none' : '0.5px solid var(--border)', display: 'flex', flexDirection: 'column', minWidth: 0, background: 'var(--card)' }}>
+      <div style={{ padding: '12px 14px', borderBottom: '0.5px solid var(--border)', display: 'flex', alignItems: 'center', gap: 9 }}>
+        <button onClick={exitDash} title="All agents" style={{ background: 'var(--bg2)', border: 'none', width: 30, height: 30, borderRadius: 8, cursor: 'pointer', color: textSub, flexShrink: 0 }}><i className="ti ti-layout-grid" /></button>
+        <div style={{ width: 32, height: 32, borderRadius: 9, background: active.color + '22', color: active.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><i className={'ti ' + active.icon} style={{ fontSize: 17 }} /></div>
+        <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13.5, fontWeight: 700, color: text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{active.name}</div></div>
+        <button onClick={() => setShowKnow(true)} title="Business knowledge" style={{ background: 'var(--bg2)', border: 'none', width: 30, height: 30, borderRadius: 8, cursor: 'pointer', color: cfg.knowledge ? '#16a34a' : textSub, flexShrink: 0 }}><i className="ti ti-adjustments" /></button>
+      </div>
+      <div style={{ padding: 10 }}>
+        <button onClick={newChat} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '10px', borderRadius: 10, background: active.color, color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}><i className="ti ti-plus" style={{ fontSize: 16 }} /> New chat</button>
+      </div>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px 8px' }}>
+        <div style={{ fontSize: 9.5, fontWeight: 700, color: textMuted, textTransform: 'uppercase', letterSpacing: '.5px', padding: '6px 8px' }}>History</div>
+        {threads.length === 0 && <div style={{ fontSize: 12, color: textMuted, padding: '6px 8px' }}>No chats yet. Start a new one above.</div>}
+        {threads.map(t => {
+          const on = threadId === t.id
+          return (
+            <button key={t.id} onClick={() => selectThread(t)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', borderRadius: 9, border: 'none', background: on ? active.color + '1f' : 'transparent', cursor: 'pointer', textAlign: 'left', marginBottom: 2 }}>
+              <i className="ti ti-message-2" style={{ fontSize: 15, color: on ? active.color : textMuted, flexShrink: 0 }} />
+              <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: on ? 700 : 500, color: text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.title}</span>
+              <i className="ti ti-x" onClick={(e) => deleteThread(e, t)} style={{ fontSize: 13, color: textMuted, flexShrink: 0, opacity: 0.7 }} />
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+
+  // ---------- Chat pane ----------
+  const chatPane = active && (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, background: 'var(--bg)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '12px 16px', borderBottom: '0.5px solid var(--border)', background: 'var(--card)' }}>
+        {mobile && <button onClick={() => setMobilePane('list')} style={{ background: 'var(--bg2)', border: 'none', width: 32, height: 32, borderRadius: 9, cursor: 'pointer', color: textSub }}><i className="ti ti-arrow-left" /></button>}
+        <div style={{ width: 36, height: 36, borderRadius: 10, background: active.color + '22', color: active.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><i className={'ti ' + active.icon} style={{ fontSize: 18 }} /></div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14.5, fontWeight: 700, color: text }}>{active.name}</div>
+          <div style={{ fontSize: 11, color: textMuted }}>{active.tag}</div>
+        </div>
+        <button onClick={() => setShowNote(v => !v)} title="Customize this agent" style={{ background: 'var(--bg2)', border: 'none', width: 32, height: 32, borderRadius: 9, cursor: 'pointer', color: cfg.notes?.[active.key] ? '#16a34a' : textSub }}><i className="ti ti-settings" /></button>
+      </div>
+
+      {showNote && (
+        <div style={{ padding: 14, borderBottom: '0.5px solid var(--border)', background: 'var(--card)' }}>
+          <div style={{ fontSize: 12, color: textMuted, marginBottom: 8, lineHeight: 1.5 }}>Custom instructions just for the <b>{active.name}</b> (tone, focus, what to always include).</div>
+          <textarea value={cfg.notes?.[active.key] || ''} onChange={e => setCfg(c => ({ ...c, notes: { ...c.notes, [active.key]: e.target.value } }))}
+            placeholder="e.g. Always keep a premium, confident tone and end with a clear call to action."
+            style={{ width: '100%', minHeight: 64, padding: '9px 11px', borderRadius: 9, border: '1px solid var(--border)', background: 'var(--bg2)', color: text, fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical', lineHeight: 1.5 }} />
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <button onClick={() => { saveCfg(); setShowNote(false) }} disabled={savingCfg} style={{ padding: '8px 16px', borderRadius: 9, background: active.color, color: '#fff', border: 'none', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, opacity: savingCfg ? 0.7 : 1 }}>{savingCfg ? 'Saving…' : 'Save'}</button>
+            <button onClick={() => setShowNote(false)} style={{ padding: '8px 12px', borderRadius: 9, border: '1px solid var(--border)', background: 'transparent', color: textSub, cursor: 'pointer', fontSize: 12.5 }}>Close</button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {msgs.length === 0 && (
+          <div style={{ margin: 'auto', textAlign: 'center', maxWidth: 460 }}>
+            <div style={{ width: 56, height: 56, borderRadius: 16, background: active.color + '1f', color: active.color, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}><i className={'ti ' + active.icon} style={{ fontSize: 28 }} /></div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: text, marginBottom: 4 }}>New chat with {active.name}</div>
+            <div style={{ fontSize: 12, color: textMuted, marginBottom: 14 }}>Try one of these, or type your own:</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
+              {active.starters.map((s, i) => (
+                <button key={i} onClick={() => send(s)} style={{ fontSize: 12, padding: '7px 12px', borderRadius: 99, border: '1px solid var(--border)', background: 'var(--bg2)', color: textSub, cursor: 'pointer' }}>{s}</button>
+              ))}
+            </div>
+          </div>
+        )}
+        {msgs.map((m, i) => (
+          <div key={i} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '88%' }}>
+            {m.preview && <img src={m.preview} alt="" style={{ display: 'block', maxWidth: 200, borderRadius: 10, marginBottom: 4, marginLeft: 'auto' }} />}
+            {m.text && <div style={{ fontSize: 13.5, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word', padding: '10px 13px', borderRadius: m.role === 'user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px', background: m.role === 'user' ? active.color : 'var(--card)', color: m.role === 'user' ? '#fff' : text, border: m.role === 'user' ? 'none' : '0.5px solid var(--border)' }}>{m.text}</div>}
+          </div>
+        ))}
+        {busy && <div style={{ alignSelf: 'flex-start', fontSize: 12.5, color: textMuted, padding: '8px 12px' }}><i className="ti ti-loader-2" style={{ animation: 'spin 1s linear infinite' }} /> {active.name} is thinking…</div>}
+        <div ref={endRef} />
+      </div>
+
+      {img && (
+        <div style={{ padding: '8px 16px', borderTop: '0.5px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, background: 'var(--card)' }}>
+          <img src={img.preview} alt="" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} />
+          <div style={{ fontSize: 12, color: textMuted, flex: 1 }}>Photo attached — add details (size, finish, location) and send.</div>
+          <button onClick={() => setImg(null)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 18 }}><i className="ti ti-x" /></button>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 8, padding: 12, borderTop: '0.5px solid var(--border)', background: 'var(--card)' }}>
+        <input ref={fileRef} type="file" accept="image/*" onChange={pickImage} style={{ display: 'none' }} />
+        <button onClick={() => fileRef.current?.click()} title="Attach a photo" style={{ width: 42, flexShrink: 0, borderRadius: 11, border: '1px solid var(--border)', background: 'var(--bg2)', color: textSub, cursor: 'pointer', fontSize: 18 }}><i className="ti ti-photo" /></button>
+        <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+          placeholder={'Ask the ' + active.name + '…'} disabled={busy}
+          style={{ flex: 1, padding: '11px 14px', borderRadius: 11, border: '1px solid var(--border)', background: 'var(--bg2)', color: text, fontSize: 13.5, fontFamily: 'inherit', boxSizing: 'border-box' }} />
+        <button onClick={() => send()} disabled={busy || (!input.trim() && !img)} style={{ padding: '0 18px', borderRadius: 11, background: active.color, color: '#fff', border: 'none', cursor: (busy || (!input.trim() && !img)) ? 'default' : 'pointer', fontSize: 16, fontWeight: 700, opacity: (busy || (!input.trim() && !img)) ? 0.6 : 1 }}>
+          <i className="ti ti-send" />
+        </button>
+      </div>
+    </div>
+  )
+
   return (
     <>
       {!entered ? dashboard : (
         <div style={{ display: 'flex', height: 'calc(100vh - 150px)', minHeight: 520, border: '0.5px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
-          {(!mobile || !active) && agentList}
-          {(!mobile || active) && chatPane}
+          {(!mobile || mobilePane === 'list') && threadList}
+          {(!mobile || mobilePane === 'chat') && chatPane}
         </div>
       )}
 
-      {/* Business knowledge modal */}
       {showKnow && (
         <div onClick={() => setShowKnow(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ width: 560, maxWidth: '100%', background: 'var(--card)', border: '0.5px solid var(--border)', borderRadius: 14, padding: 18 }}>
