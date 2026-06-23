@@ -63,7 +63,7 @@ async function runTool(supa: any, companyId: string, name: string, input: any) {
     if (!supa || !companyId) return { error: "No data access in this session." };
     if (name === "get_projects") {
       let q = supa.from("ops_projects")
-        .select("name,status,client_name,location,contract_value,progress,health,start_date,end_date,created_at")
+        .select("name,status,client_name,location,contract_value,progress,start_date,end_date,created_at")
         .eq("company_id", companyId).order("created_at", { ascending: false }).limit(60);
       if (input?.status) q = q.ilike("status", `%${String(input.status)}%`);
       const { data, error } = await q;
