@@ -1323,6 +1323,10 @@ function lpoBody(company, project, sub, items, lpo, others = []) {
   const esc = __escDoc
   const n = v => Math.round(Number(v) || 0).toLocaleString('en-AE')
   const total = items.reduce((a, s) => a + (Number(s.sub_amount) || 0), 0)
+  // 5% VAT — applied when the subcontractor is VAT-registered (has a TRN)
+  const vatable = !!(sub?.vat_no && String(sub.vat_no).trim())
+  const vat = vatable ? Math.round(total * 0.05) : 0
+  const grandTotal = total + vat
   // subcontractor payment terms — a custom schedule of stages (label + %), editable per subcontractor
   const payDays = Number(sub?.payment_days ?? 30)
   const DEFAULT_SCHEDULE = [{ label: 'Advance on signing', pct: 40 }, { label: 'On delivery to site', pct: 30 }, { label: 'On completion & handover', pct: 30 }]
@@ -1389,15 +1393,17 @@ function lpoBody(company, project, sub, items, lpo, others = []) {
       <tbody>${rows || `<tr><td colspan="${withImg ? 5 : 4}" style="padding:16px;text-align:center;color:#999;font-size:11px;">No scope assigned to this subcontractor yet.</td></tr>`}</tbody>
     </table>
     <div style="display:flex;justify-content:flex-end;margin-bottom:13px;page-break-inside:avoid;">
-      <div style="min-width:260px;display:flex;justify-content:space-between;align-items:center;padding:11px 16px;background:${NAVY};color:#fff;border-radius:9px;">
-        <span style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;font-weight:600;opacity:.85;">Total Order Value</span><span style="font-family:${serif};font-size:17px;font-weight:700;color:#4fd0f5;">AED ${n(total)}</span>
+      <div style="min-width:280px;border:1px solid ${LINE};border-radius:9px;overflow:hidden;">
+        <div style="display:flex;justify-content:space-between;padding:8px 16px;font-size:11px;color:${MUT};"><span>Subtotal</span><span style="color:${NAVY};font-weight:600;">AED ${n(total)}</span></div>
+        ${vat > 0 ? `<div style="display:flex;justify-content:space-between;padding:8px 16px;font-size:11px;color:${MUT};border-top:1px solid ${LINE};"><span>VAT (5%)</span><span style="color:${NAVY};font-weight:600;">AED ${n(vat)}</span></div>` : ''}
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 16px;background:${NAVY};color:#fff;"><span style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;font-weight:600;opacity:.85;">Total${vat > 0 ? ' (incl. VAT)' : ' Order Value'}</span><span style="font-family:${serif};font-size:17px;font-weight:700;color:#4fd0f5;">AED ${n(grandTotal)}</span></div>
       </div>
     </div>
     <div style="border:1px solid ${LINE};border-radius:9px;overflow:hidden;margin-bottom:13px;page-break-inside:avoid;">
       <div style="background:${SOFT};padding:9px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid ${LINE};"><span style="font-size:8.5px;font-weight:700;color:${ACCENT};text-transform:uppercase;letter-spacing:1px;">Payment Schedule</span><span style="font-size:9px;color:${MUT};">within ${payDays} days of each certified invoice</span></div>
       ${schedule.map((s, i) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;${i < schedule.length - 1 ? 'border-bottom:1px solid ' + LINE + ';' : ''}">
         <span style="font-size:11px;color:${NAVY};">${esc(s.label || ('Stage ' + (i + 1)))}</span>
-        <span style="display:flex;gap:16px;align-items:center;"><b style="font-size:11px;color:${ACCENT};min-width:34px;text-align:right;">${Number(s.pct) || 0}%</b><span style="font-size:11.5px;font-weight:700;color:${NAVY};min-width:96px;text-align:right;">AED ${n(total * (Number(s.pct) || 0) / 100)}</span></span>
+        <span style="display:flex;gap:16px;align-items:center;"><b style="font-size:11px;color:${ACCENT};min-width:34px;text-align:right;">${Number(s.pct) || 0}%</b><span style="font-size:11.5px;font-weight:700;color:${NAVY};min-width:96px;text-align:right;">AED ${n(grandTotal * (Number(s.pct) || 0) / 100)}</span></span>
       </div>`).join('')}
     </div>
     <div style="border-top:1px solid ${LINE};padding-top:12px;margin-bottom:8px;">
