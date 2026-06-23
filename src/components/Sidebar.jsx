@@ -31,6 +31,7 @@ export const MENU = [
   { section: 'MAIN' },
   { id:'controlwall',   icon:'ti-layout-grid',      label:'Control Wall',     perm:'view_dashboard' },
   { id:'dashboard',     icon:'ti-layout-dashboard', label:'Command Center',   perm:'view_dashboard' },
+  { id:'aiagents',      icon:'ti-robot-face',       label:'AI Agents',        perm:'view_dashboard' },
   { id:'revenueengine', icon:'ti-gauge',            label:'Revenue Engine',   perm:'view_leads' },
   { id:'inbox',         icon:'ti-mail',             label:'Inbox',            perm:'view_dashboard' },
   { id:'notifications', icon:'ti-bell',             label:'Notifications',    perm:'view_dashboard' },
@@ -58,7 +59,6 @@ export const MENU = [
 
   { section: 'AI & CRM' },
   { id:'aiassistant', icon:'ti-robot',          label:'AI Assistant',   perm:'view_dashboard', addon:'ai' },
-  { id:'aiagents',    icon:'ti-robot-face',     label:'AI Agents',      perm:'view_dashboard' },
   { id:'organizer',   icon:'ti-calendar-bolt',  label:'My Organizer',   perm:'view_dashboard' },
 
   { section: 'REPUTATION' },
