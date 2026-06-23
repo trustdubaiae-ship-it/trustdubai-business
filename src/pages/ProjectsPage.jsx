@@ -1323,9 +1323,8 @@ function lpoBody(company, project, sub, items, lpo, others = []) {
   const esc = __escDoc
   const n = v => Math.round(Number(v) || 0).toLocaleString('en-AE')
   const total = items.reduce((a, s) => a + (Number(s.sub_amount) || 0), 0)
-  // 5% VAT — applied when the subcontractor is VAT-registered (has a TRN)
-  const vatable = !!(sub?.vat_no && String(sub.vat_no).trim())
-  const vat = vatable ? Math.round(total * 0.05) : 0
+  // 5% VAT — always applied
+  const vat = Math.round(total * 0.05)
   const grandTotal = total + vat
   // subcontractor payment terms — a custom schedule of stages (label + %), editable per subcontractor
   const payDays = Number(sub?.payment_days ?? 30)
