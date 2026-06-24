@@ -6,6 +6,8 @@ alter table public.qv_partners
   add column if not exists payouts_enabled   boolean not null default false;
 
 -- Refresh the admin overview to also expose payout-connection state.
+-- (drop first — the return type changes, which CREATE OR REPLACE can't do)
+drop function if exists public.admin_partner_overview();
 create or replace function public.admin_partner_overview()
 returns table (
   id uuid, name text, email text, phone text, code text,
