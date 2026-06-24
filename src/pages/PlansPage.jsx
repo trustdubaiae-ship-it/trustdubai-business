@@ -65,11 +65,18 @@ export default function PlansPage() {
       const { data, error } = await supabase.functions.invoke('stripe-checkout', {
         body: { companyId: company.id, plan: planId, origin: window.location.origin },
       })
-      if (!error && data?.url) { window.location.href = data.url; return }   // → Stripe checkout
-      // not configured yet / error → fall back to WhatsApp
-      window.open('https://wa.me/971503856786?text=Hi, I would like to upgrade my Quvera plan to ' + label, '_blank')
-    } catch {
-      window.open('https://wa.me/971503856786?text=Hi, I would like to upgrade my Quvera plan to ' + label, '_blank')
+      if (data?.url) { window.location.href = data.url; return }   // → Stripe checkout
+      // surface the real reason instead of silently going to WhatsApp
+      let m = 'Could not start checkout.'
+      if (error) { try { m = (await error.context.json())?.error || error.message || m } catch { m = error.message || m } }
+      else if (data?.error) m = data.error
+      if (window.confirm(m + '\n\nContact us on WhatsApp instead?')) {
+        window.open('https://wa.me/971503856786?text=Hi, I would like to upgrade my Quvera plan to ' + label, '_blank')
+      }
+    } catch (e) {
+      if (window.confirm('Checkout failed: ' + (e?.message || e) + '\n\nContact us on WhatsApp instead?')) {
+        window.open('https://wa.me/971503856786?text=Hi, I would like to upgrade my Quvera plan to ' + label, '_blank')
+      }
     } finally { setUpgrading('') }
   }
 
