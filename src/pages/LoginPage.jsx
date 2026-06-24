@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from '../lib/auth'
 
-export default function LoginPage({ onRegister }) {
+export default function LoginPage({ onRegister, onPartnerSignup }) {
   const { signInWithGoogle, signInWithEmail } = useAuth()
   const [loading, setLoading] = useState(false)
   const [showEmail, setShowEmail] = useState(false)
@@ -90,6 +90,10 @@ export default function LoginPage({ onRegister }) {
           <p style={{ fontSize: 12.5, color: '#6e7681', marginTop: 14, lineHeight: 1.6 }}>
             Already listed on Quvera?{' '}
             <span onClick={() => window.open('https://quvera.ae/claim-company', '_blank')} style={{ color: '#e8b84b', cursor: 'pointer', fontWeight: 600 }}>Claim your company</span>
+          </p>
+          <p style={{ fontSize: 12.5, color: '#6e7681', marginTop: 10, lineHeight: 1.6 }}>
+            Want to earn by referring businesses?{' '}
+            <span onClick={onPartnerSignup} style={{ color: '#00D4FF', cursor: 'pointer', fontWeight: 600 }}>Become a Partner</span>
           </p>
         </div>
       </div>

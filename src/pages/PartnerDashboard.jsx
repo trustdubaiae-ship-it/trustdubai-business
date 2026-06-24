@@ -48,6 +48,21 @@ export default function PartnerDashboard({ user }) {
   // Not a partner and no company → normal experience.
   if (!partner) return <NoCompanyPage />
 
+  // Pending approval — they can sign in but don't earn until activated.
+  if (partner.status === 'pending') {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--text)', padding: 20 }}>
+        <div style={{ width: '100%', maxWidth: 440, background: 'var(--card)', border: '0.5px solid var(--border)', borderRadius: 16, padding: 28, textAlign: 'center' }}>
+          <div style={{ width: 60, height: 60, borderRadius: '50%', background: 'rgba(245,158,11,0.15)', border: '2px solid #f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: 28 }}>⏳</div>
+          <div style={{ fontSize: 19, fontWeight: 800, marginBottom: 8 }}>Welcome, {partner.name}!</div>
+          <div style={{ fontSize: 13.5, color: 'var(--text2)', lineHeight: 1.7, marginBottom: 14 }}>Your partner account is <b style={{ color: '#f59e0b' }}>under review</b>. Once our team activates it, your referral link goes live and you start earning 25% recurring commission.</div>
+          <div style={{ fontSize: 12.5, color: 'var(--text3)', marginBottom: 20 }}>Your referral code (active after approval): <b style={{ color: 'var(--text)' }}>{partner.code}</b></div>
+          <button onClick={logout} style={{ padding: '10px 18px', borderRadius: 9, border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--text2)', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}><i className="ti ti-logout" /> Sign out</button>
+        </div>
+      </div>
+    )
+  }
+
   const pct = Number(partner.commission_pct || 25) / 100
   const term = Number(partner.term_months || 12)
   const perBiz = PLAN_PRICE * pct

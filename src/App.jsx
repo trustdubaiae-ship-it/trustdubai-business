@@ -8,6 +8,7 @@ import Sidebar, { MENU } from './components/Sidebar'
 import LoginNotificationPopup from './components/LoginNotificationPopup'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
+import BecomePartner from './pages/BecomePartner'
 import NoCompanyPage from './pages/NoCompanyPage'
 import PartnerDashboard from './pages/PartnerDashboard'
 import DashboardPage from './pages/DashboardPage'
@@ -187,6 +188,7 @@ function Portal() {
   const [activePage,   setActivePage]   = useState(getPageFromHash)
   const [subRoute,     setSubRoute]     = useState(() => parseHash().sub)
   const [showRegister, setShowRegister] = useState(false)
+  const [showPartnerSignup, setShowPartnerSignup] = useState(false)
   const [showProfile,  setShowProfile]  = useState(false)
   const [theme,        setTheme]        = useState(getTheme)
   const [sidebarOpen,  setSidebarOpen]  = useState(false)
@@ -264,6 +266,7 @@ function Portal() {
   }
 
   if (showRegister) return <RegisterPage onBack={() => setShowRegister(false)} />
+  if (showPartnerSignup) return <BecomePartner onBack={() => setShowPartnerSignup(false)} />
 
   if (loading) return (
     <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center', padding:20, gap:18,
@@ -288,7 +291,7 @@ function Portal() {
     </div>
   )
 
-  if (!user)    return <LoginPage onRegister={() => setShowRegister(true)} />
+  if (!user)    return <LoginPage onRegister={() => setShowRegister(true)} onPartnerSignup={() => setShowPartnerSignup(true)} />
   if (!company) return <PartnerDashboard user={user} />
 
   const status     = (company.status || 'pending').toLowerCase()
