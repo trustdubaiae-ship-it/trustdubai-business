@@ -29,6 +29,7 @@ export default function PlansPage() {
   const [features, setFeatures] = useState([])
   const [planFeat, setPlanFeat] = useState({})
   const [loading, setLoading]   = useState(true)
+  const [upgrading, setUpgrading] = useState('')
 
   const currentPlan  = company?.plan || 'free'
   const expiryInfo   = getExpiryInfo(company?.plan_expires_at)
@@ -55,10 +56,21 @@ export default function PlansPage() {
     setLoading(false)
   }
 
-  function handleUpgrade(planId) {
+  async function handleUpgrade(planId) {
     if (planId === currentPlan && !expiryInfo?.expired) return
     const label = planId.charAt(0).toUpperCase() + planId.slice(1)
-    window.open('https://wa.me/971503856786?text=Hi, I would like to upgrade my Quvera plan to ' + label, '_blank')
+    if (!company?.id) return
+    setUpgrading(planId)
+    try {
+      const { data, error } = await supabase.functions.invoke('stripe-checkout', {
+        body: { companyId: company.id, plan: planId, origin: window.location.origin },
+      })
+      if (!error && data?.url) { window.location.href = data.url; return }   // → Stripe checkout
+      // not configured yet / error → fall back to WhatsApp
+      window.open('https://wa.me/971503856786?text=Hi, I would like to upgrade my Quvera plan to ' + label, '_blank')
+    } catch {
+      window.open('https://wa.me/971503856786?text=Hi, I would like to upgrade my Quvera plan to ' + label, '_blank')
+    } finally { setUpgrading('') }
   }
 
   function buildFeatureList(planName) {
@@ -189,8 +201,9 @@ export default function PlansPage() {
                 className={'btn ' + (isCurrent && !expiryInfo?.expired ? 'btn-secondary' : meta.featured ? 'btn-primary' : 'btn-secondary')}
                 style={{ width: '100%', justifyContent: 'center', marginTop: 8 }}
                 onClick={() => handleUpgrade(key)}
-                disabled={isCurrent && !expiryInfo?.expired}>
-                {isCurrent && !expiryInfo?.expired ? '✓ Current Plan'
+                disabled={(isCurrent && !expiryInfo?.expired) || upgrading === key}>
+                {upgrading === key ? 'Redirecting…'
+                  : isCurrent && !expiryInfo?.expired ? '✓ Current Plan'
                   : isCurrent && expiryInfo?.expired ? '🔄 Renew Plan'
                   : 'Upgrade to ' + plan.name}
               </button>
