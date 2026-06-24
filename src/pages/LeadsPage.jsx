@@ -329,13 +329,17 @@ export default function LeadsPage() {
     if (addF.notes) answers['Notes'] = addF.notes
 
     if (editId) {
+      const { data: oldRow } = await supabase.from('lead_submissions').select('name, phone').eq('id', editId).maybeSingle()
+      const next = { name: addF.name.trim(), phone: addF.phone.trim(), email: addF.email.trim() || null }
       const { error: upErr } = await supabase.from('lead_submissions').update({
-        name: addF.name.trim(), phone: addF.phone.trim(), email: addF.email.trim() || null,
+        ...next,
         status: addF.status, status_updated_at: new Date().toISOString(),
         follow_up_date: addF.followUp || null, temperature: addF.temp, notes: addF.notes || null, answers,
       }).eq('id', editId)
       if (upErr) { setSavingAdd(false); toast.error('Could not update lead'); console.error(upErr); return }
-      setSavingAdd(false); await fetchAll(); setShowAdd(false); setEditId(null); toast.success('Lead updated!'); return
+      // propagate name/phone/email to the client + quotations/projects/invoices
+      await cascadeClientRename(oldRow?.name, oldRow?.phone, next)
+      setSavingAdd(false); await fetchAll(); setShowAdd(false); setEditId(null); toast.success('Lead updated everywhere!'); return
     }
 
     const { error } = await supabase.from('lead_submissions').insert({
@@ -358,6 +362,40 @@ export default function LeadsPage() {
     setShowAdd(false)
     setMainTab('mine')
     toast.success('Lead added!')
+  }
+
+  // When a lead's name/phone/email changes, propagate it to the matching client and
+  // every record that copied those fields (quotations, projects, invoices).
+  async function cascadeClientRename(oldName, oldPhone, next) {
+    try {
+      const co = company.id
+      const digits = (oldPhone || '').replace(/\D/g, '')
+      let cid = null
+      if (digits) {
+        const { data } = await supabase.from('clients').select('id').eq('company_id', co).ilike('phone', `%${digits.slice(-9)}%`).limit(1)
+        if (data && data.length) cid = data[0].id
+      }
+      if (!cid && oldName) {
+        const { data } = await supabase.from('clients').select('id').eq('company_id', co).eq('name', oldName).limit(1)
+        if (data && data.length) cid = data[0].id
+      }
+      const withEmail = { client_name: next.name, client_phone: next.phone, client_email: next.email }
+      const noEmail = { client_name: next.name, client_phone: next.phone }
+      // primary path — the clean client_id key
+      if (cid) {
+        await supabase.from('clients').update({ name: next.name, phone: next.phone, email: next.email }).eq('id', cid)
+        await supabase.from('quotations').update(withEmail).eq('company_id', co).eq('client_id', cid)
+        await supabase.from('ops_projects').update(noEmail).eq('company_id', co).eq('client_id', cid)
+        await supabase.from('invoices').update(withEmail).eq('company_id', co).eq('client_id', cid)
+      }
+      // fallback — legacy rows that match the OLD name but have no client_id
+      if (oldName && oldName !== next.name) {
+        await supabase.from('clients').update({ name: next.name, phone: next.phone, email: next.email }).eq('company_id', co).eq('name', oldName)
+        await supabase.from('quotations').update(withEmail).eq('company_id', co).eq('client_name', oldName)
+        await supabase.from('ops_projects').update(noEmail).eq('company_id', co).eq('client_name', oldName)
+        await supabase.from('invoices').update(withEmail).eq('company_id', co).eq('client_name', oldName)
+      }
+    } catch (e) { console.error('cascadeClientRename failed', e) }
   }
 
   async function applyStageToDB(lead, newStage) {
