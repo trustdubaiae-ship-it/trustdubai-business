@@ -1,8 +1,7 @@
 // Quvera — pay a partner via Stripe Connect transfer. Admin-only.
-// Verifies the caller is an active admin (admin_users), then transfers the payout
-// amount to the partner's connected account and marks the payout paid.
+// Uses the Stripe REST API directly (raw fetch). Verifies the caller is an active
+// admin, transfers the payout to the partner's connected account, marks it paid.
 // Secrets: STRIPE_SECRET_KEY. SUPABASE_* auto-injected. Deploy: supabase functions deploy partner-payout
-import Stripe from "https://esm.sh/stripe@17.0.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const CORS = {
@@ -12,13 +11,32 @@ const CORS = {
 };
 const json = (o: unknown, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...CORS, "Content-Type": "application/json" } });
 
+function toForm(obj: any, prefix = "", out: Record<string, string> = {}) {
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === undefined || v === null) continue;
+    const key = prefix ? `${prefix}[${k}]` : k;
+    if (typeof v === "object" && !Array.isArray(v)) toForm(v, key, out);
+    else out[key] = String(v);
+  }
+  return out;
+}
+async function stripe(secret: string, path: string, params: any) {
+  const res = await fetch("https://api.stripe.com/v1/" + path, {
+    method: "POST",
+    headers: { Authorization: "Bearer " + secret, "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams(toForm(params)).toString(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error?.message || `Stripe error ${res.status}`);
+  return data;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
 
   const key = Deno.env.get("STRIPE_SECRET_KEY");
   if (!key) return json({ error: "Stripe not configured" }, 500);
-  const stripe = new Stripe(key, { apiVersion: "2024-06-20", httpClient: Stripe.createFetchHttpClient() });
 
   const url = Deno.env.get("SUPABASE_URL")!;
   const authHeader = req.headers.get("Authorization") || "";
@@ -46,7 +64,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const transfer = await stripe.transfers.create({
+    const transfer = await stripe(key, "transfers", {
       amount: Math.round(Number(payout.amount) * 100), // AED -> fils
       currency: "aed",
       destination: partner.stripe_account_id,
@@ -57,6 +75,8 @@ Deno.serve(async (req) => {
     }).eq("id", payoutId);
     return json({ ok: true, transfer: transfer.id });
   } catch (e) {
-    return json({ error: String((e && (e as any).message) || e) }, 500);
+    const msg = String((e && (e as any).message) || e);
+    console.error("partner-payout STRIPE error:", msg);
+    return json({ error: msg }, 500);
   }
 });
