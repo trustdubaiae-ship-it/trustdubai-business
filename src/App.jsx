@@ -9,6 +9,7 @@ import LoginNotificationPopup from './components/LoginNotificationPopup'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import NoCompanyPage from './pages/NoCompanyPage'
+import PartnerDashboard from './pages/PartnerDashboard'
 import DashboardPage from './pages/DashboardPage'
 import RevenueEngine from './pages/RevenueEngine'
 import ControlWall from './pages/ControlWall'
@@ -288,7 +289,7 @@ function Portal() {
   )
 
   if (!user)    return <LoginPage onRegister={() => setShowRegister(true)} />
-  if (!company) return <NoCompanyPage />
+  if (!company) return <PartnerDashboard user={user} />
 
   const status     = (company.status || 'pending').toLowerCase()
   const isApproved = status === 'approved'

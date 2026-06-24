@@ -29,6 +29,8 @@ export default function RegisterPage({ onBack }) {
     phone: '', whatsapp: '', email: '', owner_name: '', description: '', how_heard: '',
   })
   const [errors, setErrors] = useState({})
+  // referral code from the partner link (?ref=CODE)
+  const [refCode] = useState(() => { try { return new URLSearchParams(window.location.search).get('ref') || '' } catch { return '' } })
 
   function set(field, value) {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -105,11 +107,17 @@ export default function RegisterPage({ onBack }) {
     setSubmitting(true)
     try {
       const slug = form.company_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+      // resolve the partner referral code (if the user came via a partner link)
+      let referred_by_partner_id = null
+      if (refCode) {
+        try { const { data: pid } = await supabase.rpc('resolve_partner_code', { p_code: refCode }); referred_by_partner_id = pid || null } catch { /* ignore */ }
+      }
       const { error } = await supabase.from('company_applications').insert({
         company_name: form.company_name, category: form.category, location: form.location,
         website: form.website || null, phone: form.phone, whatsapp: form.whatsapp || form.phone,
         email: form.email.toLowerCase(), owner_name: form.owner_name, description: form.description,
-        how_heard: form.how_heard || null, slug, status: 'pending', applied_at: new Date().toISOString()
+        how_heard: form.how_heard || null, slug, status: 'pending', applied_at: new Date().toISOString(),
+        referral_code: refCode || null, referred_by_partner_id
       })
       if (error) throw error
       setSubmitted(true)
