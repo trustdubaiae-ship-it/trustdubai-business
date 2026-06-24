@@ -26,9 +26,10 @@ Deno.serve(async (req) => {
   const admin = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
 
   // identify the partner from their own session (RLS returns only their row)
-  const { data: rows } = await caller.from("qv_partners").select("id, name, email, stripe_account_id, status").limit(1);
+  const { data: rows, error: pErr } = await caller.from("qv_partners").select("id, name, email, stripe_account_id, status").limit(1);
+  if (pErr) console.error("partner lookup error:", pErr.message);
   const partner = rows?.[0];
-  if (!partner) return json({ error: "Not a partner" }, 403);
+  if (!partner) { console.error("no partner row for caller"); return json({ error: "Not a partner — please sign in as a partner." }, 403); }
 
   let body: any = {}; try { body = await req.json(); } catch { /* ok */ }
   const origin = String(body.origin || "").replace(/\/$/, "");
@@ -61,6 +62,8 @@ Deno.serve(async (req) => {
     });
     return json({ payouts_enabled: false, url: link.url });
   } catch (e) {
-    return json({ error: String((e && (e as any).message) || e) }, 500);
+    const msg = String((e && (e as any).message) || e);
+    console.error("partner-connect STRIPE error:", msg);
+    return json({ error: msg }, 500);
   }
 });
