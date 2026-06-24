@@ -20,6 +20,10 @@ export default function PartnerDashboard({ user }) {
   const [copied, setCopied] = useState('')
 
   useEffect(() => { if (user?.id) load() }, [user?.id]) // eslint-disable-line
+  // returning from Stripe Connect onboarding → refresh the payout-enabled status
+  useEffect(() => {
+    if (partner && !partner.payouts_enabled && typeof window !== 'undefined' && /[?&]connect_done=1/.test(window.location.search)) setupPayouts(true)
+  }, [partner?.id]) // eslint-disable-line
 
   async function load() {
     setLoading(true)
@@ -37,7 +41,19 @@ export default function PartnerDashboard({ user }) {
   }
 
   const [requesting, setRequesting] = useState(false)
+  const [connecting, setConnecting] = useState(false)
   function logout() { supabase.auth.signOut() }
+  async function setupPayouts(silent = false) {
+    if (connecting) return
+    setConnecting(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('partner-connect', { body: { origin: window.location.origin } })
+      if (error) { if (!silent) alert('Could not start payout setup. Try again.'); return }
+      if (data?.payouts_enabled) { await load() }
+      else if (!silent && data?.url) { window.location.href = data.url }
+      else if (silent) { await load() }
+    } catch (e) { if (!silent) alert('Payout setup failed: ' + (e?.message || e)) } finally { setConnecting(false) }
+  }
   function copy(txt, key) {
     try { navigator.clipboard.writeText(txt); setCopied(key); setTimeout(() => setCopied(''), 1600) } catch {}
   }
@@ -158,6 +174,16 @@ export default function PartnerDashboard({ user }) {
                 )
               })}
             </div>}
+        </div>
+
+        {/* payout setup (Stripe Connect) */}
+        <div style={{ ...card, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ width: 38, height: 38, borderRadius: 10, background: partner.payouts_enabled ? 'rgba(34,197,94,0.15)' : 'rgba(0,153,204,0.12)', color: partner.payouts_enabled ? '#22c55e' : '#0099cc', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><i className={'ti ' + (partner.payouts_enabled ? 'ti-circle-check' : 'ti-building-bank')} style={{ fontSize: 20 }} /></div>
+          <div style={{ flex: 1, minWidth: 160 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 700 }}>{partner.payouts_enabled ? 'Payouts connected' : 'Set up payouts'}</div>
+            <div style={{ fontSize: 11.5, color: 'var(--text3)', lineHeight: 1.5 }}>{partner.payouts_enabled ? 'Your commission will be sent to your connected account.' : 'Add your bank details (via Stripe) so we can send your commission.'}</div>
+          </div>
+          {!partner.payouts_enabled && <button onClick={() => setupPayouts(false)} disabled={connecting} style={{ padding: '9px 16px', borderRadius: 9, background: '#0099cc', color: '#fff', border: 'none', cursor: connecting ? 'default' : 'pointer', fontSize: 12.5, fontWeight: 700, flexShrink: 0, opacity: connecting ? 0.7 : 1 }}>{connecting ? 'Opening…' : 'Set up'}</button>}
         </div>
 
         {/* payouts */}
