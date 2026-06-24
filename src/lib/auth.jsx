@@ -170,6 +170,10 @@ export function AuthProvider({ children }) {
     })
     if (error) throw error
   }
+  async function signInWithEmail(email, password) {
+    const { error } = await supabase.auth.signInWithPassword({ email: (email || '').trim().toLowerCase(), password })
+    if (error) throw error
+  }
   async function signOut() {
     await supabase.auth.signOut()
   }
@@ -207,7 +211,7 @@ export function AuthProvider({ children }) {
   return (
     <AuthContext.Provider value={{
       user, company, staff, role, planFeatures, loading,
-      signInWithGoogle, signOut, refreshCompany,
+      signInWithGoogle, signInWithEmail, signOut, refreshCompany,
       hasFeature, getLimit, hasAddon,
       // Launch Plan / trial
       isTrial, effectivePlan, trialDaysLeft, launchPlan,

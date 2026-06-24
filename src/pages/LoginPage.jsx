@@ -2,13 +2,26 @@ import { useState } from 'react'
 import { useAuth } from '../lib/auth'
 
 export default function LoginPage({ onRegister }) {
-  const { signInWithGoogle } = useAuth()
+  const { signInWithGoogle, signInWithEmail } = useAuth()
   const [loading, setLoading] = useState(false)
+  const [showEmail, setShowEmail] = useState(false)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [emailLoading, setEmailLoading] = useState(false)
+  const [err, setErr] = useState('')
 
   async function handleGoogle() {
     setLoading(true)
     try { await signInWithGoogle() }
     catch (e) { setLoading(false) }
+  }
+
+  async function handleEmail(e) {
+    e.preventDefault()
+    if (!email.trim() || !password) { setErr('Enter your email and password'); return }
+    setErr(''); setEmailLoading(true)
+    try { await signInWithEmail(email, password) }
+    catch (e2) { setErr(e2?.message || 'Sign in failed'); setEmailLoading(false) }
   }
 
   return (
@@ -46,6 +59,24 @@ export default function LoginPage({ onRegister }) {
           )}
           {loading ? 'Signing in...' : 'Continue with Google'}
         </button>
+
+        {/* email & password — for partners and team accounts */}
+        {!showEmail ? (
+          <button onClick={() => setShowEmail(true)} style={{ width: '100%', padding: '11px', background: 'transparent', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, cursor: 'pointer', fontFamily: "'Inter', sans-serif", fontSize: 13.5, fontWeight: 600, color: '#aeb9d6', marginBottom: 20 }}>
+            Sign in with email &amp; password
+          </button>
+        ) : (
+          <form onSubmit={handleEmail} style={{ marginBottom: 20 }}>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" autoFocus autoComplete="username"
+              style={{ width: '100%', padding: '12px 14px', marginBottom: 10, borderRadius: 10, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 14, boxSizing: 'border-box' }} />
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" autoComplete="current-password"
+              style={{ width: '100%', padding: '12px 14px', marginBottom: 10, borderRadius: 10, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 14, boxSizing: 'border-box' }} />
+            {err && <div style={{ fontSize: 12.5, color: '#f87171', marginBottom: 10 }}>{err}</div>}
+            <button type="submit" disabled={emailLoading} style={{ width: '100%', padding: '13px', borderRadius: 10, border: 'none', background: 'linear-gradient(100deg,#00D4FF,#8B5CF6)', color: '#fff', fontWeight: 700, fontSize: 14.5, cursor: emailLoading ? 'not-allowed' : 'pointer' }}>
+              {emailLoading ? 'Signing in…' : 'Sign in'}
+            </button>
+          </form>
+        )}
 
         <div style={{ background: 'rgba(232,184,75,0.08)', border: '1px solid rgba(232,184,75,0.2)', borderRadius: 8, padding: '12px 14px', fontSize: 12.5, color: '#9b8a5a', lineHeight: 1.6, marginBottom: 20 }}>
           🔐 Only approved company accounts can access this portal. Contact Quvera if you need access.
