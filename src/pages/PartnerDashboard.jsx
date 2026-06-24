@@ -18,6 +18,9 @@ export default function PartnerDashboard({ user }) {
   const [referrals, setReferrals] = useState([])
   const [payouts, setPayouts] = useState([])
   const [copied, setCopied] = useState('')
+  const [bank, setBank] = useState({ account_holder: '', bank_name: '', iban: '', swift: '' })
+  const [savingBank, setSavingBank] = useState(false)
+  const [settings, setSettings] = useState({ min_payout: 100, claims_per_month: 2 })
 
   useEffect(() => { if (user?.id) load() }, [user?.id]) // eslint-disable-line
   // returning from Stripe Connect onboarding → refresh the payout-enabled status
@@ -31,12 +34,15 @@ export default function PartnerDashboard({ user }) {
       const { data: p } = await supabase.from('qv_partners').select('*').eq('auth_user_id', user.id).maybeSingle()
       if (!p) { setPartner(null); setLoading(false); return }
       setPartner(p)
-      const [refsRes, paysRes] = await Promise.all([
+      setBank({ account_holder: '', bank_name: '', iban: '', swift: '', ...(p.payout_info || {}) })
+      const [refsRes, paysRes, setRes] = await Promise.all([
         supabase.rpc('partner_my_referrals'),
         supabase.from('qv_partner_payouts').select('*').eq('partner_id', p.id).order('created_at', { ascending: false }),
+        supabase.from('qv_settings').select('*'),
       ])
       setReferrals(refsRes.data || [])
       setPayouts(paysRes.data || [])
+      if (setRes.data) { const m = {}; setRes.data.forEach(r => { m[r.key] = Number(r.value) }); setSettings(s => ({ ...s, ...m })) }
     } catch (e) { /* ignore */ } finally { setLoading(false) }
   }
 
@@ -65,12 +71,21 @@ export default function PartnerDashboard({ user }) {
     if (!(amount > 0) || requesting || !partner) return
     setRequesting(true)
     try {
-      const period = new Date().toISOString().slice(0, 7)
-      const { error } = await supabase.from('qv_partner_payouts')
-        .insert({ partner_id: partner.id, amount: Math.round(amount), status: 'requested', period })
-      if (error) throw error
+      // RPC enforces: bank details set, >= minimum, <= claims/month
+      const { data, error } = await supabase.rpc('partner_request_payout', { p_amount: Math.round(amount) })
+      if (error) { alert(error.message); return }
+      if (data?.error) { alert(data.error); return }
       await load()
     } catch (e) { alert('Could not request payout: ' + (e?.message || e)) } finally { setRequesting(false) }
+  }
+  async function saveBank() {
+    if (savingBank || !partner) return
+    setSavingBank(true)
+    try {
+      const { error } = await supabase.from('qv_partners').update({ payout_info: bank }).eq('id', partner.id)
+      if (error) throw error
+      await load()
+    } catch (e) { alert('Could not save: ' + (e?.message || e)) } finally { setSavingBank(false) }
   }
 
   if (loading) {
@@ -180,15 +195,28 @@ export default function PartnerDashboard({ user }) {
             </div>}
         </div>
 
-        {/* payout setup (Stripe Connect) */}
-        <div style={{ ...card, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <div style={{ width: 38, height: 38, borderRadius: 10, background: partner.payouts_enabled ? 'rgba(34,197,94,0.15)' : 'rgba(0,153,204,0.12)', color: partner.payouts_enabled ? '#22c55e' : '#0099cc', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><i className={'ti ' + (partner.payouts_enabled ? 'ti-circle-check' : 'ti-building-bank')} style={{ fontSize: 20 }} /></div>
-          <div style={{ flex: 1, minWidth: 160 }}>
-            <div style={{ fontSize: 13.5, fontWeight: 700 }}>{partner.payouts_enabled ? 'Payouts connected' : 'Set up payouts'}</div>
-            <div style={{ fontSize: 11.5, color: 'var(--text3)', lineHeight: 1.5 }}>{partner.payouts_enabled ? 'Your commission will be sent to your connected account.' : 'Add your bank details (via Stripe) so we can send your commission.'}</div>
-          </div>
-          {!partner.payouts_enabled && <button onClick={() => setupPayouts(false)} disabled={connecting} style={{ padding: '9px 16px', borderRadius: 9, background: '#0099cc', color: '#fff', border: 'none', cursor: connecting ? 'default' : 'pointer', fontSize: 12.5, fontWeight: 700, flexShrink: 0, opacity: connecting ? 0.7 : 1 }}>{connecting ? 'Opening…' : 'Set up'}</button>}
-        </div>
+        {/* payout account — bank details */}
+        {(() => {
+          const hasBank = (bank.iban || '').trim().length >= 5
+          const bInput = { width: '100%', padding: '9px 11px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--text)', fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box' }
+          const bLbl = { fontSize: 11, color: 'var(--text3)', fontWeight: 600, marginBottom: 4, display: 'block' }
+          return (
+            <div style={{ ...card, marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', flex: 1 }}><i className="ti ti-building-bank" style={{ color: '#0099cc' }} /> Payout account (bank)</div>
+                {hasBank && <span style={{ fontSize: 10.5, fontWeight: 700, color: '#16a34a', background: '#16a34a1f', padding: '3px 9px', borderRadius: 99 }}>Saved ✓</span>}
+              </div>
+              <div style={{ fontSize: 11.5, color: 'var(--text3)', marginBottom: 12, lineHeight: 1.5 }}>Add your bank details so we can transfer your commission. Minimum payout <b style={{ color: 'var(--text2)' }}>AED {settings.min_payout}</b> · up to <b style={{ color: 'var(--text2)' }}>{settings.claims_per_month}</b> claims/month.</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 10 }}>
+                <div><label style={bLbl}>Account holder name</label><input value={bank.account_holder} onChange={e => setBank(b => ({ ...b, account_holder: e.target.value }))} style={bInput} placeholder="As per bank" /></div>
+                <div><label style={bLbl}>Bank name</label><input value={bank.bank_name} onChange={e => setBank(b => ({ ...b, bank_name: e.target.value }))} style={bInput} placeholder="e.g. Emirates NBD" /></div>
+                <div><label style={bLbl}>IBAN</label><input value={bank.iban} onChange={e => setBank(b => ({ ...b, iban: e.target.value.toUpperCase() }))} style={bInput} placeholder="AE07 0331 ..." /></div>
+                <div><label style={bLbl}>SWIFT / BIC <span style={{ fontWeight: 400 }}>(optional)</span></label><input value={bank.swift} onChange={e => setBank(b => ({ ...b, swift: e.target.value.toUpperCase() }))} style={bInput} placeholder="EBILAEAD" /></div>
+              </div>
+              <button onClick={saveBank} disabled={savingBank} style={{ padding: '9px 18px', borderRadius: 9, background: '#0099cc', color: '#fff', border: 'none', cursor: savingBank ? 'default' : 'pointer', fontSize: 12.5, fontWeight: 700, opacity: savingBank ? 0.7 : 1 }}>{savingBank ? 'Saving…' : 'Save bank details'}</button>
+            </div>
+          )
+        })()}
 
         {/* payouts */}
         <div style={card}>
