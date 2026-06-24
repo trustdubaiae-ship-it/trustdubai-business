@@ -36,9 +36,21 @@ export default function PartnerDashboard({ user }) {
     } catch (e) { /* ignore */ } finally { setLoading(false) }
   }
 
+  const [requesting, setRequesting] = useState(false)
   function logout() { supabase.auth.signOut() }
   function copy(txt, key) {
     try { navigator.clipboard.writeText(txt); setCopied(key); setTimeout(() => setCopied(''), 1600) } catch {}
+  }
+  async function requestPayout(amount) {
+    if (!(amount > 0) || requesting || !partner) return
+    setRequesting(true)
+    try {
+      const period = new Date().toISOString().slice(0, 7)
+      const { error } = await supabase.from('qv_partner_payouts')
+        .insert({ partner_id: partner.id, amount: Math.round(amount), status: 'requested', period })
+      if (error) throw error
+      await load()
+    } catch (e) { alert('Could not request payout: ' + (e?.message || e)) } finally { setRequesting(false) }
   }
 
   if (loading) {
@@ -150,7 +162,12 @@ export default function PartnerDashboard({ user }) {
 
         {/* payouts */}
         <div style={card}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', marginBottom: 10 }}><i className="ti ti-cash" style={{ color: '#22c55e' }} /> Payout history</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', flex: 1 }}><i className="ti ti-cash" style={{ color: '#22c55e' }} /> Payout history</div>
+            {payouts.some(p => p.status === 'requested')
+              ? <span style={{ fontSize: 11, fontWeight: 700, color: '#f59e0b', background: 'rgba(245,158,11,0.12)', padding: '5px 11px', borderRadius: 99 }}>Payout requested</span>
+              : pending > 0 && <button onClick={() => requestPayout(pending)} disabled={requesting} style={{ fontSize: 12, fontWeight: 700, padding: '7px 14px', borderRadius: 9, background: '#22c55e', color: '#fff', border: 'none', cursor: requesting ? 'default' : 'pointer', opacity: requesting ? 0.7 : 1 }}>{requesting ? 'Requesting…' : `Request payout (${AED(pending)})`}</button>}
+          </div>
           {payouts.length === 0
             ? <div style={{ fontSize: 12.5, color: 'var(--text3)', padding: '10px 2px' }}>No payouts yet. Earnings are paid monthly.</div>
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
