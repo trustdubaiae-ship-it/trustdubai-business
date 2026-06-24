@@ -48,7 +48,11 @@ export default function PartnerDashboard({ user }) {
     setConnecting(true)
     try {
       const { data, error } = await supabase.functions.invoke('partner-connect', { body: { origin: window.location.origin } })
-      if (error) { if (!silent) alert('Could not start payout setup. Try again.'); return }
+      if (error) {
+        let m = 'Could not start payout setup.'
+        try { m = (await error.context.json())?.error || error.message || m } catch { m = error.message || m }
+        if (!silent) alert(m); return
+      }
       if (data?.payouts_enabled) { await load() }
       else if (!silent && data?.url) { window.location.href = data.url }
       else if (silent) { await load() }
