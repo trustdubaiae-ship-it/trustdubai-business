@@ -24,12 +24,12 @@ export default function PartnerDashboard({ user }) {
   async function load() {
     setLoading(true)
     try {
-      const { data: p } = await supabase.from('partners').select('*').eq('auth_user_id', user.id).maybeSingle()
+      const { data: p } = await supabase.from('qv_partners').select('*').eq('auth_user_id', user.id).maybeSingle()
       if (!p) { setPartner(null); setLoading(false); return }
       setPartner(p)
       const [refsRes, paysRes] = await Promise.all([
         supabase.rpc('partner_my_referrals'),
-        supabase.from('partner_payouts').select('*').eq('partner_id', p.id).order('created_at', { ascending: false }),
+        supabase.from('qv_partner_payouts').select('*').eq('partner_id', p.id).order('created_at', { ascending: false }),
       ])
       setReferrals(refsRes.data || [])
       setPayouts(paysRes.data || [])
