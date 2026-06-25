@@ -60,6 +60,7 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
   const [payMethod, setPayMethod] = useState('Cash')
   const [payRef, setPayRef] = useState('')
   const [payNote, setPayNote] = useState('')
+  const [payLinkBusy, setPayLinkBusy] = useState(false)
   const [selVos, setSelVos] = useState([])   // approved Variation Orders for the selected quote
 
   useEffect(() => {
@@ -188,6 +189,28 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
   async function removePayment(idx) {
     const newP = parsePayments(active.payments).filter((_, i) => i !== idx)
     await savePayments(active, newP)
+  }
+  // Generate a Stripe card-payment link for the client (enabled companies only).
+  // The payment settles into the Renofix account; the webhook records it on the invoice.
+  async function cardPayLink(inv) {
+    if (payLinkBusy) return
+    setPayLinkBusy(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('client-pay-checkout', { body: { invoiceId: inv.id, origin: window.location.origin } })
+      if (data?.url) {
+        try { await navigator.clipboard.writeText(data.url) } catch { /* clipboard may be blocked */ }
+        toast.success('Card payment link copied ✓ — send it to your client')
+        const phone = (inv.client_phone || '').replace(/[^0-9]/g, '')
+        if (phone) {
+          const msg = `Here is the secure card-payment link for invoice ${inv.invoice_number}:\n${data.url}`
+          window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(msg), '_blank')
+        }
+        return
+      }
+      let m = 'Could not create the payment link.'
+      if (error) { try { m = (await error.context.json())?.error || m } catch { m = error.message || m } } else if (data?.error) m = data.error
+      toast.error(m)
+    } catch (e) { toast.error('Failed: ' + (e?.message || e)) } finally { setPayLinkBusy(false) }
   }
   // Lifecycle: cancel / hold an unpaid invoice instead of deleting it, so the
   // numbering & history stay intact and the ledger isn't corrupted. Reactivate
@@ -601,6 +624,9 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
           <button onClick={() => printInvoice(inv)} style={{ flex: 1, minWidth: 110, padding: '10px', borderRadius: 9, border: `1px solid ${border}`, background: cardBg, color: text, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}><i className="ti ti-printer" style={{ verticalAlign: '-2px', marginRight: 4 }} />Print / PDF</button>
           <button onClick={() => whatsappInvoice(inv)} style={{ flex: 1, minWidth: 110, padding: '10px', borderRadius: 9, border: 'none', background: '#22c55e', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}><i className="ti ti-brand-whatsapp" style={{ verticalAlign: '-2px', marginRight: 4 }} />WhatsApp</button>
+          {company?.client_pay_enabled && inv.status !== 'cancelled' && inv.status !== 'hold' && bal > 0 && (
+            <button onClick={() => cardPayLink(inv)} disabled={payLinkBusy} style={{ flex: 1, minWidth: 110, padding: '10px', borderRadius: 9, border: 'none', background: '#635bff', color: '#fff', fontSize: 13, fontWeight: 600, cursor: payLinkBusy ? 'default' : 'pointer', opacity: payLinkBusy ? 0.7 : 1 }}><i className={'ti ' + (payLinkBusy ? 'ti-loader-2' : 'ti-credit-card')} style={{ verticalAlign: '-2px', marginRight: 4 }} />{payLinkBusy ? 'Creating…' : 'Pay by card'}</button>
+          )}
           {inv.status === 'cancelled' ? (
             <>
               <button onClick={() => setLifecycle(inv, 'unpaid')} style={{ flex: 1, minWidth: 110, padding: '10px', borderRadius: 9, border: '1px solid #86efac', background: cardBg, color: '#0f6e56', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}><i className="ti ti-rotate" style={{ verticalAlign: '-2px', marginRight: 4 }} />Reactivate</button>

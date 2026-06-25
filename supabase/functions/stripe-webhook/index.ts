@@ -44,6 +44,24 @@ Deno.serve(async (req) => {
 
   try {
     if (event.type === "checkout.session.completed") {
+      if (obj.metadata?.kind === "client_payment") {
+        // A client paid an invoice by card → record the payment (idempotent by payment_intent).
+        const invId = obj.metadata.invoice_id;
+        if (invId && obj.payment_status === "paid") {
+          const { data: inv } = await admin.from("invoices").select("id, total, payments").eq("id", invId).maybeSingle();
+          if (inv) {
+            const pays = Array.isArray(inv.payments) ? inv.payments : [];
+            const ref = obj.payment_intent || obj.id;
+            if (!pays.some((p: any) => p && p.reference === ref)) {
+              const amount = (obj.amount_total || 0) / 100;
+              const next = [...pays, { amount, date: new Date().toISOString().slice(0, 10), method: "Card (Stripe)", reference: ref, note: "Paid online via card" }];
+              const sum = next.reduce((s: number, p: any) => s + (Number(p.amount) || 0), 0);
+              const status = sum <= 0 ? "unpaid" : (sum >= Math.round(Number(inv.total) || 0) ? "paid" : "partial");
+              await admin.from("invoices").update({ payments: next, status, phase: "tax" }).eq("id", invId);
+            }
+          }
+        }
+      } else {
       const partnerId = obj.metadata?.partner_id;
       if (partnerId) {
         await admin.from("qv_partners").update({ stripe_customer_id: obj.customer || null, stripe_subscription_id: obj.subscription || null, payment_status: "active" }).eq("id", partnerId);
@@ -62,6 +80,7 @@ Deno.serve(async (req) => {
             ...(periodEnd ? { plan_expires_at: expiresFrom(periodEnd) } : {}),
           }).eq("id", companyId);
         }
+      }
       }
     } else if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.created") {
       const partnerId = obj.metadata?.partner_id;
