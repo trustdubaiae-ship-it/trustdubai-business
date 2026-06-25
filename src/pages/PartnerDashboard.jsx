@@ -21,6 +21,8 @@ export default function PartnerDashboard({ user }) {
   const [copied, setCopied] = useState('')
   const [bank, setBank] = useState({ account_holder: '', bank_name: '', iban: '', swift: '' })
   const [savingBank, setSavingBank] = useState(false)
+  const [profile, setProfile] = useState({ name: '', phone: '', company_name: '' })
+  const [savingProfile, setSavingProfile] = useState(false)
   const [settings, setSettings] = useState({ min_payout: 100, claims_per_month: 2 })
   const [tab, setTab] = useState('overview')
   const [savingDoc, setSavingDoc] = useState('')
@@ -66,6 +68,7 @@ export default function PartnerDashboard({ user }) {
       if (!p) { setPartner(null); setLoading(false); return }
       setPartner(p)
       setBank({ account_holder: '', bank_name: '', iban: '', swift: '', ...(p.payout_info || {}) })
+      setProfile({ name: p.name || '', phone: p.phone || '', company_name: p.company_name || '' })
       const [refsRes, paysRes, setRes] = await Promise.all([
         supabase.rpc('partner_my_referrals'),
         supabase.from('qv_partner_payouts').select('*').eq('partner_id', p.id).order('created_at', { ascending: false }),
@@ -111,12 +114,24 @@ export default function PartnerDashboard({ user }) {
   }
   async function saveBank() {
     if (savingBank || !partner) return
+    if (partner.bank_locked) { alert('Bank details are locked. To change them, contact Quvera.'); return }
+    if ((bank.iban || '').trim().length < 5) { alert('Enter a valid IBAN'); return }
+    if (!window.confirm('Save these bank details? You can only set them once — to change later you must request Quvera.')) return
     setSavingBank(true)
     try {
-      const { error } = await supabase.from('qv_partners').update({ payout_info: bank }).eq('id', partner.id)
+      const { error } = await supabase.from('qv_partners').update({ payout_info: bank, bank_locked: true }).eq('id', partner.id)
       if (error) throw error
       await load()
     } catch (e) { alert('Could not save: ' + (e?.message || e)) } finally { setSavingBank(false) }
+  }
+  async function saveProfile() {
+    if (savingProfile || !partner) return
+    setSavingProfile(true)
+    try {
+      const { error } = await supabase.from('qv_partners').update({ name: profile.name.trim() || partner.name, phone: profile.phone || null, company_name: profile.company_name || null }).eq('id', partner.id)
+      if (error) throw error
+      await load()
+    } catch (e) { alert('Could not save: ' + (e?.message || e)) } finally { setSavingProfile(false) }
   }
 
   if (loading) {
@@ -126,74 +141,6 @@ export default function PartnerDashboard({ user }) {
   // Not a partner and no company → normal experience.
   if (!partner) return <NoCompanyPage />
 
-  // Onboarding — not active yet. Complete: documents + payment → admin verifies → active.
-  if (partner.status !== 'active') {
-    const tr = tierOf(partner.tier)
-    const docs = partner.documents || {}
-    const hasDocs = !!(docs.emirates_id && docs.trade_license)
-    const paid = partner.payment_status === 'active'
-    const Step = ({ n, done, title, children }) => (
-      <div style={{ display: 'flex', gap: 12, padding: '14px 0', borderTop: '0.5px solid var(--border)' }}>
-        <div style={{ width: 26, height: 26, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, background: done ? '#22c55e' : 'var(--bg2)', color: done ? '#fff' : 'var(--text3)', border: done ? 'none' : '1px solid var(--border)' }}>{done ? '✓' : n}</div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>{title}</div>
-          {children}
-        </div>
-      </div>
-    )
-    const DocRow = ({ field, label }) => (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 12.5, color: 'var(--text2)', flex: 1, minWidth: 120 }}>{label}{docs[field] ? <span style={{ color: '#22c55e', fontWeight: 700 }}> · uploaded ✓</span> : ''}</span>
-        <label style={{ fontSize: 12, fontWeight: 700, padding: '7px 13px', borderRadius: 8, background: 'var(--bg2)', border: '1px solid var(--border)', color: 'var(--text)', cursor: 'pointer' }}>
-          {savingDoc === field ? 'Uploading…' : docs[field] ? 'Replace' : 'Upload'}
-          <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={e => uploadDoc(field, e.target.files?.[0])} />
-        </label>
-      </div>
-    )
-    return (
-      <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text)', padding: 'clamp(14px,3vw,28px)' }}>
-        <div style={{ maxWidth: 560, margin: '0 auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
-            <div>
-              <div style={{ fontSize: 19, fontWeight: 800 }}>Welcome, {partner.name}! 👋</div>
-              <div style={{ fontSize: 12.5, color: 'var(--text3)' }}>Finish setup to activate your partner account</div>
-            </div>
-            <button onClick={logout} style={{ padding: '8px 13px', borderRadius: 9, border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--text2)', cursor: 'pointer', fontSize: 12.5, fontWeight: 600 }}>Sign out</button>
-          </div>
-
-          {/* tier card */}
-          <div style={{ background: 'linear-gradient(135deg, rgba(0,212,255,0.12), var(--card) 60%)', border: '1px solid rgba(0,212,255,0.3)', borderRadius: 14, padding: 16, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <div style={{ flex: 1, minWidth: 160 }}>
-              <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px' }}>Your plan</div>
-              <div style={{ fontSize: 18, fontWeight: 800 }}>{tr.label} · <span style={{ color: '#00b4d8' }}>{tr.commission}% commission</span></div>
-            </div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>AED {tr.fee}<span style={{ fontSize: 11, color: 'var(--text3)' }}>/mo</span></div>
-          </div>
-
-          {/* steps */}
-          <div style={{ background: 'var(--card)', border: '0.5px solid var(--border)', borderRadius: 14, padding: '4px 18px 14px' }}>
-            <Step n={1} done={hasDocs} title="Upload your documents">
-              <DocRow field="emirates_id" label="Emirates ID" />
-              <DocRow field="trade_license" label="Trade License" />
-            </Step>
-            <Step n={2} done={paid} title={`Pay your ${tr.label} plan — AED ${tr.fee}/month`}>
-              {paid ? <div style={{ fontSize: 12.5, color: '#22c55e', fontWeight: 700 }}>Payment active ✓</div>
-                : <button onClick={payPlan} disabled={payingPlan} style={{ padding: '9px 18px', borderRadius: 9, background: '#0099cc', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, opacity: payingPlan ? 0.7 : 1 }}>{payingPlan ? 'Opening…' : `Pay AED ${tr.fee}`}</button>}
-            </Step>
-            <Step n={3} done={false} title="Verification & activation">
-              <div style={{ fontSize: 12.5, color: 'var(--text3)', lineHeight: 1.5 }}>
-                {hasDocs && paid
-                  ? "All set! Our team is reviewing your documents — you'll be activated shortly."
-                  : 'Once your documents and payment are done, our team verifies and activates you.'}
-              </div>
-            </Step>
-          </div>
-
-          <div style={{ fontSize: 11.5, color: 'var(--text3)', textAlign: 'center', marginTop: 14 }}>Your referral code (live after activation): <b style={{ color: 'var(--text2)' }}>{partner.code}</b></div>
-        </div>
-      </div>
-    )
-  }
 
   const pct = Number(partner.commission_pct || 25) / 100
   const term = Number(partner.term_months || 12)
@@ -212,6 +159,13 @@ export default function PartnerDashboard({ user }) {
   const T = { text: '#eaf0fb', text2: '#a6b6d4', text3: '#7286a8' }
   const STC = { approved: '#22c55e', pending: '#f59e0b', rejected: '#ef4444' }
   const hasBank = (bank.iban || '').trim().length >= 5
+  const isActive = partner.status === 'active'
+  const tr = tierOf(partner.tier)
+  const docs = partner.documents || {}
+  const hasDocs = !!(docs.emirates_id && docs.trade_license)
+  const paid = partner.payment_status === 'active'
+  const bankLocked = !!partner.bank_locked
+  const setupDone = hasDocs && paid && isActive
   const metric = (label, value, color, sub) => (
     <div className="qpp-metric" style={{ '--qc': color }}>
       <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.7px', textTransform: 'uppercase', color: T.text3 }}>{label}</div>
@@ -236,16 +190,22 @@ export default function PartnerDashboard({ user }) {
           <button onClick={logout} className="qpp-ghost"><i className="ti ti-logout" /> Sign out</button>
         </div>
 
-        {partner.status !== 'active' && (
-          <div className="qpp-card" style={{ marginBottom: 16, background: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.35)', color: '#fbbf24', fontSize: 12.5 }}>
-            <i className="ti ti-player-pause" /> Your account is paused — new referrals won't earn until reactivated.
+        {!isActive && (
+          <div onClick={() => setTab('setup')} className="qpp-card" style={{ marginBottom: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', background: partner.status === 'paused' ? 'rgba(148,163,184,0.1)' : 'rgba(245,158,11,0.10)', borderColor: partner.status === 'paused' ? 'rgba(255,255,255,0.12)' : 'rgba(245,158,11,0.4)' }}>
+            <i className={'ti ' + (partner.status === 'paused' ? 'ti-player-pause' : 'ti-rosette')} style={{ fontSize: 22, color: partner.status === 'paused' ? '#94a3b8' : '#f59e0b' }} />
+            <div style={{ flex: 1, minWidth: 180 }}>
+              <div style={{ fontSize: 14, fontWeight: 800 }}>{partner.status === 'paused' ? 'Your account is paused' : 'Finish setup to activate your partner account'}</div>
+              <div style={{ fontSize: 12, color: T.text3 }}>{partner.status === 'paused' ? 'Contact Quvera to reactivate.' : 'Upload documents, pay your plan & get verified — tap to continue.'}</div>
+            </div>
+            {partner.status !== 'paused' && <span className="qpp-btn" style={{ pointerEvents: 'none' }}>Finish setup →</span>}
           </div>
         )}
 
         {/* tabs */}
         <div className="qpp-tabs">
           <button className={'qpp-tab' + (tab === 'overview' ? ' on' : '')} onClick={() => setTab('overview')}><i className="ti ti-layout-dashboard" /> Overview</button>
-          <button className={'qpp-tab' + (tab === 'payouts' ? ' on' : '')} onClick={() => setTab('payouts')}><i className="ti ti-wallet" /> Payouts{!hasBank ? <span className="qpp-dot" /> : null}</button>
+          <button className={'qpp-tab' + (tab === 'payouts' ? ' on' : '')} onClick={() => setTab('payouts')}><i className="ti ti-wallet" /> Payouts{(isActive && !hasBank) ? <span className="qpp-dot" /> : null}</button>
+          <button className={'qpp-tab' + (tab === 'setup' ? ' on' : '')} onClick={() => setTab('setup')}><i className="ti ti-user-cog" /> Account{!setupDone ? <span className="qpp-dot" /> : null}</button>
         </div>
 
         {tab === 'overview' && <>
@@ -293,22 +253,6 @@ export default function PartnerDashboard({ user }) {
         </>}
 
         {tab === 'payouts' && <>
-          {/* bank details */}
-          <div className="qpp-card" style={{ marginBottom: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-              <div className="qpp-h" style={{ margin: 0, flex: 1 }}><i className="ti ti-building-bank" style={{ color: '#00D4FF' }} /> Payout account</div>
-              {hasBank && <span style={{ fontSize: 10.5, fontWeight: 700, color: '#00FFCC', background: 'rgba(0,255,204,0.12)', padding: '3px 10px', borderRadius: 99 }}>Saved ✓</span>}
-            </div>
-            <div style={{ fontSize: 11.5, color: T.text3, marginBottom: 14, lineHeight: 1.5 }}>Your commission is transferred to this bank account. Minimum payout <b style={{ color: T.text2 }}>AED {settings.min_payout}</b> · up to <b style={{ color: T.text2 }}>{settings.claims_per_month}</b> claims/month.</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 11, marginBottom: 12 }}>
-              <div><label style={bLbl}>Account holder</label><input value={bank.account_holder} onChange={e => setBank(b => ({ ...b, account_holder: e.target.value }))} style={inpD} placeholder="As per bank" /></div>
-              <div><label style={bLbl}>Bank name</label><input value={bank.bank_name} onChange={e => setBank(b => ({ ...b, bank_name: e.target.value }))} style={inpD} placeholder="e.g. Emirates NBD" /></div>
-              <div><label style={bLbl}>IBAN</label><input value={bank.iban} onChange={e => setBank(b => ({ ...b, iban: e.target.value.toUpperCase() }))} style={inpD} placeholder="AE07 0331 ..." /></div>
-              <div><label style={bLbl}>SWIFT / BIC <span style={{ fontWeight: 400, textTransform: 'none' }}>(optional)</span></label><input value={bank.swift} onChange={e => setBank(b => ({ ...b, swift: e.target.value.toUpperCase() }))} style={inpD} placeholder="EBILAEAD" /></div>
-            </div>
-            <button onClick={saveBank} disabled={savingBank} className="qpp-btn">{savingBank ? 'Saving…' : 'Save bank details'}</button>
-          </div>
-
           {/* request + history */}
           <div className="qpp-card">
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
@@ -328,6 +272,72 @@ export default function PartnerDashboard({ user }) {
                   </div>
                 ))}
               </div>}
+          </div>
+        </>}
+
+        {tab === 'setup' && <>
+          {!isActive && (
+            <div className="qpp-card" style={{ marginBottom: 16 }}>
+              <div className="qpp-h"><i className="ti ti-list-check" style={{ color: '#f59e0b' }} /> Activation checklist</div>
+              {[{ ok: hasDocs, label: 'Upload Emirates ID & Trade License' }, { ok: paid, label: `Pay your ${tr.label} plan (AED ${tr.fee}/mo)` }, { ok: partner.docs_verified, label: 'Documents verified by Quvera' }, { ok: isActive, label: 'Account activated' }].map((s, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0' }}>
+                  <span style={{ width: 20, height: 20, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, background: s.ok ? '#22c55e' : 'rgba(255,255,255,0.06)', color: s.ok ? '#fff' : T.text3 }}>{s.ok ? '✓' : i + 1}</span>
+                  <span style={{ fontSize: 12.5, color: s.ok ? T.text2 : T.text }}>{s.label}</span>
+                </div>
+              ))}
+              {hasDocs && paid && !partner.docs_verified && <div style={{ fontSize: 11.5, color: '#f59e0b', marginTop: 8 }}>All submitted — our team is reviewing your documents. You'll be activated shortly.</div>}
+            </div>
+          )}
+
+          <div className="qpp-card" style={{ marginBottom: 16 }}>
+            <div className="qpp-h"><i className="ti ti-user" style={{ color: '#00D4FF' }} /> Your profile</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 11, marginBottom: 12 }}>
+              <div><label style={bLbl}>Full name</label><input value={profile.name} onChange={e => setProfile(p => ({ ...p, name: e.target.value }))} style={inpD} /></div>
+              <div><label style={bLbl}>Email</label><input value={partner.email || ''} disabled style={{ ...inpD, opacity: 0.6 }} /></div>
+              <div><label style={bLbl}>Mobile number</label><input value={profile.phone} onChange={e => setProfile(p => ({ ...p, phone: e.target.value }))} style={inpD} placeholder="+971 50 ..." /></div>
+              <div><label style={bLbl}>Company name</label><input value={profile.company_name} onChange={e => setProfile(p => ({ ...p, company_name: e.target.value }))} style={inpD} placeholder="Your company" /></div>
+              <div><label style={bLbl}>Referral code</label><input value={partner.code} disabled style={{ ...inpD, opacity: 0.7, fontWeight: 700, color: '#00FFCC' }} /></div>
+              <div><label style={bLbl}>Plan</label><input value={`${tr.label} · ${tr.commission}%`} disabled style={{ ...inpD, opacity: 0.6 }} /></div>
+            </div>
+            <button onClick={saveProfile} disabled={savingProfile} className="qpp-btn">{savingProfile ? 'Saving…' : 'Save profile'}</button>
+          </div>
+
+          <div className="qpp-card" style={{ marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <div className="qpp-h" style={{ margin: 0, flex: 1 }}><i className="ti ti-id" style={{ color: '#8B5CF6' }} /> Documents (KYC)</div>
+              {partner.docs_verified && <span style={{ fontSize: 10.5, fontWeight: 700, color: '#00FFCC', background: 'rgba(0,255,204,0.12)', padding: '3px 10px', borderRadius: 99 }}>Verified ✓</span>}
+            </div>
+            <div style={{ fontSize: 11.5, color: T.text3, margin: '6px 0 12px' }}>Upload clear photos or PDFs — verified by the Quvera team.</div>
+            {[['emirates_id', 'Emirates ID'], ['trade_license', 'Trade License']].map(([field, label]) => (
+              <div key={field} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 9, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 12.5, color: T.text2, flex: 1, minWidth: 120 }}>{label}{docs[field] ? <span style={{ color: '#00FFCC', fontWeight: 700 }}> · uploaded ✓</span> : ''}</span>
+                <label className="qpp-ghost" style={{ cursor: 'pointer' }}>{savingDoc === field ? 'Uploading…' : docs[field] ? 'Replace' : 'Upload'}<input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={e => uploadDoc(field, e.target.files?.[0])} /></label>
+              </div>
+            ))}
+          </div>
+
+          <div className="qpp-card" style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 160 }}>
+              <div className="qpp-h" style={{ margin: 0 }}><i className="ti ti-credit-card" style={{ color: '#00FFCC' }} /> Plan payment</div>
+              <div style={{ fontSize: 12, color: T.text3, marginTop: 4 }}>{tr.label} · AED {tr.fee}/month · {tr.commission}% commission</div>
+            </div>
+            {paid ? <span style={{ fontSize: 12, fontWeight: 700, color: '#00FFCC', background: 'rgba(0,255,204,0.12)', padding: '7px 14px', borderRadius: 99 }}>Active ✓</span>
+              : <button onClick={payPlan} disabled={payingPlan} className="qpp-btn">{payingPlan ? 'Opening…' : `Pay AED ${tr.fee}/mo`}</button>}
+          </div>
+
+          <div className="qpp-card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+              <div className="qpp-h" style={{ margin: 0, flex: 1 }}><i className="ti ti-building-bank" style={{ color: '#00D4FF' }} /> Payout bank account</div>
+              {hasBank && <span style={{ fontSize: 10.5, fontWeight: 700, color: '#00FFCC', background: 'rgba(0,255,204,0.12)', padding: '3px 10px', borderRadius: 99 }}>Saved ✓</span>}
+            </div>
+            <div style={{ fontSize: 11.5, color: bankLocked ? '#f59e0b' : T.text3, marginBottom: 12, lineHeight: 1.5 }}>{bankLocked ? '🔒 Bank details are locked. To change them, contact Quvera.' : 'You can set your bank details only once — double-check before saving.'}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 11, marginBottom: 12 }}>
+              <div><label style={bLbl}>Account holder</label><input value={bank.account_holder} onChange={e => setBank(b => ({ ...b, account_holder: e.target.value }))} disabled={bankLocked} style={{ ...inpD, opacity: bankLocked ? 0.6 : 1 }} /></div>
+              <div><label style={bLbl}>Bank name</label><input value={bank.bank_name} onChange={e => setBank(b => ({ ...b, bank_name: e.target.value }))} disabled={bankLocked} style={{ ...inpD, opacity: bankLocked ? 0.6 : 1 }} placeholder="e.g. Emirates NBD" /></div>
+              <div><label style={bLbl}>IBAN</label><input value={bank.iban} onChange={e => setBank(b => ({ ...b, iban: e.target.value.toUpperCase() }))} disabled={bankLocked} style={{ ...inpD, opacity: bankLocked ? 0.6 : 1 }} placeholder="AE07 0331 ..." /></div>
+              <div><label style={bLbl}>SWIFT / BIC <span style={{ fontWeight: 400, textTransform: 'none' }}>(optional)</span></label><input value={bank.swift} onChange={e => setBank(b => ({ ...b, swift: e.target.value.toUpperCase() }))} disabled={bankLocked} style={{ ...inpD, opacity: bankLocked ? 0.6 : 1 }} /></div>
+            </div>
+            {!bankLocked && <button onClick={saveBank} disabled={savingBank} className="qpp-btn">{savingBank ? 'Saving…' : 'Save bank details (one-time)'}</button>}
           </div>
         </>}
 

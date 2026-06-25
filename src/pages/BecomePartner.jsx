@@ -24,7 +24,14 @@ export default function BecomePartner({ onBack }) {
         try { msg = (await error.context?.json())?.error || msg } catch { msg = error.message || msg }
         setErr(msg); setBusy(false); return
       }
-      if (data?.ok) setDone({ code: data.code })
+      if (data?.ok) {
+        // auto sign-in → lands straight on the partner dashboard
+        try {
+          const { error: sErr } = await supabase.auth.signInWithPassword({ email: form.email.trim().toLowerCase(), password: form.password })
+          if (!sErr) { onBack(); return }
+        } catch { /* fall back to the confirmation screen */ }
+        setDone({ code: data.code }); setBusy(false)
+      }
       else { setErr(data?.error || 'Sign-up failed'); setBusy(false) }
     } catch (e2) { setErr(e2?.message || 'Sign-up failed'); setBusy(false) }
   }
