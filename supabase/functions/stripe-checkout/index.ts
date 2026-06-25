@@ -64,7 +64,19 @@ Deno.serve(async (req) => {
   const email = company.owner_email || company.email || undefined;
   const amountFils = Math.round(Number(plan.price_monthly) * 100); // AED -> fils
 
+  // reuse (or create) a 5% UAE VAT tax rate, added on top of the plan price (exclusive)
+  async function getVatRateId() {
+    try {
+      const list = await fetch("https://api.stripe.com/v1/tax_rates?limit=100&active=true", { headers: { Authorization: "Bearer " + key } }).then((r) => r.json());
+      const found = (list?.data || []).find((r: any) => r.metadata?.quvera === "vat5");
+      if (found) return found.id;
+      const created = await stripe(key, "tax_rates", { display_name: "VAT", description: "UAE VAT 5%", percentage: 5, inclusive: false, country: "AE", metadata: { quvera: "vat5" } });
+      return created.id;
+    } catch { return null; }
+  }
+
   try {
+    const vatRateId = await getVatRateId();
     let customerId = company.stripe_customer_id || undefined;
     if (!customerId) {
       const cust = await stripe(key, "customers", { email, name: company.name || undefined, metadata: { company_id: companyId } });
@@ -77,6 +89,7 @@ Deno.serve(async (req) => {
       customer: customerId,
       line_items: [{
         quantity: 1,
+        ...(vatRateId ? { tax_rates: [vatRateId] } : {}),
         price_data: {
           currency: "aed",
           unit_amount: amountFils,

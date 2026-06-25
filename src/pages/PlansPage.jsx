@@ -189,9 +189,10 @@ export default function PlansPage() {
               </div>
               <div style={{ fontFamily: "'Sora', sans-serif", fontWeight: 700, fontSize: 16, marginBottom: 4 }}>{plan.name}</div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>{meta.description}</div>
-              <div className="plan-price" style={{ marginBottom: 16 }}>
+              <div className="plan-price" style={{ marginBottom: price > 0 ? 2 : 16 }}>
                 AED {price}<span>/month{billing === 'annual' ? ' (billed annually)' : ''}</span>
               </div>
+              {price > 0 && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 14 }}>+ 5% VAT</div>}
               <ul className="plan-features">
                 {featList.filter(f => f.included).slice(0, 7).map(({ text }) => (
                   <li key={text} className="included">

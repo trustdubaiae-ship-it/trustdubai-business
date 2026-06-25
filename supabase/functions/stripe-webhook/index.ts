@@ -1,10 +1,29 @@
-// Quvera — Stripe webhook. Marks a company as paid when its subscription is created,
-// and updates status on changes/cancellations.
-// Secrets: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET. SUPABASE_* auto-injected.
-// IMPORTANT: deploy with JWT verification DISABLED (Stripe calls it without a Supabase JWT).
-// Deploy: supabase functions deploy stripe-webhook --no-verify-jwt
-import Stripe from "https://esm.sh/stripe@17.0.0?target=deno";
+// Quvera — Stripe webhook (raw fetch + manual signature verify; the Node SDK is
+// unreliable in the Supabase Edge runtime). Keeps each company's plan in sync with
+// its Stripe subscription: activation, monthly auto-renewal, payment failure, cancel.
+// Secrets: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET. Deploy with JWT verification OFF.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const te = new TextEncoder();
+const hex = (buf: ArrayBuffer) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+
+async function verifyStripeSig(payload: string, header: string, secret: string) {
+  try {
+    const parts: Record<string, string> = {};
+    header.split(",").forEach((p) => { const [k, v] = p.split("="); if (k && v) parts[k.trim()] = v.trim(); });
+    const t = parts["t"]; const v1 = parts["v1"];
+    if (!t || !v1) return false;
+    const key = await crypto.subtle.importKey("raw", te.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+    const sig = await crypto.subtle.sign("HMAC", key, te.encode(`${t}.${payload}`));
+    return hex(sig) === v1;
+  } catch { return false; }
+}
+
+async function stripeGet(secret: string, path: string) {
+  const res = await fetch("https://api.stripe.com/v1/" + path, { headers: { Authorization: "Bearer " + secret } });
+  if (!res.ok) throw new Error("stripe " + res.status);
+  return res.json();
+}
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("POST only", { status: 405 });
@@ -12,48 +31,51 @@ Deno.serve(async (req) => {
   const key = Deno.env.get("STRIPE_SECRET_KEY");
   const whSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
   if (!key || !whSecret) return new Response("Not configured", { status: 500 });
-  const stripe = new Stripe(key, { apiVersion: "2024-06-20", httpClient: Stripe.createFetchHttpClient() });
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
 
-  const sig = req.headers.get("stripe-signature") || "";
   const raw = await req.text();
+  const sig = req.headers.get("stripe-signature") || "";
+  if (!(await verifyStripeSig(raw, sig, whSecret))) return new Response("Bad signature", { status: 400 });
+
   let event: any;
-  try {
-    event = await stripe.webhooks.constructEventAsync(raw, sig, whSecret);
-  } catch (e) {
-    return new Response("Bad signature: " + String((e as any)?.message || e), { status: 400 });
-  }
+  try { event = JSON.parse(raw); } catch { return new Response("Bad JSON", { status: 400 }); }
+  const obj = event.data?.object || {};
+  const expiresFrom = (sec: number | null | undefined) => (sec ? new Date(sec * 1000).toISOString() : null);
 
   try {
-    const type = event.type;
-    const obj = event.data?.object || {};
-
-    if (type === "checkout.session.completed") {
+    if (event.type === "checkout.session.completed") {
       const companyId = obj.metadata?.company_id;
       const plan = obj.metadata?.plan;
+      const subId = obj.subscription;
+      let periodEnd = null, status = "active";
+      if (subId) { try { const sub = await stripeGet(key, "subscriptions/" + subId); periodEnd = sub.current_period_end; status = sub.status || "active"; } catch { /* ignore */ } }
       if (companyId) {
         await admin.from("companies").update({
           ...(plan ? { plan } : {}),
           stripe_customer_id: obj.customer || null,
-          stripe_subscription_id: obj.subscription || null,
-          subscription_status: "active",
+          stripe_subscription_id: subId || null,
+          subscription_status: status,
+          ...(periodEnd ? { plan_expires_at: expiresFrom(periodEnd) } : {}),
         }).eq("id", companyId);
       }
-    } else if (type === "customer.subscription.updated") {
+    } else if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.created") {
+      // renewals & changes — keep status + expiry in sync
       const companyId = obj.metadata?.company_id;
-      const status = obj.status; // active, past_due, canceled, unpaid, trialing...
-      const q = admin.from("companies").update({ subscription_status: status });
-      if (companyId) await q.eq("id", companyId);
-      else await q.eq("stripe_subscription_id", obj.id);
-    } else if (type === "customer.subscription.deleted") {
+      const patch: any = { subscription_status: obj.status, plan_expires_at: expiresFrom(obj.current_period_end) };
+      if (obj.status === "canceled" || obj.status === "unpaid") patch.plan = "free";
+      const q = admin.from("companies").update(patch);
+      if (companyId) await q.eq("id", companyId); else await q.eq("stripe_subscription_id", obj.id);
+    } else if (event.type === "customer.subscription.deleted") {
       const companyId = obj.metadata?.company_id;
       const patch = { subscription_status: "canceled", plan: "free" };
       if (companyId) await admin.from("companies").update(patch).eq("id", companyId);
       else await admin.from("companies").update(patch).eq("stripe_subscription_id", obj.id);
+    } else if (event.type === "invoice.payment_failed") {
+      const subId = obj.subscription;
+      if (subId) await admin.from("companies").update({ subscription_status: "past_due" }).eq("stripe_subscription_id", subId);
     }
   } catch (e) {
-    // log but still 200 so Stripe doesn't retry forever on our own bug
-    console.error("webhook handler error", e);
+    console.error("webhook handler error", String((e as any)?.message || e));
   }
 
   return new Response(JSON.stringify({ received: true }), { status: 200, headers: { "Content-Type": "application/json" } });
