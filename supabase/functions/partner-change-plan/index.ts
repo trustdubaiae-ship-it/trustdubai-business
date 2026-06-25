@@ -61,9 +61,21 @@ Deno.serve(async (req) => {
 
   const fee = TIERS[tier].fee, commission = TIERS[tier].commission;
 
+  // reuse (or create) a 5% UAE VAT tax rate, added on top of the plan price (exclusive)
+  async function getVatRateId() {
+    try {
+      const list = await fetch("https://api.stripe.com/v1/tax_rates?limit=100&active=true", { headers: { Authorization: "Bearer " + key } }).then((r) => r.json());
+      const found = (list?.data || []).find((r: any) => r.metadata?.quvera === "vat5");
+      if (found) return found.id;
+      const created = await stripePost(key, "tax_rates", { display_name: "VAT", description: "UAE VAT 5%", percentage: 5, inclusive: false, country: "AE", metadata: { quvera: "vat5" } });
+      return created.id;
+    } catch { return null; }
+  }
+
   try {
     // If the partner is actively paying, swap the subscription price (prorated).
     if (partner.payment_status === "active" && partner.stripe_subscription_id) {
+      const vatRateId = await getVatRateId();
       const sub = await stripeGet(key, "subscriptions/" + partner.stripe_subscription_id);
       const itemId = sub?.items?.data?.[0]?.id;
       if (!itemId) throw new Error("Could not read your current subscription");
@@ -72,7 +84,7 @@ Deno.serve(async (req) => {
         product_data: { name: `Quvera Partner — ${tier} plan` },
       });
       await stripePost(key, "subscriptions/" + partner.stripe_subscription_id, {
-        items: [{ id: itemId, price: price.id }],
+        items: [{ id: itemId, price: price.id, ...(vatRateId ? { tax_rates: [vatRateId] } : {}) }],
         proration_behavior: "create_prorations",
         metadata: { partner_id: partner.id, tier },
       });

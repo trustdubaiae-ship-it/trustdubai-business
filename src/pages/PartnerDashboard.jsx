@@ -347,7 +347,7 @@ export default function PartnerDashboard({ user }) {
 
           <div className="qpp-card" style={{ marginBottom: 16 }}>
             <div className="qpp-h"><i className="ti ti-arrows-up-down" style={{ color: '#8B5CF6' }} /> Your plan &amp; commission</div>
-            <div style={{ fontSize: 11.5, color: T.text3, margin: '-4px 0 12px', lineHeight: 1.5 }}>{paid ? 'Upgrade or downgrade anytime — your subscription is updated and prorated.' : 'Pick the plan you want, then pay below to activate. Higher tier = higher commission.'}</div>
+            <div style={{ fontSize: 11.5, color: T.text3, margin: '-4px 0 12px', lineHeight: 1.5 }}>{paid ? 'Upgrade or downgrade anytime — your subscription is updated and prorated.' : 'Pick the plan you want, then pay below to activate. Higher tier = higher commission.'} Prices exclude 5% VAT.</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
               {TIER_LIST.map(t => {
                 const on = partner.tier === t.key
@@ -368,7 +368,7 @@ export default function PartnerDashboard({ user }) {
           <div className="qpp-card" style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: 160 }}>
               <div className="qpp-h" style={{ margin: 0 }}><i className="ti ti-credit-card" style={{ color: '#00FFCC' }} /> Plan payment</div>
-              <div style={{ fontSize: 12, color: T.text3, marginTop: 4 }}>{tr.label} · AED {tr.fee}/month · {tr.commission}% commission</div>
+              <div style={{ fontSize: 12, color: T.text3, marginTop: 4 }}>{tr.label} · AED {tr.fee}/month <span style={{ opacity: 0.8 }}>+ 5% VAT</span> · {tr.commission}% commission</div>
             </div>
             {paid ? <span style={{ fontSize: 12, fontWeight: 700, color: '#00FFCC', background: 'rgba(0,255,204,0.12)', padding: '7px 14px', borderRadius: 99 }}>Active ✓</span>
               : <button onClick={payPlan} disabled={payingPlan} className="qpp-btn">{payingPlan ? 'Opening…' : `Pay AED ${tr.fee}/mo`}</button>}

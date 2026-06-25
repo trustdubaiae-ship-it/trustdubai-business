@@ -68,7 +68,7 @@ export default function BecomePartner({ onBack }) {
 
       <form onSubmit={submit} style={{ width: '100%', maxWidth: 460, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: 'clamp(22px,5vw,34px)' }}>
         <h2 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 20, color: '#fff', marginBottom: 4, textAlign: 'center' }}>Choose your partner plan</h2>
-        <p style={{ fontSize: 12.5, color: '#8b949e', marginBottom: 16, textAlign: 'center' }}>Higher tier = higher commission on every referral.</p>
+        <p style={{ fontSize: 12.5, color: '#8b949e', marginBottom: 16, textAlign: 'center' }}>Higher tier = higher commission on every referral. Prices exclude 5% VAT.</p>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 20 }}>
           {TIER_LIST.map(t => {

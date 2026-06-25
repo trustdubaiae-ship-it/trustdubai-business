@@ -52,7 +52,19 @@ Deno.serve(async (req) => {
   const tier = TIERS[partner.tier] ? partner.tier : "starter";
   const amountFils = TIERS[tier].fee * 100;
 
+  // reuse (or create) a 5% UAE VAT tax rate, added on top of the plan price (exclusive)
+  async function getVatRateId() {
+    try {
+      const list = await fetch("https://api.stripe.com/v1/tax_rates?limit=100&active=true", { headers: { Authorization: "Bearer " + key } }).then((r) => r.json());
+      const found = (list?.data || []).find((r: any) => r.metadata?.quvera === "vat5");
+      if (found) return found.id;
+      const created = await stripe(key, "tax_rates", { display_name: "VAT", description: "UAE VAT 5%", percentage: 5, inclusive: false, country: "AE", metadata: { quvera: "vat5" } });
+      return created.id;
+    } catch { return null; }
+  }
+
   try {
+    const vatRateId = await getVatRateId();
     let customerId = partner.stripe_customer_id || undefined;
     if (!customerId) {
       const cust = await stripe(key, "customers", { email: partner.email || undefined, name: partner.name || undefined, metadata: { partner_id: partner.id } });
@@ -62,7 +74,7 @@ Deno.serve(async (req) => {
     const session = await stripe(key, "checkout/sessions", {
       mode: "subscription",
       customer: customerId,
-      line_items: [{ quantity: 1, price_data: { currency: "aed", unit_amount: amountFils, recurring: { interval: "month" }, product_data: { name: `Quvera Partner — ${tier} plan` } } }],
+      line_items: [{ quantity: 1, ...(vatRateId ? { tax_rates: [vatRateId] } : {}), price_data: { currency: "aed", unit_amount: amountFils, recurring: { interval: "month" }, product_data: { name: `Quvera Partner — ${tier} plan` } } }],
       metadata: { partner_id: partner.id, tier },
       subscription_data: { metadata: { partner_id: partner.id, tier } },
       success_url: `${origin}/?partner_paid=1`,
