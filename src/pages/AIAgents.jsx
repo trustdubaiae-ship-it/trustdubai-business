@@ -5,25 +5,25 @@ import { useToast } from '../lib/toast'
 
 const AGENTS = [
   { key: 'orchestrator', name: 'AI Orchestrator', icon: 'ti-sitemap', color: '#eab308', tag: 'Give a goal — it puts the right agents to work', orchestrator: true, photo: true,
-    starters: ['Win this 1500 sqft office fit-out tender in Business Bay', 'Plan & launch a Ramadan offer campaign end-to-end', 'A villa client is hesitating on price — full plan to close them'] },
+    starters: ['Win this 1500 sqft office fit-out tender in Business Bay', 'Plan & launch a Ramadan offer campaign end-to-end', 'A villa client is hesitating on price — full plan to close them', 'Plan & cost a 3BR villa renovation from scratch', 'Give me a full plan to get 10 new clients this month', 'Re-activate all my cold leads — strategy + messages'] },
   { key: 'marketing', name: 'Marketing Agent', icon: 'ti-speakerphone', color: '#ec4899', tag: 'Ads, social, offers & campaigns',
-    starters: ['Write a Meta ad for kitchen renovations', '3 WhatsApp broadcast offers for a Ramadan promo', 'Instagram caption for a finished office fit-out'] },
+    starters: ['Write a Meta ad for kitchen renovations', '3 WhatsApp broadcast offers for a Ramadan promo', 'Instagram caption for a finished office fit-out', 'A limited-time offer to fill next month', 'Reactivation message for old clients', '5 lead-generation ideas for this month'] },
   { key: 'estimator', name: 'Estimator Agent', icon: 'ti-calculator', color: '#0099cc', tag: 'Rough costs, scope & BOQ', photo: true,
-    starters: ['Estimate a 1200 sqft office fit-out in JVC', 'Scope of work for a villa kitchen renovation', 'Upload a site photo + details for an estimate'] },
+    starters: ['Estimate a 1200 sqft office fit-out in JVC', 'Scope of work for a villa kitchen renovation', 'Upload a site photo + details for an estimate', 'Rough cost for a gypsum false ceiling per sqft', 'BOQ for a small cafe fit-out', 'Compare vinyl vs porcelain flooring cost'] },
   { key: 'sales', name: 'Sales Agent', icon: 'ti-target-arrow', color: '#22c55e', tag: 'Follow-ups, objections & closing',
-    starters: ['Follow-up for a lead who went quiet', 'Reply to "your quote is too expensive"', 'Message to book a free site visit'] },
+    starters: ['Follow-up for a lead who went quiet', 'Reply to "your quote is too expensive"', 'Message to book a free site visit', 'Handle "I need to think about it"', 'Polite payment reminder to a client', 'Closing message to win the deal today'] },
   { key: 'content', name: 'Content Agent', icon: 'ti-pencil', color: '#8b5cf6', tag: 'Posts, captions & portfolio', photo: true,
-    starters: ['Before/after caption for a living room', 'Portfolio description for a cafe fit-out', '8 hashtags for Dubai interior design'] },
+    starters: ['Before/after caption for a living room', 'Portfolio description for a cafe fit-out', '8 hashtags for Dubai interior design', 'Google Business post for a new project', 'Ask a happy client for a review', 'Project highlight post for LinkedIn'] },
   { key: 'advisor', name: 'Business Advisor', icon: 'ti-bulb', color: '#f59e0b', tag: 'Pricing, growth & operations',
-    starters: ['How should I price my fit-out quotes?', 'How do I get more repeat clients?', 'Should I hire an in-house carpenter?'] },
+    starters: ['How should I price my fit-out quotes?', 'How do I get more repeat clients?', 'Should I hire an in-house carpenter?', 'How do I improve my profit margin?', 'How do I manage cash flow on big projects?', 'What should I focus on to grow this quarter?'] },
   { key: 'accounts', name: 'Accounts Agent', icon: 'ti-report-money', color: '#0ea5e9', tag: 'Revenue, VAT, invoices & cash flow',
-    starters: ['Summarize my revenue and outstanding this month', 'How much have clients paid vs billed?', 'Explain UAE 5% VAT for my invoices'] },
+    starters: ['Summarize my revenue and outstanding this month', 'How much have clients paid vs billed?', 'Explain UAE 5% VAT for my invoices', 'Which clients still owe me money?', "What's my profit on current projects?", 'How much VAT do I owe this quarter?'] },
   { key: 'project_manager', name: 'Project Manager', icon: 'ti-stack-2', color: '#06b6d4', tag: 'Schedules, milestones & coordination',
-    starters: ['Make a milestone plan for a 3-month villa fit-out', 'Checklist before site handover', 'How to sequence MEP and joinery work'] },
+    starters: ['Make a milestone plan for a 3-month villa fit-out', 'Checklist before site handover', 'How to sequence MEP and joinery work', 'Snagging checklist for a finished apartment', 'How do I recover a delayed project?', 'Daily site coordination plan'] },
   { key: 'tender', name: 'Tender / Proposal', icon: 'ti-file-text', color: '#6366f1', tag: 'Proposals, bids & company profile',
-    starters: ['Write a proposal for an office fit-out tender', 'Company profile intro paragraph', 'Cover letter for a hotel renovation bid'] },
+    starters: ['Write a proposal for an office fit-out tender', 'Company profile intro paragraph', 'Cover letter for a hotel renovation bid', 'Technical method statement for a fit-out', 'Bid clarification reply to a consultant', 'Scope of work statement for a villa'] },
   { key: 'hr', name: 'HR Agent', icon: 'ti-users', color: '#14b8a6', tag: 'Hiring, letters & team',
-    starters: ['Job post for a site supervisor', 'Offer letter for a carpenter', '5 interview questions for a foreman'] },
+    starters: ['Job post for a site supervisor', 'Offer letter for a carpenter', '5 interview questions for a foreman', 'Warning letter for repeated lateness', 'Appreciation letter for a good worker', 'Simple leave policy for my team'] },
 ]
 
 const newId = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'id-' + Date.now() + '-' + Math.floor(Math.random() * 1e6))
@@ -61,6 +61,7 @@ export default function AIAgents() {
   const [showKnow, setShowKnow] = useState(false)
   const [showAccess, setShowAccess] = useState(false)
   const [showNote, setShowNote] = useState(false)
+  const [showPrompts, setShowPrompts] = useState(false)
   const [savingCfg, setSavingCfg] = useState(false)
 
   // an agent is on unless the owner has explicitly switched it off
@@ -113,7 +114,7 @@ export default function AIAgents() {
     newChat()   // lands on the chat pane (mobile too); history is one tap back
   }
   function exitDash() { setEntered(false); setActive(null); setImg(null); setShowNote(false) }
-  function newChat() { setThreadId(null); setMsgs([]); setInput(''); setImg(null); setShowNote(false); setMobilePane('chat') }
+  function newChat() { setThreadId(null); setMsgs([]); setInput(''); setImg(null); setShowNote(false); setShowPrompts(false); setMobilePane('chat') }
   function selectThread(t) { setThreadId(t.id); setMsgs(t.msgs || []); setInput(''); setImg(null); setMobilePane('chat') }
   function deleteThread(e, t) {
     e.stopPropagation()
@@ -277,8 +278,23 @@ export default function AIAgents() {
           <div style={{ fontSize: 14.5, fontWeight: 700, color: text }}>{active.name}</div>
           <div style={{ fontSize: 11, color: textMuted }}>{active.tag}</div>
         </div>
-        {!active.orchestrator && <button onClick={() => setShowNote(v => !v)} title="Train this agent" style={{ background: 'var(--bg2)', border: 'none', width: 32, height: 32, borderRadius: 9, cursor: 'pointer', color: cfg.notes?.[active.key] ? '#16a34a' : textSub }}><i className="ti ti-school" /></button>}
+        <button onClick={() => { setShowPrompts(v => !v); setShowNote(false) }} title="Quick questions" style={{ background: showPrompts ? active.color + '22' : 'var(--bg2)', border: 'none', width: 32, height: 32, borderRadius: 9, cursor: 'pointer', color: showPrompts ? active.color : textSub, flexShrink: 0 }}><i className="ti ti-bolt" /></button>
+        {!active.orchestrator && <button onClick={() => { setShowNote(v => !v); setShowPrompts(false) }} title="Train this agent" style={{ background: 'var(--bg2)', border: 'none', width: 32, height: 32, borderRadius: 9, cursor: 'pointer', color: cfg.notes?.[active.key] ? '#16a34a' : textSub, flexShrink: 0 }}><i className="ti ti-school" /></button>}
       </div>
+
+      {showPrompts && (
+        <div style={{ padding: 14, borderBottom: '0.5px solid var(--border)', background: 'var(--card)' }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: text, marginBottom: 9 }}><i className="ti ti-bolt" style={{ color: active.color }} /> Quick questions — tap to send</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+            {active.starters.map((s, i) => (
+              <button key={i} onClick={() => { setShowPrompts(false); send(s) }}
+                style={{ textAlign: 'left', fontSize: 12.5, padding: '10px 12px', borderRadius: 9, border: '1px solid var(--border)', background: 'var(--bg2)', color: text, cursor: 'pointer', lineHeight: 1.4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <i className="ti ti-arrow-right" style={{ fontSize: 13, color: active.color, flexShrink: 0 }} /> {s}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {showNote && !active.orchestrator && (
         <div style={{ padding: 14, borderBottom: '0.5px solid var(--border)', background: 'var(--card)' }}>
