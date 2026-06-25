@@ -197,6 +197,7 @@ html, body, .layout, .main, .topbar, .sidebar, .card, .stat-card, .nav-item, .bt
 html, body {
   font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
   background:var(--bg); color:var(--text); min-height:100vh; -webkit-font-smoothing:antialiased;
+  -webkit-text-size-adjust:100%; text-size-adjust:100%;   /* stop iOS auto-inflating text (breaks layout) */
 }
 * { font-family:'Inter',sans-serif; }
 /* page headings / hero → Sora ExtraBold */

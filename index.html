@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>Quvera Business Portal</title>
 
     <!-- PWA -->
@@ -12,7 +12,9 @@
 
     <!-- iOS / Apple PWA support -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <!-- "default" reserves the status-bar space so app content never hides under the
+         notch / clock / battery on installed PWAs (black-translucent let it underlap). -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Quvera Business" />
     <link rel="apple-touch-icon" href="/quvera-icon.png?v=4" />
     <link rel="icon" type="image/png" href="/quvera-icon.png?v=4" />
