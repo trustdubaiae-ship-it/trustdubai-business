@@ -519,6 +519,19 @@ export default function LeadsPage() {
       source: lead.answers?.Source || lead.source || '',
     }
   }
+
+  // Address the client respectfully as "Dear <first name>," (no Mr/Ms — gender isn't
+  // stored). Normalizes whatever greeting the AI returned; skips if the lead is unnamed.
+  function withDearGreeting(reply, fullName) {
+    if (!reply) return reply
+    const first = String(fullName || '').trim().split(/\s+/)[0]
+    if (!first) return reply
+    let r = String(reply).replace(/^\s+/, '')
+    // strip a leading greeting line the AI may have added (Hi/Hello/Hey/Dear/Salam + optional name)
+    r = r.replace(/^(dear|hi+|hello|hey|greetings|good (?:morning|afternoon|evening)|assalamu?\s*alaikum|salaam?)\b[^\n]*?[,!:\n]+\s*/i, '')
+    r = r.charAt(0).toUpperCase() + r.slice(1)
+    return `Dear ${first},\n\n${r}`
+  }
   function aiError(data) {
     const code = data?.code
     if (code === 'no_credit') return 'AI credit khatam ho gaya'
@@ -542,7 +555,7 @@ export default function LeadsPage() {
         },
       })
       if (error) throw error
-      if (data?.reply) setChatText(data.reply)
+      if (data?.reply) setChatText(withDearGreeting(data.reply, lead.name))
       else toast.error(aiError(data))
     } catch (e) { console.error('suggestChatReply', e); toast.error('Could not suggest a reply') }
     finally { setAiReplyLoading(false) }
@@ -561,7 +574,7 @@ export default function LeadsPage() {
         },
       })
       if (error) throw error
-      if (data?.reply) setWaDraft(data.reply)
+      if (data?.reply) setWaDraft(withDearGreeting(data.reply, lead.name))
       else toast.error(aiError(data))
     } catch (e) { console.error('suggestWhatsApp', e); toast.error('Could not generate message') }
     finally { setWaDraftLoading(false) }
