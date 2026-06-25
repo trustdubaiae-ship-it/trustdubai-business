@@ -44,35 +44,52 @@ Deno.serve(async (req) => {
 
   try {
     if (event.type === "checkout.session.completed") {
-      const companyId = obj.metadata?.company_id;
-      const plan = obj.metadata?.plan;
-      const subId = obj.subscription;
-      let periodEnd = null, status = "active";
-      if (subId) { try { const sub = await stripeGet(key, "subscriptions/" + subId); periodEnd = sub.current_period_end; status = sub.status || "active"; } catch { /* ignore */ } }
-      if (companyId) {
-        await admin.from("companies").update({
-          ...(plan ? { plan } : {}),
-          stripe_customer_id: obj.customer || null,
-          stripe_subscription_id: subId || null,
-          subscription_status: status,
-          ...(periodEnd ? { plan_expires_at: expiresFrom(periodEnd) } : {}),
-        }).eq("id", companyId);
+      const partnerId = obj.metadata?.partner_id;
+      if (partnerId) {
+        await admin.from("qv_partners").update({ stripe_customer_id: obj.customer || null, stripe_subscription_id: obj.subscription || null, payment_status: "active" }).eq("id", partnerId);
+      } else {
+        const companyId = obj.metadata?.company_id;
+        const plan = obj.metadata?.plan;
+        const subId = obj.subscription;
+        let periodEnd = null, status = "active";
+        if (subId) { try { const sub = await stripeGet(key, "subscriptions/" + subId); periodEnd = sub.current_period_end; status = sub.status || "active"; } catch { /* ignore */ } }
+        if (companyId) {
+          await admin.from("companies").update({
+            ...(plan ? { plan } : {}),
+            stripe_customer_id: obj.customer || null,
+            stripe_subscription_id: subId || null,
+            subscription_status: status,
+            ...(periodEnd ? { plan_expires_at: expiresFrom(periodEnd) } : {}),
+          }).eq("id", companyId);
+        }
       }
     } else if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.created") {
-      // renewals & changes — keep status + expiry in sync
-      const companyId = obj.metadata?.company_id;
-      const patch: any = { subscription_status: obj.status, plan_expires_at: expiresFrom(obj.current_period_end) };
-      if (obj.status === "canceled" || obj.status === "unpaid") patch.plan = "free";
-      const q = admin.from("companies").update(patch);
-      if (companyId) await q.eq("id", companyId); else await q.eq("stripe_subscription_id", obj.id);
+      const partnerId = obj.metadata?.partner_id;
+      if (partnerId) {
+        const ps = (obj.status === "active" || obj.status === "trialing") ? "active" : (obj.status === "past_due" ? "past_due" : (obj.status === "canceled" || obj.status === "unpaid") ? "canceled" : obj.status);
+        await admin.from("qv_partners").update({ payment_status: ps }).eq("id", partnerId);
+      } else {
+        const companyId = obj.metadata?.company_id;
+        const patch: any = { subscription_status: obj.status, plan_expires_at: expiresFrom(obj.current_period_end) };
+        if (obj.status === "canceled" || obj.status === "unpaid") patch.plan = "free";
+        const q = admin.from("companies").update(patch);
+        if (companyId) await q.eq("id", companyId); else await q.eq("stripe_subscription_id", obj.id);
+      }
     } else if (event.type === "customer.subscription.deleted") {
-      const companyId = obj.metadata?.company_id;
-      const patch = { subscription_status: "canceled", plan: "free" };
-      if (companyId) await admin.from("companies").update(patch).eq("id", companyId);
-      else await admin.from("companies").update(patch).eq("stripe_subscription_id", obj.id);
+      const partnerId = obj.metadata?.partner_id;
+      if (partnerId) { await admin.from("qv_partners").update({ payment_status: "canceled" }).eq("id", partnerId); }
+      else {
+        const companyId = obj.metadata?.company_id;
+        const patch = { subscription_status: "canceled", plan: "free" };
+        if (companyId) await admin.from("companies").update(patch).eq("id", companyId);
+        else await admin.from("companies").update(patch).eq("stripe_subscription_id", obj.id);
+      }
     } else if (event.type === "invoice.payment_failed") {
       const subId = obj.subscription;
-      if (subId) await admin.from("companies").update({ subscription_status: "past_due" }).eq("stripe_subscription_id", subId);
+      if (subId) {
+        await admin.from("companies").update({ subscription_status: "past_due" }).eq("stripe_subscription_id", subId);
+        await admin.from("qv_partners").update({ payment_status: "past_due" }).eq("stripe_subscription_id", subId);
+      }
     }
   } catch (e) {
     console.error("webhook handler error", String((e as any)?.message || e));

@@ -29,6 +29,10 @@ Deno.serve(async (req) => {
   const email = String(body.email || "").trim().toLowerCase();
   const phone = String(body.phone || "").trim();
   const password = String(body.password || "");
+  const TIERS: Record<string, { fee: number; commission: number }> = {
+    starter: { fee: 99, commission: 5 }, growth: { fee: 199, commission: 15 }, pro: { fee: 299, commission: 25 },
+  };
+  const tier = TIERS[String(body.tier || "starter")] ? String(body.tier) : "starter";
 
   if (!name) return json({ error: "Please enter your name" }, 400);
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ error: "Enter a valid email" }, 400);
@@ -63,6 +67,8 @@ Deno.serve(async (req) => {
 
   const { error: iErr } = await admin.from("qv_partners").insert({
     auth_user_id: uid, name, email, phone: phone || null, code, status: "pending",
+    tier, fee_monthly: TIERS[tier].fee, commission_pct: TIERS[tier].commission,
+    payment_status: "unpaid", docs_verified: false,
   });
   if (iErr) {
     // best-effort cleanup so they can retry with the same email

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import NoCompanyPage from './NoCompanyPage'
+import { tierOf } from '../lib/partnerTiers'
 
 // v1: a single paid-plan price. Commission % + term come from the partner row.
 const PLAN_PRICE = 399
@@ -22,6 +23,35 @@ export default function PartnerDashboard({ user }) {
   const [savingBank, setSavingBank] = useState(false)
   const [settings, setSettings] = useState({ min_payout: 100, claims_per_month: 2 })
   const [tab, setTab] = useState('overview')
+  const [savingDoc, setSavingDoc] = useState('')
+  const [payingPlan, setPayingPlan] = useState(false)
+
+  async function uploadDoc(field, file) {
+    if (!file || !partner) return
+    if (!/(image\/|application\/pdf)/.test(file.type)) { alert('Upload an image or PDF'); return }
+    if (file.size > 5 * 1024 * 1024) { alert('File too large (max 5 MB)'); return }
+    setSavingDoc(field)
+    const reader = new FileReader()
+    reader.onload = async () => {
+      try {
+        const nextDocs = { ...(partner.documents || {}), [field]: String(reader.result) }
+        const { error } = await supabase.from('qv_partners').update({ documents: nextDocs }).eq('id', partner.id)
+        if (error) throw error
+        await load()
+      } catch (e) { alert('Upload failed: ' + (e?.message || e)) } finally { setSavingDoc('') }
+    }
+    reader.readAsDataURL(file)
+  }
+  async function payPlan() {
+    if (payingPlan) return
+    setPayingPlan(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('partner-checkout', { body: { origin: window.location.origin } })
+      if (data?.url) { window.location.href = data.url; return }
+      let m = 'Could not start payment.'; if (error) { try { m = (await error.context.json())?.error || m } catch { m = error.message || m } } else if (data?.error) m = data.error
+      alert(m)
+    } catch (e) { alert('Payment failed: ' + (e?.message || e)) } finally { setPayingPlan(false) }
+  }
 
   useEffect(() => { if (user?.id) load() }, [user?.id]) // eslint-disable-line
   // returning from Stripe Connect onboarding → refresh the payout-enabled status
@@ -96,16 +126,70 @@ export default function PartnerDashboard({ user }) {
   // Not a partner and no company → normal experience.
   if (!partner) return <NoCompanyPage />
 
-  // Pending approval — they can sign in but don't earn until activated.
-  if (partner.status === 'pending') {
+  // Onboarding — not active yet. Complete: documents + payment → admin verifies → active.
+  if (partner.status !== 'active') {
+    const tr = tierOf(partner.tier)
+    const docs = partner.documents || {}
+    const hasDocs = !!(docs.emirates_id && docs.trade_license)
+    const paid = partner.payment_status === 'active'
+    const Step = ({ n, done, title, children }) => (
+      <div style={{ display: 'flex', gap: 12, padding: '14px 0', borderTop: '0.5px solid var(--border)' }}>
+        <div style={{ width: 26, height: 26, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, background: done ? '#22c55e' : 'var(--bg2)', color: done ? '#fff' : 'var(--text3)', border: done ? 'none' : '1px solid var(--border)' }}>{done ? '✓' : n}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>{title}</div>
+          {children}
+        </div>
+      </div>
+    )
+    const DocRow = ({ field, label }) => (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 12.5, color: 'var(--text2)', flex: 1, minWidth: 120 }}>{label}{docs[field] ? <span style={{ color: '#22c55e', fontWeight: 700 }}> · uploaded ✓</span> : ''}</span>
+        <label style={{ fontSize: 12, fontWeight: 700, padding: '7px 13px', borderRadius: 8, background: 'var(--bg2)', border: '1px solid var(--border)', color: 'var(--text)', cursor: 'pointer' }}>
+          {savingDoc === field ? 'Uploading…' : docs[field] ? 'Replace' : 'Upload'}
+          <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={e => uploadDoc(field, e.target.files?.[0])} />
+        </label>
+      </div>
+    )
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--text)', padding: 20 }}>
-        <div style={{ width: '100%', maxWidth: 440, background: 'var(--card)', border: '0.5px solid var(--border)', borderRadius: 16, padding: 28, textAlign: 'center' }}>
-          <div style={{ width: 60, height: 60, borderRadius: '50%', background: 'rgba(245,158,11,0.15)', border: '2px solid #f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: 28 }}>⏳</div>
-          <div style={{ fontSize: 19, fontWeight: 800, marginBottom: 8 }}>Welcome, {partner.name}!</div>
-          <div style={{ fontSize: 13.5, color: 'var(--text2)', lineHeight: 1.7, marginBottom: 14 }}>Your partner account is <b style={{ color: '#f59e0b' }}>under review</b>. Once our team activates it, your referral link goes live and you start earning 25% recurring commission.</div>
-          <div style={{ fontSize: 12.5, color: 'var(--text3)', marginBottom: 20 }}>Your referral code (active after approval): <b style={{ color: 'var(--text)' }}>{partner.code}</b></div>
-          <button onClick={logout} style={{ padding: '10px 18px', borderRadius: 9, border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--text2)', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}><i className="ti ti-logout" /> Sign out</button>
+      <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text)', padding: 'clamp(14px,3vw,28px)' }}>
+        <div style={{ maxWidth: 560, margin: '0 auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
+            <div>
+              <div style={{ fontSize: 19, fontWeight: 800 }}>Welcome, {partner.name}! 👋</div>
+              <div style={{ fontSize: 12.5, color: 'var(--text3)' }}>Finish setup to activate your partner account</div>
+            </div>
+            <button onClick={logout} style={{ padding: '8px 13px', borderRadius: 9, border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--text2)', cursor: 'pointer', fontSize: 12.5, fontWeight: 600 }}>Sign out</button>
+          </div>
+
+          {/* tier card */}
+          <div style={{ background: 'linear-gradient(135deg, rgba(0,212,255,0.12), var(--card) 60%)', border: '1px solid rgba(0,212,255,0.3)', borderRadius: 14, padding: 16, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 160 }}>
+              <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px' }}>Your plan</div>
+              <div style={{ fontSize: 18, fontWeight: 800 }}>{tr.label} · <span style={{ color: '#00b4d8' }}>{tr.commission}% commission</span></div>
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>AED {tr.fee}<span style={{ fontSize: 11, color: 'var(--text3)' }}>/mo</span></div>
+          </div>
+
+          {/* steps */}
+          <div style={{ background: 'var(--card)', border: '0.5px solid var(--border)', borderRadius: 14, padding: '4px 18px 14px' }}>
+            <Step n={1} done={hasDocs} title="Upload your documents">
+              <DocRow field="emirates_id" label="Emirates ID" />
+              <DocRow field="trade_license" label="Trade License" />
+            </Step>
+            <Step n={2} done={paid} title={`Pay your ${tr.label} plan — AED ${tr.fee}/month`}>
+              {paid ? <div style={{ fontSize: 12.5, color: '#22c55e', fontWeight: 700 }}>Payment active ✓</div>
+                : <button onClick={payPlan} disabled={payingPlan} style={{ padding: '9px 18px', borderRadius: 9, background: '#0099cc', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, opacity: payingPlan ? 0.7 : 1 }}>{payingPlan ? 'Opening…' : `Pay AED ${tr.fee}`}</button>}
+            </Step>
+            <Step n={3} done={false} title="Verification & activation">
+              <div style={{ fontSize: 12.5, color: 'var(--text3)', lineHeight: 1.5 }}>
+                {hasDocs && paid
+                  ? "All set! Our team is reviewing your documents — you'll be activated shortly."
+                  : 'Once your documents and payment are done, our team verifies and activates you.'}
+              </div>
+            </Step>
+          </div>
+
+          <div style={{ fontSize: 11.5, color: 'var(--text3)', textAlign: 'center', marginTop: 14 }}>Your referral code (live after activation): <b style={{ color: 'var(--text2)' }}>{partner.code}</b></div>
         </div>
       </div>
     )

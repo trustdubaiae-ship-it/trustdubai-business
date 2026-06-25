@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { TIER_LIST } from '../lib/partnerTiers'
 
 export default function BecomePartner({ onBack }) {
-  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '' })
+  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', tier: 'starter' })
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [done, setDone] = useState(null) // { code }
@@ -39,7 +40,7 @@ export default function BecomePartner({ onBack }) {
           <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(34,197,94,0.15)', border: '2px solid #22c55e', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px', fontSize: 30 }}>🎉</div>
           <h2 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 22, color: '#fff', marginBottom: 10 }}>You're in!</h2>
           <p style={{ fontSize: 14, color: '#aeb9d6', lineHeight: 1.7, marginBottom: 14 }}>Your partner account is created. Your referral code is <b style={{ color: '#00FFCC' }}>{done.code}</b>.</p>
-          <p style={{ fontSize: 13, color: '#8b949e', lineHeight: 1.7, marginBottom: 22 }}>Sign in with your email &amp; password. Your account is <b>pending approval</b> — once our team activates it, your referral link starts earning.</p>
+          <p style={{ fontSize: 13, color: '#8b949e', lineHeight: 1.7, marginBottom: 22 }}>Now <b>sign in</b> and finish 3 steps to go live: <b>upload your documents</b> (Emirates ID + Trade License), <b>pay your plan</b>, then our team <b>verifies & activates</b> you.</p>
           <button onClick={onBack} style={{ width: '100%', padding: '13px', borderRadius: 10, border: 'none', background: 'linear-gradient(100deg,#00D4FF,#8B5CF6)', color: '#fff', fontWeight: 700, fontSize: 14.5, cursor: 'pointer' }}>Go to sign in</button>
         </div>
       </div>
@@ -50,12 +51,26 @@ export default function BecomePartner({ onBack }) {
     <div style={wrap}>
       <div style={{ textAlign: 'center', marginBottom: 22, maxWidth: 540 }}>
         <h1 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 'clamp(26px,5vw,40px)', lineHeight: 1.05, letterSpacing: '-1px', margin: 0, background: 'linear-gradient(100deg,#00D4FF,#00FFCC 55%,#8B5CF6)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>Become a Quvera Partner</h1>
-        <p style={{ fontSize: 'clamp(13px,2vw,15px)', color: '#aeb9d6', marginTop: 10, lineHeight: 1.6 }}>Refer businesses to Quvera and earn <b style={{ color: '#fff' }}>25% recurring</b> commission for 12 months on every paying business you bring.</p>
+        <p style={{ fontSize: 'clamp(13px,2vw,15px)', color: '#aeb9d6', marginTop: 10, lineHeight: 1.6 }}>Refer businesses to Quvera and earn <b style={{ color: '#fff' }}>recurring commission</b> for 12 months. Pick a plan — your tier sets your commission.</p>
       </div>
 
-      <form onSubmit={submit} style={{ width: '100%', maxWidth: 440, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: 'clamp(24px,6vw,40px)' }}>
-        <h2 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 20, color: '#fff', marginBottom: 4, textAlign: 'center' }}>Create your partner account</h2>
-        <p style={{ fontSize: 13, color: '#8b949e', marginBottom: 22, textAlign: 'center' }}>Free to join. No fees.</p>
+      <form onSubmit={submit} style={{ width: '100%', maxWidth: 460, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: 'clamp(22px,5vw,34px)' }}>
+        <h2 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 20, color: '#fff', marginBottom: 4, textAlign: 'center' }}>Choose your partner plan</h2>
+        <p style={{ fontSize: 12.5, color: '#8b949e', marginBottom: 16, textAlign: 'center' }}>Higher tier = higher commission on every referral.</p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 20 }}>
+          {TIER_LIST.map(t => {
+            const on = form.tier === t.key
+            return (
+              <button type="button" key={t.key} onClick={() => set('tier', t.key)}
+                style={{ textAlign: 'center', padding: '13px 8px', borderRadius: 12, cursor: 'pointer', background: on ? 'rgba(0,212,255,0.12)' : 'rgba(255,255,255,0.04)', border: '1.5px solid ' + (on ? '#00D4FF' : 'rgba(255,255,255,0.12)') }}>
+                <div style={{ fontSize: 12.5, fontWeight: 800, color: '#fff' }}>{t.label}</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: on ? '#00FFCC' : '#fff', margin: '4px 0 1px' }}>{t.commission}%</div>
+                <div style={{ fontSize: 10, color: '#8b949e' }}>AED {t.fee}/mo</div>
+              </button>
+            )
+          })}
+        </div>
 
         <label style={lbl}>Full name</label>
         <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Ravi Sharma" style={inp} autoFocus />
