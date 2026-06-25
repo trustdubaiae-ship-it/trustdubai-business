@@ -11,6 +11,7 @@ alter table public.qv_partners
   add column if not exists documents      jsonb   not null default '{}'::jsonb,   -- { emirates_id, trade_license } base64 data urls
   add column if not exists docs_verified  boolean not null default false,
   add column if not exists bank_locked    boolean not null default false,         -- bank details can be set once; change = request Quvera
+  add column if not exists bank_verified  boolean not null default false,         -- admin verifies the IBAN/account before payouts
   add column if not exists payment_status text    not null default 'unpaid',      -- unpaid | active | past_due | canceled
   add column if not exists stripe_customer_id     text,
   add column if not exists stripe_subscription_id text;

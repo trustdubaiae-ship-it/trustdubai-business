@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import NoCompanyPage from './NoCompanyPage'
-import { tierOf } from '../lib/partnerTiers'
+import { tierOf, TIER_LIST } from '../lib/partnerTiers'
 
 // v1: a single paid-plan price. Commission % + term come from the partner row.
 const PLAN_PRICE = 399
@@ -27,6 +27,32 @@ export default function PartnerDashboard({ user }) {
   const [tab, setTab] = useState('overview')
   const [savingDoc, setSavingDoc] = useState('')
   const [payingPlan, setPayingPlan] = useState(false)
+  const [changingTier, setChangingTier] = useState('')
+
+  async function changePlan(newKey) {
+    if (!partner || changingTier) return
+    if (newKey === partner.tier) return
+    const t = tierOf(newKey)
+    const paidNow = partner.payment_status === 'active'
+    const msg = paidNow
+      ? `Switch to the ${t.label} plan (AED ${t.fee}/mo, ${t.commission}% commission)? Your Stripe subscription will be updated and the price is prorated from today.`
+      : `Switch to the ${t.label} plan (AED ${t.fee}/mo, ${t.commission}% commission)?`
+    if (!window.confirm(msg)) return
+    setChangingTier(newKey)
+    try {
+      if (paidNow) {
+        // active subscription → update the price in Stripe (with proration) via the edge function
+        const { data, error } = await supabase.functions.invoke('partner-change-plan', { body: { tier: newKey } })
+        if (error) { let m = 'Could not change plan.'; try { m = (await error.context.json())?.error || m } catch { m = error.message || m }; alert(m); return }
+        if (data?.error) { alert(data.error); return }
+      } else {
+        // not paying yet → just set the tier; the price applies when they pay
+        const { error } = await supabase.from('qv_partners').update({ tier: newKey, fee_monthly: t.fee, commission_pct: t.commission }).eq('id', partner.id)
+        if (error) throw error
+      }
+      await load()
+    } catch (e) { alert('Could not change plan: ' + (e?.message || e)) } finally { setChangingTier('') }
+  }
 
   async function uploadDoc(field, file) {
     if (!file || !partner) return
@@ -165,6 +191,7 @@ export default function PartnerDashboard({ user }) {
   const hasDocs = !!(docs.emirates_id && docs.trade_license)
   const paid = partner.payment_status === 'active'
   const bankLocked = !!partner.bank_locked
+  const bankVerified = !!partner.bank_verified
   const setupDone = hasDocs && paid && isActive
   const metric = (label, value, color, sub) => (
     <div className="qpp-metric" style={{ '--qc': color }}>
@@ -316,6 +343,26 @@ export default function PartnerDashboard({ user }) {
             ))}
           </div>
 
+          <div className="qpp-card" style={{ marginBottom: 16 }}>
+            <div className="qpp-h"><i className="ti ti-arrows-up-down" style={{ color: '#8B5CF6' }} /> Your plan &amp; commission</div>
+            <div style={{ fontSize: 11.5, color: T.text3, margin: '-4px 0 12px', lineHeight: 1.5 }}>{paid ? 'Upgrade or downgrade anytime — your subscription is updated and prorated.' : 'Pick the plan you want, then pay below to activate. Higher tier = higher commission.'}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
+              {TIER_LIST.map(t => {
+                const on = partner.tier === t.key
+                const busyT = changingTier === t.key
+                return (
+                  <button type="button" key={t.key} onClick={() => changePlan(t.key)} disabled={!!changingTier || on}
+                    style={{ textAlign: 'center', padding: '13px 6px', borderRadius: 12, cursor: on ? 'default' : 'pointer', position: 'relative', background: on ? 'rgba(0,212,255,0.12)' : 'rgba(255,255,255,0.04)', border: '1.5px solid ' + (on ? '#00D4FF' : 'rgba(255,255,255,0.12)'), opacity: changingTier && !busyT ? 0.5 : 1 }}>
+                    {on && <span style={{ position: 'absolute', top: 6, right: 7, fontSize: 9, fontWeight: 800, color: '#00D4FF' }}>CURRENT</span>}
+                    <div style={{ fontSize: 12.5, fontWeight: 800, color: T.text }}>{t.label}</div>
+                    <div style={{ fontSize: 17, fontWeight: 800, color: on ? '#00FFCC' : T.text, margin: '4px 0 1px' }}>{t.commission}%</div>
+                    <div style={{ fontSize: 10, color: T.text3 }}>{busyT ? 'Updating…' : `AED ${t.fee}/mo`}</div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
           <div className="qpp-card" style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: 160 }}>
               <div className="qpp-h" style={{ margin: 0 }}><i className="ti ti-credit-card" style={{ color: '#00FFCC' }} /> Plan payment</div>
@@ -328,9 +375,12 @@ export default function PartnerDashboard({ user }) {
           <div className="qpp-card">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
               <div className="qpp-h" style={{ margin: 0, flex: 1 }}><i className="ti ti-building-bank" style={{ color: '#00D4FF' }} /> Payout bank account</div>
-              {hasBank && <span style={{ fontSize: 10.5, fontWeight: 700, color: '#00FFCC', background: 'rgba(0,255,204,0.12)', padding: '3px 10px', borderRadius: 99 }}>Saved ✓</span>}
+              {hasBank && (bankVerified
+                ? <span style={{ fontSize: 10.5, fontWeight: 700, color: '#00FFCC', background: 'rgba(0,255,204,0.12)', padding: '3px 10px', borderRadius: 99 }}>Verified ✓</span>
+                : <span style={{ fontSize: 10.5, fontWeight: 700, color: '#f59e0b', background: 'rgba(245,158,11,0.12)', padding: '3px 10px', borderRadius: 99 }}>Verification pending</span>)}
             </div>
             <div style={{ fontSize: 11.5, color: bankLocked ? '#f59e0b' : T.text3, marginBottom: 12, lineHeight: 1.5 }}>{bankLocked ? '🔒 Bank details are locked. To change them, contact Quvera.' : 'You can set your bank details only once — double-check before saving.'}</div>
+            {hasBank && !bankVerified && <div style={{ fontSize: 11.5, color: T.text3, marginBottom: 12, lineHeight: 1.5, padding: '8px 11px', borderRadius: 9, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)' }}>Quvera verifies your account (name + IBAN) before your first payout. This is usually done within 1–2 business days.</div>}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 11, marginBottom: 12 }}>
               <div><label style={bLbl}>Account holder</label><input value={bank.account_holder} onChange={e => setBank(b => ({ ...b, account_holder: e.target.value }))} disabled={bankLocked} style={{ ...inpD, opacity: bankLocked ? 0.6 : 1 }} /></div>
               <div><label style={bLbl}>Bank name</label><input value={bank.bank_name} onChange={e => setBank(b => ({ ...b, bank_name: e.target.value }))} disabled={bankLocked} style={{ ...inpD, opacity: bankLocked ? 0.6 : 1 }} placeholder="e.g. Emirates NBD" /></div>
