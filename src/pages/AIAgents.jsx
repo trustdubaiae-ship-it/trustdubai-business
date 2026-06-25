@@ -278,23 +278,18 @@ export default function AIAgents() {
           <div style={{ fontSize: 14.5, fontWeight: 700, color: text }}>{active.name}</div>
           <div style={{ fontSize: 11, color: textMuted }}>{active.tag}</div>
         </div>
-        <button onClick={() => { setShowPrompts(v => !v); setShowNote(false) }} title="Quick questions" style={{ background: showPrompts ? active.color + '22' : 'var(--bg2)', border: 'none', width: 32, height: 32, borderRadius: 9, cursor: 'pointer', color: showPrompts ? active.color : textSub, flexShrink: 0 }}><i className="ti ti-bolt" /></button>
-        {!active.orchestrator && <button onClick={() => { setShowNote(v => !v); setShowPrompts(false) }} title="Train this agent" style={{ background: 'var(--bg2)', border: 'none', width: 32, height: 32, borderRadius: 9, cursor: 'pointer', color: cfg.notes?.[active.key] ? '#16a34a' : textSub, flexShrink: 0 }}><i className="ti ti-school" /></button>}
+        {!active.orchestrator && <button onClick={() => { setShowNote(v => !v) }} title="Train this agent" style={{ background: 'var(--bg2)', border: 'none', width: 32, height: 32, borderRadius: 9, cursor: 'pointer', color: cfg.notes?.[active.key] ? '#16a34a' : textSub, flexShrink: 0 }}><i className="ti ti-school" /></button>}
       </div>
 
-      {showPrompts && (
-        <div style={{ padding: 14, borderBottom: '0.5px solid var(--border)', background: 'var(--card)' }}>
-          <div style={{ fontSize: 12.5, fontWeight: 700, color: text, marginBottom: 9 }}><i className="ti ti-bolt" style={{ color: active.color }} /> Quick questions — tap to send</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-            {active.starters.map((s, i) => (
-              <button key={i} onClick={() => { setShowPrompts(false); send(s) }}
-                style={{ textAlign: 'left', fontSize: 12.5, padding: '10px 12px', borderRadius: 9, border: '1px solid var(--border)', background: 'var(--bg2)', color: text, cursor: 'pointer', lineHeight: 1.4, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <i className="ti ti-arrow-right" style={{ fontSize: 13, color: active.color, flexShrink: 0 }} /> {s}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Quick questions — always-on tab row at the top of every chat (scrolls sideways) */}
+      <div style={{ display: 'flex', gap: 8, padding: '10px 14px', borderBottom: '0.5px solid var(--border)', background: 'var(--card)', overflowX: 'auto', whiteSpace: 'nowrap', WebkitOverflowScrolling: 'touch' }}>
+        {active.starters.map((s, i) => (
+          <button key={i} onClick={() => send(s)} disabled={busy}
+            style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, padding: '8px 13px', borderRadius: 99, border: '1px solid var(--border)', background: 'var(--bg2)', color: textSub, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1 }}>
+            <i className="ti ti-bolt" style={{ fontSize: 13, color: active.color }} /> {s}
+          </button>
+        ))}
+      </div>
 
       {showNote && !active.orchestrator && (
         <div style={{ padding: 14, borderBottom: '0.5px solid var(--border)', background: 'var(--card)' }}>
@@ -315,12 +310,7 @@ export default function AIAgents() {
           <div style={{ margin: 'auto', textAlign: 'center', maxWidth: 460 }}>
             <div style={{ width: 56, height: 56, borderRadius: 16, background: active.color + '1f', color: active.color, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}><i className={'ti ' + active.icon} style={{ fontSize: 28 }} /></div>
             <div style={{ fontSize: 14, fontWeight: 600, color: text, marginBottom: 4 }}>New chat with {active.name}</div>
-            <div style={{ fontSize: 12, color: textMuted, marginBottom: 14 }}>Try one of these, or type your own:</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
-              {active.starters.map((s, i) => (
-                <button key={i} onClick={() => send(s)} style={{ fontSize: 12, padding: '7px 12px', borderRadius: 99, border: '1px solid var(--border)', background: 'var(--bg2)', color: textSub, cursor: 'pointer' }}>{s}</button>
-              ))}
-            </div>
+            <div style={{ fontSize: 12, color: textMuted }}>Tap a quick question above, or type your own below.</div>
           </div>
         )}
         {msgs.map((m, i) => (
