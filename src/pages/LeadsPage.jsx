@@ -1463,7 +1463,7 @@ export default function LeadsPage() {
           <style>{`.ld-card{transition:box-shadow .2s ease,border-color .2s ease,transform .2s ease}.ld-card:hover{border-color:${T.hoverBd} !important;box-shadow:${T.hoverGlow} !important;transform:translateY(-2px)}`}</style>
 
           <div style={{ position: 'sticky', top: 0, zIndex: 5, background: T.headerBg, backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', padding: '16px 18px', paddingTop: mobile ? `calc(16px + ${SAFE_TOP})` : 16, borderBottom: '1px solid var(--border)' }}>
-            <button onClick={closeModal} style={{ position: 'absolute', top: 12, right: 12, background: T.closeBg, border: 'none', cursor: 'pointer', color: 'var(--text2)', fontSize: 18, width: 32, height: 32, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3 }}><i className="ti ti-x" /></button>
+            <button onClick={closeModal} style={{ position: 'absolute', top: mobile ? `calc(12px + ${SAFE_TOP})` : 12, right: 12, background: T.closeBg, border: 'none', cursor: 'pointer', color: 'var(--text2)', fontSize: 20, width: 38, height: 38, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 6 }}><i className="ti ti-x" /></button>
 
             <div style={{ display: mobile ? 'block' : 'grid', gridTemplateColumns: mobile ? undefined : '1.95fr 0.8fr 1.2fr', gap: 18, alignItems: 'center' }}>
 
