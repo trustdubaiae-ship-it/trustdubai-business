@@ -9,6 +9,7 @@ import LoginNotificationPopup from './components/LoginNotificationPopup'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import BecomePartner from './pages/BecomePartner'
+import PartnerCodePrompt from './components/PartnerCodePrompt'
 import NoCompanyPage from './pages/NoCompanyPage'
 import PartnerDashboard from './pages/PartnerDashboard'
 import DashboardPage from './pages/DashboardPage'
@@ -547,6 +548,7 @@ function Portal() {
 
         <div className={`page-content${activePage==='dashboard' && !mobile ? ' page-content--flush' : ''}`}>
           {ReviewBanner}
+          {activePage !== 'dashboard' && <PartnerCodePrompt company={company} />}
           {mainContent}
         </div>
       </main>
