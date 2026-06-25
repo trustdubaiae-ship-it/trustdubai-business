@@ -1,12 +1,15 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { TIER_LIST } from '../lib/partnerTiers'
+import PartnerTerms from './PartnerTerms'
 
 export default function BecomePartner({ onBack }) {
   const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', tier: 'starter' })
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [done, setDone] = useState(null) // { code }
+  const [agreed, setAgreed] = useState(false)
+  const [showTerms, setShowTerms] = useState(false)
 
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErr('') }
 
@@ -15,6 +18,7 @@ export default function BecomePartner({ onBack }) {
     if (!form.name.trim() || !form.email.trim() || form.password.length < 6) {
       setErr('Name, email and a password (6+ chars) are required'); return
     }
+    if (!agreed) { setErr('Please accept the Partner Terms & Conditions to continue'); return }
     setErr(''); setBusy(true)
     try {
       const { data, error } = await supabase.functions.invoke('partner-signup', { body: form })
@@ -56,6 +60,7 @@ export default function BecomePartner({ onBack }) {
 
   return (
     <div style={wrap}>
+      {showTerms && <PartnerTerms onClose={() => setShowTerms(false)} />}
       <div style={{ textAlign: 'center', marginBottom: 22, maxWidth: 540 }}>
         <h1 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 'clamp(26px,5vw,40px)', lineHeight: 1.05, letterSpacing: '-1px', margin: 0, background: 'linear-gradient(100deg,#00D4FF,#00FFCC 55%,#8B5CF6)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>Become a Quvera Partner</h1>
         <p style={{ fontSize: 'clamp(13px,2vw,15px)', color: '#aeb9d6', marginTop: 10, lineHeight: 1.6 }}>Refer businesses to Quvera and earn <b style={{ color: '#fff' }}>recurring commission</b> for 12 months. Pick a plan — your tier sets your commission.</p>
@@ -88,9 +93,14 @@ export default function BecomePartner({ onBack }) {
         <label style={lbl}>Password</label>
         <input type="password" value={form.password} onChange={e => set('password', e.target.value)} placeholder="At least 6 characters" autoComplete="new-password" style={inp} />
 
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, margin: '4px 0 14px', cursor: 'pointer' }}>
+          <input type="checkbox" checked={agreed} onChange={e => { setAgreed(e.target.checked); setErr('') }} style={{ width: 17, height: 17, marginTop: 1, accentColor: '#00D4FF', flexShrink: 0, cursor: 'pointer' }} />
+          <span style={{ fontSize: 12.5, color: '#aeb9d6', lineHeight: 1.5 }}>I have read and agree to the <button type="button" onClick={() => setShowTerms(true)} style={{ background: 'none', border: 'none', padding: 0, color: '#00D4FF', fontWeight: 700, cursor: 'pointer', fontSize: 12.5, textDecoration: 'underline' }}>Partner Terms &amp; Conditions</button>.</span>
+        </label>
+
         {err && <div style={{ fontSize: 13, color: '#f87171', marginBottom: 12, lineHeight: 1.5 }}>{err}</div>}
 
-        <button type="submit" disabled={busy} style={{ width: '100%', padding: '14px', borderRadius: 10, border: 'none', background: busy ? 'rgba(255,255,255,0.1)' : 'linear-gradient(100deg,#00D4FF,#8B5CF6)', color: '#fff', fontWeight: 700, fontSize: 15, cursor: busy ? 'not-allowed' : 'pointer', marginTop: 4 }}>
+        <button type="submit" disabled={busy || !agreed} style={{ width: '100%', padding: '14px', borderRadius: 10, border: 'none', background: (busy || !agreed) ? 'rgba(255,255,255,0.1)' : 'linear-gradient(100deg,#00D4FF,#8B5CF6)', color: '#fff', fontWeight: 700, fontSize: 15, cursor: (busy || !agreed) ? 'not-allowed' : 'pointer', marginTop: 4 }}>
           {busy ? 'Creating…' : 'Join as a partner'}
         </button>
 

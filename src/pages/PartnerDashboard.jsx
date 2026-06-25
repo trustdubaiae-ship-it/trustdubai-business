@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import NoCompanyPage from './NoCompanyPage'
 import { tierOf, TIER_LIST } from '../lib/partnerTiers'
+import PartnerTerms from './PartnerTerms'
 
 // v1: a single paid-plan price. Commission % + term come from the partner row.
 const PLAN_PRICE = 399
@@ -28,6 +29,7 @@ export default function PartnerDashboard({ user }) {
   const [savingDoc, setSavingDoc] = useState('')
   const [payingPlan, setPayingPlan] = useState(false)
   const [changingTier, setChangingTier] = useState('')
+  const [showTerms, setShowTerms] = useState(false)
 
   async function changePlan(newKey) {
     if (!partner || changingTier) return
@@ -391,8 +393,13 @@ export default function PartnerDashboard({ user }) {
           </div>
         </>}
 
-        <div style={{ fontSize: 11, color: T.text3, textAlign: 'center', marginTop: 20 }}>Quvera Partner Program · figures are estimates; final commission confirmed at payout.</div>
+        <div style={{ fontSize: 11, color: T.text3, textAlign: 'center', marginTop: 20 }}>
+          Quvera Partner Program · figures are estimates; final commission confirmed at payout.
+          <br />
+          <button onClick={() => setShowTerms(true)} style={{ background: 'none', border: 'none', padding: '6px 0 0', color: T.text2, fontSize: 11.5, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}>Partner Terms &amp; Conditions</button>
+        </div>
       </div>
+      {showTerms && <PartnerTerms onClose={() => setShowTerms(false)} />}
     </div>
   )
 }
