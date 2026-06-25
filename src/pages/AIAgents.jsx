@@ -16,6 +16,8 @@ const AGENTS = [
     starters: ['Before/after caption for a living room', 'Portfolio description for a cafe fit-out', '8 hashtags for Dubai interior design'] },
   { key: 'advisor', name: 'Business Advisor', icon: 'ti-bulb', color: '#f59e0b', tag: 'Pricing, growth & operations',
     starters: ['How should I price my fit-out quotes?', 'How do I get more repeat clients?', 'Should I hire an in-house carpenter?'] },
+  { key: 'accounts', name: 'Accounts Agent', icon: 'ti-report-money', color: '#0ea5e9', tag: 'Revenue, VAT, invoices & cash flow',
+    starters: ['Summarize my revenue and outstanding this month', 'How much have clients paid vs billed?', 'Explain UAE 5% VAT for my invoices'] },
   { key: 'project_manager', name: 'Project Manager', icon: 'ti-stack-2', color: '#06b6d4', tag: 'Schedules, milestones & coordination',
     starters: ['Make a milestone plan for a 3-month villa fit-out', 'Checklist before site handover', 'How to sequence MEP and joinery work'] },
   { key: 'tender', name: 'Tender / Proposal', icon: 'ti-file-text', color: '#6366f1', tag: 'Proposals, bids & company profile',
@@ -55,6 +57,7 @@ export default function AIAgents() {
   const fileRef = useRef(null)
 
   const [cfg, setCfg] = useState({ knowledge: '', notes: {}, access: {} })
+  const [threadStore, setThreadStore] = useState({})   // { agentKey: [threads] } — loaded from DB
   const [showKnow, setShowKnow] = useState(false)
   const [showAccess, setShowAccess] = useState(false)
   const [showNote, setShowNote] = useState(false)
@@ -67,17 +70,29 @@ export default function AIAgents() {
 
   const text = 'var(--text)', textSub = 'var(--text2)', textMuted = 'var(--text3)'
 
-  // ---- threads storage (per company + agent, on this device) ----
+  // ---- threads storage: DB-backed (survives app close / iOS storage eviction),
+  // with a localStorage write-through cache for instant load. ----
   const tkey = (k) => `qv_aithreads_${company?.id || 'x'}_${k}`
   const loadThreads = (k) => { try { const a = JSON.parse(localStorage.getItem(tkey(k)) || '[]'); return Array.isArray(a) ? a : [] } catch { return [] } }
-  const saveThreads = (k, list) => { try { localStorage.setItem(tkey(k), JSON.stringify(list.slice(0, 50))) } catch {} }
+  const saveThreads = (k, list) => {
+    const capped = list.slice(0, 50)
+    try { localStorage.setItem(tkey(k), JSON.stringify(capped)) } catch {}
+    setThreadStore(prev => {
+      const next = { ...prev, [k]: capped }
+      if (company?.id) supabase.from('ai_agent_config').upsert({ company_id: company.id, threads: next, updated_at: new Date().toISOString() }, { onConflict: 'company_id' }).then(() => {}, () => {})
+      return next
+    })
+  }
 
   useEffect(() => { if (company?.id) loadCfg() }, [company?.id])
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [msgs, busy])
 
   async function loadCfg() {
     const { data } = await supabase.from('ai_agent_config').select('*').eq('company_id', company.id).maybeSingle()
-    if (data) setCfg({ knowledge: data.knowledge || '', notes: data.notes || {}, access: data.access || {} })
+    if (data) {
+      setCfg({ knowledge: data.knowledge || '', notes: data.notes || {}, access: data.access || {} })
+      if (data.threads && typeof data.threads === 'object') setThreadStore(data.threads)
+    }
   }
   async function saveCfg(next) {
     const merged = next || cfg
@@ -94,7 +109,7 @@ export default function AIAgents() {
 
   function openAgent(agent) {
     setActive(agent); setEntered(true)
-    setThreads(loadThreads(agent.key))
+    setThreads(threadStore[agent.key] || loadThreads(agent.key))   // DB first, localStorage fallback
     newChat()   // lands on the chat pane (mobile too); history is one tap back
   }
   function exitDash() { setEntered(false); setActive(null); setImg(null); setShowNote(false) }
