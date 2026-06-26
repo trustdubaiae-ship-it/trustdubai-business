@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import NoCompanyPage from './NoCompanyPage'
-import { tierOf, TIER_LIST } from '../lib/partnerTiers'
 import { marginalCommission } from '../lib/commission'
 import PartnerTerms from './PartnerTerms'
 
@@ -30,33 +29,7 @@ export default function PartnerDashboard({ user }) {
   const [tab, setTab] = useState('overview')
   const [savingDoc, setSavingDoc] = useState('')
   const [payingPlan, setPayingPlan] = useState(false)
-  const [changingTier, setChangingTier] = useState('')
   const [showTerms, setShowTerms] = useState(false)
-
-  async function changePlan(newKey) {
-    if (!partner || changingTier) return
-    if (newKey === partner.tier) return
-    const t = tierOf(newKey)
-    const paidNow = partner.payment_status === 'active'
-    const msg = paidNow
-      ? `Switch to the ${t.label} plan (AED ${t.fee}/mo)? Your Stripe subscription will be updated and the price is prorated from today.`
-      : `Switch to the ${t.label} plan (AED ${t.fee}/mo)?`
-    if (!window.confirm(msg)) return
-    setChangingTier(newKey)
-    try {
-      if (paidNow) {
-        // active subscription → update the price in Stripe (with proration) via the edge function
-        const { data, error } = await supabase.functions.invoke('partner-change-plan', { body: { tier: newKey } })
-        if (error) { let m = 'Could not change plan.'; try { m = (await error.context.json())?.error || m } catch { m = error.message || m }; alert(m); return }
-        if (data?.error) { alert(data.error); return }
-      } else {
-        // not paying yet → just set the tier; the price applies when they pay
-        const { error } = await supabase.from('qv_partners').update({ tier: newKey, fee_monthly: t.fee, commission_pct: t.commission }).eq('id', partner.id)
-        if (error) throw error
-      }
-      await load()
-    } catch (e) { alert('Could not change plan: ' + (e?.message || e)) } finally { setChangingTier('') }
-  }
 
   async function uploadDoc(field, file) {
     if (!file || !partner) return
@@ -195,7 +168,6 @@ export default function PartnerDashboard({ user }) {
   const STC = { approved: '#22c55e', pending: '#f59e0b', rejected: '#ef4444' }
   const hasBank = (bank.iban || '').trim().length >= 5
   const isActive = partner.status === 'active'
-  const tr = tierOf(partner.tier)
   // single partner plan — admin-set original price + discount
   const planOrig = Number(settings.plan_price) || 799
   const planDisc = Number(settings.plan_discount_pct) || 0
@@ -226,7 +198,7 @@ export default function PartnerDashboard({ user }) {
           <div className="qpp-logo"><i className="ti ti-bolt" style={{ fontSize: 22 }} /></div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: '.5px' }}>QUVERA <span className="qpp-grad">PARTNER</span></div>
-            <div style={{ fontSize: 12, color: T.text3 }}>{partner.name} · {Math.round(pct * 100)}% for {term} months / referral</div>
+            <div style={{ fontSize: 12, color: T.text3 }}>{partner.name} · Code <span style={{ color: '#00FFCC', fontWeight: 700 }}>{partner.code}</span></div>
           </div>
           <button onClick={logout} className="qpp-ghost"><i className="ti ti-logout" /> Sign out</button>
         </div>
@@ -301,7 +273,7 @@ export default function PartnerDashboard({ user }) {
               <button onClick={() => copy(refLink, 'link')} className="qpp-btn" style={{ flexShrink: 0 }}>{copied === 'link' ? 'Copied ✓' : 'Copy link'}</button>
               <button onClick={() => copy(partner.code, 'code')} className="qpp-ghost" style={{ flexShrink: 0 }}>{copied === 'code' ? 'Copied ✓' : partner.code}</button>
             </div>
-            <div style={{ fontSize: 11, color: T.text3, marginTop: 9, lineHeight: 1.5 }}>Share this link. Every business that signs up through it earns you {Math.round(pct * 100)}% of their {AED(PLAN_PRICE)}/mo plan (≈ {AED(perBiz)}/mo) for {term} months.</div>
+            <div style={{ fontSize: 11, color: T.text3, marginTop: 9, lineHeight: 1.5 }}>Share this link. Every business that signs up through it earns you recurring commission for {term} months — your current rate is <b style={{ color: T.text2 }}>{Math.round(pct * 100)}%</b> (see <b style={{ color: T.text2 }}>Your commission</b>).</div>
           </div>
 
           {/* referred businesses */}
