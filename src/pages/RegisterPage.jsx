@@ -1,14 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { Building2, Phone, Mail, MapPin, Tag, User, FileText, ChevronRight, Check, AlertTriangle } from 'lucide-react'
-
-const CATEGORIES = [
-  'Construction & Renovation', 'Interior Design', 'Electrical', 'Plumbing',
-  'HVAC & AC', 'Painting', 'Flooring', 'Kitchen & Bath', 'Landscaping',
-  'Security Systems', 'IT & Technology', 'Cleaning Services', 'Movers & Storage',
-  'Legal Services', 'Real Estate', 'Healthcare', 'Education', 'Automotive',
-  'Food & Restaurant', 'Retail', 'Finance & Accounting', 'Other'
-]
+import { CATEGORIES } from '../lib/categories'
 
 const STEPS = ['Business Info', 'Contact Details', 'About You', 'Review & Submit']
 

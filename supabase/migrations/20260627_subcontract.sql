@@ -61,7 +61,10 @@ language sql security definer set search_path = public stable as $$
     and p.company_id <> c.id
     and (
       cardinality(p.categories) = 0
-      or lower(coalesce(c.category, '')) = any (select lower(x) from unnest(p.categories) x)
+      -- match on the viewer's category array (preferred) OR the legacy single category
+      or exists (select 1 from unnest(p.categories) pc
+                 where lower(pc) = any (select lower(x) from unnest(coalesce(c.categories, array[]::text[])) x)
+                    or lower(pc) = lower(coalesce(c.category, '')))
     )
   order by p.created_at desc
 $$;

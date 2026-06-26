@@ -1,15 +1,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../lib/toast'
+import { CATEGORIES } from '../lib/categories'
 
-// Companies of these categories can be targeted when posting work to subcontract.
-const CATEGORIES = [
-  'Interior Design', 'Fit-Out', 'Renovation', 'Joinery & Carpentry', 'MEP',
-  'Electrical', 'Plumbing', 'HVAC / AC', 'Painting', 'Flooring', 'False Ceiling',
-  'Civil & Masonry', 'Waterproofing', 'Tiling', 'Gypsum & Partition', 'Cleaning',
-  'Landscaping', 'Glass & Aluminium', 'Metal & Steel Works', 'Signage & Branding',
-  'Furniture', 'Swimming Pool', 'Smart Home', 'Demolition',
-]
 const MAX_CATS = 5
 const BLANK = { title: '', description: '', categories: [], budget_min: '', budget_max: '', location: '', timeline: '', contact_name: '', contact_phone: '' }
 const AED = (n) => 'AED ' + Math.round(Number(n) || 0).toLocaleString('en-AE')
