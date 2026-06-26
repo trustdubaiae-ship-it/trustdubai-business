@@ -249,7 +249,7 @@ export default function SubcontractHub({ company }) {
                     <button onClick={() => openEdit(p)} className="btn btn-secondary btn-sm"><i className="ti ti-edit" style={{ verticalAlign: '-2px', marginRight: 3 }} />Edit</button>
                     {ints.length > 0 && <button onClick={() => setExpanded(open ? null : p.id)} className="btn btn-secondary btn-sm"><i className="ti ti-users" style={{ verticalAlign: '-2px', marginRight: 3 }} />Interested ({ints.length})</button>}
                     {!taken
-                      ? <button onClick={() => { setAwardFor(p.id); setAwardPick('') }} className="btn btn-primary btn-sm">Mark under discussion</button>
+                      ? <button onClick={() => { setAwardFor(p.id); setAwardPick(''); setExpanded(ints.length ? p.id : expanded) }} className="btn btn-primary btn-sm"><i className="ti ti-award" style={{ verticalAlign: '-2px', marginRight: 3 }} />Award work</button>
                       : <button onClick={() => setStatus(p, 'open')} disabled={busy === 'st-' + p.id} className="btn btn-secondary btn-sm"><i className="ti ti-rotate" style={{ verticalAlign: '-2px', marginRight: 3 }} />Re-open</button>}
                   </div>
 
@@ -285,6 +285,7 @@ export default function SubcontractHub({ company }) {
                           {i.contact_phone && <a href={wa(i.contact_phone)} target="_blank" rel="noreferrer" className="btn btn-sm" style={{ background: '#22c55e', color: '#fff', textDecoration: 'none' }}><i className="ti ti-brand-whatsapp" /></a>}
                           {i.contact_phone && <a href={'tel:' + i.contact_phone} className="btn btn-secondary btn-sm"><i className="ti ti-phone" /></a>}
                           {i.contact_email && <a href={'mailto:' + i.contact_email} className="btn btn-secondary btn-sm"><i className="ti ti-mail" /></a>}
+                          {!taken && <button onClick={() => setStatus(p, 'under_discussion', { name: i.company_name, id: i.company_id })} disabled={busy === 'st-' + p.id} className="btn btn-primary btn-sm" style={{ whiteSpace: 'nowrap' }}><i className="ti ti-award" style={{ verticalAlign: '-2px', marginRight: 3 }} />Award</button>}
                         </div>
                       ))}
                     </div>
