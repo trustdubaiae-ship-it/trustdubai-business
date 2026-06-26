@@ -43,14 +43,21 @@ Deno.serve(async (req) => {
   const caller = createClient(url, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: req.headers.get("Authorization") || "" } }, auth: { persistSession: false } });
   const admin = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
 
-  const { data: rows } = await caller.from("qv_partners").select("id, name, email, tier, stripe_customer_id").limit(1);
+  const { data: rows } = await caller.from("qv_partners").select("id, name, email, stripe_customer_id").limit(1);
   const partner = rows?.[0];
   if (!partner) return json({ error: "Not a partner" }, 403);
 
   let body: any = {}; try { body = await req.json(); } catch { /* ok */ }
   const origin = String(body.origin || "").replace(/\/$/, "");
-  const tier = TIERS[partner.tier] ? partner.tier : "starter";
-  const amountFils = TIERS[tier].fee * 100;
+
+  // Single partner plan — price is set by admin (original price - discount). Read it
+  // server-side so it can't be spoofed.
+  const { data: setRows } = await admin.from("qv_settings").select("key, value");
+  const sm: Record<string, number> = {}; (setRows || []).forEach((r: any) => { sm[r.key] = Number(r.value); });
+  const orig = Number.isFinite(sm.plan_price) ? sm.plan_price : 799;
+  const disc = Number.isFinite(sm.plan_discount_pct) ? sm.plan_discount_pct : 0;
+  const effective = Math.max(0, orig * (1 - disc / 100));
+  const amountFils = Math.round(effective * 100);
 
   // reuse (or create) a 5% UAE VAT tax rate, added on top of the plan price (exclusive)
   async function getVatRateId() {
@@ -74,9 +81,9 @@ Deno.serve(async (req) => {
     const session = await stripe(key, "checkout/sessions", {
       mode: "subscription",
       customer: customerId,
-      line_items: [{ quantity: 1, ...(vatRateId ? { tax_rates: [vatRateId] } : {}), price_data: { currency: "aed", unit_amount: amountFils, recurring: { interval: "month" }, product_data: { name: `Quvera Partner — ${tier} plan` } } }],
-      metadata: { partner_id: partner.id, tier },
-      subscription_data: { metadata: { partner_id: partner.id, tier } },
+      line_items: [{ quantity: 1, ...(vatRateId ? { tax_rates: [vatRateId] } : {}), price_data: { currency: "aed", unit_amount: amountFils, recurring: { interval: "month" }, product_data: { name: "Quvera Partner Plan" } } }],
+      metadata: { partner_id: partner.id },
+      subscription_data: { metadata: { partner_id: partner.id } },
       success_url: `${origin}/?partner_paid=1`,
       cancel_url: `${origin}/?partner_pay_cancelled=1`,
     });

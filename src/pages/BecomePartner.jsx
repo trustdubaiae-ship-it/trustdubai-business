@@ -1,6 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { TIER_LIST } from '../lib/partnerTiers'
 import PartnerTerms from './PartnerTerms'
 
 export default function BecomePartner({ onBack }) {
@@ -10,6 +9,16 @@ export default function BecomePartner({ onBack }) {
   const [done, setDone] = useState(null) // { code }
   const [agreed, setAgreed] = useState(false)
   const [showTerms, setShowTerms] = useState(false)
+  const [plan, setPlan] = useState({ orig: 799, disc: 0 })
+
+  useEffect(() => {
+    supabase.from('qv_settings').select('key, value').in('key', ['plan_price', 'plan_discount_pct']).then(({ data }) => {
+      if (!data) return
+      const m = {}; data.forEach(r => { m[r.key] = Number(r.value) })
+      setPlan({ orig: Number.isFinite(m.plan_price) ? m.plan_price : 799, disc: Number.isFinite(m.plan_discount_pct) ? m.plan_discount_pct : 0 })
+    }, () => {})
+  }, [])
+  const planEff = Math.max(0, Math.round(plan.orig * (1 - plan.disc / 100) * 100) / 100)
 
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErr('') }
 
@@ -67,21 +76,14 @@ export default function BecomePartner({ onBack }) {
       </div>
 
       <form onSubmit={submit} style={{ width: '100%', maxWidth: 460, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: 'clamp(22px,5vw,34px)' }}>
-        <h2 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 20, color: '#fff', marginBottom: 4, textAlign: 'center' }}>Choose your partner plan</h2>
-        <p style={{ fontSize: 12.5, color: '#8b949e', marginBottom: 16, textAlign: 'center' }}>Commission grows with how many businesses you refer. Prices exclude 5% VAT.</p>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 20 }}>
-          {TIER_LIST.map(t => {
-            const on = form.tier === t.key
-            return (
-              <button type="button" key={t.key} onClick={() => set('tier', t.key)}
-                style={{ textAlign: 'center', padding: '13px 8px', borderRadius: 12, cursor: 'pointer', background: on ? 'rgba(0,212,255,0.12)' : 'rgba(255,255,255,0.04)', border: '1.5px solid ' + (on ? '#00D4FF' : 'rgba(255,255,255,0.12)') }}>
-                <div style={{ fontSize: 12.5, fontWeight: 800, color: '#fff' }}>{t.label}</div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: on ? '#00FFCC' : '#fff', margin: '4px 0 1px' }}>AED {t.fee}</div>
-                <div style={{ fontSize: 10, color: '#8b949e' }}>/month</div>
-              </button>
-            )
-          })}
+        <div style={{ textAlign: 'center', padding: '18px 14px', borderRadius: 14, marginBottom: 18, background: 'rgba(0,212,255,0.08)', border: '1.5px solid rgba(0,212,255,0.35)' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.5px', textTransform: 'uppercase', color: '#8b949e' }}>Partner Plan</div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, justifyContent: 'center', margin: '7px 0 2px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 30, fontWeight: 800, color: '#00FFCC' }}>AED {planEff.toLocaleString('en-AE')}<span style={{ fontSize: 13, fontWeight: 600, color: '#8b949e' }}>/mo</span></span>
+            {plan.disc > 0 && <span style={{ fontSize: 15, color: '#8b949e', textDecoration: 'line-through' }}>AED {plan.orig.toLocaleString('en-AE')}</span>}
+            {plan.disc > 0 && <span style={{ fontSize: 11.5, fontWeight: 800, color: '#0d1117', background: '#00FFCC', padding: '2px 9px', borderRadius: 99 }}>{plan.disc}% OFF</span>}
+          </div>
+          <div style={{ fontSize: 11.5, color: '#8b949e', marginTop: 5 }}>+ 5% VAT · Commission grows with how many businesses you refer.</div>
         </div>
 
         <label style={lbl}>Full name</label>

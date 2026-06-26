@@ -196,6 +196,11 @@ export default function PartnerDashboard({ user }) {
   const hasBank = (bank.iban || '').trim().length >= 5
   const isActive = partner.status === 'active'
   const tr = tierOf(partner.tier)
+  // single partner plan — admin-set original price + discount
+  const planOrig = Number(settings.plan_price) || 799
+  const planDisc = Number(settings.plan_discount_pct) || 0
+  const planEff = Math.max(0, Math.round(planOrig * (1 - planDisc / 100) * 100) / 100)
+  const planStr = 'AED ' + planEff.toLocaleString('en-AE') + '/mo'
   const docs = partner.documents || {}
   const hasDocs = !!(docs.emirates_id && docs.trade_license)
   const paid = partner.payment_status === 'active'
@@ -350,7 +355,7 @@ export default function PartnerDashboard({ user }) {
           {!isActive && (
             <div className="qpp-card" style={{ marginBottom: 16 }}>
               <div className="qpp-h"><i className="ti ti-list-check" style={{ color: '#f59e0b' }} /> Activation checklist</div>
-              {[{ ok: hasDocs, label: 'Upload Emirates ID & Trade License' }, { ok: paid, label: `Pay your ${tr.label} plan (AED ${tr.fee}/mo)` }, { ok: partner.docs_verified, label: 'Documents verified by Quvera' }, { ok: isActive, label: 'Account activated' }].map((s, i) => (
+              {[{ ok: hasDocs, label: 'Upload Emirates ID & Trade License' }, { ok: paid, label: `Pay your partner plan (${planStr})` }, { ok: partner.docs_verified, label: 'Documents verified by Quvera' }, { ok: isActive, label: 'Account activated' }].map((s, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0' }}>
                   <span style={{ width: 20, height: 20, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, background: s.ok ? '#22c55e' : 'rgba(255,255,255,0.06)', color: s.ok ? '#fff' : T.text3 }}>{s.ok ? '✓' : i + 1}</span>
                   <span style={{ fontSize: 12.5, color: s.ok ? T.text2 : T.text }}>{s.label}</span>
@@ -368,7 +373,7 @@ export default function PartnerDashboard({ user }) {
               <div><label style={bLbl}>Mobile number</label><input value={profile.phone} onChange={e => setProfile(p => ({ ...p, phone: e.target.value }))} style={inpD} placeholder="+971 50 ..." /></div>
               <div><label style={bLbl}>Company name</label><input value={profile.company_name} onChange={e => setProfile(p => ({ ...p, company_name: e.target.value }))} style={inpD} placeholder="Your company" /></div>
               <div><label style={bLbl}>Referral code</label><input value={partner.code} disabled style={{ ...inpD, opacity: 0.7, fontWeight: 700, color: '#00FFCC' }} /></div>
-              <div><label style={bLbl}>Plan</label><input value={`${tr.label} · AED ${tr.fee}/mo`} disabled style={{ ...inpD, opacity: 0.6 }} /></div>
+              <div><label style={bLbl}>Plan</label><input value={`Partner Plan · ${planStr}`} disabled style={{ ...inpD, opacity: 0.6 }} /></div>
             </div>
             <button onClick={saveProfile} disabled={savingProfile} className="qpp-btn">{savingProfile ? 'Saving…' : 'Save profile'}</button>
           </div>
@@ -387,33 +392,18 @@ export default function PartnerDashboard({ user }) {
             ))}
           </div>
 
-          <div className="qpp-card" style={{ marginBottom: 16 }}>
-            <div className="qpp-h"><i className="ti ti-arrows-up-down" style={{ color: '#8B5CF6' }} /> Your plan</div>
-            <div style={{ fontSize: 11.5, color: T.text3, margin: '-4px 0 12px', lineHeight: 1.5 }}>{paid ? 'Upgrade or downgrade anytime — your subscription is updated and prorated.' : 'Pick a plan, then pay below to activate.'} Commission is based on your referral count (see Overview). Prices exclude 5% VAT.</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
-              {TIER_LIST.map(t => {
-                const on = partner.tier === t.key
-                const busyT = changingTier === t.key
-                return (
-                  <button type="button" key={t.key} onClick={() => changePlan(t.key)} disabled={!!changingTier || on}
-                    style={{ textAlign: 'center', padding: '13px 6px', borderRadius: 12, cursor: on ? 'default' : 'pointer', position: 'relative', background: on ? 'rgba(0,212,255,0.12)' : 'rgba(255,255,255,0.04)', border: '1.5px solid ' + (on ? '#00D4FF' : 'rgba(255,255,255,0.12)'), opacity: changingTier && !busyT ? 0.5 : 1 }}>
-                    {on && <span style={{ position: 'absolute', top: 6, right: 7, fontSize: 9, fontWeight: 800, color: '#00D4FF' }}>CURRENT</span>}
-                    <div style={{ fontSize: 12.5, fontWeight: 800, color: T.text }}>{t.label}</div>
-                    <div style={{ fontSize: 17, fontWeight: 800, color: on ? '#00FFCC' : T.text, margin: '4px 0 1px' }}>AED {t.fee}</div>
-                    <div style={{ fontSize: 10, color: T.text3 }}>{busyT ? 'Updating…' : '/month'}</div>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
           <div className="qpp-card" style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: 160 }}>
-              <div className="qpp-h" style={{ margin: 0 }}><i className="ti ti-credit-card" style={{ color: '#00FFCC' }} /> Plan payment</div>
-              <div style={{ fontSize: 12, color: T.text3, marginTop: 4 }}>{tr.label} · AED {tr.fee}/month <span style={{ opacity: 0.8 }}>+ 5% VAT</span></div>
+              <div className="qpp-h" style={{ margin: 0 }}><i className="ti ti-credit-card" style={{ color: '#00FFCC' }} /> Partner plan</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 22, fontWeight: 800, color: T.text }}>AED {planEff.toLocaleString('en-AE')}<span style={{ fontSize: 12, fontWeight: 600, color: T.text3 }}>/mo</span></span>
+                {planDisc > 0 && <span style={{ fontSize: 13, color: T.text3, textDecoration: 'line-through' }}>AED {planOrig.toLocaleString('en-AE')}</span>}
+                {planDisc > 0 && <span style={{ fontSize: 11, fontWeight: 800, color: '#00FFCC', background: 'rgba(0,255,204,0.12)', padding: '2px 8px', borderRadius: 99 }}>{planDisc}% OFF</span>}
+              </div>
+              <div style={{ fontSize: 11.5, color: T.text3, marginTop: 4 }}>+ 5% VAT · Commission is based on your referral count (see Overview).</div>
             </div>
             {paid ? <span style={{ fontSize: 12, fontWeight: 700, color: '#00FFCC', background: 'rgba(0,255,204,0.12)', padding: '7px 14px', borderRadius: 99 }}>Active ✓</span>
-              : <button onClick={payPlan} disabled={payingPlan} className="qpp-btn">{payingPlan ? 'Opening…' : `Pay AED ${tr.fee}/mo`}</button>}
+              : <button onClick={payPlan} disabled={payingPlan} className="qpp-btn">{payingPlan ? 'Opening…' : `Pay ${planStr}`}</button>}
           </div>
 
           <div className="qpp-card">
