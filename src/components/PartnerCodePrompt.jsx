@@ -19,10 +19,10 @@ export default function PartnerCodePrompt({ company }) {
     if (!code.trim()) return
     setBusy(true); setMsg('')
     try {
-      const { data: pid } = await supabase.rpc('resolve_partner_code', { p_code: code.trim().toUpperCase() })
-      if (!pid) { setMsg('That code is invalid or not active.'); setBusy(false); return }
-      const { error } = await supabase.from('companies').update({ referred_by_partner_id: pid }).eq('id', company.id)
+      // Server-side, one-time, validated. The code can be set ONCE and is then locked.
+      const { data, error } = await supabase.rpc('apply_partner_code', { p_code: code.trim().toUpperCase() })
       if (error) throw error
+      if (!data?.ok) { setMsg(data?.error || 'Could not apply that code.'); setBusy(false); return }
       setMsg('Code applied ✓ Thank you!')
       try { localStorage.setItem(dismissKey, '1') } catch {}
       setTimeout(() => setShow(false), 1400)
