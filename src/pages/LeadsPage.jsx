@@ -2126,7 +2126,7 @@ export default function LeadsPage() {
       <div style={{ display: 'inline-flex', gap: 3, maxWidth: '100%', background: 'var(--bg2)', border: '0.5px solid var(--border)', borderRadius: 11, padding: 3, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
         {[
           { id: 'trustdubai', label: mobile ? 'Quvera' : 'Quvera Leads', count: tdLeads.length, icon: 'ti-shield-check' },
-          { id: 'subcontract', label: mobile ? 'Subcontract' : 'Subcontract', count: null, icon: 'ti-briefcase' },
+          { id: 'subcontract', label: 'Marketplace', count: null, icon: 'ti-building-store' },
           { id: 'mine',       label: 'My Leads', count: myLeads.length, icon: 'ti-building-store' },
           { id: 'forms',      label: 'Forms',    count: forms.length,   icon: 'ti-forms' },
         ].map(t => {

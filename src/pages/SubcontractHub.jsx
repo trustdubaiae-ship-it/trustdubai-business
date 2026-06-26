@@ -91,7 +91,7 @@ export default function SubcontractHub({ company }) {
           <div style={{ width: 66, height: 66, borderRadius: 18, background: 'linear-gradient(135deg,#e8b84b,#c9952a)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', boxShadow: '0 10px 30px -8px rgba(232,184,75,0.6)' }}>
             <i className="ti ti-crown" style={{ fontSize: 32, color: '#1a1207' }} />
           </div>
-          <h2 style={{ fontSize: 'clamp(20px,3.4vw,26px)', fontWeight: 800, color: 'var(--text)', margin: 0 }}>Subcontract Board — a Gold feature</h2>
+          <h2 style={{ fontSize: 'clamp(20px,3.4vw,26px)', fontWeight: 800, color: 'var(--text)', margin: 0 }}>Marketplace — a Gold feature</h2>
           <p style={{ fontSize: 14, color: 'var(--text2)', lineHeight: 1.7, margin: '12px auto 0', maxWidth: 460 }}>
             Got more work than you can handle? Post it here and let your trusted Quvera contractors take it on — and discover subcontract jobs posted by other companies in your trade.
           </p>
@@ -136,7 +136,7 @@ export default function SubcontractHub({ company }) {
       {view === 'feed' && (
         <div style={{ background: 'rgba(232,184,75,0.08)', border: '0.5px solid rgba(232,184,75,0.3)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 9 }}>
           <i className="ti ti-crown" style={{ fontSize: 17, color: '#d97706' }} />
-          <div style={{ fontSize: 12, color: 'var(--text2)' }}>Subcontract jobs posted by other companies, matched to <b>your category</b>{company?.category ? ` (${company.category})` : ''}.</div>
+          <div style={{ fontSize: 12, color: 'var(--text2)' }}>Projects posted by other companies, matched to <b>your category</b>{company?.category ? ` (${company.category})` : ''}.</div>
         </div>
       )}
 
