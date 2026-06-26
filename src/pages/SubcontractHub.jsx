@@ -265,20 +265,44 @@ export default function SubcontractHub({ company }) {
       ) : (
         // ---------- MY POSTS ----------
         myPosts.length === 0 ? emptyState('mine') : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(330px,1fr))', gap: 14, alignItems: 'start' }}>
             {myPosts.map(p => {
               const ints = interestsByProject[p.id] || []
               const taken = p.status === 'under_discussion'
               const open = expanded === p.id
               return (
-                <div key={p.id} style={{ ...card }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
-                    <div style={{ flex: 1, minWidth: 180 }}>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{p.title}</div>
-                      <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 2 }}>Posted {fmtDate(p.created_at)} · {(p.categories || []).join(', ')}</div>
-                      {taken && <div style={{ fontSize: 12, color: '#92400e', marginTop: 4 }}><i className="ti ti-lock" style={{ fontSize: 13, verticalAlign: '-2px' }} /> Under discussion{p.awarded_to ? ` with ${p.awarded_to}` : ''}</div>}
+                <div key={p.id} className="mkt-kard" style={{ position: 'relative', background: `radial-gradient(135% 90% at 50% -14%, ${taken ? '#f59e0b' : '#22c55e'}1f, transparent 55%), var(--card)`, border: '1px solid var(--border)', borderRadius: 18, padding: 16, boxShadow: 'var(--shadow-md)' }}>
+                  {/* top bar */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <span style={{ fontSize: 10, fontWeight: 800, padding: '4px 11px', borderRadius: 99, textTransform: 'uppercase', letterSpacing: '.4px', display: 'inline-flex', alignItems: 'center', gap: 5, background: taken ? '#fef3c7' : 'rgba(34,197,94,0.16)', color: taken ? '#92400e' : '#16a34a' }}>
+                      <i className={'ti ' + (taken ? 'ti-lock' : 'ti-circle-dot')} style={{ fontSize: 12 }} /> {taken ? 'Under discussion' : 'Open'}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text3)' }}>{fmtDate(p.created_at)}</span>
+                  </div>
+                  {/* title */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 11 }}>
+                    <div style={{ width: 44, height: 44, borderRadius: 13, flexShrink: 0, background: (taken ? '#f59e0b' : '#22c55e') + '22', color: taken ? '#d97706' : '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><i className="ti ti-briefcase" style={{ fontSize: 22 }} /></div>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: 16.5, fontWeight: 800, color: 'var(--text)', lineHeight: 1.25, letterSpacing: '-.2px', wordBreak: 'break-word' }}>{p.title}</div>
+                      {taken && p.awarded_to && <div style={{ fontSize: 12, color: '#b45309', marginTop: 3, fontWeight: 600 }}><i className="ti ti-award" style={{ fontSize: 13, verticalAlign: '-2px' }} /> Awarded to {p.awarded_to}</div>}
                     </div>
-                    <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 99, background: taken ? '#fef3c7' : 'rgba(22,163,74,0.12)', color: taken ? '#92400e' : '#16a34a' }}>{taken ? 'Under discussion' : 'Open'}</span>
+                  </div>
+                  {p.description && <div style={{ fontSize: 12.5, color: 'var(--text2)', lineHeight: 1.5, marginTop: 10, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.description}</div>}
+                  {(p.categories || []).length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 10 }}>{(p.categories || []).map(c => <span key={c} style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--primary-dark)', background: 'var(--primary-bg)', padding: '2px 9px', borderRadius: 99 }}>{c}</span>)}</div>}
+                  {/* info rows */}
+                  <div style={{ marginTop: 12, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+                    {[
+                      (p.budget_min || p.budget_max) && ['ti-coin', '#16a34a', 'Budget', p.budget_min && p.budget_max ? `${AED(p.budget_min)} – ${AED(p.budget_max)}` : AED(p.budget_min || p.budget_max)],
+                      p.location && ['ti-map-pin', '#0891b2', 'Location', p.location],
+                      p.timeline && ['ti-clock', '#8b5cf6', 'Timeline', p.timeline],
+                      ['ti-users', '#d97706', 'Interested', `${ints.length} compan${ints.length === 1 ? 'y' : 'ies'}`],
+                    ].filter(Boolean).map((r, i) => (
+                      <div key={r[2]} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 12px', borderTop: i ? '1px solid var(--border)' : 'none' }}>
+                        <i className={'ti ' + r[0]} style={{ fontSize: 15, color: r[1], flexShrink: 0 }} />
+                        <span style={{ fontSize: 11.5, color: 'var(--text3)' }}>{r[2]}</span>
+                        <span style={{ marginLeft: 'auto', fontSize: 12.5, fontWeight: 700, color: 'var(--text)', textAlign: 'right' }}>{r[3]}</span>
+                      </div>
+                    ))}
                   </div>
 
                   <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginTop: 12 }}>
