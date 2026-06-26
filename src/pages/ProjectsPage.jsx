@@ -1027,7 +1027,16 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
             <div style={{ fontSize: 12.5, color: 'var(--text2)' }}>Contracts: <b style={{ color: '#8b5cf6' }}>{AED(totalSubs)}</b> · Paid: <b style={{ color: '#22c55e' }}>{AED(subsPaid)}</b> · Balance: <b style={{ color: '#ef4444' }}>{AED(totalSubs - subsPaid)}</b></div>
-            <button onClick={() => setSubForm({ name: '', trade: 'MEP', phone: '', status: 'ongoing', notes: '', apply_vat: true, payment_days: 30, payment_schedule: [{ label: 'Advance on signing', pct: 40 }, { label: 'On delivery to site', pct: 30 }, { label: 'On completion & handover', pct: 30 }] })} className="btn btn-primary btn-sm"><i className="ti ti-plus" /> Add subcontractor</button>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {(company?.plan === 'gold' || company?.plan === 'platinum') && (
+                <button onClick={() => {
+                  try { localStorage.setItem('qv_mkt_prefill', JSON.stringify({ projectId: active.id, title: active.name, location: active.location || '' })) } catch {}
+                  try { localStorage.setItem('lead_main_tab', 'subcontract') } catch {}
+                  onNavigate ? onNavigate('leads') : (window.location.hash = 'leads')
+                }} className="btn btn-secondary btn-sm"><i className="ti ti-building-store" style={{ verticalAlign: '-2px', marginRight: 3 }} /> Find on Marketplace</button>
+              )}
+              <button onClick={() => setSubForm({ name: '', trade: 'MEP', phone: '', status: 'ongoing', notes: '', apply_vat: true, payment_days: 30, payment_schedule: [{ label: 'Advance on signing', pct: 40 }, { label: 'On delivery to site', pct: 30 }, { label: 'On completion & handover', pct: 30 }] })} className="btn btn-primary btn-sm"><i className="ti ti-plus" /> Add subcontractor</button>
+            </div>
           </div>
           {subs.length === 0 ? <div style={{ ...card, textAlign: 'center', color: 'var(--text3)', padding: '34px 16px' }}>No subcontractors yet. Add MEP, Gypsum, Tiles…</div>
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>

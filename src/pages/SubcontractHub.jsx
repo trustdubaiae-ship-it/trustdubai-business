@@ -7,10 +7,11 @@ const MAX_CATS = 5
 const AED = (n) => 'AED ' + Math.round(Number(n) || 0).toLocaleString('en-AE')
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : ''
 const wa = (phone) => 'https://wa.me/' + String(phone || '').replace(/[^0-9]/g, '')
-const blankForm = (company) => ({
-  title: '', description: '', categories: [], budget_min: '', budget_max: '', location: '', timeline: '',
+const blankForm = (company, pre = {}) => ({
+  title: pre.title || '', description: '', categories: [], budget_min: '', budget_max: '', location: pre.location || '', timeline: '',
   contact_name: company?.name || '', contact_phone: company?.phone || company?.whatsapp || '', contact_email: company?.email || company?.owner_email || '',
   show_name: true, show_phone: false, show_email: false,
+  project_id: pre.projectId || null, project_title: pre.title || '',
 })
 
 export default function SubcontractHub({ company }) {
@@ -36,19 +37,32 @@ export default function SubcontractHub({ company }) {
   const [awardFor, setAwardFor] = useState(null)        // project id being awarded
   const [awardPick, setAwardPick] = useState('')
   const [expanded, setExpanded] = useState(null)        // my-post id whose interests are open
+  const [projects, setProjects] = useState([])          // ops_projects for the subcontractor link
+  const [addSub, setAddSub] = useState(null)            // { post, name, phone, email, projectId } after an award
+  const [addingSub, setAddingSub] = useState(false)
 
   useEffect(() => { if (isGold && company?.id) load() }, [company?.id]) // eslint-disable-line
+  // Posted from a project ("Find on Marketplace") → open the form pre-filled + linked.
+  useEffect(() => {
+    if (!isGold) return
+    try {
+      const raw = localStorage.getItem('qv_mkt_prefill')
+      if (raw) { localStorage.removeItem('qv_mkt_prefill'); const pre = JSON.parse(raw); setEditId(null); setForm(blankForm(company, pre)); setView('mine'); setShowPost(true) }
+    } catch { /* ignore */ }
+  }, []) // eslint-disable-line
 
   async function load() {
     setLoading(true)
     try {
-      const [f, m, mi] = await Promise.all([
+      const [f, m, mi, pr] = await Promise.all([
         supabase.rpc('subcontract_feed'),
         supabase.from('qv_subcontract_projects').select('*').eq('company_id', company.id).order('created_at', { ascending: false }),
         supabase.from('qv_subcontract_interests').select('project_id').eq('company_id', company.id),
+        supabase.from('ops_projects').select('id,name').eq('company_id', company.id).order('created_at', { ascending: false }),
       ])
       setFeed(f.data || [])
       setMyPosts(m.data || [])
+      setProjects(pr.data || [])
       setMyInterestIds(new Set((mi.data || []).map(r => r.project_id)))
       const ids = (m.data || []).map(p => p.id)
       if (ids.length) {
@@ -93,6 +107,7 @@ export default function SubcontractHub({ company }) {
         location: form.location.trim() || null, timeline: form.timeline.trim() || null,
         contact_name: form.contact_name.trim(), contact_phone: form.contact_phone.trim(), contact_email: form.contact_email.trim(),
         show_name: form.show_name, show_phone: form.show_phone, show_email: form.show_email,
+        ...(form.project_id ? { project_id: form.project_id } : {}),
       }
       let error
       if (editId) ({ error } = await supabase.from('qv_subcontract_projects').update(payload).eq('id', editId))
@@ -126,6 +141,27 @@ export default function SubcontractHub({ company }) {
       await supabase.from('qv_subcontract_projects').update(patch).eq('id', p.id)
       setAwardFor(null); setAwardPick(''); load()
     } catch (e) { toast.error('Failed: ' + (e?.message || e)) } finally { setBusy('') }
+  }
+  // Award the work → mark under discussion, then offer to add the company as a
+  // subcontractor in a project (auto-targets the linked project if posted from one).
+  async function award(p, awarded) {
+    await setStatus(p, 'under_discussion', awarded)
+    setAddSub({ post: p, name: awarded?.name || '', phone: awarded?.phone || '', email: awarded?.email || '', projectId: p.project_id || '' })
+  }
+  async function confirmAddSub() {
+    if (!addSub?.projectId) { toast.error('Pick a project'); return }
+    setAddingSub(true)
+    try {
+      const { error } = await supabase.from('project_subcontractors').insert({
+        company_id: company.id, project_id: addSub.projectId, name: addSub.name || 'Subcontractor',
+        phone: addSub.phone || null, contact_person: addSub.name || null, owner_mobile: addSub.phone || null,
+        status: 'ongoing', notes: 'Added from Marketplace' + (addSub.post?.title ? ' — ' + addSub.post.title : ''),
+        apply_vat: true, payment_days: 30, payment_schedule: [],
+      })
+      if (error) throw error
+      toast.success('Added as subcontractor ✓ — set the contract amount in Projects')
+      setAddSub(null)
+    } catch (e) { toast.error('Could not add: ' + (e?.message || e)) } finally { setAddingSub(false) }
   }
 
   // ---------- GOLD GATE ----------
@@ -264,9 +300,9 @@ export default function SubcontractHub({ company }) {
                           <option value="__other">Someone else (type name)</option>
                         </select>
                         <button onClick={() => {
-                          if (awardPick === '__other') { const nm = window.prompt('Company name awarded the work?'); if (nm) setStatus(p, 'under_discussion', { name: nm.trim() }); return }
+                          if (awardPick === '__other') { const nm = window.prompt('Company name awarded the work?'); if (nm) award(p, { name: nm.trim() }); return }
                           const sel = ints.find(i => i.id === awardPick)
-                          setStatus(p, 'under_discussion', sel ? { name: sel.company_name, id: sel.company_id } : { name: null })
+                          award(p, sel ? { name: sel.company_name, id: sel.company_id, phone: sel.contact_phone, email: sel.contact_email } : { name: null })
                         }} disabled={busy === 'st-' + p.id} className="btn btn-primary btn-sm">Confirm</button>
                         <button onClick={() => setAwardFor(null)} className="btn btn-secondary btn-sm">Cancel</button>
                       </div>
@@ -285,7 +321,7 @@ export default function SubcontractHub({ company }) {
                           {i.contact_phone && <a href={wa(i.contact_phone)} target="_blank" rel="noreferrer" className="btn btn-sm" style={{ background: '#22c55e', color: '#fff', textDecoration: 'none' }}><i className="ti ti-brand-whatsapp" /></a>}
                           {i.contact_phone && <a href={'tel:' + i.contact_phone} className="btn btn-secondary btn-sm"><i className="ti ti-phone" /></a>}
                           {i.contact_email && <a href={'mailto:' + i.contact_email} className="btn btn-secondary btn-sm"><i className="ti ti-mail" /></a>}
-                          {!taken && <button onClick={() => setStatus(p, 'under_discussion', { name: i.company_name, id: i.company_id })} disabled={busy === 'st-' + p.id} className="btn btn-primary btn-sm" style={{ whiteSpace: 'nowrap' }}><i className="ti ti-award" style={{ verticalAlign: '-2px', marginRight: 3 }} />Award</button>}
+                          {!taken && <button onClick={() => award(p, { name: i.company_name, id: i.company_id, phone: i.contact_phone, email: i.contact_email })} disabled={busy === 'st-' + p.id} className="btn btn-primary btn-sm" style={{ whiteSpace: 'nowrap' }}><i className="ti ti-award" style={{ verticalAlign: '-2px', marginRight: 3 }} />Award</button>}
                         </div>
                       ))}
                     </div>
@@ -306,6 +342,7 @@ export default function SubcontractHub({ company }) {
               <button onClick={() => setShowPost(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)' }}>×</button>
             </div>
             <div style={{ padding: 18, maxHeight: '70vh', overflowY: 'auto' }}>
+              {form.project_id && <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, background: 'var(--primary-bg)', border: '1px solid var(--primary-border)', marginBottom: 14, fontSize: 12, color: 'var(--primary-dark)' }}><i className="ti ti-link" /> Finding a subcontractor for your project{form.project_title ? `: ${form.project_title}` : ''}. The company you award will be added as its subcontractor.</div>}
               {fld('Project title', <input value={form.title} onChange={e => setForm(s => ({ ...s, title: e.target.value }))} placeholder="e.g. False ceiling & gypsum for a 2BHK villa" style={inp} />)}
               {fld('Scope / description', <textarea value={form.description} onChange={e => setForm(s => ({ ...s, description: e.target.value }))} placeholder="Describe the work, size, finishes, what you need from the subcontractor…" rows={4} style={{ ...inp, resize: 'vertical', lineHeight: 1.5 }} />)}
               {fld(`Who should see this? (${form.categories.length}/${MAX_CATS} categories)`, (
@@ -335,6 +372,25 @@ export default function SubcontractHub({ company }) {
             <div style={{ padding: '13px 18px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button onClick={() => setShowPost(false)} className="btn btn-secondary">Cancel</button>
               <button onClick={submit} disabled={saving} className="btn btn-primary">{saving ? 'Saving…' : (editId ? 'Save changes' : 'Post project')}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ---------- AFTER AWARD: add as subcontractor to a project ---------- */}
+      {addSub && (
+        <div onClick={() => setAddSub(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 210, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: 440, maxWidth: '100%', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, padding: 18 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}><i className="ti ti-award" style={{ verticalAlign: '-2px', marginRight: 6, color: 'var(--primary-dark)' }} />Awarded to {addSub.name || 'the company'}</div>
+            <div style={{ fontSize: 12.5, color: 'var(--text2)', lineHeight: 1.6, marginBottom: 14 }}>Add them as a <b>subcontractor</b> in a project? You can then track the contract amount and payments there.</div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 6 }}>Project</label>
+            <select value={addSub.projectId} onChange={e => setAddSub(s => ({ ...s, projectId: e.target.value }))} style={{ ...inp, marginBottom: 16 }}>
+              <option value="">Select a project…</option>
+              {projects.map(pr => <option key={pr.id} value={pr.id}>{pr.name}</option>)}
+            </select>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => setAddSub(null)} className="btn btn-secondary">Skip</button>
+              <button onClick={confirmAddSub} disabled={addingSub} className="btn btn-primary">{addingSub ? 'Adding…' : 'Add as subcontractor'}</button>
             </div>
           </div>
         </div>
