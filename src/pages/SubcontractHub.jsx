@@ -199,6 +199,7 @@ export default function SubcontractHub({ company }) {
 
   return (
     <div>
+      <style>{`.mkt-kard{transition:transform .15s ease,box-shadow .2s ease,border-color .2s ease}.mkt-kard:hover{transform:translateY(-2px);border-color:var(--primary-border)}`}</style>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
         <div style={{ display: 'inline-flex', gap: 4, background: 'var(--bg2)', border: '0.5px solid var(--border)', borderRadius: 10, padding: 3 }}>
           {[['feed', 'Available jobs', 'ti-briefcase', feedList.length], ['mine', 'My posts', 'ti-clipboard-list', myPosts.length]].map(([id, label, ic, n]) => (
@@ -233,22 +234,44 @@ export default function SubcontractHub({ company }) {
         <div style={{ textAlign: 'center', padding: 50, color: 'var(--text3)' }}><i className="ti ti-loader-2" style={{ fontSize: 24, animation: 'spin 1s linear infinite' }} /></div>
       ) : view === 'feed' ? (
         feedList.length === 0 ? emptyState('feed') : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(320px,1fr))', gap: 14, alignItems: 'start' }}>
             {feedList.map(p => {
               const taken = p.status === 'under_discussion'
               const interested = myInterestIds.has(p.id)
+              const tint = taken ? '#f59e0b' : '#0891b2'
               return (
-                <div key={p.id} style={{ ...card, display: 'flex', flexDirection: 'column', gap: 9, opacity: taken ? 0.55 : 1, position: 'relative' }}>
-                  {taken && <div style={{ position: 'absolute', top: 10, right: 12, fontSize: 10, fontWeight: 800, color: '#92400e', background: '#fef3c7', padding: '3px 9px', borderRadius: 99 }}>Under discussion</div>}
-                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', lineHeight: 1.3, paddingRight: taken ? 110 : 0 }}>{p.title}</div>
-                  <div style={{ fontSize: 11.5, color: 'var(--text3)' }}><i className="ti ti-building" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {p.poster_name || 'A Quvera company'}</div>
-                  {p.description && <div style={{ fontSize: 12.5, color: 'var(--text2)', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.description}</div>}
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                    {(p.categories || []).map(c => <span key={c} style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--primary-dark)', background: 'var(--primary-bg)', padding: '2px 8px', borderRadius: 99 }}>{c}</span>)}
+                <div key={p.id} className="mkt-kard" style={{ position: 'relative', display: 'flex', flexDirection: 'column', background: `radial-gradient(135% 90% at 50% -14%, ${tint}1f, transparent 55%), var(--card)`, border: '1px solid var(--border)', borderRadius: 18, padding: 16, boxShadow: 'var(--shadow-md)', opacity: taken ? 0.6 : 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <span style={{ fontSize: 10, fontWeight: 800, padding: '4px 11px', borderRadius: 99, textTransform: 'uppercase', letterSpacing: '.4px', display: 'inline-flex', alignItems: 'center', gap: 5, background: taken ? '#fef3c7' : 'rgba(8,145,178,0.16)', color: taken ? '#92400e' : '#0e7490' }}>
+                      <i className={'ti ' + (taken ? 'ti-lock' : 'ti-circle-dot')} style={{ fontSize: 12 }} /> {taken ? 'Under discussion' : 'Open'}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text3)' }}>{fmtDate(p.created_at)}</span>
                   </div>
-                  {metaRows(p)}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 11 }}>
+                    <div style={{ width: 44, height: 44, borderRadius: 13, flexShrink: 0, background: tint + '22', color: tint, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><i className="ti ti-briefcase" style={{ fontSize: 22 }} /></div>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: 16.5, fontWeight: 800, color: 'var(--text)', lineHeight: 1.25, letterSpacing: '-.2px', wordBreak: 'break-word' }}>{p.title}</div>
+                      <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 2 }}><i className="ti ti-building" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {p.poster_name || 'A Quvera company'}</div>
+                    </div>
+                  </div>
+                  {p.description && <div style={{ fontSize: 12.5, color: 'var(--text2)', lineHeight: 1.5, marginTop: 10, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.description}</div>}
+                  {(p.categories || []).length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 10 }}>{(p.categories || []).map(c => <span key={c} style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--primary-dark)', background: 'var(--primary-bg)', padding: '2px 9px', borderRadius: 99 }}>{c}</span>)}</div>}
+                  <div style={{ marginTop: 12, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+                    {[
+                      (p.budget_min || p.budget_max) && ['ti-coin', '#16a34a', 'Budget', p.budget_min && p.budget_max ? `${AED(p.budget_min)} – ${AED(p.budget_max)}` : AED(p.budget_min || p.budget_max)],
+                      p.location && ['ti-map-pin', '#0891b2', 'Location', p.location],
+                      p.timeline && ['ti-clock', '#8b5cf6', 'Timeline', p.timeline],
+                      p.contact_name && ['ti-user', '#d97706', 'Contact', p.contact_name],
+                    ].filter(Boolean).map((r, i) => (
+                      <div key={r[2]} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 12px', borderTop: i ? '1px solid var(--border)' : 'none' }}>
+                        <i className={'ti ' + r[0]} style={{ fontSize: 15, color: r[1], flexShrink: 0 }} />
+                        <span style={{ fontSize: 11.5, color: 'var(--text3)' }}>{r[2]}</span>
+                        <span style={{ marginLeft: 'auto', fontSize: 12.5, fontWeight: 700, color: 'var(--text)', textAlign: 'right', wordBreak: 'break-word' }}>{r[3]}</span>
+                      </div>
+                    ))}
+                  </div>
                   {!taken && (
-                    <div style={{ display: 'flex', gap: 7, marginTop: 'auto', paddingTop: 6, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: 7, marginTop: 12, flexWrap: 'wrap' }}>
                       <button onClick={() => expressInterest(p)} disabled={interested || busy === 'int-' + p.id} className="btn btn-sm" style={{ flex: 1, minWidth: 120, background: interested ? 'var(--bg2)' : 'linear-gradient(135deg,#e8b84b,#c9952a)', color: interested ? 'var(--text2)' : '#1a1207', border: 'none', fontWeight: 700 }}>
                         <i className={'ti ' + (interested ? 'ti-check' : 'ti-hand-click')} style={{ verticalAlign: '-2px', marginRight: 4 }} />{interested ? 'Interested ✓' : "I'm interested"}
                       </button>
