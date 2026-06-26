@@ -50,6 +50,7 @@ create policy qsp_delete on public.qv_subcontract_projects for delete using (com
 
 -- The FEED a Gold company sees: open posts, not their own, whose target categories
 -- include the viewer's own category. (Definer → bypasses RLS to read others' posts.)
+drop function if exists public.subcontract_feed();
 create or replace function public.subcontract_feed()
 returns setof public.qv_subcontract_projects
 language sql security definer set search_path = public stable as $$

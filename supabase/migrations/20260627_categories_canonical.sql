@@ -77,6 +77,7 @@ end $$;
 
 -- 3) Ensure the Marketplace feed matches on the viewer's category ARRAY -----------
 -- (idempotent — re-applies the array-overlap version regardless of migration order)
+drop function if exists public.subcontract_feed();
 create or replace function public.subcontract_feed()
 returns setof public.qv_subcontract_projects
 language sql security definer set search_path = public stable as $$
