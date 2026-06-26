@@ -38,7 +38,7 @@ export const MENU = [
 
   { section: 'LEAD HUB' },
   { id:'leadengine', icon:'ti-bolt',           label:'Lead Engine',      perm:'view_leads' },
-  { id:'leads',      icon:'ti-forms',          label:'Lead Hub',         perm:'view_leads', featureKey:'lead_email' },
+  { id:'leads',      icon:'ti-briefcase',      label:'Business Hub',     perm:'view_leads', featureKey:'lead_email' },
   { id:'meetings',   icon:'ti-calendar-event', label:'Planner',          perm:'view_leads' },
   { id:'metaads',    icon:'ti-ad-2',           label:'Meta Ads',         perm:'view_leads', addon:'crm', soon:true },
 

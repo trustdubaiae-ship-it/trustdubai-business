@@ -4,6 +4,7 @@ import { useToast } from '../lib/toast'
 import { supabase } from '../lib/supabase'
 import { Trash2 } from 'lucide-react'
 import LeadVisualViews from './LeadVisualViews'
+import SubcontractHub from './SubcontractHub'
 
 const QUESTION_TYPES = [
   { value: 'text',   label: 'Text answer' },
@@ -2125,6 +2126,7 @@ export default function LeadsPage() {
       <div style={{ display: 'inline-flex', gap: 3, maxWidth: '100%', background: 'var(--bg2)', border: '0.5px solid var(--border)', borderRadius: 11, padding: 3, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
         {[
           { id: 'trustdubai', label: mobile ? 'Quvera' : 'Quvera Leads', count: tdLeads.length, icon: 'ti-shield-check' },
+          { id: 'subcontract', label: mobile ? 'Subcontract' : 'Subcontract', count: null, icon: 'ti-briefcase' },
           { id: 'mine',       label: 'My Leads', count: myLeads.length, icon: 'ti-building-store' },
           { id: 'forms',      label: 'Forms',    count: forms.length,   icon: 'ti-forms' },
         ].map(t => {
@@ -2138,7 +2140,7 @@ export default function LeadsPage() {
             boxShadow: on ? 'var(--shadow-md)' : 'none', transition: 'background .15s, color .15s'
           }}>
             <i className={'ti ' + t.icon} style={{ fontSize: 15 }} /> {t.label}
-            <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 99, background: on ? 'var(--primary-bg)' : 'var(--bg)', color: on ? 'var(--primary-dark)' : 'var(--text3)' }}>{t.count}</span>
+            {t.count != null && <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 99, background: on ? 'var(--primary-bg)' : 'var(--bg)', color: on ? 'var(--primary-dark)' : 'var(--text3)' }}>{t.count}</span>}
           </button>
           )
         })}
@@ -2161,6 +2163,8 @@ export default function LeadsPage() {
           {Board()}
         </div>
       )}
+
+      {mainTab === 'subcontract' && <SubcontractHub company={company} />}
 
       {mainTab === 'mine' && (
         <div>
