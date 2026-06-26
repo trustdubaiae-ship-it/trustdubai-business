@@ -63,12 +63,12 @@ export default function BecomePartner({ onBack }) {
       {showTerms && <PartnerTerms onClose={() => setShowTerms(false)} />}
       <div style={{ textAlign: 'center', marginBottom: 22, maxWidth: 540 }}>
         <h1 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 'clamp(26px,5vw,40px)', lineHeight: 1.05, letterSpacing: '-1px', margin: 0, background: 'linear-gradient(100deg,#00D4FF,#00FFCC 55%,#8B5CF6)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>Become a Quvera Partner</h1>
-        <p style={{ fontSize: 'clamp(13px,2vw,15px)', color: '#aeb9d6', marginTop: 10, lineHeight: 1.6 }}>Refer businesses to Quvera and earn <b style={{ color: '#fff' }}>recurring commission</b> for 12 months. Pick a plan — your tier sets your commission.</p>
+        <p style={{ fontSize: 'clamp(13px,2vw,15px)', color: '#aeb9d6', marginTop: 10, lineHeight: 1.6 }}>Refer businesses to Quvera and earn <b style={{ color: '#fff' }}>recurring commission</b> for 12 months. Your commission rate grows with how many businesses you refer.</p>
       </div>
 
       <form onSubmit={submit} style={{ width: '100%', maxWidth: 460, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: 'clamp(22px,5vw,34px)' }}>
         <h2 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 20, color: '#fff', marginBottom: 4, textAlign: 'center' }}>Choose your partner plan</h2>
-        <p style={{ fontSize: 12.5, color: '#8b949e', marginBottom: 16, textAlign: 'center' }}>Higher tier = higher commission on every referral. Prices exclude 5% VAT.</p>
+        <p style={{ fontSize: 12.5, color: '#8b949e', marginBottom: 16, textAlign: 'center' }}>Commission grows with how many businesses you refer. Prices exclude 5% VAT.</p>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 20 }}>
           {TIER_LIST.map(t => {
@@ -77,8 +77,8 @@ export default function BecomePartner({ onBack }) {
               <button type="button" key={t.key} onClick={() => set('tier', t.key)}
                 style={{ textAlign: 'center', padding: '13px 8px', borderRadius: 12, cursor: 'pointer', background: on ? 'rgba(0,212,255,0.12)' : 'rgba(255,255,255,0.04)', border: '1.5px solid ' + (on ? '#00D4FF' : 'rgba(255,255,255,0.12)') }}>
                 <div style={{ fontSize: 12.5, fontWeight: 800, color: '#fff' }}>{t.label}</div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: on ? '#00FFCC' : '#fff', margin: '4px 0 1px' }}>{t.commission}%</div>
-                <div style={{ fontSize: 10, color: '#8b949e' }}>AED {t.fee}/mo</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: on ? '#00FFCC' : '#fff', margin: '4px 0 1px' }}>AED {t.fee}</div>
+                <div style={{ fontSize: 10, color: '#8b949e' }}>/month</div>
               </button>
             )
           })}

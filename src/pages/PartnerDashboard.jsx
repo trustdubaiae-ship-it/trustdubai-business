@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import NoCompanyPage from './NoCompanyPage'
 import { tierOf, TIER_LIST } from '../lib/partnerTiers'
+import { marginalCommission } from '../lib/commission'
 import PartnerTerms from './PartnerTerms'
 
 // v1: a single paid-plan price. Commission % + term come from the partner row.
@@ -25,6 +26,7 @@ export default function PartnerDashboard({ user }) {
   const [profile, setProfile] = useState({ name: '', phone: '', company_name: '' })
   const [savingProfile, setSavingProfile] = useState(false)
   const [settings, setSettings] = useState({ min_payout: 100, claims_per_month: 2 })
+  const [slabs, setSlabs] = useState([])
   const [tab, setTab] = useState('overview')
   const [savingDoc, setSavingDoc] = useState('')
   const [payingPlan, setPayingPlan] = useState(false)
@@ -37,8 +39,8 @@ export default function PartnerDashboard({ user }) {
     const t = tierOf(newKey)
     const paidNow = partner.payment_status === 'active'
     const msg = paidNow
-      ? `Switch to the ${t.label} plan (AED ${t.fee}/mo, ${t.commission}% commission)? Your Stripe subscription will be updated and the price is prorated from today.`
-      : `Switch to the ${t.label} plan (AED ${t.fee}/mo, ${t.commission}% commission)?`
+      ? `Switch to the ${t.label} plan (AED ${t.fee}/mo)? Your Stripe subscription will be updated and the price is prorated from today.`
+      : `Switch to the ${t.label} plan (AED ${t.fee}/mo)?`
     if (!window.confirm(msg)) return
     setChangingTier(newKey)
     try {
@@ -97,13 +99,15 @@ export default function PartnerDashboard({ user }) {
       setPartner(p)
       setBank({ account_holder: '', bank_name: '', iban: '', swift: '', ...(p.payout_info || {}) })
       setProfile({ name: p.name || '', phone: p.phone || '', company_name: p.company_name || '' })
-      const [refsRes, paysRes, setRes] = await Promise.all([
+      const [refsRes, paysRes, setRes, slabRes] = await Promise.all([
         supabase.rpc('partner_my_referrals'),
         supabase.from('qv_partner_payouts').select('*').eq('partner_id', p.id).order('created_at', { ascending: false }),
         supabase.from('qv_settings').select('*'),
+        supabase.from('qv_commission_tiers').select('*').order('sort', { ascending: true }),
       ])
       setReferrals(refsRes.data || [])
       setPayouts(paysRes.data || [])
+      setSlabs(slabRes.data || [])
       if (setRes.data) { const m = {}; setRes.data.forEach(r => { m[r.key] = Number(r.value) }); setSettings(s => ({ ...s, ...m })) }
     } catch (e) { /* ignore */ } finally { setLoading(false) }
   }
@@ -170,11 +174,14 @@ export default function PartnerDashboard({ user }) {
   if (!partner) return <NoCompanyPage />
 
 
-  const pct = Number(partner.commission_pct || 25) / 100
   const term = Number(partner.term_months || 12)
-  const perBiz = PLAN_PRICE * pct
   const paying = referrals.filter(r => isPaid(r) && String(r.status || '').toLowerCase() === 'approved')
   const activePaying = paying.filter(r => monthsSince(r.created_at) < term)
+  // Commission is GLOBAL marginal slabs by active-paying count. blendedPct = average
+  // rate across all referrals; using it here keeps monthly recurring marginal-correct.
+  const comm = marginalCommission(activePaying.length, slabs)
+  const pct = comm.blendedPct / 100
+  const perBiz = PLAN_PRICE * pct
   const monthlyRecurring = activePaying.length * perBiz
   // lifetime estimate: each paying referral earns perBiz for up to `term` months
   const lifetimeEarned = paying.reduce((s, r) => s + perBiz * Math.min(Math.max(monthsSince(r.created_at), 1), term), 0)
@@ -245,6 +252,41 @@ export default function PartnerDashboard({ user }) {
             {metric('Earned to date', AED(lifetimeEarned), '#8B5CF6', 'estimate')}
             {metric('Pending payout', AED(pending), '#f59e0b', `${AED(paidOut)} paid`)}
           </div>
+
+          {/* commission ladder (global marginal slabs) */}
+          {slabs.length > 0 && (() => {
+            const sorted = [...slabs].sort((a, b) => (a.min_referrals || 0) - (b.min_referrals || 0))
+            const n = activePaying.length
+            const nextSlab = sorted.find(s => (s.min_referrals || 0) > n)
+            return (
+              <div className="qpp-card" style={{ marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                  <div className="qpp-h" style={{ margin: 0, flex: 1 }}><i className="ti ti-stairs-up" style={{ color: '#00FFCC' }} /> Your commission</div>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: '#00FFCC', background: 'rgba(0,255,204,0.12)', padding: '4px 12px', borderRadius: 99 }}>{comm.blendedPct.toFixed(1)}% effective</span>
+                </div>
+                <div style={{ fontSize: 11.5, color: T.text3, marginBottom: 11, lineHeight: 1.5 }}>Commission grows with your active paying referrals — and it's <b>marginal</b>: each band of referrals earns its own rate.</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                  {sorted.map((s, i) => {
+                    const lo = s.min_referrals, hi = s.max_referrals
+                    const reached = n >= lo
+                    const inHere = n >= lo && (hi == null || n <= hi)
+                    return (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 10, border: '1px solid ' + (inHere ? 'rgba(0,255,204,0.45)' : 'rgba(255,255,255,0.08)'), background: inHere ? 'rgba(0,255,204,0.08)' : 'rgba(255,255,255,0.03)' }}>
+                        <span style={{ width: 8, height: 8, borderRadius: 99, flexShrink: 0, background: reached ? '#00FFCC' : T.text3 }} />
+                        <span style={{ flex: 1, fontSize: 12.5, fontWeight: 600, color: reached ? T.text : T.text2 }}>Referrals {lo}{hi == null ? '+' : '–' + hi}</span>
+                        <span style={{ fontSize: 13, fontWeight: 800, color: inHere ? '#00FFCC' : T.text2 }}>{Number(s.commission_pct)}%</span>
+                      </div>
+                    )
+                  })}
+                </div>
+                {nextSlab && (
+                  <div style={{ fontSize: 11.5, color: '#00D4FF', marginTop: 10 }}>
+                    <i className="ti ti-arrow-up-right" /> {(nextSlab.min_referrals - n)} more active referral{(nextSlab.min_referrals - n) === 1 ? '' : 's'} → next ones earn <b>{Number(nextSlab.commission_pct)}%</b>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
 
           {/* referral link */}
           <div className="qpp-card" style={{ marginBottom: 16 }}>
@@ -326,7 +368,7 @@ export default function PartnerDashboard({ user }) {
               <div><label style={bLbl}>Mobile number</label><input value={profile.phone} onChange={e => setProfile(p => ({ ...p, phone: e.target.value }))} style={inpD} placeholder="+971 50 ..." /></div>
               <div><label style={bLbl}>Company name</label><input value={profile.company_name} onChange={e => setProfile(p => ({ ...p, company_name: e.target.value }))} style={inpD} placeholder="Your company" /></div>
               <div><label style={bLbl}>Referral code</label><input value={partner.code} disabled style={{ ...inpD, opacity: 0.7, fontWeight: 700, color: '#00FFCC' }} /></div>
-              <div><label style={bLbl}>Plan</label><input value={`${tr.label} · ${tr.commission}%`} disabled style={{ ...inpD, opacity: 0.6 }} /></div>
+              <div><label style={bLbl}>Plan</label><input value={`${tr.label} · AED ${tr.fee}/mo`} disabled style={{ ...inpD, opacity: 0.6 }} /></div>
             </div>
             <button onClick={saveProfile} disabled={savingProfile} className="qpp-btn">{savingProfile ? 'Saving…' : 'Save profile'}</button>
           </div>
@@ -346,8 +388,8 @@ export default function PartnerDashboard({ user }) {
           </div>
 
           <div className="qpp-card" style={{ marginBottom: 16 }}>
-            <div className="qpp-h"><i className="ti ti-arrows-up-down" style={{ color: '#8B5CF6' }} /> Your plan &amp; commission</div>
-            <div style={{ fontSize: 11.5, color: T.text3, margin: '-4px 0 12px', lineHeight: 1.5 }}>{paid ? 'Upgrade or downgrade anytime — your subscription is updated and prorated.' : 'Pick the plan you want, then pay below to activate. Higher tier = higher commission.'} Prices exclude 5% VAT.</div>
+            <div className="qpp-h"><i className="ti ti-arrows-up-down" style={{ color: '#8B5CF6' }} /> Your plan</div>
+            <div style={{ fontSize: 11.5, color: T.text3, margin: '-4px 0 12px', lineHeight: 1.5 }}>{paid ? 'Upgrade or downgrade anytime — your subscription is updated and prorated.' : 'Pick a plan, then pay below to activate.'} Commission is based on your referral count (see Overview). Prices exclude 5% VAT.</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
               {TIER_LIST.map(t => {
                 const on = partner.tier === t.key
@@ -357,8 +399,8 @@ export default function PartnerDashboard({ user }) {
                     style={{ textAlign: 'center', padding: '13px 6px', borderRadius: 12, cursor: on ? 'default' : 'pointer', position: 'relative', background: on ? 'rgba(0,212,255,0.12)' : 'rgba(255,255,255,0.04)', border: '1.5px solid ' + (on ? '#00D4FF' : 'rgba(255,255,255,0.12)'), opacity: changingTier && !busyT ? 0.5 : 1 }}>
                     {on && <span style={{ position: 'absolute', top: 6, right: 7, fontSize: 9, fontWeight: 800, color: '#00D4FF' }}>CURRENT</span>}
                     <div style={{ fontSize: 12.5, fontWeight: 800, color: T.text }}>{t.label}</div>
-                    <div style={{ fontSize: 17, fontWeight: 800, color: on ? '#00FFCC' : T.text, margin: '4px 0 1px' }}>{t.commission}%</div>
-                    <div style={{ fontSize: 10, color: T.text3 }}>{busyT ? 'Updating…' : `AED ${t.fee}/mo`}</div>
+                    <div style={{ fontSize: 17, fontWeight: 800, color: on ? '#00FFCC' : T.text, margin: '4px 0 1px' }}>AED {t.fee}</div>
+                    <div style={{ fontSize: 10, color: T.text3 }}>{busyT ? 'Updating…' : '/month'}</div>
                   </button>
                 )
               })}
@@ -368,7 +410,7 @@ export default function PartnerDashboard({ user }) {
           <div className="qpp-card" style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: 160 }}>
               <div className="qpp-h" style={{ margin: 0 }}><i className="ti ti-credit-card" style={{ color: '#00FFCC' }} /> Plan payment</div>
-              <div style={{ fontSize: 12, color: T.text3, marginTop: 4 }}>{tr.label} · AED {tr.fee}/month <span style={{ opacity: 0.8 }}>+ 5% VAT</span> · {tr.commission}% commission</div>
+              <div style={{ fontSize: 12, color: T.text3, marginTop: 4 }}>{tr.label} · AED {tr.fee}/month <span style={{ opacity: 0.8 }}>+ 5% VAT</span></div>
             </div>
             {paid ? <span style={{ fontSize: 12, fontWeight: 700, color: '#00FFCC', background: 'rgba(0,255,204,0.12)', padding: '7px 14px', borderRadius: 99 }}>Active ✓</span>
               : <button onClick={payPlan} disabled={payingPlan} className="qpp-btn">{payingPlan ? 'Opening…' : `Pay AED ${tr.fee}/mo`}</button>}
