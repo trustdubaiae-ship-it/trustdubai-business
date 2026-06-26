@@ -107,7 +107,7 @@ export default function QuoteApproval({ token }) {
   const { quote: q, company: co, tpl } = payload
   const cName = tpl?.company_legal_name || co?.name || 'Company'
   const items = Array.isArray(q.items) ? q.items : []
-  const grouped = (q.mode === 'boq' || q.mode === 'advanced') ? groupByTrade(items) : null
+  const grouped = ((q.mode === 'boq' || q.mode === 'advanced') || (q.mode === 'visual' && items.some(it => (it.trade || '').trim()))) ? groupByTrade(items) : null
   const payments = parsePayment(q.payment_terms)
   const whys = parseWhy(q.why_choose_us)
   const sub = Number(q.subtotal || 0), vat = Number(q.vat_amount || 0), tot = Number(q.total || 0)

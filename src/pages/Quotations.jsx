@@ -286,6 +286,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   const [saving, setSaving]   = useState(false)
   const [editId, setEditId]   = useState(null)
   const [mode, setMode]       = useState('simple')
+  const [visualSections, setVisualSections] = useState(false)   // visual mode: group items into sections
   const [lockModal, setLockModal] = useState(false)
   const [client, setClient]   = useState(null)
   const [clientSearch, setClientSearch] = useState('')
@@ -715,6 +716,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     setSuggestions([]); setShowSug(false)
     setProjectTitle(d.projectTitle || '')
     setItems(Array.isArray(d.items) && d.items.length ? d.items : [blankItem()])
+    setVisualSections(normMode(d.mode) === 'visual' && Array.isArray(d.items) && d.items.some(it => (it.trade || '').trim()))
     setVatEnabled(d.vatEnabled ?? true)
     setDiscountType(d.discountType ?? null); setDiscountValue(d.discountValue ?? 0)
     setNotes(d.notes || ''); setShowFooter(d.showFooter ?? true); setShowSignature(d.showSignature ?? true); setShowBank(d.showBank ?? false)
@@ -734,6 +736,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     setItems(Array.isArray(q.items) && q.items.length
       ? q.items.map(it => ({ title:it.title||'', desc:it.desc||'', unit:it.unit||'Nos', qty:it.qty??1, rate:it.rate??0, trade: it.trade || '', img: it.img || '', l: it.l, w: it.w }))
       : [blankItem()])
+    setVisualSections(normMode(q.mode) === 'visual' && Array.isArray(q.items) && q.items.some(it => (it.trade || '').trim()))
     setNotes(q.notes || '')
     setVatEnabled(q.vat_enabled != null ? q.vat_enabled : (!!q.vat_amount || (tpl?.default_vat_enabled ?? true)))
     setDiscountType(q.discount_type || null); setDiscountValue(q.discount_value || 0)
@@ -754,7 +757,13 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
       // Grouped modes: drop empty rows so the user adds a section first, then items.
       setItems(prev => prev.filter(it => (it.desc || '').trim()))
     }
+    if (m === 'visual') setVisualSections(items.some(it => (it.trade || '').trim()))
     setMode(m)
+  }
+  // Visual mode: turn section grouping on/off. Turning off flattens (clears section tags).
+  function toggleVisualSections(on) {
+    setVisualSections(on)
+    if (!on) setItems(prev => prev.map(it => ({ ...it, trade: '' })))
   }
 
   function updateItem(idx, field, val) { setItems(prev => prev.map((it,i)=> i===idx?{...it,[field]:val}:it)) }
@@ -817,7 +826,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
       const mapped = aiItems.map(it => ({
         title: (it.title||'').trim(), desc: String(it.desc || '').trim(), unit: it.unit || 'Nos',
         qty: Number(it.qty) || 1, rate: Number(it.rate) || 0,
-        ...((mode === 'boq' || mode === 'advanced') ? { trade: it.trade || 'Misc' } : {}),
+        ...(((mode === 'boq' || mode === 'advanced') || (mode === 'visual' && visualSections)) ? { trade: it.trade || 'Misc' } : {}),
       })).filter(it => it.desc)
       if (!mapped.length) { toast.error('AI returned no usable items'); return }
       // when editing an existing quote (or items already exist), ADD to them — never rebuild the whole quote
@@ -872,7 +881,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
       project_title: projectTitle.trim() || '', mode,
       items: validItems.map(it => ({
         title: (it.title||'').trim(), desc: it.desc.trim(), unit: it.unit || 'Nos', qty: Number(it.qty)||0, rate: Number(it.rate)||0,
-        ...((mode === 'boq' || mode === 'advanced') ? { trade: it.trade || 'Misc' } : {}),
+        ...(((mode === 'boq' || mode === 'advanced') || (mode === 'visual' && visualSections)) ? { trade: it.trade || 'Misc' } : {}),
         ...(it.img ? { img: it.img } : {}), ...(Number(it.l) && Number(it.w) ? { l: Number(it.l), w: Number(it.w) } : {}),
       })),
       subtotal, vat_amount: vatAmount, total: grandTotal,
@@ -913,7 +922,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         project_title: projectTitle.trim() || null, mode,
         items: validItems.map(it => ({
           title:(it.title||'').trim(), desc:it.desc.trim(), unit:it.unit||'Nos', qty:Number(it.qty)||0, rate:Number(it.rate)||0,
-          ...((mode === 'boq' || mode === 'advanced') ? { trade: it.trade || 'Misc' } : {}),
+          ...(((mode === 'boq' || mode === 'advanced') || (mode === 'visual' && visualSections)) ? { trade: it.trade || 'Misc' } : {}),
           ...(it.img ? { img: it.img } : {}), ...(Number(it.l) && Number(it.w) ? { l: Number(it.l), w: Number(it.w) } : {}),
         })),
         subtotal, vat_amount: vatAmount, total: grandTotal,
@@ -1108,13 +1117,16 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     const bandBg = ACC
     const bandColor = '#fff'
 
+    // Sections (bands) apply to BOQ/Advanced AND to a Visual quote that uses sections.
+    const hasSections = isBoq || (q.mode === 'visual' && qItems.some(it => (it.trade || '').trim()))
+    const ncol = withImg ? 7 : 6   // total columns (visual has the extra Photo column)
     let bodyRows = ''
-    if (isBoq) {
+    if (hasSections) {
       const groups = groupByTrade(qItems, tradeList)
       bodyRows = groups.map((g, gi) => `
-        <tr><td colspan="6" style="background:linear-gradient(135deg, ${ACC}, ${ACC}cc);color:#fff;font-size:10px;font-weight:700;padding:7px 12px;letter-spacing:1.2px;">${escapeHtml(String.fromCharCode(65+gi))} &nbsp;&middot;&nbsp; ${escapeHtml(g.trade.toUpperCase())}</td></tr>
+        <tr><td colspan="${ncol}" style="background:linear-gradient(135deg, ${ACC}, ${ACC}cc);color:#fff;font-size:10px;font-weight:700;padding:7px 12px;letter-spacing:1.2px;">${escapeHtml(String.fromCharCode(65+gi))} &nbsp;&middot;&nbsp; ${escapeHtml(g.trade.toUpperCase())}</td></tr>
         ${g.items.map((it,i)=>rowHtml(it,i+1)).join('')}
-        <tr><td colspan="5" style="text-align:right;padding:7px 12px;background:${ACC}12;font-size:10px;font-weight:700;color:#555;border-top:0.5px solid ${ACC}55;">${escapeHtml(g.trade)} Subtotal</td><td style="text-align:right;padding:7px 12px;background:${ACC}12;font-size:10.5px;font-weight:800;color:${ACC};border-top:0.5px solid ${ACC}55;">AED ${n(g.subtotal)}</td></tr>
+        <tr><td colspan="${ncol-1}" style="text-align:right;padding:7px 12px;background:${ACC}12;font-size:10px;font-weight:700;color:#555;border-top:0.5px solid ${ACC}55;">${escapeHtml(g.trade)} Subtotal</td><td style="text-align:right;padding:7px 12px;background:${ACC}12;font-size:10.5px;font-weight:800;color:${ACC};border-top:0.5px solid ${ACC}55;">AED ${n(g.subtotal)}</td></tr>
       `).join('')
     } else {
       bodyRows = qItems.map((it,i)=>rowHtml(it,i+1)).join('')
@@ -1664,7 +1676,8 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     const st = STATUS_STYLE[q.status||'draft']||STATUS_STYLE.draft
     const qItems = Array.isArray(q.items) ? q.items : []
     const isBoq = (q.mode === 'boq' || q.mode === 'advanced')
-    const groups = isBoq ? groupByTrade(qItems, tradeList) : null
+    const hasSections = isBoq || (q.mode === 'visual' && qItems.some(it => (it.trade || '').trim()))
+    const groups = hasSections ? groupByTrade(qItems, tradeList) : null
     const isApproved = (q.status||'draft') === 'approved'
     return (
       <div>
@@ -1690,7 +1703,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
           </div>
         </div>
 
-        {isBoq ? groups.map((g, gi) => (
+        {hasSections ? groups.map((g, gi) => (
           <div key={gi} style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, overflow:'hidden', marginBottom:10 }}>
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'9px 13px', background:subBg }}>
               <span style={{ fontSize:13, fontWeight:600, color:text }}>{g.trade}</span>
@@ -1880,6 +1893,33 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     const hasBank = !!(tpl?.bank_name || tpl?.bank_iban || tpl?.bank_account_number)
     const boqGroups = (mode === 'boq' || mode === 'advanced') ? groupByTradeIdx(items, tradeList) : null
     const availableTrades = tradeList.filter(t => !(boqGroups||[]).some(g => g.trade === t))
+    const visualGroups = (mode === 'visual' && visualSections) ? groupByTradeIdx(items, tradeList) : null
+    const VISUAL_COLS = '66px 1fr 50px 44px 64px 82px 28px'
+    const visualRowCells = (it, idx) => {
+      const busy = !!imgBusy[idx]
+      const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
+      return (<>
+        <div style={{ position:'relative', width:60, height:60 }}>
+          {it.img ? (<>
+            <img src={it.img} alt="" style={{ width:60, height:60, objectFit:'cover', borderRadius:8, border:`1px solid ${border}` }}/>
+            <button onClick={()=>removeItemImage(idx)} title="Remove photo" style={{ position:'absolute', top:-6, right:-6, width:20, height:20, borderRadius:'50%', border:'none', background:'#ef4444', color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:0 }}><i className="ti ti-x" style={{ fontSize:12 }}/></button>
+          </>) : (
+            <label title="Upload photo" style={{ width:60, height:60, borderRadius:8, border:`1px dashed ${border}`, background:subBg, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2, cursor: busy?'default':'pointer', color:textMuted }}>
+              {busy ? <div style={{ width:18, height:18, border:'2px solid #7c3aed', borderTopColor:'transparent', borderRadius:'50%', animation:'spin 0.8s linear infinite' }}/> : <><i className="ti ti-camera-plus" style={{ fontSize:18, color:'#7c3aed' }}/><span style={{ fontSize:8.5 }}>Add</span></>}
+              <input type="file" accept="image/*" disabled={busy} onChange={e=>{ const f=e.target.files?.[0]; e.target.value=''; uploadItemImage(idx, f) }} style={{ display:'none' }}/>
+            </label>
+          )}
+        </div>
+        {descCell(it, idx)}
+        <select value={it.unit} onChange={e=>updateItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 4px', fontSize:11 }}>
+          {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
+        </select>
+        {qtyCell(it, idx, 12.5)}
+        <input type="number" value={it.rate} onChange={e=>updateItem(idx,'rate',e.target.value)} style={{ ...inputStyle, padding:'7px 6px', fontSize:12.5, textAlign:'right' }}/>
+        <span style={{ textAlign:'right', fontSize:12.5, color:text, alignSelf:'center' }}>{Math.round(lt).toLocaleString('en-AE')}</span>
+        <button onClick={()=>removeItem(idx)} style={{ background:'none', border:'none', cursor:'pointer', color:textMuted, display:'flex', justifyContent:'center', alignItems:'center' }}><i className="ti ti-x" style={{ fontSize:15 }}/></button>
+      </>)
+    }
     return (
       <div>
         {LibDatalist()}
@@ -2079,57 +2119,83 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         )}
 
         {mode === 'visual' && (
-          <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, overflow:'hidden', marginBottom:14 }}>
-            <div style={{ padding:'8px 12px', background:isDark?'rgba(124,58,237,0.10)':'#f6f0ff', borderBottom:`1px solid ${border}`, fontSize:11.5, color:'#7c3aed', display:'flex', alignItems:'center', gap:6 }}>
-              <i className="ti ti-photo" style={{ fontSize:14 }}/> Visual quote — add a reference photo for each item. Photos show on the PDF &amp; preview.
+          <div style={{ marginBottom:14 }}>
+            {/* info + section toggle */}
+            <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, padding:'8px 12px', marginBottom:10, fontSize:11.5, color:'#7c3aed', display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+              <i className="ti ti-photo" style={{ fontSize:14 }}/> <span style={{ flex:1, minWidth:140 }}>Visual quote — add a reference photo for each item.</span>
+              <label style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', color:textSub, fontSize:12, fontWeight:600 }}>
+                <input type="checkbox" checked={visualSections} onChange={e=>toggleVisualSections(e.target.checked)} style={{ width:'auto' }}/> Group into sections
+              </label>
             </div>
-            <div style={{ overflowX:'auto', WebkitOverflowScrolling:'touch' }}>
-              <div style={{ minWidth:600 }}>
-                <div style={{ display:'grid', gridTemplateColumns:'66px 1fr 50px 44px 64px 82px 28px', gap:7, padding:'9px 12px', background:subBg, fontSize:11, color:textSub, textTransform:'uppercase', letterSpacing:'.3px' }}>
-                  <span>Photo</span><span>Description</span><span>Unit</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span><span/>
-                </div>
-                {items.map((it, idx) => {
-                  const lt = (Number(it.qty)||0)*(Number(it.rate)||0)
-                  const busy = !!imgBusy[idx]
-                  return (
-                    <div key={idx} style={{ display:'grid', gridTemplateColumns:'66px 1fr 50px 44px 64px 82px 28px', gap:7, padding:'8px 12px', alignItems:'flex-start', borderTop:`1px solid ${border}`, ...(it._new ? { background:isDark?'rgba(34,197,94,0.10)':'#ecfdf5', boxShadow:'inset 3px 0 0 #22c55e' } : {}) }}>
-                      <div style={{ position:'relative', width:60, height:60 }}>
-                        {it.img ? (
-                          <>
-                            <img src={it.img} alt="" style={{ width:60, height:60, objectFit:'cover', borderRadius:8, border:`1px solid ${border}` }}/>
-                            <button onClick={()=>removeItemImage(idx)} title="Remove photo"
-                              style={{ position:'absolute', top:-6, right:-6, width:20, height:20, borderRadius:'50%', border:'none', background:'#ef4444', color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:0 }}>
-                              <i className="ti ti-x" style={{ fontSize:12 }}/>
-                            </button>
-                          </>
-                        ) : (
-                          <label title="Upload photo" style={{ width:60, height:60, borderRadius:8, border:`1px dashed ${border}`, background:subBg, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2, cursor: busy?'default':'pointer', color:textMuted }}>
-                            {busy
-                              ? <div style={{ width:18, height:18, border:'2px solid #7c3aed', borderTopColor:'transparent', borderRadius:'50%', animation:'spin 0.8s linear infinite' }}/>
-                              : <><i className="ti ti-camera-plus" style={{ fontSize:18, color:'#7c3aed' }}/><span style={{ fontSize:8.5 }}>Add</span></>}
-                            <input type="file" accept="image/*" disabled={busy} onChange={e=>{ const f=e.target.files?.[0]; e.target.value=''; uploadItemImage(idx, f) }} style={{ display:'none' }}/>
-                          </label>
-                        )}
-                      </div>
-                      {descCell(it, idx)}
-                      <select value={it.unit} onChange={e=>updateItem(idx,'unit',e.target.value)} style={{ ...inputStyle, padding:'7px 4px', fontSize:11 }}>
-                        {UNITS.map(u => <option key={u} value={u} style={{ background:inputBg, color:text }}>{u}</option>)}
-                      </select>
-                      {qtyCell(it, idx, 12.5)}
-                      <input type="number" value={it.rate} onChange={e=>updateItem(idx,'rate',e.target.value)} style={{ ...inputStyle, padding:'7px 6px', fontSize:12.5, textAlign:'right' }}/>
-                      <span style={{ textAlign:'right', fontSize:12.5, color:text, alignSelf:'center' }}>{Math.round(lt).toLocaleString('en-AE')}</span>
-                      <button onClick={()=>removeItem(idx)} style={{ background:'none', border:'none', cursor:'pointer', color:textMuted, display:'flex', justifyContent:'center', alignItems:'center' }}><i className="ti ti-x" style={{ fontSize:15 }}/></button>
+
+            {!visualSections ? (
+              <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, overflow:'hidden' }}>
+                <div style={{ overflowX:'auto', WebkitOverflowScrolling:'touch' }}>
+                  <div style={{ minWidth:600 }}>
+                    <div style={{ display:'grid', gridTemplateColumns:VISUAL_COLS, gap:7, padding:'9px 12px', background:subBg, fontSize:11, color:textSub, textTransform:'uppercase', letterSpacing:'.3px' }}>
+                      <span>Photo</span><span>Description</span><span>Unit</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span><span/>
                     </div>
-                  )
-                })}
+                    {items.map((it, idx) => (
+                      <div key={idx} style={{ display:'grid', gridTemplateColumns:VISUAL_COLS, gap:7, padding:'8px 12px', alignItems:'flex-start', borderTop:`1px solid ${border}`, ...(it._new ? { background:isDark?'rgba(34,197,94,0.10)':'#ecfdf5', boxShadow:'inset 3px 0 0 #22c55e' } : {}) }}>
+                        {visualRowCells(it, idx)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ padding:'9px 11px', borderTop:`1px solid ${border}`, display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+                  <LibPicker libItems={libItems} onPick={(li)=>addFromLib(li)} isDark={isDark} />
+                  <button onClick={addItem} style={{ fontSize:12, padding:'7px 12px', border:`1px solid ${border}`, borderRadius:8, background:'none', color:textSub, cursor:'pointer', fontWeight:600, whiteSpace:'nowrap' }}>
+                    <i className="ti ti-plus" style={{ fontSize:13, verticalAlign:'-2px', marginRight:3 }}/> Blank line
+                  </button>
+                </div>
               </div>
-            </div>
-            <div style={{ padding:'9px 11px', borderTop:`1px solid ${border}`, display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
-              <LibPicker libItems={libItems} onPick={(li)=>addFromLib(li)} isDark={isDark} />
-              <button onClick={addItem} style={{ fontSize:12, padding:'7px 12px', border:`1px solid ${border}`, borderRadius:8, background:'none', color:textSub, cursor:'pointer', fontWeight:600, whiteSpace:'nowrap' }}>
-                <i className="ti ti-plus" style={{ fontSize:13, verticalAlign:'-2px', marginRight:3 }}/> Blank line
-              </button>
-            </div>
+            ) : (
+              <>
+                {visualGroups.map((g) => (
+                  <div key={g.trade} style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, overflow:'hidden', marginBottom:10 }}>
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'9px 13px', background:subBg }}>
+                      <span style={{ fontSize:13, fontWeight:600, color:text, display:'flex', alignItems:'center', gap:7 }}>
+                        <i className="ti ti-layout-grid" style={{ fontSize:15, color:'#7c3aed' }}/> {g.trade}
+                      </span>
+                      <span style={{ fontSize:12, color:textSub }}>Subtotal: <span style={{ fontWeight:600, color:text }}>{fmt(g.subtotal)}</span></span>
+                    </div>
+                    <div style={{ overflowX:'auto', WebkitOverflowScrolling:'touch' }}>
+                      <div style={{ minWidth:600 }}>
+                        <div style={{ display:'grid', gridTemplateColumns:VISUAL_COLS, gap:7, padding:'7px 12px', fontSize:10.5, color:textMuted, textTransform:'uppercase', letterSpacing:'.3px' }}>
+                          <span>Photo</span><span>Description</span><span>Unit</span><span>Qty</span><span>Rate</span><span style={{ textAlign:'right' }}>Total</span><span/>
+                        </div>
+                        {g.rows.map(({ it, idx }) => (
+                          <div key={idx} style={{ display:'grid', gridTemplateColumns:VISUAL_COLS, gap:7, padding:'8px 12px', alignItems:'flex-start', borderTop:`1px solid ${border}`, ...(it._new ? { background:isDark?'rgba(34,197,94,0.10)':'#ecfdf5', boxShadow:'inset 3px 0 0 #22c55e' } : {}) }}>
+                            {visualRowCells(it, idx)}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{ padding:'8px 11px', borderTop:`1px solid ${border}`, display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+                      <LibPicker libItems={libItems} onPick={(li)=>addFromLib(li, g.trade)} isDark={isDark} />
+                      <button onClick={()=>addItemToTrade(g.trade)} style={{ fontSize:12, padding:'7px 11px', border:`1px solid ${border}`, borderRadius:8, background:'none', color:textSub, cursor:'pointer', fontWeight:600, whiteSpace:'nowrap' }}>
+                        <i className="ti ti-plus" style={{ fontSize:12, verticalAlign:'-2px', marginRight:3 }}/> Blank line
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {visualGroups.length === 0 && (
+                  <div style={{ background:subBg, border:`1px dashed ${border}`, borderRadius:10, padding:'22px 16px', textAlign:'center', marginBottom:12 }}>
+                    <i className="ti ti-layout-grid" style={{ fontSize:26, color:textMuted }}/>
+                    <div style={{ fontSize:13.5, color:textSub, marginTop:7, fontWeight:600 }}>Start by adding a section</div>
+                    <div style={{ fontSize:11.5, color:textMuted, marginTop:3, lineHeight:1.5 }}>Type a section name (e.g. Kitchen, Living Room), then add items with photos.</div>
+                  </div>
+                )}
+                <div style={{ display:'flex', gap:8, marginBottom:4, flexWrap:'wrap' }}>
+                  <input value={addTradePick} onChange={e=>setAddTradePick(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter'){ e.preventDefault(); addTradeSection() } }}
+                    placeholder={visualGroups.length === 0 ? 'Section name (e.g. Kitchen)...' : '+ Add a section (e.g. Bedroom)...'}
+                    style={{ ...inputStyle, width:'auto', flex:'0 1 auto', minWidth:200, maxWidth:300 }}/>
+                  <button onClick={addTradeSection} disabled={!addTradePick} style={{ padding:'0 16px', borderRadius:8, border:`1px solid ${border}`, background:cardBg, color: addTradePick?'#7c3aed':textMuted, fontSize:13, fontWeight:600, cursor: addTradePick?'pointer':'default', whiteSpace:'nowrap' }}>
+                    <i className="ti ti-plus" style={{ fontSize:13, verticalAlign:'-2px', marginRight:3 }}/> Add section
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
 
