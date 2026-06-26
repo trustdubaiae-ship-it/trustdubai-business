@@ -1,5 +1,5 @@
-// Quvera — Stripe Checkout for a PARTNER's monthly tier subscription (raw fetch).
-// The partner pays Quvera; the tier sets their commission. Gated to the calling partner.
+// Quvera — Stripe Checkout for the PARTNER's monthly plan (raw fetch).
+// Single plan; price = qv_settings plan_price − plan_discount_pct, read server-side.
 // Secret: STRIPE_SECRET_KEY. SUPABASE_* auto-injected. Deploy: supabase functions deploy partner-checkout
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -9,9 +9,6 @@ const CORS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 const json = (o: unknown, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...CORS, "Content-Type": "application/json" } });
-const TIERS: Record<string, { fee: number; commission: number }> = {
-  starter: { fee: 99, commission: 5 }, growth: { fee: 199, commission: 15 }, pro: { fee: 299, commission: 25 },
-};
 
 function toForm(obj: any, prefix = "", out: Record<string, string> = {}) {
   for (const [k, v] of Object.entries(obj)) {
