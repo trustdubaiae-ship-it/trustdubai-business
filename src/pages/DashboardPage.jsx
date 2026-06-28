@@ -351,6 +351,9 @@ export default function DashboardPage({ onNavigate, theme }) {
             </div>
           ))}
         </div>
+        <button onClick={()=>setVoiceOpen(true)} style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'center', gap:9, background:'linear-gradient(135deg,#00D4FF,#8B5CF6)', color:'#04101e', border:'none', borderRadius:14, padding:'14px', fontSize:14.5, fontWeight:800, marginBottom:14, boxShadow:'0 8px 22px -8px rgba(0,212,255,0.55)', cursor:'pointer' }}>
+          <i className="ti ti-microphone" style={{ fontSize:20 }}/> Talk to Quvera AI
+        </button>
         <div style={{ display:'flex', gap:8, marginBottom:18 }}>
           <button onClick={()=>go('menu')} style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:6, background:'transparent', color:MC.text, border:`1px solid ${MC.border}`, borderRadius:10, padding:'10px', fontSize:13, fontWeight:600 }}><i className="ti ti-layout-grid" style={{ color:MC.green }}/> All Features</button>
           <button onClick={()=>{ setShareOpen(true); setCopied(false) }} style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:6, background:'transparent', color:MC.text, border:`1px solid ${MC.border}`, borderRadius:10, padding:'10px', fontSize:13, fontWeight:600 }}><i className="ti ti-qrcode" style={{ color:MC.green }}/> Share Profile</button>
@@ -384,6 +387,7 @@ export default function DashboardPage({ onNavigate, theme }) {
           </div>
         ))}
         {shareOpen && <ShareModal {...{ company, _slug, _publicLink, _profileQr, copied, copyProfileLink, downloadProfileQR, shareProfileWhatsApp, onClose:()=>setShareOpen(false), onNavigate }}/>}
+        <VoiceAssistant open={voiceOpen} onClose={()=>setVoiceOpen(false)} theme={theme} company={company} />
       </div>
     )
   }
