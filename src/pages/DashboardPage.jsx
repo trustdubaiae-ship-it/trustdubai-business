@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 import { MENU } from '../components/Sidebar'
 import { can } from '../lib/permissions'
 import MeetingBanner from '../components/MeetingBanner'
-import VoiceAssistant from '../components/VoiceAssistant'
+import VoiceAssistant, { primeVoice } from '../components/VoiceAssistant'
 
 /* =========================================================================
    Quvera Business — AI CORE COCKPIT  (the "555" Business OS dashboard)
@@ -351,7 +351,7 @@ export default function DashboardPage({ onNavigate, theme }) {
             </div>
           ))}
         </div>
-        <button onClick={()=>setVoiceOpen(true)} style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'center', gap:9, background:'linear-gradient(135deg,#00D4FF,#8B5CF6)', color:'#04101e', border:'none', borderRadius:14, padding:'14px', fontSize:14.5, fontWeight:800, marginBottom:14, boxShadow:'0 8px 22px -8px rgba(0,212,255,0.55)', cursor:'pointer' }}>
+        <button onClick={()=>{ primeVoice(); setVoiceOpen(true) }} style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'center', gap:9, background:'linear-gradient(135deg,#00D4FF,#8B5CF6)', color:'#04101e', border:'none', borderRadius:14, padding:'14px', fontSize:14.5, fontWeight:800, marginBottom:14, boxShadow:'0 8px 22px -8px rgba(0,212,255,0.55)', cursor:'pointer' }}>
           <i className="ti ti-microphone" style={{ fontSize:20 }}/> Talk to Quvera AI
         </button>
         <div style={{ display:'flex', gap:8, marginBottom:18 }}>
@@ -528,7 +528,7 @@ export default function DashboardPage({ onNavigate, theme }) {
                 </svg>
 
                 <div className="qc-ring r3"/><div className="qc-ring r2"/><div className="qc-ring r1"/>
-                <div className="qc-core qc-core-tap" onClick={()=>setVoiceOpen(true)} title="Tap to talk — Quvera Assistant" style={{ cursor:'pointer' }}><div className="qc-core-inner">
+                <div className="qc-core qc-core-tap" onClick={()=>{ primeVoice(); setVoiceOpen(true) }} title="Tap to talk — Quvera Assistant" style={{ cursor:'pointer' }}><div className="qc-core-inner">
                   <div style={{ fontWeight:800, fontSize:17, letterSpacing:.5 }}>QUVERA</div>
                   <div style={{ fontSize:9, letterSpacing:2.5, color:'#bfe9ff', textTransform:'uppercase', marginTop:3 }}>AI Core</div>
                   <div className="qc-grad" style={{ fontSize:22, fontWeight:800, marginTop:5, fontVariantNumeric:'tabular-nums' }}><AnimatedNumber value={d.aiScore}/></div>

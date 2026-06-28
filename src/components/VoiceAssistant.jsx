@@ -31,6 +31,38 @@ export const LANGS = [
 ]
 export const LANG_KEY = 'qv_voice_lang'
 
+// Continuous conversation tuning.
+const MAX_SILENCE = 2            // quiet listen-cycles before the assistant politely pauses
+const RELISTEN_MS = 500          // gap before the mic re-opens after the reply
+
+// Short line spoken when the user goes quiet (keyed by language base code).
+const GOODBYE = {
+  en: "I'm here whenever you need me — just tap the orb to talk again.",
+  hi: 'Main yahin hoon. Jab zaroorat ho, orb tap karke baat kijiye.',
+  ur: 'Main yahan hoon. Jab zaroorat ho, orb tap karke baat kijiye.',
+  ar: 'أنا هنا متى احتجتني — انقر على الدائرة للتحدث مرة أخرى.',
+  bn: 'আমি এখানেই আছি — আবার কথা বলতে অর্বে ট্যাপ করুন।',
+  ta: 'நான் இங்கேயே இருக்கிறேன் — மீண்டும் பேச ஆர்பைத் தட்டவும்.',
+  ml: 'ഞാൻ ഇവിടെയുണ്ട് — വീണ്ടും സംസാരിക്കാൻ ഓർബ് ടാപ്പ് ചെയ്യൂ.',
+  fr: 'Je suis là quand vous avez besoin — touchez la sphère pour reparler.',
+  es: 'Estoy aquí cuando me necesites — toca la esfera para hablar otra vez.',
+  ru: 'Я рядом, если понадоблюсь — коснитесь сферы, чтобы снова поговорить.',
+  zh: '需要我时我都在——再次点按光球即可对话。',
+  fil: 'Nandito lang ako — i-tap ang orb para mag-usap ulit.',
+}
+const goodbyeLine = (code) => GOODBYE[(code || 'en').split('-')[0]] || GOODBYE.en
+
+// Unlock audio on phones: speech synthesis must be kicked off inside a user
+// gesture (the tap that opens the assistant), otherwise iOS/Android stay silent.
+let _voiceUnlocked = false
+export function primeVoice() {
+  if (!synth) return
+  try { if (synth.paused) synth.resume() } catch {}
+  if (_voiceUnlocked) return
+  try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; synth.speak(u); _voiceUnlocked = true } catch {}
+  try { synth.getVoices() } catch {}
+}
+
 export default function VoiceAssistant({ open, onClose, theme, company }) {
   const [state, setState] = useState('idle')      // idle | listening | thinking | speaking | error
   const [heard, setHeard] = useState('')          // what the user said
@@ -42,6 +74,9 @@ export default function VoiceAssistant({ open, onClose, theme, company }) {
   const recRef = useRef(null)
   const mutedRef = useRef(false)
   const langRef = useRef(lang)
+  const activeRef = useRef(false)     // conversation live → mic keeps re-opening
+  const silenceRef = useRef(0)        // consecutive quiet cycles
+  const loopTimerRef = useRef(null)   // re-listen timer
   useEffect(() => { mutedRef.current = muted }, [muted])
   useEffect(() => { langRef.current = lang; try { localStorage.setItem(LANG_KEY, lang) } catch {} }, [lang])
 
@@ -56,17 +91,18 @@ export default function VoiceAssistant({ open, onClose, theme, company }) {
       if (error) { try { text = (await error.context.json())?.error } catch { text = error.message } }
       else text = data?.reply || data?.error || ''
       if (!text) text = "Sorry, I couldn't get a response. Please try again."
+      silenceRef.current = 0
       setReply(text)
-      speak(text)
+      speak(text, true)   // after speaking the answer, re-open the mic for the next question
     } catch (e) {
       setReply('Something went wrong. Please try again.')
       setState('error')
     }
   }, []) // eslint-disable-line
 
-  // ---- speak the reply ----
-  function speak(text) {
-    if (!synth || mutedRef.current) { setState('idle'); return }
+  // ---- speak text; optionally re-open the mic when done (continuous chat) ----
+  function speak(text, thenListen = false) {
+    if (!synth || mutedRef.current) { setState('idle'); if (thenListen) scheduleListen(); return }
     try {
       synth.cancel()
       const u = new SpeechSynthesisUtterance(text)
@@ -74,22 +110,41 @@ export default function VoiceAssistant({ open, onClose, theme, company }) {
       const v = (synth.getVoices() || []).find(vo => vo.lang === u.lang) || (synth.getVoices() || []).find(vo => vo.lang && vo.lang.split('-')[0] === u.lang.split('-')[0])
       if (v) u.voice = v
       u.onstart = () => setState('speaking')
-      u.onend = () => setState('idle')
-      u.onerror = () => setState('idle')
+      u.onend = () => { setState('idle'); if (thenListen) scheduleListen() }
+      u.onerror = () => { setState('idle'); if (thenListen) scheduleListen() }
       setState('speaking')
       synth.speak(u)
-    } catch { setState('idle') }
+    } catch { setState('idle'); if (thenListen) scheduleListen() }
   }
   function stopSpeaking() { try { synth && synth.cancel() } catch {} ; setState('idle') }
+
+  // re-open the mic after a short gap (only while the conversation is live)
+  function scheduleListen() {
+    clearTimeout(loopTimerRef.current)
+    if (!activeRef.current || !speechSupported) return
+    loopTimerRef.current = setTimeout(() => { if (activeRef.current) startListening() }, RELISTEN_MS)
+  }
+  // user stayed quiet → say a short line and stop the loop (assistant stays open)
+  function pauseForSilence() {
+    activeRef.current = false
+    silenceRef.current = 0
+    clearTimeout(loopTimerRef.current)
+    const line = goodbyeLine(langRef.current)
+    setReply(line)
+    speak(line, false)
+  }
 
   // ---- start listening ----
   const startListening = useCallback(() => {
     if (!SR) return
+    activeRef.current = true
+    clearTimeout(loopTimerRef.current)
     stopSpeaking()
     try {
       const rec = new SR()
       rec.lang = langRef.current || 'en-US'; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1
       let finalText = ''
+      let fatal = false
       rec.onstart = () => { setHeard(''); setReply(''); setMicDenied(false); setState('listening') }
       rec.onresult = (e) => {
         let interim = ''
@@ -100,10 +155,17 @@ export default function VoiceAssistant({ open, onClose, theme, company }) {
         setHeard((finalText + interim).trim())
       }
       rec.onerror = (e) => {
-        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') setMicDenied(true)
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { setMicDenied(true); fatal = true; activeRef.current = false }
         setState('idle')
       }
-      rec.onend = () => { const q = finalText.trim(); if (q) ask(q); else setState(s => s === 'listening' ? 'idle' : s) }
+      rec.onend = () => {
+        const q = finalText.trim()
+        if (q) { silenceRef.current = 0; ask(q); return }     // got speech → answer (loop continues after the reply)
+        if (fatal || !activeRef.current) { setState('idle'); return }
+        silenceRef.current += 1
+        if (silenceRef.current >= MAX_SILENCE) pauseForSilence() // quiet too long → polite pause
+        else { setState('idle'); scheduleListen() }             // brief silence → keep the mic open
+      }
       recRef.current = rec
       rec.start()
     } catch { setState('idle') }
@@ -111,10 +173,19 @@ export default function VoiceAssistant({ open, onClose, theme, company }) {
 
   function stopListening() { try { recRef.current && recRef.current.stop() } catch {} }
 
-  // auto-start listening when opened (if supported)
+  // auto-start a live conversation when opened (if supported)
   useEffect(() => {
-    if (open && speechSupported) startListening()
-    return () => { try { recRef.current && recRef.current.abort() } catch {}; try { synth && synth.cancel() } catch {} }
+    if (open) {
+      primeVoice()                 // unlock phone audio inside the opening gesture
+      silenceRef.current = 0
+      if (speechSupported) startListening()
+    }
+    return () => {
+      activeRef.current = false
+      clearTimeout(loopTimerRef.current)
+      try { recRef.current && recRef.current.abort() } catch {}
+      try { synth && synth.cancel() } catch {}
+    }
   }, [open]) // eslint-disable-line
 
   // close on Escape
@@ -125,7 +196,7 @@ export default function VoiceAssistant({ open, onClose, theme, company }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [open]) // eslint-disable-line
 
-  function handleClose() { try { recRef.current && recRef.current.abort() } catch {}; stopSpeaking(); setHeard(''); setReply(''); setState('idle'); onClose && onClose() }
+  function handleClose() { activeRef.current = false; clearTimeout(loopTimerRef.current); try { recRef.current && recRef.current.abort() } catch {}; stopSpeaking(); setHeard(''); setReply(''); setState('idle'); onClose && onClose() }
 
   if (!open) return null
 
@@ -157,7 +228,13 @@ export default function VoiceAssistant({ open, onClose, theme, company }) {
         {/* orb */}
         <div style={S.orbWrap}>
           <button
-            onClick={() => { if (!speechSupported) return; state === 'listening' ? stopListening() : (state === 'speaking' ? stopSpeaking() : startListening()) }}
+            onClick={() => {
+              primeVoice()
+              if (!speechSupported) return
+              if (state === 'listening') { activeRef.current = false; clearTimeout(loopTimerRef.current); stopListening() }
+              else if (state === 'speaking') { stopSpeaking() }
+              else { silenceRef.current = 0; startListening() }
+            }}
             className={'qva-orb' + (orbActive ? ' on' : '')}
             style={S.orb}
             title={speechSupported ? 'Tap to talk' : 'Voice not supported — type below'}
