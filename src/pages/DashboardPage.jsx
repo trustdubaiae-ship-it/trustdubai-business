@@ -592,7 +592,7 @@ export default function DashboardPage({ onNavigate, theme }) {
         </div>
       </div>
       {shareOpen && <ShareModal {...{ company, _slug, _publicLink, _profileQr, copied, copyProfileLink, downloadProfileQR, shareProfileWhatsApp, onClose:()=>setShareOpen(false), onNavigate }}/>}
-      <VoiceAssistant open={voiceOpen} onClose={()=>setVoiceOpen(false)} theme={theme} />
+      <VoiceAssistant open={voiceOpen} onClose={()=>setVoiceOpen(false)} theme={theme} company={company} />
     </div>
   )
 }

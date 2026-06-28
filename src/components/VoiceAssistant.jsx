@@ -13,7 +13,7 @@ const SR = typeof window !== 'undefined' ? (window.SpeechRecognition || window.w
 const synth = typeof window !== 'undefined' ? window.speechSynthesis : null
 const speechSupported = !!SR
 
-export default function VoiceAssistant({ open, onClose, theme }) {
+export default function VoiceAssistant({ open, onClose, theme, company }) {
   const [state, setState] = useState('idle')      // idle | listening | thinking | speaking | error
   const [heard, setHeard] = useState('')          // what the user said
   const [reply, setReply] = useState('')          // assistant reply (text)
@@ -30,7 +30,7 @@ export default function VoiceAssistant({ open, onClose, theme }) {
     if (!q) return
     setHeard(q); setReply(''); setState('thinking')
     try {
-      const { data, error } = await supabase.functions.invoke('quvera-assistant', { body: { question: q } })
+      const { data, error } = await supabase.functions.invoke('quvera-assistant', { body: { question: q, companyId: company?.id || '', companyName: company?.name || '' } })
       let text = ''
       if (error) { try { text = (await error.context.json())?.error } catch { text = error.message } }
       else text = data?.reply || data?.error || ''
