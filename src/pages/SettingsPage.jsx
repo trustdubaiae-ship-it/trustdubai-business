@@ -3,10 +3,12 @@ import { useAuth } from '../lib/auth'
 import { useToast } from '../lib/toast'
 import { supabase } from '../lib/supabase'
 import { Upload } from 'lucide-react'
+import { LANGS, LANG_KEY } from '../components/VoiceAssistant'
 
 export default function SettingsPage() {
   const { company, refreshCompany, signOut } = useAuth()
   const toast = useToast()
+  const [voiceLang, setVoiceLang] = useState(() => { try { return localStorage.getItem(LANG_KEY) || 'en-US' } catch { return 'en-US' } })
   const [notifs, setNotifs] = useState({
     newReview: company?.notif_new_review ?? true,
     newLead: company?.notif_new_lead ?? true,
@@ -131,6 +133,19 @@ export default function SettingsPage() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
+        {/* Voice Assistant language */}
+        <div className="card">
+          <div className="card-title" style={{ marginBottom: 6 }}>Voice Assistant</div>
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 14, lineHeight: 1.6 }}>
+            The language you speak to the AI Core in. It listens and speaks back in this language; replies always follow the language you actually use.
+          </div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', display: 'block', marginBottom: 6 }}>Assistant language</label>
+          <select value={voiceLang} onChange={e => { setVoiceLang(e.target.value); try { localStorage.setItem(LANG_KEY, e.target.value) } catch {} ; toast.success('Assistant language saved ✓') }}
+            style={{ width: '100%', maxWidth: 320, padding: '10px 12px', borderRadius: 9, border: '1px solid var(--card-border)', background: 'var(--card)', color: 'var(--text)', fontSize: 13.5, fontFamily: 'inherit', outline: 'none' }}>
+            {LANGS.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
+          </select>
+        </div>
+
         {/* Notifications */}
         <div className="card">
           <div className="card-title" style={{ marginBottom: 18 }}>Notifications</div>

@@ -13,6 +13,24 @@ const SR = typeof window !== 'undefined' ? (window.SpeechRecognition || window.w
 const synth = typeof window !== 'undefined' ? window.speechSynthesis : null
 const speechSupported = !!SR
 
+// Major languages — used for speech recognition + spoken reply. The text reply
+// always follows the language the user actually speaks/types.
+export const LANGS = [
+  { code: 'en-US', label: 'English' },
+  { code: 'ar-SA', label: 'العربية (Arabic)' },
+  { code: 'hi-IN', label: 'हिन्दी (Hindi)' },
+  { code: 'ur-PK', label: 'اردو (Urdu)' },
+  { code: 'ml-IN', label: 'മലയാളം (Malayalam)' },
+  { code: 'ta-IN', label: 'தமிழ் (Tamil)' },
+  { code: 'bn-IN', label: 'বাংলা (Bengali)' },
+  { code: 'fil-PH', label: 'Filipino' },
+  { code: 'fr-FR', label: 'Français (French)' },
+  { code: 'es-ES', label: 'Español (Spanish)' },
+  { code: 'ru-RU', label: 'Русский (Russian)' },
+  { code: 'zh-CN', label: '中文 (Chinese)' },
+]
+export const LANG_KEY = 'qv_voice_lang'
+
 export default function VoiceAssistant({ open, onClose, theme, company }) {
   const [state, setState] = useState('idle')      // idle | listening | thinking | speaking | error
   const [heard, setHeard] = useState('')          // what the user said
@@ -20,9 +38,12 @@ export default function VoiceAssistant({ open, onClose, theme, company }) {
   const [muted, setMuted] = useState(false)
   const [typed, setTyped] = useState('')          // text fallback input
   const [micDenied, setMicDenied] = useState(false)
+  const [lang, setLang] = useState(() => { try { return localStorage.getItem(LANG_KEY) || 'en-US' } catch { return 'en-US' } })
   const recRef = useRef(null)
   const mutedRef = useRef(false)
+  const langRef = useRef(lang)
   useEffect(() => { mutedRef.current = muted }, [muted])
+  useEffect(() => { langRef.current = lang; try { localStorage.setItem(LANG_KEY, lang) } catch {} }, [lang])
 
   // ---- ask Claude via the edge function ----
   const ask = useCallback(async (question) => {
@@ -49,7 +70,9 @@ export default function VoiceAssistant({ open, onClose, theme, company }) {
     try {
       synth.cancel()
       const u = new SpeechSynthesisUtterance(text)
-      u.rate = 1.02; u.pitch = 1; u.lang = 'en-US'
+      u.rate = 1.02; u.pitch = 1; u.lang = langRef.current || 'en-US'
+      const v = (synth.getVoices() || []).find(vo => vo.lang === u.lang) || (synth.getVoices() || []).find(vo => vo.lang && vo.lang.split('-')[0] === u.lang.split('-')[0])
+      if (v) u.voice = v
       u.onstart = () => setState('speaking')
       u.onend = () => setState('idle')
       u.onerror = () => setState('idle')
@@ -65,7 +88,7 @@ export default function VoiceAssistant({ open, onClose, theme, company }) {
     stopSpeaking()
     try {
       const rec = new SR()
-      rec.lang = 'en-US'; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1
+      rec.lang = langRef.current || 'en-US'; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1
       let finalText = ''
       rec.onstart = () => { setHeard(''); setReply(''); setMicDenied(false); setState('listening') }
       rec.onresult = (e) => {
@@ -120,7 +143,10 @@ export default function VoiceAssistant({ open, onClose, theme, company }) {
             <span style={{ fontWeight: 800, fontSize: 14.5, color: 'var(--text)', letterSpacing: '.2px' }}>Quvera Assistant</span>
             <span style={S.beta}>BETA</span>
           </div>
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <select value={lang} onChange={(e) => setLang(e.target.value)} title="Language" style={S.langSel}>
+              {LANGS.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
+            </select>
             <button onClick={() => { const m = !muted; setMuted(m); if (m) stopSpeaking() }} title={muted ? 'Unmute reply' : 'Mute reply'} style={S.iconBtn}>
               <i className={'ti ' + (muted ? 'ti-volume-off' : 'ti-volume')} />
             </button>
@@ -175,6 +201,7 @@ const S = {
   brandDot: { width: 22, height: 22, borderRadius: 7, background: BRAND, boxShadow: '0 0 14px -2px rgba(0,212,255,0.7)', flexShrink: 0 },
   beta: { fontSize: 9, fontWeight: 800, letterSpacing: '.5px', color: '#8B5CF6', background: 'rgba(139,92,246,0.14)', padding: '2px 7px', borderRadius: 99 },
   iconBtn: { width: 32, height: 32, borderRadius: 9, border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--text2)', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  langSel: { maxWidth: 130, padding: '6px 8px', borderRadius: 9, border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--text2)', fontSize: 12, fontFamily: 'inherit', cursor: 'pointer', outline: 'none' },
   orbWrap: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '26px 16px 18px' },
   orb: { width: 116, height: 116, borderRadius: '50%', border: 'none', cursor: 'pointer', background: BRAND, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 0 0 rgba(0,212,255,0.45)', transition: 'transform .2s' },
   stateLabel: { fontSize: 13, fontWeight: 700, color: 'var(--text2)', letterSpacing: '.3px' },
