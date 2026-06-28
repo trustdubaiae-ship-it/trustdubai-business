@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { MENU } from '../components/Sidebar'
 import { can } from '../lib/permissions'
 import MeetingBanner from '../components/MeetingBanner'
+import VoiceAssistant from '../components/VoiceAssistant'
 
 /* =========================================================================
    Quvera Business — AI CORE COCKPIT  (the "555" Business OS dashboard)
@@ -190,6 +191,7 @@ export default function DashboardPage({ onNavigate, theme }) {
   function shareProfileWhatsApp() { const text=`Check out ${company?.name||'our'} verified profile on Quvera: ${_publicLink}`; window.open('https://wa.me/?text='+encodeURIComponent(text),'_blank') }
 
   const [loading, setLoading] = useState(true)
+  const [voiceOpen, setVoiceOpen] = useState(false)
   const [d, setD] = useState({
     health:0, aiScore:0, pipeline:0, liveProjects:0, aiActions:0,
     leads:0, activeLeads:0, hot:0, newToday:0, qualified:0, won:0, winRate:0, followDue:0,
@@ -522,10 +524,11 @@ export default function DashboardPage({ onNavigate, theme }) {
                 </svg>
 
                 <div className="qc-ring r3"/><div className="qc-ring r2"/><div className="qc-ring r1"/>
-                <div className="qc-core" onClick={()=>go('menu')} title="Open All Features" style={{ cursor:'pointer' }}><div className="qc-core-inner">
+                <div className="qc-core qc-core-tap" onClick={()=>setVoiceOpen(true)} title="Tap to talk — Quvera Assistant" style={{ cursor:'pointer' }}><div className="qc-core-inner">
                   <div style={{ fontWeight:800, fontSize:17, letterSpacing:.5 }}>QUVERA</div>
                   <div style={{ fontSize:9, letterSpacing:2.5, color:'#bfe9ff', textTransform:'uppercase', marginTop:3 }}>AI Core</div>
-                  <div className="qc-grad" style={{ fontSize:22, fontWeight:800, marginTop:6, fontVariantNumeric:'tabular-nums' }}><AnimatedNumber value={d.aiScore}/></div>
+                  <div className="qc-grad" style={{ fontSize:22, fontWeight:800, marginTop:5, fontVariantNumeric:'tabular-nums' }}><AnimatedNumber value={d.aiScore}/></div>
+                  <div style={{ fontSize:8, letterSpacing:1.4, color:'#9fd9ff', textTransform:'uppercase', marginTop:5, display:'flex', alignItems:'center', gap:4, opacity:.9 }}><i className="ti ti-microphone" style={{ fontSize:10 }}/> Tap to talk</div>
                 </div></div>
 
                 {NODES.map((n,i)=><NodeCard key={i} e={n}/>)}
@@ -589,6 +592,7 @@ export default function DashboardPage({ onNavigate, theme }) {
         </div>
       </div>
       {shareOpen && <ShareModal {...{ company, _slug, _publicLink, _profileQr, copied, copyProfileLink, downloadProfileQR, shareProfileWhatsApp, onClose:()=>setShareOpen(false), onNavigate }}/>}
+      <VoiceAssistant open={voiceOpen} onClose={()=>setVoiceOpen(false)} theme={theme} />
     </div>
   )
 }
@@ -707,6 +711,9 @@ const QC_CSS = `
   box-shadow:0 0 95px rgba(0,212,255,0.55), 0 0 190px rgba(139,92,246,0.42); }
 .qc-core-inner{ width:128px; height:128px; border-radius:50%; background:radial-gradient(circle at 50% 38%,#0bd,#1b2b6b);
   display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; box-shadow:0 0 40px rgba(0,212,255,0.6) inset; animation:qcfloat 6s ease-in-out infinite; }
+.qc-core-tap{ transition:transform .2s ease; }
+.qc-core-tap:hover{ transform:scale(1.06); }
+.qc-core-tap:hover .qc-core-inner{ box-shadow:0 0 52px rgba(0,212,255,0.85) inset, 0 0 30px rgba(0,212,255,0.5); }
 .qc-flow-cap{ text-align:center; color:#7e8aa8; font-size:10.5px; letter-spacing:2px; text-transform:uppercase; margin-top:8px; }
 
 /* hero light-trail rings */
