@@ -58,9 +58,41 @@ let _voiceUnlocked = false
 export function primeVoice() {
   if (!synth) return
   try { if (synth.paused) synth.resume() } catch {}
+  loadVoices()
   if (_voiceUnlocked) return
   try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; synth.speak(u); _voiceUnlocked = true } catch {}
-  try { synth.getVoices() } catch {}
+}
+
+// Voices load asynchronously — cache them and refresh on the voiceschanged event.
+let _voices = []
+function loadVoices() {
+  if (!synth) return _voices
+  try { const v = synth.getVoices() || []; if (v.length) _voices = v } catch {}
+  return _voices
+}
+if (synth) { loadVoices(); try { synth.addEventListener('voiceschanged', loadVoices) } catch {} }
+
+// Pick the most NATURAL voice for a language. Web Speech defaults are often
+// robotic, so prefer neural/online/named premium voices and avoid eSpeak/compact.
+const GOOD_VOICE = /natural|neural|online|enhanced|premium|google|siri|samantha|aria|jenny|guy|sonia|libby|ryan|emma|nora|hazel|neerja|prabhat|swara|ravi|wavenet|multilingual/i
+const BAD_VOICE = /espeak|compact|pico|robosoft|monotone/i
+function pickVoice(lang) {
+  const all = loadVoices()
+  if (!all.length) return null
+  const want = (lang || 'en-US').toLowerCase().replace('_', '-')
+  const base = want.split('-')[0]
+  const matches = all.filter(v => ((v.lang || '').toLowerCase().replace('_', '-').split('-')[0]) === base)
+  const pool = matches.length ? matches : all
+  const score = (v) => {
+    let s = 0
+    if (GOOD_VOICE.test(v.name || '')) s += 10
+    if (v.localService === false) s += 4                                  // network voices are usually neural
+    if ((v.lang || '').toLowerCase().replace('_', '-') === want) s += 3   // exact locale match
+    if (v.default) s += 1
+    if (BAD_VOICE.test(v.name || '')) s -= 20
+    return s
+  }
+  return pool.slice().sort((a, b) => score(b) - score(a))[0] || null
 }
 
 export default function VoiceAssistant({ open, onClose, theme, company }) {
@@ -106,9 +138,10 @@ export default function VoiceAssistant({ open, onClose, theme, company }) {
     try {
       synth.cancel()
       const u = new SpeechSynthesisUtterance(text)
-      u.rate = 1.02; u.pitch = 1; u.lang = langRef.current || 'en-US'
-      const v = (synth.getVoices() || []).find(vo => vo.lang === u.lang) || (synth.getVoices() || []).find(vo => vo.lang && vo.lang.split('-')[0] === u.lang.split('-')[0])
-      if (v) u.voice = v
+      u.lang = langRef.current || 'en-US'
+      u.rate = 0.97; u.pitch = 1.05; u.volume = 1   // slightly slower + warmer = less robotic
+      const v = pickVoice(u.lang)
+      if (v) { u.voice = v; u.lang = v.lang || u.lang }
       u.onstart = () => setState('speaking')
       u.onend = () => { setState('idle'); if (thenListen) scheduleListen() }
       u.onerror = () => { setState('idle'); if (thenListen) scheduleListen() }
