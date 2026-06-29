@@ -11,12 +11,7 @@ function phoneKey(p) {
   return d.slice(-9)
 }
 
-// `lockedEmail` puts the form in "onboarding" mode: the user is already signed in
-// (Google), so the email is fixed to their account and, on submit, we ALSO create
-// the pending `companies` row so the portal grants the limited dashboard +
-// "complete your profile" experience immediately (no admin step to get in).
-export default function RegisterPage({ onBack, lockedEmail }) {
-  const onboarding = !!lockedEmail
+export default function RegisterPage({ onBack }) {
   const [step, setStep] = useState(0)
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
@@ -24,7 +19,7 @@ export default function RegisterPage({ onBack, lockedEmail }) {
   const [dupMatch, setDupMatch] = useState(null) // { name, slug, kind: 'name'|'phone' }
   const [form, setForm] = useState({
     company_name: '', category: '', location: '', website: '',
-    phone: '', whatsapp: '', email: lockedEmail || '', owner_name: '', description: '', how_heard: '',
+    phone: '', whatsapp: '', email: '', owner_name: '', description: '', how_heard: '',
   })
   const [errors, setErrors] = useState({})
   // referral code from the partner link (?ref=CODE)
@@ -104,7 +99,6 @@ export default function RegisterPage({ onBack, lockedEmail }) {
   async function submit() {
     setSubmitting(true)
     try {
-      const lower = (lockedEmail || form.email).toLowerCase().trim()
       const slug = form.company_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
       // resolve the partner referral code (if the user came via a partner link)
       let referred_by_partner_id = null
@@ -114,26 +108,11 @@ export default function RegisterPage({ onBack, lockedEmail }) {
       const { error } = await supabase.from('company_applications').insert({
         company_name: form.company_name, category: form.category, location: form.location,
         website: form.website || null, phone: form.phone, whatsapp: form.whatsapp || form.phone,
-        email: lower, owner_name: form.owner_name, description: form.description,
+        email: form.email.toLowerCase(), owner_name: form.owner_name, description: form.description,
         how_heard: form.how_heard || null, slug, status: 'pending', applied_at: new Date().toISOString(),
         referral_code: refCode || null, referred_by_partner_id
       })
       if (error) throw error
-
-      // Onboarding (already signed in): also create the pending `companies` row keyed
-      // to the signed-in email so the portal lets them in (limited dashboard +
-      // complete-profile), then reload so auth re-resolves and picks it up.
-      if (onboarding) {
-        const { error: ce } = await supabase.from('companies').insert({
-          name: form.company_name, category: form.category, location: form.location,
-          phone: form.phone, whatsapp: form.whatsapp || form.phone,
-          email: lower, business_email: lower, owner_email: lower,
-          description: form.description, slug, status: 'pending', plan: 'free',
-        })
-        if (ce) { alert('Could not finish setup: ' + ce.message); setSubmitting(false); return }
-        window.location.reload()
-        return
-      }
       setSubmitted(true)
     } catch (e) {
       alert('Submission failed: ' + e.message)
@@ -193,15 +172,9 @@ export default function RegisterPage({ onBack, lockedEmail }) {
           </div>
         </div>
         <h1 style={{ fontFamily: "'Sora', sans-serif", fontWeight: 800, fontSize: 'clamp(28px, 6vw, 42px)', color: '#ffffff', lineHeight: 1.2, marginBottom: 16, maxWidth: 440 }}>
-          {onboarding
-            ? <>Complete your profile.<br /><span style={{ color: '#e8b84b' }}>Activate your account.</span></>
-            : <>List your business.<br /><span style={{ color: '#e8b84b' }}>Build trust.</span></>}
+          List your business.<br /><span style={{ color: '#e8b84b' }}>Build trust.</span>
         </h1>
-        <p style={{ fontSize: 15, color: '#8b949e', maxWidth: 380, lineHeight: 1.8, marginBottom: 40 }}>
-          {onboarding
-            ? "Fill in your business details to activate your account — 30 days free after approval. You can set up your profile, portfolio & more right away."
-            : "Join hundreds of Dubai businesses. Get verified, showcase your work, attract more clients."}
-        </p>
+        <p style={{ fontSize: 15, color: '#8b949e', maxWidth: 380, lineHeight: 1.8, marginBottom: 40 }}>Join hundreds of Dubai businesses. Get verified, showcase your work, attract more clients.</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {STEPS.map((s, i) => (
             <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -248,8 +221,7 @@ export default function RegisterPage({ onBack, lockedEmail }) {
               <label>WhatsApp (if different)</label>
               <input value={form.whatsapp} onChange={e => set('whatsapp', e.target.value)} placeholder="+971 50 000 0000" />
               <label>Business Email *</label>
-              <input type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="info@yourcompany.ae" readOnly={onboarding} style={onboarding ? { opacity: 0.65, cursor: 'not-allowed' } : undefined} />
-              {onboarding && <div style={{ fontSize: 11.5, color: '#7e8a3f', marginTop: -10, marginBottom: 14 }}>You're signed in as this email — it's locked to your account.</div>}
+              <input type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="info@yourcompany.ae" />
               {errors.email && <div className="err">{errors.email}</div>}
             </>}
             {step === 2 && <>
