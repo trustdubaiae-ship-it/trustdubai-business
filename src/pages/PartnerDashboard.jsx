@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import NoCompanyPage from './NoCompanyPage'
+import RegisterPage from './RegisterPage'
 import { marginalCommission } from '../lib/commission'
 import PartnerTerms from './PartnerTerms'
 
@@ -143,8 +143,10 @@ export default function PartnerDashboard({ user }) {
     return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--text3)' }}>
       <i className="ti ti-loader-2" style={{ animation: 'spin 1s linear infinite', fontSize: 22 }} /></div>
   }
-  // Not a partner and no company → normal experience.
-  if (!partner) return <NoCompanyPage />
+  // Not a partner and no company → let them register/onboard right here (Google
+  // email locked in). On submit this creates a pending company so the portal opens
+  // the limited dashboard + "complete your profile" flow. Back = sign out.
+  if (!partner) return <RegisterPage lockedEmail={user?.email} onBack={() => supabase.auth.signOut()} />
 
 
   const term = Number(partner.term_months || 12)
