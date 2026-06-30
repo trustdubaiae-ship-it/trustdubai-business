@@ -11,6 +11,7 @@ const blankForm = (company, pre = {}) => ({
   title: pre.title || '', description: '', categories: [], budget_min: '', budget_max: '', location: pre.location || '', timeline: '',
   contact_name: company?.name || '', contact_phone: company?.phone || company?.whatsapp || '', contact_email: company?.email || company?.owner_email || '',
   show_name: true, show_phone: false, show_email: false,
+  images: [],
   project_id: pre.projectId || null, project_title: pre.title || '',
 })
 
@@ -40,6 +41,9 @@ export default function SubcontractHub({ company }) {
   const [projects, setProjects] = useState([])          // ops_projects for the subcontractor link
   const [addSub, setAddSub] = useState(null)            // { post, name, phone, email, projectId } after an award
   const [addingSub, setAddingSub] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [detail, setDetail] = useState(null)            // a feed post opened in full-detail view
+  const [lightbox, setLightbox] = useState(null)        // image url opened full-screen
 
   useEffect(() => { if (isGold && company?.id) load() }, [company?.id]) // eslint-disable-line
   // Posted from a project ("Find on Marketplace") → open the form pre-filled + linked.
@@ -88,9 +92,30 @@ export default function SubcontractHub({ company }) {
       budget_min: p.budget_min ?? '', budget_max: p.budget_max ?? '', location: p.location || '', timeline: p.timeline || '',
       contact_name: p.contact_name || '', contact_phone: p.contact_phone || '', contact_email: p.contact_email || '',
       show_name: !!p.show_name, show_phone: !!p.show_phone, show_email: !!p.show_email,
+      images: p.images || [],
     })
     setShowPost(true)
   }
+
+  // Upload one or more photos to storage; push their public URLs onto the form.
+  async function uploadImages(files) {
+    const list = Array.from(files || []).filter(f => f.type.startsWith('image/'))
+    if (!list.length) return
+    if (form.images.length + list.length > 8) { toast.error('Up to 8 photos'); return }
+    setUploading(true)
+    try {
+      for (const file of list) {
+        if (file.size > 8 * 1024 * 1024) { toast.error(`${file.name} is over 8MB`); continue }
+        const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+        const path = `subcontract/${company.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+        const { error } = await supabase.storage.from('company-assets').upload(path, file)
+        if (error) { toast.error(`Failed to upload ${file.name}`); continue }
+        const { data: { publicUrl } } = supabase.storage.from('company-assets').getPublicUrl(path)
+        setForm(s => ({ ...s, images: [...s.images, publicUrl] }))
+      }
+    } finally { setUploading(false) }
+  }
+  function removeImage(url) { setForm(s => ({ ...s, images: s.images.filter(u => u !== url) })) }
 
   async function submit() {
     if (!form.title.trim()) { toast.error('Add a project title'); return }
@@ -107,6 +132,7 @@ export default function SubcontractHub({ company }) {
         location: form.location.trim() || null, timeline: form.timeline.trim() || null,
         contact_name: form.contact_name.trim(), contact_phone: form.contact_phone.trim(), contact_email: form.contact_email.trim(),
         show_name: form.show_name, show_phone: form.show_phone, show_email: form.show_email,
+        images: form.images || [],
         ...(form.project_id ? { project_id: form.project_id } : {}),
       }
       let error
@@ -240,7 +266,7 @@ export default function SubcontractHub({ company }) {
               const interested = myInterestIds.has(p.id)
               const tint = taken ? '#f59e0b' : '#0891b2'
               return (
-                <div key={p.id} className="mkt-kard" style={{ position: 'relative', display: 'flex', flexDirection: 'column', background: `radial-gradient(135% 90% at 50% -14%, ${tint}1f, transparent 55%), var(--card)`, border: '1px solid var(--border)', borderRadius: 18, padding: 16, boxShadow: 'var(--shadow-md)', opacity: taken ? 0.6 : 1 }}>
+                <div key={p.id} onClick={() => setDetail(p)} className="mkt-kard" style={{ cursor: 'pointer', position: 'relative', display: 'flex', flexDirection: 'column', background: `radial-gradient(135% 90% at 50% -14%, ${tint}1f, transparent 55%), var(--card)`, border: '1px solid var(--border)', borderRadius: 18, padding: 16, boxShadow: 'var(--shadow-md)', opacity: taken ? 0.6 : 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                     <span style={{ fontSize: 10, fontWeight: 800, padding: '4px 11px', borderRadius: 99, textTransform: 'uppercase', letterSpacing: '.4px', display: 'inline-flex', alignItems: 'center', gap: 5, background: taken ? '#fef3c7' : 'rgba(8,145,178,0.16)', color: taken ? '#92400e' : '#0e7490' }}>
                       <i className={'ti ' + (taken ? 'ti-lock' : 'ti-circle-dot')} style={{ fontSize: 12 }} /> {taken ? 'Under discussion' : 'Open'}
@@ -254,6 +280,12 @@ export default function SubcontractHub({ company }) {
                       <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 2 }}><i className="ti ti-building" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {p.poster_name || 'A Quvera company'}</div>
                     </div>
                   </div>
+                  {(p.images || []).length > 0 && (
+                    <div style={{ position: 'relative', marginTop: 12, borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border)', aspectRatio: '16 / 9', background: 'var(--bg2)' }}>
+                      <img src={p.images[0]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                      {p.images.length > 1 && <span style={{ position: 'absolute', bottom: 7, right: 7, fontSize: 11, fontWeight: 700, color: '#fff', background: 'rgba(0,0,0,0.6)', padding: '2px 9px', borderRadius: 99, display: 'inline-flex', alignItems: 'center', gap: 4 }}><i className="ti ti-photo" style={{ fontSize: 12 }} />{p.images.length}</span>}
+                    </div>
+                  )}
                   {p.description && <div style={{ fontSize: 12.5, color: 'var(--text2)', lineHeight: 1.5, marginTop: 10, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.description}</div>}
                   {(p.categories || []).length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 10 }}>{(p.categories || []).map(c => <span key={c} style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--primary-dark)', background: 'var(--primary-bg)', padding: '2px 9px', borderRadius: 99 }}>{c}</span>)}</div>}
                   <div style={{ marginTop: 12, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
@@ -272,12 +304,12 @@ export default function SubcontractHub({ company }) {
                   </div>
                   {!taken && (
                     <div style={{ display: 'flex', gap: 7, marginTop: 12, flexWrap: 'wrap' }}>
-                      <button onClick={() => expressInterest(p)} disabled={interested || busy === 'int-' + p.id} className="btn btn-sm" style={{ flex: 1, minWidth: 120, background: interested ? 'var(--bg2)' : 'linear-gradient(135deg,#e8b84b,#c9952a)', color: interested ? 'var(--text2)' : '#1a1207', border: 'none', fontWeight: 700 }}>
+                      <button onClick={e => { e.stopPropagation(); expressInterest(p) }} disabled={interested || busy === 'int-' + p.id} className="btn btn-sm" style={{ flex: 1, minWidth: 120, background: interested ? 'var(--bg2)' : 'linear-gradient(135deg,#e8b84b,#c9952a)', color: interested ? 'var(--text2)' : '#1a1207', border: 'none', fontWeight: 700 }}>
                         <i className={'ti ' + (interested ? 'ti-check' : 'ti-hand-click')} style={{ verticalAlign: '-2px', marginRight: 4 }} />{interested ? 'Interested ✓' : "I'm interested"}
                       </button>
-                      {p.contact_phone && <a href={wa(p.contact_phone)} target="_blank" rel="noreferrer" className="btn btn-sm" style={{ background: '#22c55e', color: '#fff', textDecoration: 'none' }}><i className="ti ti-brand-whatsapp" /></a>}
-                      {p.contact_phone && <a href={'tel:' + p.contact_phone} className="btn btn-secondary btn-sm"><i className="ti ti-phone" /></a>}
-                      {p.contact_email && <a href={'mailto:' + p.contact_email} className="btn btn-secondary btn-sm"><i className="ti ti-mail" /></a>}
+                      {p.contact_phone && <a onClick={e => e.stopPropagation()} href={wa(p.contact_phone)} target="_blank" rel="noreferrer" className="btn btn-sm" style={{ background: '#22c55e', color: '#fff', textDecoration: 'none' }}><i className="ti ti-brand-whatsapp" /></a>}
+                      {p.contact_phone && <a onClick={e => e.stopPropagation()} href={'tel:' + p.contact_phone} className="btn btn-secondary btn-sm"><i className="ti ti-phone" /></a>}
+                      {p.contact_email && <a onClick={e => e.stopPropagation()} href={'mailto:' + p.contact_email} className="btn btn-secondary btn-sm"><i className="ti ti-mail" /></a>}
                     </div>
                   )}
                 </div>
@@ -310,6 +342,12 @@ export default function SubcontractHub({ company }) {
                       {taken && p.awarded_to && <div style={{ fontSize: 12, color: '#b45309', marginTop: 3, fontWeight: 600 }}><i className="ti ti-award" style={{ fontSize: 13, verticalAlign: '-2px' }} /> Awarded to {p.awarded_to}</div>}
                     </div>
                   </div>
+                  {(p.images || []).length > 0 && (
+                    <div style={{ position: 'relative', marginTop: 12, borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border)', aspectRatio: '16 / 9', background: 'var(--bg2)' }}>
+                      <img src={p.images[0]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                      {p.images.length > 1 && <span style={{ position: 'absolute', bottom: 7, right: 7, fontSize: 11, fontWeight: 700, color: '#fff', background: 'rgba(0,0,0,0.6)', padding: '2px 9px', borderRadius: 99, display: 'inline-flex', alignItems: 'center', gap: 4 }}><i className="ti ti-photo" style={{ fontSize: 12 }} />{p.images.length}</span>}
+                    </div>
+                  )}
                   {p.description && <div style={{ fontSize: 12.5, color: 'var(--text2)', lineHeight: 1.5, marginTop: 10, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.description}</div>}
                   {(p.categories || []).length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 10 }}>{(p.categories || []).map(c => <span key={c} style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--primary-dark)', background: 'var(--primary-bg)', padding: '2px 9px', borderRadius: 99 }}>{c}</span>)}</div>}
                   {/* info rows */}
@@ -408,6 +446,26 @@ export default function SubcontractHub({ company }) {
                 {fld('Timeline', <input value={form.timeline} onChange={e => setForm(s => ({ ...s, timeline: e.target.value }))} placeholder="e.g. Start in 1 week · 10 days" style={inp} />)}
               </div>
 
+              {fld('Photos', (
+                <div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9 }}>
+                    {form.images.map(url => (
+                      <div key={url} style={{ position: 'relative', width: 84, height: 84, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                        <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                        <button type="button" onClick={() => removeImage(url)} title="Remove" style={{ position: 'absolute', top: 3, right: 3, width: 22, height: 22, borderRadius: 7, border: 'none', cursor: 'pointer', background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 14, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                      </div>
+                    ))}
+                    {form.images.length < 8 && (
+                      <label style={{ width: 84, height: 84, borderRadius: 10, border: '1.5px dashed var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, cursor: uploading ? 'wait' : 'pointer', color: 'var(--text3)', background: 'var(--card)' }}>
+                        <i className={'ti ' + (uploading ? 'ti-loader-2' : 'ti-camera-plus')} style={{ fontSize: 22, animation: uploading ? 'spin 1s linear infinite' : 'none' }} />
+                        <span style={{ fontSize: 10.5, fontWeight: 600 }}>{uploading ? 'Uploading…' : 'Add'}</span>
+                        <input type="file" accept="image/*" multiple disabled={uploading} onChange={e => { uploadImages(e.target.files); e.target.value = '' }} style={{ display: 'none' }} />
+                      </label>
+                    )}
+                  </div>
+                </div>
+              ), 'Add photos of the work, drawings or the site (up to 8). They show on your post.')}
+
               <div style={{ marginTop: 6, padding: '12px 13px', borderRadius: 10, background: 'var(--bg2)', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)', marginBottom: 3 }}>Your contact <span style={{ color: '#dc2626' }}>*</span></div>
                 <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 10, lineHeight: 1.5 }}>All required. Use the toggle to choose what shows publicly on the post. Anything you hide stays private — interested companies use <b>“I'm interested”</b> and you reach out to them.</div>
@@ -421,6 +479,73 @@ export default function SubcontractHub({ company }) {
               <button onClick={submit} disabled={saving} className="btn btn-primary">{saving ? 'Saving…' : (editId ? 'Save changes' : 'Post project')}</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ---------- FEED POST: full detail ---------- */}
+      {detail && (() => {
+        const p = detail
+        const taken = p.status === 'under_discussion'
+        const interested = myInterestIds.has(p.id)
+        return (
+          <div onClick={() => setDetail(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 205, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 14px', overflowY: 'auto' }}>
+            <div onClick={e => e.stopPropagation()} style={{ width: 620, maxWidth: '100%', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
+              <div style={{ padding: '15px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                <span style={{ fontSize: 10, fontWeight: 800, padding: '4px 11px', borderRadius: 99, textTransform: 'uppercase', letterSpacing: '.4px', display: 'inline-flex', alignItems: 'center', gap: 5, background: taken ? '#fef3c7' : 'rgba(8,145,178,0.16)', color: taken ? '#92400e' : '#0e7490' }}>
+                  <i className={'ti ' + (taken ? 'ti-lock' : 'ti-circle-dot')} style={{ fontSize: 12 }} /> {taken ? 'Under discussion' : 'Open'}
+                </span>
+                <button onClick={() => setDetail(null)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)' }}>×</button>
+              </div>
+              <div style={{ padding: 18, maxHeight: '74vh', overflowY: 'auto' }}>
+                {(p.images || []).length > 0 && (
+                  <div style={{ display: 'grid', gridTemplateColumns: p.images.length === 1 ? '1fr' : 'repeat(auto-fill,minmax(150px,1fr))', gap: 8, marginBottom: 16 }}>
+                    {p.images.map(url => (
+                      <div key={url} onClick={() => setLightbox(url)} style={{ cursor: 'zoom-in', borderRadius: 11, overflow: 'hidden', border: '1px solid var(--border)', aspectRatio: '4 / 3', background: 'var(--bg2)' }}>
+                        <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div style={{ fontSize: 21, fontWeight: 800, color: 'var(--text)', lineHeight: 1.25, letterSpacing: '-.3px' }}>{p.title}</div>
+                <div style={{ fontSize: 12.5, color: 'var(--text3)', marginTop: 4 }}><i className="ti ti-building" style={{ fontSize: 13, verticalAlign: '-1px' }} /> {p.poster_name || 'A Quvera company'} · Posted {fmtDate(p.created_at)}</div>
+                {p.description && <div style={{ fontSize: 13.5, color: 'var(--text2)', lineHeight: 1.65, marginTop: 14, whiteSpace: 'pre-wrap' }}>{p.description}</div>}
+                {(p.categories || []).length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 14 }}>{p.categories.map(c => <span key={c} style={{ fontSize: 11, fontWeight: 600, color: 'var(--primary-dark)', background: 'var(--primary-bg)', padding: '3px 11px', borderRadius: 99 }}>{c}</span>)}</div>}
+                <div style={{ marginTop: 16, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+                  {[
+                    (p.budget_min || p.budget_max) && ['ti-coin', '#16a34a', 'Budget', p.budget_min && p.budget_max ? `${AED(p.budget_min)} – ${AED(p.budget_max)}` : AED(p.budget_min || p.budget_max)],
+                    p.location && ['ti-map-pin', '#0891b2', 'Location', p.location],
+                    p.timeline && ['ti-clock', '#8b5cf6', 'Timeline', p.timeline],
+                    p.contact_name && ['ti-user', '#d97706', 'Contact', p.contact_name],
+                    p.contact_phone && ['ti-phone', '#22c55e', 'Phone', p.contact_phone],
+                    p.contact_email && ['ti-mail', '#6366f1', 'Email', p.contact_email],
+                  ].filter(Boolean).map((r, i) => (
+                    <div key={r[2]} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '11px 13px', borderTop: i ? '1px solid var(--border)' : 'none' }}>
+                      <i className={'ti ' + r[0]} style={{ fontSize: 16, color: r[1], flexShrink: 0 }} />
+                      <span style={{ fontSize: 12, color: 'var(--text3)' }}>{r[2]}</span>
+                      <span style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 700, color: 'var(--text)', textAlign: 'right', wordBreak: 'break-word' }}>{r[3]}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {!taken && (
+                <div style={{ padding: '13px 18px', borderTop: '1px solid var(--border)', display: 'flex', gap: 9, flexWrap: 'wrap' }}>
+                  <button onClick={() => expressInterest(p)} disabled={interested || busy === 'int-' + p.id} className="btn" style={{ flex: 1, minWidth: 140, background: interested ? 'var(--bg2)' : 'linear-gradient(135deg,#e8b84b,#c9952a)', color: interested ? 'var(--text2)' : '#1a1207', border: 'none', fontWeight: 700 }}>
+                    <i className={'ti ' + (interested ? 'ti-check' : 'ti-hand-click')} style={{ verticalAlign: '-2px', marginRight: 4 }} />{interested ? 'Interested ✓' : "I'm interested"}
+                  </button>
+                  {p.contact_phone && <a href={wa(p.contact_phone)} target="_blank" rel="noreferrer" className="btn" style={{ background: '#22c55e', color: '#fff', textDecoration: 'none' }}><i className="ti ti-brand-whatsapp" style={{ verticalAlign: '-2px', marginRight: 4 }} />WhatsApp</a>}
+                  {p.contact_phone && <a href={'tel:' + p.contact_phone} className="btn btn-secondary"><i className="ti ti-phone" /></a>}
+                  {p.contact_email && <a href={'mailto:' + p.contact_email} className="btn btn-secondary"><i className="ti ti-mail" /></a>}
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* ---------- IMAGE LIGHTBOX ---------- */}
+      {lightbox && (
+        <div onClick={() => setLightbox(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, cursor: 'zoom-out' }}>
+          <img src={lightbox} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 8 }} />
         </div>
       )}
 
