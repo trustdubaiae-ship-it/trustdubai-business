@@ -7,6 +7,7 @@ import MetaAds from './MetaAds'
 import MetaAdBuilder from './MetaAdBuilder'
 import WhatsAppConnect from './WhatsAppConnect'
 import WhatsAppBot from './WhatsAppBot'
+import AdStudio from './AdStudio'
 import HeroActions from '../components/HeroActions'
 
 const SOURCES = [
@@ -110,6 +111,9 @@ export default function LeadEngine() {
   if (view === 'whatsapp-bot') return (
     <WhatsAppBot onBack={() => setView('whatsapp-connect')} />
   )
+  if (view === 'ad-studio') return (
+    <AdStudio onBack={() => setView('home')} />
+  )
 
   const text=isDark?'#f1f5f9':'#0f172a', textSub=isDark?'#94a3b8':'#64748b', textMuted=isDark?'#475569':'#94a3b8'
   const border=isDark?'rgba(255,255,255,0.08)':'#e2e8f0', cardBg=isDark?'#1e293b':'#ffffff'
@@ -181,6 +185,18 @@ export default function LeadEngine() {
           )
         })}
       </div>
+
+      {/* AI Ad Studio — generate a campaign + branded ad design with AI */}
+      <button onClick={() => setView('ad-studio')} style={{ width:'100%', display:'flex', alignItems:'center', gap:12, textAlign:'left', cursor:'pointer', border:'none', borderRadius:14, padding:16, marginBottom:22, background:'linear-gradient(120deg, rgba(139,92,246,0.14), rgba(0,212,255,0.10))', boxShadow:`inset 0 0 0 1px ${border}` }}>
+        <div style={{ width:44, height:44, borderRadius:11, background:'linear-gradient(135deg,#8B5CF6,#00D4FF)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+          <i className="ti ti-sparkles" style={{ fontSize:22, color:'#fff' }}/>
+        </div>
+        <div style={{ flex:1 }}>
+          <div style={{ fontSize:14, fontWeight:700, color:text }}>AI Ad Studio <span style={{ fontSize:9.5, fontWeight:700, color:'#8B5CF6', background:'rgba(139,92,246,0.15)', padding:'2px 7px', borderRadius:99, verticalAlign:'2px', marginLeft:4 }}>NEW</span></div>
+          <div style={{ fontSize:12, color:textSub }}>Generate a full ad campaign + branded design from your business — in seconds.</div>
+        </div>
+        <i className="ti ti-chevron-right" style={{ fontSize:18, color:textMuted }}/>
+      </button>
 
       {/* Minimum job value */}
       <div style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'.5px', color:textMuted, marginBottom:10 }}>Lead intake settings</div>
