@@ -8,7 +8,7 @@ import { WA, waReady } from '../lib/whatsappConfig'
 const WEBHOOK_URL = 'https://ribdorraxxhfbfkjhpie.supabase.co/functions/v1/whatsapp-webhook'
 const ONBOARD_URL = 'https://ribdorraxxhfbfkjhpie.supabase.co/functions/v1/whatsapp-onboard'
 
-export default function WhatsAppConnect({ onBack, onConnected }) {
+export default function WhatsAppConnect({ onBack, onConnected, onConfigureBot }) {
   const { company } = useAuth()
   const toast = useToast()
 
@@ -160,6 +160,20 @@ export default function WhatsAppConnect({ onBack, onConnected }) {
           </div>
           <button onClick={disconnect} style={{ padding: '8px 14px', borderRadius: 9, border: '1px solid var(--border)', background: 'transparent', color: '#ef4444', cursor: 'pointer', fontSize: 12.5, fontWeight: 600 }}>Disconnect</button>
         </div>
+      )}
+
+      {/* Bot setup — auto-reply with a menu + AI */}
+      {existing && onConfigureBot && (
+        <button onClick={onConfigureBot} style={{ ...card, marginBottom: 14, width: '100%', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', textAlign: 'left' }}>
+          <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(34,197,94,0.14)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <i className="ti ti-robot" style={{ fontSize: 20, color: '#16a34a' }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 700, color: text }}>Set up auto-reply bot</div>
+            <div style={{ fontSize: 12, color: textMuted }}>Menu / catalogue + AI replies for incoming messages.</div>
+          </div>
+          <i className="ti ti-chevron-right" style={{ fontSize: 18, color: textMuted }} />
+        </button>
       )}
 
       {/* One-click (Embedded Signup) */}

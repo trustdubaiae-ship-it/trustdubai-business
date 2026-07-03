@@ -6,6 +6,7 @@ import MetaConnect from './MetaConnect'
 import MetaAds from './MetaAds'
 import MetaAdBuilder from './MetaAdBuilder'
 import WhatsAppConnect from './WhatsAppConnect'
+import WhatsAppBot from './WhatsAppBot'
 import HeroActions from '../components/HeroActions'
 
 const SOURCES = [
@@ -103,7 +104,11 @@ export default function LeadEngine() {
     <WhatsAppConnect
       onBack={() => { setView('home'); load() }}
       onConnected={() => setWhatsappConnected(true)}
+      onConfigureBot={() => setView('whatsapp-bot')}
     />
+  )
+  if (view === 'whatsapp-bot') return (
+    <WhatsAppBot onBack={() => setView('whatsapp-connect')} />
   )
 
   const text=isDark?'#f1f5f9':'#0f172a', textSub=isDark?'#94a3b8':'#64748b', textMuted=isDark?'#475569':'#94a3b8'
