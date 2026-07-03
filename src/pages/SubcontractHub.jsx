@@ -9,11 +9,57 @@ const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-dig
 const wa = (phone) => 'https://wa.me/' + String(phone || '').replace(/[^0-9]/g, '')
 const blankForm = (company, pre = {}) => ({
   title: pre.title || '', description: '', categories: [], budget_min: '', budget_max: '', location: pre.location || '', timeline: '',
+  scope: [], project_type: '', urgency: '',
   contact_name: company?.name || '', contact_phone: company?.phone || company?.whatsapp || '', contact_email: company?.email || company?.owner_email || '',
   show_name: true, show_phone: false, show_email: false,
   images: [],
   project_id: pre.projectId || null, project_title: pre.title || '',
 })
+
+const PROJECT_TYPES = ['New build', 'Renovation', 'Fit-out', 'Maintenance', 'Repair', 'Supply only']
+const URGENCY = [
+  { id: 'urgent',     label: 'Urgent',     color: '#dc2626', icon: 'ti-flame' },
+  { id: 'this_month', label: 'This month', color: '#d97706', icon: 'ti-calendar-event' },
+  { id: 'flexible',   label: 'Flexible',   color: '#16a34a', icon: 'ti-clock' },
+]
+const urgencyOf = (id) => URGENCY.find(u => u.id === id) || null
+// trust tiers (mirrors TrustScorePage)
+const TIERS = {
+  top_rated: { label: 'Top Rated', color: '#8b5cf6', icon: 'ti-crown' },
+  trusted:   { label: 'Trusted',   color: '#0891b2', icon: 'ti-shield-check' },
+  verified:  { label: 'Verified',  color: '#16a34a', icon: 'ti-rosette-discount-check' },
+  listed:    { label: 'Listed',    color: '#94a3b8', icon: 'ti-building-store' },
+}
+const num = (v) => Number(v) || 0
+
+// ---- reusable trust atoms ----
+function Stars({ rating, size = 12 }) {
+  const r = num(rating)
+  return (
+    <span style={{ display: 'inline-flex', gap: 1, verticalAlign: '-1px' }}>
+      {[1, 2, 3, 4, 5].map(i => (
+        <i key={i} className={'ti ' + (r >= i ? 'ti-star-filled' : (r >= i - 0.5 ? 'ti-star-half-filled' : 'ti-star'))}
+          style={{ fontSize: size, color: r >= i - 0.5 ? '#f59e0b' : 'var(--text3)' }} />
+      ))}
+    </span>
+  )
+}
+// compact company trust chip — verified tick + tier + score
+function TrustBadge({ c, size = 'sm' }) {
+  if (!c) return null
+  const tier = TIERS[c.trust_tier] || (c.is_verified ? TIERS.verified : TIERS.listed)
+  const score = c.trust_score != null ? Math.round(num(c.trust_score)) : null
+  const pad = size === 'lg' ? '4px 11px' : '2px 8px'
+  const fs = size === 'lg' ? 12 : 10.5
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: fs, fontWeight: 700, padding: pad, borderRadius: 99, color: tier.color, background: tier.color + '1e' }}>
+        <i className={'ti ' + tier.icon} style={{ fontSize: fs + 2 }} /> {tier.label}
+      </span>
+      {score != null && <span style={{ fontSize: fs, fontWeight: 700, padding: pad, borderRadius: 99, color: 'var(--text2)', background: 'var(--bg2)' }}>Trust {score}</span>}
+    </span>
+  )
+}
 
 export default function SubcontractHub({ company }) {
   const toast = useToast()
@@ -44,6 +90,8 @@ export default function SubcontractHub({ company }) {
   const [uploading, setUploading] = useState(false)
   const [detail, setDetail] = useState(null)            // a feed post opened in full-detail view
   const [lightbox, setLightbox] = useState(null)        // image url opened full-screen
+  const [companiesById, setCompaniesById] = useState({}) // trust info for companies that replied
+  const [profileCard, setProfileCard] = useState(null)   // company shown in the in-portal profile modal
 
   useEffect(() => { if (isGold && company?.id) load() }, [company?.id]) // eslint-disable-line
   // Posted from a project ("Find on Marketplace") → open the form pre-filled + linked.
@@ -72,7 +120,15 @@ export default function SubcontractHub({ company }) {
       if (ids.length) {
         const { data: ints } = await supabase.from('qv_subcontract_interests').select('*').in('project_id', ids).order('created_at', { ascending: false })
         const map = {}; (ints || []).forEach(i => { (map[i.project_id] = map[i.project_id] || []).push(i) }); setInterestsByProject(map)
-      } else setInterestsByProject({})
+        // pull trust info for every company that replied → badge + profile card
+        const cids = [...new Set((ints || []).map(i => i.company_id).filter(Boolean))]
+        if (cids.length) {
+          const { data: comps } = await supabase.from('companies')
+            .select('id,name,slug,logo_url,trust_score,trust_tier,is_verified,avg_rating,total_reviews,categories,category,description,phone')
+            .in('id', cids)
+          const cmap = {}; (comps || []).forEach(c => { cmap[c.id] = c }); setCompaniesById(cmap)
+        } else setCompaniesById({})
+      } else { setInterestsByProject({}); setCompaniesById({}) }
     } catch { /* ignore */ } finally { setLoading(false) }
   }
 
@@ -90,6 +146,7 @@ export default function SubcontractHub({ company }) {
     setForm({
       title: p.title || '', description: p.description || '', categories: p.categories || [],
       budget_min: p.budget_min ?? '', budget_max: p.budget_max ?? '', location: p.location || '', timeline: p.timeline || '',
+      scope: p.scope || [], project_type: p.project_type || '', urgency: p.urgency || '',
       contact_name: p.contact_name || '', contact_phone: p.contact_phone || '', contact_email: p.contact_email || '',
       show_name: !!p.show_name, show_phone: !!p.show_phone, show_email: !!p.show_email,
       images: p.images || [],
@@ -130,6 +187,8 @@ export default function SubcontractHub({ company }) {
         budget_min: form.budget_min ? Number(form.budget_min) : null,
         budget_max: form.budget_max ? Number(form.budget_max) : null,
         location: form.location.trim() || null, timeline: form.timeline.trim() || null,
+        scope: (form.scope || []).map(s => String(s).trim()).filter(Boolean),
+        project_type: form.project_type || null, urgency: form.urgency || null,
         contact_name: form.contact_name.trim(), contact_phone: form.contact_phone.trim(), contact_email: form.contact_email.trim(),
         show_name: form.show_name, show_phone: form.show_phone, show_email: form.show_email,
         images: form.images || [],
@@ -278,8 +337,17 @@ export default function SubcontractHub({ company }) {
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ fontSize: 16.5, fontWeight: 800, color: 'var(--text)', lineHeight: 1.25, letterSpacing: '-.2px', wordBreak: 'break-word' }}>{p.title}</div>
                       <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 2 }}><i className="ti ti-building" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {p.poster_name || 'A Quvera company'}</div>
+                      {(p.poster_trust_tier || p.poster_is_verified || p.poster_trust_score != null) && (
+                        <div style={{ marginTop: 6 }}><TrustBadge c={{ trust_tier: p.poster_trust_tier, trust_score: p.poster_trust_score, is_verified: p.poster_is_verified }} /></div>
+                      )}
                     </div>
                   </div>
+                  {(p.project_type || p.urgency) && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 11 }}>
+                      {p.project_type && <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', background: 'var(--bg2)', border: '1px solid var(--border)', padding: '3px 10px', borderRadius: 99, display: 'inline-flex', alignItems: 'center', gap: 5 }}><i className="ti ti-category" style={{ fontSize: 12 }} />{p.project_type}</span>}
+                      {urgencyOf(p.urgency) && <span style={{ fontSize: 11, fontWeight: 700, color: urgencyOf(p.urgency).color, background: urgencyOf(p.urgency).color + '18', padding: '3px 10px', borderRadius: 99, display: 'inline-flex', alignItems: 'center', gap: 5 }}><i className={'ti ' + urgencyOf(p.urgency).icon} style={{ fontSize: 12 }} />{urgencyOf(p.urgency).label}</span>}
+                    </div>
+                  )}
                   {(p.images || []).length > 0 && (
                     <div style={{ position: 'relative', marginTop: 12, borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border)', aspectRatio: '16 / 9', background: 'var(--bg2)' }}>
                       <img src={p.images[0]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
@@ -397,18 +465,35 @@ export default function SubcontractHub({ company }) {
                   {/* interested list */}
                   {open && (
                     <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {ints.map(i => (
-                        <div key={i.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, background: 'var(--bg2)', border: '1px solid var(--border)', flexWrap: 'wrap' }}>
-                          <div style={{ flex: 1, minWidth: 140 }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{i.company_name || 'A company'}</div>
-                            <div style={{ fontSize: 11.5, color: 'var(--text3)' }}>{[i.contact_phone, i.contact_email].filter(Boolean).join(' · ') || 'No contact'}</div>
+                      {ints.map(i => {
+                        const c = companiesById[i.company_id]
+                        return (
+                          <div key={i.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 12, background: 'var(--bg2)', border: '1px solid var(--border)', flexWrap: 'wrap' }}>
+                            <div style={{ width: 40, height: 40, borderRadius: 11, flexShrink: 0, overflow: 'hidden', background: 'var(--primary-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              {c?.logo_url ? <img src={c.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontWeight: 800, color: 'var(--primary-dark)', fontSize: 16 }}>{(i.company_name || c?.name || '?').charAt(0).toUpperCase()}</span>}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 150 }}>
+                              <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                                {i.company_name || c?.name || 'A company'}
+                                {c?.is_verified && <i className="ti ti-rosette-discount-check-filled" style={{ fontSize: 15, color: '#16a34a' }} title="Verified" />}
+                              </div>
+                              {c ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+                                  <TrustBadge c={c} />
+                                  {num(c.total_reviews) > 0 && <span style={{ fontSize: 11.5, color: 'var(--text3)', display: 'inline-flex', alignItems: 'center', gap: 4 }}><Stars rating={c.avg_rating} /> {num(c.avg_rating).toFixed(1)} ({c.total_reviews})</span>}
+                                </div>
+                              ) : (
+                                <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 2 }}>{[i.contact_phone, i.contact_email].filter(Boolean).join(' · ') || 'No contact'}</div>
+                              )}
+                            </div>
+                            <button onClick={() => setProfileCard(c || { name: i.company_name, phone: i.contact_phone, _fallback: true })} className="btn btn-secondary btn-sm" style={{ whiteSpace: 'nowrap' }}><i className="ti ti-user-circle" style={{ verticalAlign: '-2px', marginRight: 3 }} />Profile</button>
+                            {i.contact_phone && <a href={wa(i.contact_phone)} target="_blank" rel="noreferrer" className="btn btn-sm" style={{ background: '#22c55e', color: '#fff', textDecoration: 'none' }}><i className="ti ti-brand-whatsapp" /></a>}
+                            {i.contact_phone && <a href={'tel:' + i.contact_phone} className="btn btn-secondary btn-sm"><i className="ti ti-phone" /></a>}
+                            {i.contact_email && <a href={'mailto:' + i.contact_email} className="btn btn-secondary btn-sm"><i className="ti ti-mail" /></a>}
+                            {!taken && <button onClick={() => award(p, { name: i.company_name, id: i.company_id, phone: i.contact_phone, email: i.contact_email })} disabled={busy === 'st-' + p.id} className="btn btn-primary btn-sm" style={{ whiteSpace: 'nowrap' }}><i className="ti ti-award" style={{ verticalAlign: '-2px', marginRight: 3 }} />Award</button>}
                           </div>
-                          {i.contact_phone && <a href={wa(i.contact_phone)} target="_blank" rel="noreferrer" className="btn btn-sm" style={{ background: '#22c55e', color: '#fff', textDecoration: 'none' }}><i className="ti ti-brand-whatsapp" /></a>}
-                          {i.contact_phone && <a href={'tel:' + i.contact_phone} className="btn btn-secondary btn-sm"><i className="ti ti-phone" /></a>}
-                          {i.contact_email && <a href={'mailto:' + i.contact_email} className="btn btn-secondary btn-sm"><i className="ti ti-mail" /></a>}
-                          {!taken && <button onClick={() => award(p, { name: i.company_name, id: i.company_id, phone: i.contact_phone, email: i.contact_email })} disabled={busy === 'st-' + p.id} className="btn btn-primary btn-sm" style={{ whiteSpace: 'nowrap' }}><i className="ti ti-award" style={{ verticalAlign: '-2px', marginRight: 3 }} />Award</button>}
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   )}
                 </div>
@@ -445,6 +530,35 @@ export default function SubcontractHub({ company }) {
                 {fld('Location / area', <input value={form.location} onChange={e => setForm(s => ({ ...s, location: e.target.value }))} placeholder="e.g. JVC, Dubai" style={inp} />)}
                 {fld('Timeline', <input value={form.timeline} onChange={e => setForm(s => ({ ...s, timeline: e.target.value }))} placeholder="e.g. Start in 1 week · 10 days" style={inp} />)}
               </div>
+
+              {fld('Project type', (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+                  {PROJECT_TYPES.map(t => {
+                    const on = form.project_type === t
+                    return <button key={t} type="button" onClick={() => setForm(s => ({ ...s, project_type: on ? '' : t }))} style={{ padding: '6px 12px', borderRadius: 99, cursor: 'pointer', fontSize: 12.5, fontWeight: 600, border: '1px solid ' + (on ? 'var(--primary)' : 'var(--border)'), background: on ? 'var(--primary-bg)' : 'transparent', color: on ? 'var(--primary-dark)' : 'var(--text2)' }}>{t}</button>
+                  })}
+                </div>
+              ))}
+              {fld('Urgency', (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+                  {URGENCY.map(u => {
+                    const on = form.urgency === u.id
+                    return <button key={u.id} type="button" onClick={() => setForm(s => ({ ...s, urgency: on ? '' : u.id }))} style={{ padding: '6px 12px', borderRadius: 99, cursor: 'pointer', fontSize: 12.5, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 5, border: '1px solid ' + (on ? u.color : 'var(--border)'), background: on ? u.color + '1e' : 'transparent', color: on ? u.color : 'var(--text2)' }}><i className={'ti ' + u.icon} style={{ fontSize: 14 }} />{u.label}</button>
+                  })}
+                </div>
+              ))}
+              {fld('Scope of work / requirements', (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                  {(form.scope || []).map((it, idx) => (
+                    <div key={idx} style={{ display: 'flex', gap: 7, alignItems: 'center' }}>
+                      <i className="ti ti-point-filled" style={{ fontSize: 14, color: 'var(--primary-dark)', flexShrink: 0 }} />
+                      <input value={it} onChange={e => setForm(s => { const sc = [...s.scope]; sc[idx] = e.target.value; return { ...s, scope: sc } })} placeholder={'Requirement ' + (idx + 1)} style={{ ...inp, flex: 1 }} />
+                      <button type="button" onClick={() => setForm(s => ({ ...s, scope: s.scope.filter((_, i) => i !== idx) }))} style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--card)', color: '#dc2626', cursor: 'pointer', flexShrink: 0, fontSize: 16 }}>×</button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => setForm(s => ((s.scope || []).length >= 12 ? s : { ...s, scope: [...(s.scope || []), ''] }))} className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start' }}><i className="ti ti-plus" style={{ verticalAlign: '-2px', marginRight: 3 }} />Add requirement</button>
+                </div>
+              ), 'List the specific things you need — materials, finishes, deliverables, site conditions.')}
 
               {fld('Photos', (
                 <div>
@@ -507,8 +621,30 @@ export default function SubcontractHub({ company }) {
                   </div>
                 )}
                 <div style={{ fontSize: 21, fontWeight: 800, color: 'var(--text)', lineHeight: 1.25, letterSpacing: '-.3px' }}>{p.title}</div>
-                <div style={{ fontSize: 12.5, color: 'var(--text3)', marginTop: 4 }}><i className="ti ti-building" style={{ fontSize: 13, verticalAlign: '-1px' }} /> {p.poster_name || 'A Quvera company'} · Posted {fmtDate(p.created_at)}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap', marginTop: 6 }}>
+                  <span style={{ fontSize: 12.5, color: 'var(--text3)' }}><i className="ti ti-building" style={{ fontSize: 13, verticalAlign: '-1px' }} /> {p.poster_name || 'A Quvera company'} · {fmtDate(p.created_at)}</span>
+                  {(p.poster_trust_tier || p.poster_is_verified || p.poster_trust_score != null) && <TrustBadge c={{ trust_tier: p.poster_trust_tier, trust_score: p.poster_trust_score, is_verified: p.poster_is_verified }} />}
+                </div>
+                {(p.project_type || p.urgency) && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 12 }}>
+                    {p.project_type && <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text2)', background: 'var(--bg2)', border: '1px solid var(--border)', padding: '4px 11px', borderRadius: 99, display: 'inline-flex', alignItems: 'center', gap: 5 }}><i className="ti ti-category" style={{ fontSize: 13 }} />{p.project_type}</span>}
+                    {urgencyOf(p.urgency) && <span style={{ fontSize: 11.5, fontWeight: 700, color: urgencyOf(p.urgency).color, background: urgencyOf(p.urgency).color + '18', padding: '4px 11px', borderRadius: 99, display: 'inline-flex', alignItems: 'center', gap: 5 }}><i className={'ti ' + urgencyOf(p.urgency).icon} style={{ fontSize: 13 }} />{urgencyOf(p.urgency).label}</span>}
+                  </div>
+                )}
                 {p.description && <div style={{ fontSize: 13.5, color: 'var(--text2)', lineHeight: 1.65, marginTop: 14, whiteSpace: 'pre-wrap' }}>{p.description}</div>}
+                {(p.scope || []).length > 0 && (
+                  <div style={{ marginTop: 16 }}>
+                    <div style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--text2)', marginBottom: 9, textTransform: 'uppercase', letterSpacing: '.5px' }}>Scope of work</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {p.scope.map((s, idx) => (
+                        <div key={idx} style={{ display: 'flex', gap: 9, alignItems: 'flex-start', fontSize: 13.5, color: 'var(--text2)', lineHeight: 1.45 }}>
+                          <i className="ti ti-circle-check-filled" style={{ fontSize: 17, color: '#16a34a', flexShrink: 0, marginTop: 1 }} />
+                          <span>{s}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {(p.categories || []).length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 14 }}>{p.categories.map(c => <span key={c} style={{ fontSize: 11, fontWeight: 600, color: 'var(--primary-dark)', background: 'var(--primary-bg)', padding: '3px 11px', borderRadius: 99 }}>{c}</span>)}</div>}
                 <div style={{ marginTop: 16, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
                   {[
@@ -548,6 +684,9 @@ export default function SubcontractHub({ company }) {
           <img src={lightbox} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 8 }} />
         </div>
       )}
+
+      {/* ---------- IN-PORTAL COMPANY PROFILE CARD ---------- */}
+      {profileCard && <CompanyProfileCard c={profileCard} onClose={() => setProfileCard(null)} />}
 
       {/* ---------- AFTER AWARD: add as subcontractor to a project ---------- */}
       {addSub && (
@@ -591,6 +730,53 @@ export default function SubcontractHub({ company }) {
       </div>
     )
   }
+}
+
+// In-portal quick profile of a company that replied — trust badge, score, rating,
+// categories, and a link to the full public profile.
+function CompanyProfileCard({ c, onClose }) {
+  const tier = TIERS[c.trust_tier] || (c.is_verified ? TIERS.verified : TIERS.listed)
+  const score = c.trust_score != null ? Math.round(num(c.trust_score)) : null
+  const cats = c.categories && c.categories.length ? c.categories : (c.category ? [c.category] : [])
+  const publicUrl = c.slug ? `https://quvera.ae/${c.slug}` : null
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: 420, maxWidth: '100%', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 18, overflow: 'hidden' }}>
+        <div style={{ position: 'relative', padding: '24px 20px 18px', background: `radial-gradient(120% 100% at 50% -20%, ${tier.color}26, transparent 60%), var(--card)`, textAlign: 'center', borderBottom: '1px solid var(--border)' }}>
+          <button onClick={onClose} style={{ position: 'absolute', top: 12, right: 14, background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)' }}>×</button>
+          <div style={{ width: 74, height: 74, borderRadius: 20, margin: '0 auto 12px', overflow: 'hidden', background: 'var(--primary-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid var(--border)' }}>
+            {c.logo_url ? <img src={c.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontWeight: 800, fontSize: 30, color: 'var(--primary-dark)' }}>{(c.name || '?').charAt(0).toUpperCase()}</span>}
+          </div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            {c.name || 'Company'}
+            {c.is_verified && <i className="ti ti-rosette-discount-check-filled" style={{ fontSize: 18, color: '#16a34a' }} title="Verified" />}
+          </div>
+          <div style={{ marginTop: 10 }}><TrustBadge c={c} size="lg" /></div>
+        </div>
+        <div style={{ padding: 18 }}>
+          {c._fallback ? (
+            <div style={{ fontSize: 12.5, color: 'var(--text3)', textAlign: 'center', padding: '6px 0 12px' }}>This company's full Quvera profile isn't available yet.</div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+              <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, padding: 12, textAlign: 'center' }}>
+                <div style={{ fontSize: 24, fontWeight: 800, color: tier.color, lineHeight: 1 }}>{score ?? '—'}</div>
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>Trust score</div>
+              </div>
+              <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, padding: 12, textAlign: 'center' }}>
+                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', lineHeight: 1, display: 'inline-flex', alignItems: 'center', gap: 4 }}>{num(c.avg_rating).toFixed(1)} <i className="ti ti-star-filled" style={{ fontSize: 15, color: '#f59e0b' }} /></div>
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>{num(c.total_reviews)} review{num(c.total_reviews) === 1 ? '' : 's'}</div>
+              </div>
+            </div>
+          )}
+          {cats.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14, justifyContent: 'center' }}>{cats.slice(0, 6).map(cat => <span key={cat} style={{ fontSize: 11, fontWeight: 600, color: 'var(--primary-dark)', background: 'var(--primary-bg)', padding: '3px 10px', borderRadius: 99 }}>{cat}</span>)}</div>}
+          {c.description && <div style={{ fontSize: 12.5, color: 'var(--text2)', lineHeight: 1.6, marginBottom: 14, textAlign: 'center' }}>{c.description}</div>}
+          {publicUrl
+            ? <a href={publicUrl} target="_blank" rel="noreferrer" className="btn btn-primary" style={{ width: '100%', textDecoration: 'none', display: 'flex', justifyContent: 'center' }}><i className="ti ti-external-link" style={{ verticalAlign: '-2px', marginRight: 6 }} />View full profile</a>
+            : <button onClick={onClose} className="btn btn-secondary" style={{ width: '100%' }}>Close</button>}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 const inp = { width: '100%', padding: '10px 12px', borderRadius: 9, border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--text)', fontSize: 13.5, fontFamily: 'inherit', boxSizing: 'border-box', outline: 'none' }
