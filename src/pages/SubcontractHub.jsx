@@ -23,6 +23,16 @@ const URGENCY = [
   { id: 'flexible',   label: 'Flexible',   color: '#16a34a', icon: 'ti-clock' },
 ]
 const urgencyOf = (id) => URGENCY.find(u => u.id === id) || null
+// deal pipeline for a posted project
+const STAGES = [
+  { id: 'open',        label: 'Open',        color: '#0891b2', icon: 'ti-circle-dot' },
+  { id: 'contacted',   label: 'Contacted',   color: '#6366f1', icon: 'ti-phone-check' },
+  { id: 'quoted',      label: 'Quoted',      color: '#8b5cf6', icon: 'ti-file-invoice' },
+  { id: 'negotiation', label: 'Negotiation', color: '#d97706', icon: 'ti-messages' },
+  { id: 'awarded',     label: 'Awarded',     color: '#16a34a', icon: 'ti-award' },
+]
+const stageOf = (id) => STAGES.find(s => s.id === id) || STAGES[0]
+const isLocked = (p) => (p.stage === 'awarded') || (p.status === 'under_discussion')
 // trust tiers (mirrors TrustScorePage)
 const TIERS = {
   top_rated: { label: 'Top Rated', color: '#8b5cf6', icon: 'ti-crown' },
@@ -220,11 +230,23 @@ export default function SubcontractHub({ company }) {
   async function setStatus(p, status, awarded) {
     setBusy('st-' + p.id)
     try {
-      const patch = { status }
+      const patch = { status, stage: status === 'under_discussion' ? 'awarded' : 'open' }
       if (status === 'under_discussion') { patch.awarded_to = awarded?.name || null; patch.awarded_company_id = awarded?.id || null }
       else { patch.awarded_to = null; patch.awarded_company_id = null }
       await supabase.from('qv_subcontract_projects').update(patch).eq('id', p.id)
       setAwardFor(null); setAwardPick(''); load()
+    } catch (e) { toast.error('Failed: ' + (e?.message || e)) } finally { setBusy('') }
+  }
+  // advance/rewind a project's deal pipeline (awarding is handled via the picker)
+  async function setStage(p, stage) {
+    if (stage === (p.stage || 'open') || busy) return
+    setBusy('st-' + p.id)
+    try {
+      const patch = { stage }
+      if (stage === 'open') { patch.status = 'open'; patch.awarded_to = null; patch.awarded_company_id = null }
+      else if (stage !== 'awarded') { patch.status = 'open' }   // contacted/quoted/negotiation stay live in the feed
+      await supabase.from('qv_subcontract_projects').update(patch).eq('id', p.id)
+      load()
     } catch (e) { toast.error('Failed: ' + (e?.message || e)) } finally { setBusy('') }
   }
   // Award the work → mark under discussion, then offer to add the company as a
@@ -321,14 +343,15 @@ export default function SubcontractHub({ company }) {
         feedList.length === 0 ? emptyState('feed') : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(320px,1fr))', gap: 14, alignItems: 'start' }}>
             {feedList.map(p => {
-              const taken = p.status === 'under_discussion'
+              const taken = isLocked(p)
               const interested = myInterestIds.has(p.id)
-              const tint = taken ? '#f59e0b' : '#0891b2'
+              const tint = taken ? '#94a3b8' : '#0891b2'
               return (
-                <div key={p.id} onClick={() => setDetail(p)} className="mkt-kard" style={{ cursor: 'pointer', position: 'relative', display: 'flex', flexDirection: 'column', background: `radial-gradient(135% 90% at 50% -14%, ${tint}1f, transparent 55%), var(--card)`, border: '1px solid var(--border)', borderRadius: 18, padding: 16, boxShadow: 'var(--shadow-md)', opacity: taken ? 0.6 : 1 }}>
+                <div key={p.id} onClick={() => setDetail(p)} className="mkt-kard" style={{ cursor: 'pointer', position: 'relative', display: 'flex', flexDirection: 'column', background: `radial-gradient(135% 90% at 50% -14%, ${tint}1f, transparent 55%), var(--card)`, border: '1px solid var(--border)', borderRadius: 18, padding: 16, boxShadow: 'var(--shadow-md)', opacity: taken ? 0.62 : 1 }}>
+                  {taken && <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 2 }}><i className="ti ti-lock" style={{ fontSize: 15, color: 'var(--text3)' }} title="Awarded — locked" /></div>}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                    <span style={{ fontSize: 10, fontWeight: 800, padding: '4px 11px', borderRadius: 99, textTransform: 'uppercase', letterSpacing: '.4px', display: 'inline-flex', alignItems: 'center', gap: 5, background: taken ? '#fef3c7' : 'rgba(8,145,178,0.16)', color: taken ? '#92400e' : '#0e7490' }}>
-                      <i className={'ti ' + (taken ? 'ti-lock' : 'ti-circle-dot')} style={{ fontSize: 12 }} /> {taken ? 'Under discussion' : 'Open'}
+                    <span style={{ fontSize: 10, fontWeight: 800, padding: '4px 11px', borderRadius: 99, textTransform: 'uppercase', letterSpacing: '.4px', display: 'inline-flex', alignItems: 'center', gap: 5, background: taken ? 'var(--bg2)' : 'rgba(8,145,178,0.16)', color: taken ? 'var(--text3)' : '#0e7490' }}>
+                      <i className={'ti ' + (taken ? 'ti-lock' : 'ti-circle-dot')} style={{ fontSize: 12 }} /> {taken ? 'Awarded' : 'Open'}
                     </span>
                     <span style={{ fontSize: 11, color: 'var(--text3)' }}>{fmtDate(p.created_at)}</span>
                   </div>
@@ -391,14 +414,15 @@ export default function SubcontractHub({ company }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(330px,1fr))', gap: 14, alignItems: 'start' }}>
             {myPosts.map(p => {
               const ints = interestsByProject[p.id] || []
-              const taken = p.status === 'under_discussion'
+              const taken = isLocked(p)
+              const cur = stageOf(p.stage || 'open')
               const open = expanded === p.id
               return (
-                <div key={p.id} className="mkt-kard" style={{ position: 'relative', background: `radial-gradient(135% 90% at 50% -14%, ${taken ? '#f59e0b' : '#22c55e'}1f, transparent 55%), var(--card)`, border: '1px solid var(--border)', borderRadius: 18, padding: 16, boxShadow: 'var(--shadow-md)' }}>
+                <div key={p.id} className="mkt-kard" style={{ position: 'relative', background: `radial-gradient(135% 90% at 50% -14%, ${cur.color}1f, transparent 55%), var(--card)`, border: '1px solid var(--border)', borderRadius: 18, padding: 16, boxShadow: 'var(--shadow-md)' }}>
                   {/* top bar */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                    <span style={{ fontSize: 10, fontWeight: 800, padding: '4px 11px', borderRadius: 99, textTransform: 'uppercase', letterSpacing: '.4px', display: 'inline-flex', alignItems: 'center', gap: 5, background: taken ? '#fef3c7' : 'rgba(34,197,94,0.16)', color: taken ? '#92400e' : '#16a34a' }}>
-                      <i className={'ti ' + (taken ? 'ti-lock' : 'ti-circle-dot')} style={{ fontSize: 12 }} /> {taken ? 'Under discussion' : 'Open'}
+                    <span style={{ fontSize: 10, fontWeight: 800, padding: '4px 11px', borderRadius: 99, textTransform: 'uppercase', letterSpacing: '.4px', display: 'inline-flex', alignItems: 'center', gap: 5, background: cur.color + '1e', color: cur.color }}>
+                      <i className={'ti ' + (taken ? 'ti-lock' : cur.icon)} style={{ fontSize: 12 }} /> {cur.label}
                     </span>
                     <span style={{ fontSize: 11, color: 'var(--text3)' }}>{fmtDate(p.created_at)}</span>
                   </div>
@@ -434,12 +458,31 @@ export default function SubcontractHub({ company }) {
                     ))}
                   </div>
 
+                  {/* deal pipeline — advance the project through its stages */}
+                  <div style={{ marginTop: 13 }}>
+                    <div style={{ fontSize: 10.5, fontWeight: 800, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 7 }}>Deal pipeline</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {STAGES.map((s, idx) => {
+                        const curIdx = STAGES.findIndex(x => x.id === (p.stage || 'open'))
+                        const done = idx <= curIdx, isCur = idx === curIdx
+                        return (
+                          <button key={s.id} disabled={busy === 'st-' + p.id}
+                            onClick={() => { if (s.id === 'awarded') { setAwardFor(p.id); setAwardPick(''); setExpanded(ints.length ? p.id : expanded) } else setStage(p, s.id) }}
+                            title={s.id === 'awarded' ? 'Award to a company' : 'Set stage: ' + s.label}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 99, cursor: busy === 'st-' + p.id ? 'wait' : 'pointer', fontSize: 11.5, fontWeight: 700,
+                              border: '1px solid ' + (isCur ? s.color : (done ? s.color + '55' : 'var(--border)')),
+                              background: isCur ? s.color : (done ? s.color + '1e' : 'transparent'),
+                              color: isCur ? '#fff' : (done ? s.color : 'var(--text3)') }}>
+                            <i className={'ti ' + (done && !isCur ? 'ti-check' : s.icon)} style={{ fontSize: 13 }} /> {s.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
                   <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginTop: 12 }}>
                     <button onClick={() => openEdit(p)} className="btn btn-secondary btn-sm"><i className="ti ti-edit" style={{ verticalAlign: '-2px', marginRight: 3 }} />Edit</button>
                     {ints.length > 0 && <button onClick={() => setExpanded(open ? null : p.id)} className="btn btn-secondary btn-sm"><i className="ti ti-users" style={{ verticalAlign: '-2px', marginRight: 3 }} />Interested ({ints.length})</button>}
-                    {!taken
-                      ? <button onClick={() => { setAwardFor(p.id); setAwardPick(''); setExpanded(ints.length ? p.id : expanded) }} className="btn btn-primary btn-sm"><i className="ti ti-award" style={{ verticalAlign: '-2px', marginRight: 3 }} />Award work</button>
-                      : <button onClick={() => setStatus(p, 'open')} disabled={busy === 'st-' + p.id} className="btn btn-secondary btn-sm"><i className="ti ti-rotate" style={{ verticalAlign: '-2px', marginRight: 3 }} />Re-open</button>}
                   </div>
 
                   {/* award picker */}
@@ -599,14 +642,14 @@ export default function SubcontractHub({ company }) {
       {/* ---------- FEED POST: full detail ---------- */}
       {detail && (() => {
         const p = detail
-        const taken = p.status === 'under_discussion'
+        const taken = isLocked(p)
         const interested = myInterestIds.has(p.id)
         return (
           <div onClick={() => setDetail(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 205, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 14px', overflowY: 'auto' }}>
             <div onClick={e => e.stopPropagation()} style={{ width: 620, maxWidth: '100%', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
               <div style={{ padding: '15px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                <span style={{ fontSize: 10, fontWeight: 800, padding: '4px 11px', borderRadius: 99, textTransform: 'uppercase', letterSpacing: '.4px', display: 'inline-flex', alignItems: 'center', gap: 5, background: taken ? '#fef3c7' : 'rgba(8,145,178,0.16)', color: taken ? '#92400e' : '#0e7490' }}>
-                  <i className={'ti ' + (taken ? 'ti-lock' : 'ti-circle-dot')} style={{ fontSize: 12 }} /> {taken ? 'Under discussion' : 'Open'}
+                <span style={{ fontSize: 10, fontWeight: 800, padding: '4px 11px', borderRadius: 99, textTransform: 'uppercase', letterSpacing: '.4px', display: 'inline-flex', alignItems: 'center', gap: 5, background: taken ? 'var(--bg2)' : 'rgba(8,145,178,0.16)', color: taken ? 'var(--text3)' : '#0e7490' }}>
+                  <i className={'ti ' + (taken ? 'ti-lock' : 'ti-circle-dot')} style={{ fontSize: 12 }} /> {taken ? 'Awarded — locked' : 'Open'}
                 </span>
                 <button onClick={() => setDetail(null)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)' }}>×</button>
               </div>
