@@ -772,7 +772,7 @@ export default function Ledger() {
             <span style={{ fontSize: 13.5, fontWeight: 700, color: text }}>By payment method <span style={{ fontWeight: 400, color: textMuted }}>· {periodLabel}</span></span>
           </div>
           <div style={{ overflowX: 'auto' }}>
-            <div style={{ minWidth: 380 }}>
+            <div style={{ minWidth: 460 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr', gap: 8, padding: '0 0 6px', fontSize: 10.5, color: textMuted, textTransform: 'uppercase', letterSpacing: '.3px', borderBottom: `1px solid ${border}` }}>
                 <span>Method</span>
                 <span style={{ textAlign: 'right' }}>In<span style={{ display: 'block', fontSize: 8, fontWeight: 400, textTransform: 'none', letterSpacing: 0, opacity: .8 }}>{periodLabel}</span></span>
