@@ -206,7 +206,7 @@ export default function QuoteApproval({ token }) {
       </div>
 
       {/* Payment schedule */}
-      {payments.length > 0 && (
+      {(q.show_payment ?? true) && payments.length > 0 && (
         <div style={{ ...card, padding: '14px 16px' }}>
           <div style={{ fontSize: 10, color: GOLD, textTransform: 'uppercase', letterSpacing: 1.5, fontWeight: 700, marginBottom: 10 }}>— Payment Schedule</div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -223,7 +223,7 @@ export default function QuoteApproval({ token }) {
       )}
 
       {/* Why us */}
-      {whys.length > 0 && (
+      {(q.show_why_us ?? true) && whys.length > 0 && (
         <div style={{ ...card, padding: '14px 16px' }}>
           <div style={{ fontSize: 10, color: GOLD, textTransform: 'uppercase', letterSpacing: 1.5, fontWeight: 700, marginBottom: 10 }}>— Why Choose {cName.split(' ').slice(0, 2).join(' ')}</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '9px 16px' }}>
@@ -238,7 +238,7 @@ export default function QuoteApproval({ token }) {
       )}
 
       {/* Terms */}
-      {q.terms && (
+      {(q.show_terms ?? true) && q.terms && (
         <div style={{ ...card, padding: '14px 16px' }}>
           <div style={{ fontSize: 10, color: GOLD, textTransform: 'uppercase', letterSpacing: 1.5, fontWeight: 700, marginBottom: 7 }}>— Terms & Conditions</div>
           <div style={{ fontSize: 11, color: '#666', lineHeight: 1.7, whiteSpace: 'pre-line' }}>{q.terms}</div>

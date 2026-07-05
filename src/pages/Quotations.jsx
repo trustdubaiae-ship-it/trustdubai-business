@@ -302,6 +302,9 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   const [showFooter, setShowFooter] = useState(true)
   const [showSignature, setShowSignature] = useState(true)
   const [showBank, setShowBank] = useState(false)
+  const [showTerms, setShowTerms] = useState(true)
+  const [showPayment, setShowPayment] = useState(true)
+  const [showWhyUs, setShowWhyUs] = useState(true)
   const [quoteTheme, setQuoteTheme] = useState('gold')
   const [projTimeline, setProjTimeline] = useState([])
   const [addTradePick, setAddTradePick] = useState('')
@@ -399,7 +402,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         setItems(Array.isArray(d.items) && d.items.length ? d.items : [blankItem()])
         setVatEnabled(d.vatEnabled ?? true)
         setDiscountType(d.discountType ?? null); setDiscountValue(d.discountValue ?? 0)
-        setNotes(d.notes || ''); setShowFooter(d.showFooter ?? true); setShowSignature(d.showSignature ?? true); setShowBank(d.showBank ?? false); setQuoteTheme(d.quoteTheme ?? 'gold'); setProjTimeline(d.projTimeline ?? [])
+        setNotes(d.notes || ''); setShowFooter(d.showFooter ?? true); setShowSignature(d.showSignature ?? true); setShowBank(d.showBank ?? false); setShowTerms(d.showTerms ?? true); setShowPayment(d.showPayment ?? true); setShowWhyUs(d.showWhyUs ?? true); setQuoteTheme(d.quoteTheme ?? 'gold'); setProjTimeline(d.projTimeline ?? [])
         setLocation(d.location || ''); setPreparedBy(d.preparedBy || ''); setClientEmail(d.clientEmail || ''); setClientTrn(d.clientTrn || '')
         setSourceLead(d.sourceLead || null)
         setWorkType(d.workType || defaultPresetName); setPayTerms(Array.isArray(d.payTerms) ? d.payTerms : []); setQuoteTerms(d.quoteTerms || ''); setValidUntil(d.validUntil || ''); setRevision(d.revision || 0)
@@ -701,7 +704,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     setProjectTitle(''); setItems([blankItem()]); setNotes('')
     setVatEnabled(tpl?.default_vat_enabled ?? true)
     setDiscountType(null); setDiscountValue(0)
-    setShowFooter(true); setShowSignature(true); setShowBank(tpl?.default_show_bank ?? false); setAddTradePick('')
+    setShowFooter(true); setShowSignature(true); setShowBank(tpl?.default_show_bank ?? false); setShowTerms(true); setShowPayment(true); setShowWhyUs(true); setAddTradePick('')
     setQuoteTheme(tpl?.default_quote_theme || 'gold'); setProjTimeline([])
     setLocation(''); setPreparedBy(''); setClientEmail(''); setClientTrn(''); setSourceLead(null)
     setWorkType(defaultPresetName); fillFromPreset(defaultPresetName); setValidUntil(''); setRevision(0)
@@ -719,7 +722,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     setVisualSections(normMode(d.mode) === 'visual' && Array.isArray(d.items) && d.items.some(it => (it.trade || '').trim()))
     setVatEnabled(d.vatEnabled ?? true)
     setDiscountType(d.discountType ?? null); setDiscountValue(d.discountValue ?? 0)
-    setNotes(d.notes || ''); setShowFooter(d.showFooter ?? true); setShowSignature(d.showSignature ?? true); setShowBank(d.showBank ?? false)
+    setNotes(d.notes || ''); setShowFooter(d.showFooter ?? true); setShowSignature(d.showSignature ?? true); setShowBank(d.showBank ?? false); setShowTerms(d.showTerms ?? true); setShowPayment(d.showPayment ?? true); setShowWhyUs(d.showWhyUs ?? true)
     setLocation(d.location || ''); setPreparedBy(d.preparedBy || ''); setClientEmail(d.clientEmail || '')
     setSourceLead(d.sourceLead || null)
     setWorkType(d.workType || defaultPresetName); setPayTerms(Array.isArray(d.payTerms) ? d.payTerms : []); setQuoteTerms(d.quoteTerms || ''); setValidUntil(d.validUntil || ''); setRevision(d.revision || 0)
@@ -740,7 +743,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     setNotes(q.notes || '')
     setVatEnabled(q.vat_enabled != null ? q.vat_enabled : (!!q.vat_amount || (tpl?.default_vat_enabled ?? true)))
     setDiscountType(q.discount_type || null); setDiscountValue(q.discount_value || 0)
-    setShowFooter(q.show_footer ?? true); setShowSignature(q.show_signature ?? true); setShowBank(q.show_bank ?? (tpl?.default_show_bank ?? false))
+    setShowFooter(q.show_footer ?? true); setShowSignature(q.show_signature ?? true); setShowBank(q.show_bank ?? (tpl?.default_show_bank ?? false)); setShowTerms(q.show_terms ?? true); setShowPayment(q.show_payment ?? true); setShowWhyUs(q.show_why_us ?? true)
     setQuoteTheme(q.quote_theme || 'gold'); setProjTimeline(parseTimeline(q.project_timeline))
     setLocation(q.location || ''); setPreparedBy(q.prepared_by || ''); setClientEmail(q.client_email || ''); setClientTrn(q.client_trn || ''); setSourceLead(null)
     setWorkType(q.work_type || defaultPresetName)
@@ -859,11 +862,11 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     const hasContent = client || projectTitle.trim() || items.some(it => it.desc.trim())
     if (!hasContent) return
     const t = setTimeout(() => {
-      saveDraft({ mode, client, clientSearch, clientPrefix, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, showBank, quoteTheme, projTimeline, location, preparedBy, clientEmail, clientTrn, sourceLead, workType, payTerms, quoteTerms, validUntil, revision })
+      saveDraft({ mode, client, clientSearch, clientPrefix, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, showBank, showTerms, showPayment, showWhyUs, quoteTheme, projTimeline, location, preparedBy, clientEmail, clientTrn, sourceLead, workType, payTerms, quoteTerms, validUntil, revision })
       setDraftExists(true)
     }, 500)
     return () => clearTimeout(t)
-  }, [view, editId, mode, client, clientPrefix, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, showBank, quoteTheme, projTimeline, location, preparedBy, clientEmail, clientTrn, sourceLead, workType, payTerms, quoteTerms, validUntil, revision])
+  }, [view, editId, mode, client, clientPrefix, projectTitle, items, vatEnabled, discountType, discountValue, notes, showFooter, showSignature, showBank, showTerms, showPayment, showWhyUs, quoteTheme, projTimeline, location, preparedBy, clientEmail, clientTrn, sourceLead, workType, payTerms, quoteTerms, validUntil, revision])
 
   function openBuilderPreview() {
     if (!client) { toast.error('Select a client first'); return }
@@ -891,6 +894,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
       work_type: workType || null, valid_until: validUntil || null, revision: Number(revision) || 0,
       notes: notes.trim() || null,
       show_footer: showFooter, show_signature: showSignature, show_bank: showBank,
+      show_terms: showTerms, show_payment: showPayment, show_why_us: showWhyUs,
       quote_theme: quoteTheme, project_timeline: projTimeline.length ? projTimeline : null,
       created_at: new Date().toISOString(),
     }
@@ -935,6 +939,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         revision: Number(revision) || 0,
         notes: notes.trim() || null,
         show_footer: showFooter, show_signature: showSignature, show_bank: showBank,
+      show_terms: showTerms, show_payment: showPayment, show_why_us: showWhyUs,
         quote_theme: quoteTheme, project_timeline: projTimeline.length ? projTimeline : null,
         status: sendNow ? 'sent' : 'draft',
       }
@@ -1065,6 +1070,10 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     const wantFooter = q.show_footer ?? true
     const wantSign   = q.show_signature ?? true
     const wantBank   = q.show_bank ?? false
+    // separate section toggles (fall back to the old combined show_footer for old quotes)
+    const wantPay    = q.show_payment ?? (q.show_footer ?? true)
+    const wantWhy    = q.show_why_us  ?? (q.show_footer ?? true)
+    const wantTerms  = q.show_terms   ?? (q.show_footer ?? true)
     const bankFields = [
       ['Bank', tpl?.bank_name], ['Account Name', tpl?.bank_account_name], ['Account No', tpl?.bank_account_number],
       ['IBAN', tpl?.bank_iban], ['SWIFT', tpl?.bank_swift], ['Branch', tpl?.bank_branch],
@@ -1264,13 +1273,14 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
           </div>
         </div>
         ${timelineBlock}
-        ${wantFooter ? paymentCards : ''}
+        ${wantPay ? paymentCards : ''}
         ${bankBlock}
-        ${wantFooter ? whyBlock + (!isVo ? `
+        ${wantWhy ? whyBlock : ''}
+        ${wantTerms && !isVo ? `
           <div style="padding:18px 30px 0;page-break-inside:avoid;break-inside:avoid;">
             <div style="font-size:10px;color:${ACC};text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:7px;">— Terms & Conditions</div>
             <div style="font-size:8.5px;color:#888;line-height:1.7;white-space:pre-line;">${terms}</div>
-          </div>` : '') : ''}
+          </div>` : ''}
         ${notesBlock}
         ${signBlock}
         <div style="background:#1a1a1a;color:#9a9a9a;font-size:8.5px;text-align:center;padding:9px;margin-top:18px;">${cName} &nbsp;·&nbsp; ${cPhone}${cEmail?' &nbsp;·&nbsp; '+cEmail:''} &nbsp;·&nbsp; ${tagline}</div>
@@ -1280,11 +1290,11 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     const paymentStr = payments.length
       ? payments.map(p => `${p.percent}% (AED ${n(tot*(Number(p.percent)||0)/100)})${p.label ? ' ' + p.label : ''}`).join(' · ')
       : '50% Advance · 40% On completion · 10% On handover'
-    const footerHtml = (wantFooter && !isVo) ? `<div style="background:#faf8f3;border-radius:5px;padding:11px 13px;margin-bottom:14px;page-break-inside:avoid;break-inside:avoid;">
-        <div style="font-size:9px;color:${ACC};text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:5px;">Payment Schedule</div>
-        <div style="font-size:10.5px;color:#555;">${escapeHtml(paymentStr)}</div>
-        <div style="font-size:9px;color:${ACC};text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin:9px 0 5px;">Terms</div>
-        <div style="font-size:10px;color:#777;line-height:1.6;white-space:pre-line;">${terms}</div>
+    const footerHtml = (!isVo && (wantPay || wantTerms)) ? `<div style="background:#faf8f3;border-radius:5px;padding:11px 13px;margin-bottom:14px;page-break-inside:avoid;break-inside:avoid;">
+        ${wantPay ? `<div style="font-size:9px;color:${ACC};text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:5px;">Payment Schedule</div>
+        <div style="font-size:10.5px;color:#555;">${escapeHtml(paymentStr)}</div>` : ''}
+        ${wantTerms ? `<div style="font-size:9px;color:${ACC};text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin:9px 0 5px;">Terms</div>
+        <div style="font-size:10px;color:#777;line-height:1.6;white-space:pre-line;">${terms}</div>` : ''}
       </div>` : ''
     const signHtml = wantSign ? `<div style="text-align:center;"><div style="width:120px;border-bottom:1px solid #1a1a1a;margin-bottom:4px;height:30px;"></div><div style="font-size:9.5px;color:#6b6b6b;">Authorized Signature &amp; Stamp</div></div>` : '<div></div>'
     const bankHtml = (wantBank && bankFields.length) ? `<div style="background:#faf8f3;border-radius:5px;padding:11px 13px;margin-bottom:14px;">
@@ -2295,14 +2305,30 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         <div style={{ borderTop:`1px dashed ${border}`, paddingTop:13, marginBottom:14 }}>
           <div style={{ fontSize:11, color:textMuted, textTransform:'uppercase', letterSpacing:'.4px', marginBottom:8 }}>Document options</div>
           <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-            <label style={{ display:'flex', alignItems:'center', gap:10, background:cardBg, border:`1px solid ${showFooter?'#0099cc':border}`, borderRadius:8, padding:'9px 12px', cursor:'pointer' }}>
-              <input type="checkbox" checked={showFooter} onChange={e=>setShowFooter(e.target.checked)} style={{ width:'auto' }}/>
-              <i className="ti ti-align-left" style={{ fontSize:15, color:textSub }}/>
+            <label style={{ display:'flex', alignItems:'center', gap:10, background:cardBg, border:`1px solid ${showTerms?'#0099cc':border}`, borderRadius:8, padding:'9px 12px', cursor:'pointer' }}>
+              <input type="checkbox" checked={showTerms} onChange={e=>setShowTerms(e.target.checked)} style={{ width:'auto' }}/>
+              <i className="ti ti-file-text" style={{ fontSize:15, color:textSub }}/>
               <div style={{ flex:1 }}>
-                <div style={{ fontSize:13, color:text }}>Footer note</div>
-                <div style={{ fontSize:11, color:textMuted }}>Terms, payment{canPremium?' & why-choose-us':''} on the PDF</div>
+                <div style={{ fontSize:13, color:text }}>Terms &amp; conditions</div>
+                <div style={{ fontSize:11, color:textMuted }}>Show the terms section on the PDF</div>
               </div>
             </label>
+            <label style={{ display:'flex', alignItems:'center', gap:10, background:cardBg, border:`1px solid ${showPayment?'#0099cc':border}`, borderRadius:8, padding:'9px 12px', cursor:'pointer' }}>
+              <input type="checkbox" checked={showPayment} onChange={e=>setShowPayment(e.target.checked)} style={{ width:'auto' }}/>
+              <i className="ti ti-cash" style={{ fontSize:15, color:textSub }}/>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:13, color:text }}>Payment schedule</div>
+                <div style={{ fontSize:11, color:textMuted }}>Show the payment milestones on the PDF</div>
+              </div>
+            </label>
+            {canPremium && <label style={{ display:'flex', alignItems:'center', gap:10, background:cardBg, border:`1px solid ${showWhyUs?'#0099cc':border}`, borderRadius:8, padding:'9px 12px', cursor:'pointer' }}>
+              <input type="checkbox" checked={showWhyUs} onChange={e=>setShowWhyUs(e.target.checked)} style={{ width:'auto' }}/>
+              <i className="ti ti-thumb-up" style={{ fontSize:15, color:textSub }}/>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:13, color:text }}>Why choose us</div>
+                <div style={{ fontSize:11, color:textMuted }}>Show the &quot;Why Choose Us&quot; section on the PDF</div>
+              </div>
+            </label>}
             <label style={{ display:'flex', alignItems:'center', gap:10, background:cardBg, border:`1px solid ${showSignature?'#0099cc':border}`, borderRadius:8, padding:'9px 12px', cursor:'pointer' }}>
               <input type="checkbox" checked={showSignature} onChange={e=>setShowSignature(e.target.checked)} style={{ width:'auto' }}/>
               <i className="ti ti-writing-sign" style={{ fontSize:15, color:textSub }}/>
