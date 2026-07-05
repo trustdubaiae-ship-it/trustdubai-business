@@ -18,7 +18,7 @@ export default function ProfilePage() {
   const [reqSending, setReqSending] = useState(false)
   const [form, setForm] = useState({
     name: '', description: '', phone: '', email: '', website: '',
-    location: '', address: '', map_link: '', categories: [], tagline: '',
+    location: '', office: '', building: '', street: '', map_link: '', categories: [], tagline: '',
     whatsapp: '', instagram: '', facebook: '', linkedin: ''
   })
 
@@ -61,7 +61,9 @@ export default function ProfilePage() {
         email: company.email || '',
         website: company.website || '',
         location: company.location || '',
-        address: company.address || '',
+        office: company.addr_office || '',
+        building: company.addr_building || '',
+        street: company.addr_street || '',
         map_link: company.map_link || '',
         categories: cats,
         tagline: company.tagline || '',
@@ -134,7 +136,10 @@ export default function ProfilePage() {
           email: form.email,
           website: form.website,
           location: form.location,
-          address: form.address,
+          addr_office: form.office,
+          addr_building: form.building,
+          addr_street: form.street,
+          address: [form.office, form.building, form.street, form.location].map(s => (s || '').trim()).filter(Boolean).join('\n'),
           map_link: form.map_link,
           category: form.categories[0] || '',
           categories: form.categories,
@@ -309,13 +314,20 @@ export default function ProfilePage() {
           <div className="card">
             <div className="card-title" style={{ marginBottom: 18 }}>Location &amp; Address</div>
             <div className="form-group" style={{ marginBottom: 14 }}>
-              <label className="form-label"><MapPin size={11} style={{ marginRight: 4 }} />Area</label>
-              <input className="form-input" value={form.location} onChange={e => handleChange('location', e.target.value)} placeholder="e.g. Business Bay, Dubai" />
+              <label className="form-label">Office / Flat no.</label>
+              <input className="form-input" value={form.office} onChange={e => handleChange('office', e.target.value)} placeholder="e.g. Office 102" />
             </div>
             <div className="form-group" style={{ marginBottom: 14 }}>
-              <label className="form-label"><MapPin size={11} style={{ marginRight: 4 }} />Full address</label>
-              <textarea className="form-textarea" value={form.address} onChange={e => handleChange('address', e.target.value)} placeholder={'Office 102, ABC Tower\nAl Wasl Street\nBusiness Bay, Dubai'} style={{ minHeight: 76 }} />
-              <div style={{ fontSize: 11, color: '#6e7681', marginTop: 6 }}>Tip: put each part on a new line (office/building, street, area) — it shows exactly like that on your profile.</div>
+              <label className="form-label">Building</label>
+              <input className="form-input" value={form.building} onChange={e => handleChange('building', e.target.value)} placeholder="e.g. ABC Tower" />
+            </div>
+            <div className="form-group" style={{ marginBottom: 14 }}>
+              <label className="form-label">Street</label>
+              <input className="form-input" value={form.street} onChange={e => handleChange('street', e.target.value)} placeholder="e.g. Al Wasl Street" />
+            </div>
+            <div className="form-group" style={{ marginBottom: 14 }}>
+              <label className="form-label"><MapPin size={11} style={{ marginRight: 4 }} />Area</label>
+              <input className="form-input" value={form.location} onChange={e => handleChange('location', e.target.value)} placeholder="e.g. Business Bay, Dubai" />
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="form-label"><MapPin size={11} style={{ marginRight: 4 }} />Google Maps link</label>
