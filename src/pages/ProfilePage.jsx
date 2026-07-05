@@ -314,7 +314,8 @@ export default function ProfilePage() {
             </div>
             <div className="form-group" style={{ marginBottom: 14 }}>
               <label className="form-label"><MapPin size={11} style={{ marginRight: 4 }} />Full address</label>
-              <textarea className="form-textarea" value={form.address} onChange={e => handleChange('address', e.target.value)} placeholder="Building, street, area, Dubai" style={{ minHeight: 60 }} />
+              <textarea className="form-textarea" value={form.address} onChange={e => handleChange('address', e.target.value)} placeholder={'Office 102, ABC Tower\nAl Wasl Street\nBusiness Bay, Dubai'} style={{ minHeight: 76 }} />
+              <div style={{ fontSize: 11, color: '#6e7681', marginTop: 6 }}>Tip: put each part on a new line (office/building, street, area) — it shows exactly like that on your profile.</div>
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="form-label"><MapPin size={11} style={{ marginRight: 4 }} />Google Maps link</label>
