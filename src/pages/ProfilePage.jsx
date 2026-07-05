@@ -18,7 +18,7 @@ export default function ProfilePage() {
   const [reqSending, setReqSending] = useState(false)
   const [form, setForm] = useState({
     name: '', description: '', phone: '', email: '', website: '',
-    location: '', categories: [], tagline: '',
+    location: '', address: '', map_link: '', categories: [], tagline: '',
     whatsapp: '', instagram: '', facebook: '', linkedin: ''
   })
 
@@ -61,6 +61,8 @@ export default function ProfilePage() {
         email: company.email || '',
         website: company.website || '',
         location: company.location || '',
+        address: company.address || '',
+        map_link: company.map_link || '',
         categories: cats,
         tagline: company.tagline || '',
         whatsapp: company.whatsapp || '',
@@ -132,6 +134,8 @@ export default function ProfilePage() {
           email: form.email,
           website: form.website,
           location: form.location,
+          address: form.address,
+          map_link: form.map_link,
           category: form.categories[0] || '',
           categories: form.categories,
           tagline: form.tagline,
@@ -303,10 +307,19 @@ export default function ProfilePage() {
 
           {/* Location */}
           <div className="card">
-            <div className="card-title" style={{ marginBottom: 18 }}>Location</div>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label"><MapPin size={11} style={{ marginRight: 4 }} />Business Location / Area</label>
+            <div className="card-title" style={{ marginBottom: 18 }}>Location &amp; Address</div>
+            <div className="form-group" style={{ marginBottom: 14 }}>
+              <label className="form-label"><MapPin size={11} style={{ marginRight: 4 }} />Area</label>
               <input className="form-input" value={form.location} onChange={e => handleChange('location', e.target.value)} placeholder="e.g. Business Bay, Dubai" />
+            </div>
+            <div className="form-group" style={{ marginBottom: 14 }}>
+              <label className="form-label"><MapPin size={11} style={{ marginRight: 4 }} />Full address</label>
+              <textarea className="form-textarea" value={form.address} onChange={e => handleChange('address', e.target.value)} placeholder="Building, street, area, Dubai" style={{ minHeight: 60 }} />
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label"><MapPin size={11} style={{ marginRight: 4 }} />Google Maps link</label>
+              <input className="form-input" value={form.map_link} onChange={e => handleChange('map_link', e.target.value)} placeholder="Paste your Google Maps link" />
+              <div style={{ fontSize: 11, color: '#6e7681', marginTop: 6, lineHeight: 1.5 }}>Open Google Maps → find your business → <b>Share</b> → <b>Copy link</b>, and paste it here. Customers get a “Get Directions” button + a map on your public profile.</div>
             </div>
           </div>
 
