@@ -72,6 +72,9 @@ const DEFAULT_STAGES = [
 ]
 const TRADES = ['MEP', 'Electrical', 'Plumbing', 'HVAC', 'Gypsum / Ceiling', 'Tiles / Flooring', 'Joinery', 'Painting', 'Civil', 'Glass / Aluminium', 'Furniture', 'Other']
 const AED = n => 'AED ' + Math.round(Number(n) || 0).toLocaleString('en-AE')
+// A subcontractor's payable contract — adds 5% VAT when the "Add 5% VAT" option is on.
+// contract_amount is stored pre-VAT (sum of scope), so VAT must be added for balance/cost.
+const subGross = s => { const c = Number(s?.contract_amount) || 0; return c + (s?.apply_vat ? Math.round(c * 0.05) : 0) }
 const fmtD = d => d ? new Date(d).toLocaleDateString('en-AE', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'
 
 export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
@@ -154,7 +157,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
       setRecvByProject(recv)
       // company-wide rollup for the dashboard + per-project cost (incl. matching purchases)
       const [{ data: allSubs }, { data: allExp }, { data: allPur }] = await Promise.all([
-        supabase.from('project_subcontractors').select('name,project_id,contract_amount,paid_amount').eq('company_id', company.id).limit(5000),
+        supabase.from('project_subcontractors').select('name,project_id,contract_amount,paid_amount,apply_vat').eq('company_id', company.id).limit(5000),
         supabase.from('site_expenses').select('project_id,amount').eq('company_id', company.id).limit(5000),
         supabase.from('purchase_invoices').select('client_id,client_name,total').eq('company_id', company.id).limit(5000),
       ])
@@ -162,7 +165,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
       // per-project cost: subcontractor contracts + site expenses + purchase bills tagged to this project's client
       const cost = {}
       projs.forEach(p => { cost[p.id] = 0 })
-      ;(allSubs || []).forEach(x => { if (cost[x.project_id] != null) cost[x.project_id] += num(x.contract_amount) })
+      ;(allSubs || []).forEach(x => { if (cost[x.project_id] != null) cost[x.project_id] += subGross(x) })
       ;(allExp || []).forEach(x => { if (cost[x.project_id] != null) cost[x.project_id] += num(x.amount) })
       ;(allPur || []).forEach(x => {
         const p = projs.find(pp => (x.client_id && pp.client_id && String(pp.client_id) === String(x.client_id)) || (x.client_name && pp.client_name && pp.client_name.trim().toLowerCase() === x.client_name.trim().toLowerCase()))
@@ -191,13 +194,13 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
       } catch { /* directory is optional */ }
       const totalContract = projs.reduce((s, p) => s + num(p.contract_value), 0)
       const totalReceived = Object.values(recv).reduce((s, v) => s + num(v), 0)
-      const subContract = (allSubs || []).reduce((s, x) => s + num(x.contract_amount), 0)
+      const subContract = (allSubs || []).reduce((s, x) => s + subGross(x), 0)
       const subPaid = (allSubs || []).reduce((s, x) => s + num(x.paid_amount), 0)
       const siteSpend = (allExp || []).reduce((s, x) => s + num(x.amount), 0)
       const totalCost = Object.values(cost).reduce((s, v) => s + num(v), 0)
       // top subcontractors by outstanding balance (merge same names across projects)
       const map = {}
-      ;(allSubs || []).forEach(x => { const k = (x.name || '').trim().toLowerCase(); if (!k) return; const m = map[k] || { name: x.name, contract: 0, paid: 0 }; m.contract += num(x.contract_amount); m.paid += num(x.paid_amount); map[k] = m })
+      ;(allSubs || []).forEach(x => { const k = (x.name || '').trim().toLowerCase(); if (!k) return; const m = map[k] || { name: x.name, contract: 0, paid: 0 }; m.contract += subGross(x); m.paid += num(x.paid_amount); map[k] = m })
       const topSubs = Object.values(map).map(m => ({ ...m, balance: m.contract - m.paid })).sort((a, b) => b.balance - a.balance).slice(0, 5)
       setSummary({
         totalContract, totalReceived, totalOutstanding: Math.max(0, totalContract - totalReceived),
@@ -563,7 +566,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
 
   const totalExpenses = expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0)
   const totalMaterials = materials.reduce((s, m) => s + (Number(m.est_cost) || 0), 0)
-  const totalSubs = subs.reduce((s, x) => s + (Number(x.contract_amount) || 0), 0)
+  const totalSubs = subs.reduce((s, x) => s + subGross(x), 0)
   const subsPaid = subs.reduce((s, x) => s + (Number(x.paid_amount) || 0), 0)
   const voAdj = projVos.reduce((s, v) => s + (Number(v.total) || 0), 0)   // + additions / − omissions
   const origValue = Number(active?.contract_value) || 0
@@ -1047,7 +1050,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
           </div>
           {subs.length === 0 ? <div style={{ ...card, textAlign: 'center', color: 'var(--text3)', padding: '34px 16px' }}>No subcontractors yet. Add MEP, Gypsum, Tiles…</div>
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-              {subs.map(s => { const ss = SSTATUS[s.status] || SSTATUS.ongoing; const bal = (Number(s.contract_amount) || 0) - (Number(s.paid_amount) || 0); return (
+              {subs.map(s => { const ss = SSTATUS[s.status] || SSTATUS.ongoing; const bal = subGross(s) - (Number(s.paid_amount) || 0); return (
                 <div key={s.id} style={{ ...card, padding: '12px 14px' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
                     <div style={{ flex: 1, minWidth: 160 }}>
@@ -1062,7 +1065,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
                     <button onClick={() => delSub(s.id)} style={{ ...iconBtn, color: '#ef4444' }}><i className="ti ti-trash" style={{ fontSize: 15 }} /></button>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', gap: 8, marginTop: 10 }}>
-                    {[['Contract', AED(s.contract_amount), 'var(--text)'], ['Paid', AED(s.paid_amount), '#22c55e'], ['Balance', AED(bal), bal > 0 ? '#ef4444' : '#22c55e']].map(([k, v, c]) => (
+                    {[[s.apply_vat ? 'Contract (incl. VAT)' : 'Contract', AED(subGross(s)), 'var(--text)'], ['Paid', AED(s.paid_amount), '#22c55e'], ['Balance', AED(bal), bal > 0 ? '#ef4444' : '#22c55e']].map(([k, v, c]) => (
                       <div key={k} style={{ background: 'var(--bg2)', borderRadius: 8, padding: '8px 10px' }}><div style={{ fontSize: 10, color: 'var(--text3)' }}>{k}</div><div style={{ fontSize: 13.5, fontWeight: 700, color: c }}>{v}</div></div>
                     ))}
                   </div>
@@ -1317,7 +1320,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
       </FormModal>}
       {payModal && (() => {
         const sub = subs.find(s => s.id === payModal.id) || payModal
-        const contract = Number(sub.contract_amount) || 0
+        const contract = subGross(sub)
         const paid = payList.reduce((a, p) => a + (Number(p.amount) || 0), 0)
         const bal = contract - paid
         return (
