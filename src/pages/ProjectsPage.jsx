@@ -454,6 +454,13 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
     printLPOandNDA(company, active, sub, mySubScope, lpo, subs.filter(x => x.id !== sub.id), toast)
   }
 
+  // Statement of Account for one subcontractor: contract value, every payment
+  // made, running balance and balance due — a printable/PDF reconciliation doc.
+  async function openStatement(sub) {
+    const { data } = await supabase.from('sub_payments').select('*').eq('sub_id', sub.id).eq('company_id', company.id).order('paid_on', { ascending: true })
+    printStatement(company, active, sub, data || [], toast)
+  }
+
   // ----- milestones / timeline -----
   // weighted % — each stage carries its own weight; falls back to equal weighting if none set
   function weightedPct(rows) {
@@ -1062,6 +1069,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
                   <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                     <button onClick={() => openPayments(s)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(34,197,94,0.3)', background: 'rgba(34,197,94,0.1)', color: '#22c55e', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}><i className="ti ti-cash" /> Payments</button>
                     <button onClick={() => generateLPO(s)} className="btn btn-secondary btn-sm"><i className="ti ti-files" style={{ verticalAlign: '-2px', marginRight: 4 }} />{s.lpo_number ? 'LPO + NDA · ' + s.lpo_number : 'Generate LPO + NDA'}</button>
+                    <button onClick={() => openStatement(s)} className="btn btn-secondary btn-sm"><i className="ti ti-file-text" style={{ verticalAlign: '-2px', marginRight: 4 }} />Statement of Account</button>
                     <button onClick={() => toggleContract(s)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, border: `1px solid ${s.contract_signed ? '#22c55e' : 'var(--border)'}`, background: s.contract_signed ? 'rgba(34,197,94,0.1)' : 'transparent', color: s.contract_signed ? '#22c55e' : 'var(--text2)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}><i className={'ti ' + (s.contract_signed ? 'ti-circle-check-filled' : 'ti-writing-sign')} /> {s.contract_signed ? 'Contract signed' : 'Mark contract signed'}</button>
                     {scope.filter(x => x.sub_id === s.id).length > 0 && <span style={{ fontSize: 11, color: 'var(--text3)' }}>{scope.filter(x => x.sub_id === s.id).length} scope items assigned</span>}
                   </div>
@@ -1597,4 +1605,84 @@ function printDocs(titleText, sheets, toast) {
 // LPO + NDA, printed together (one window, LPO on page 1, NDA on the next pages).
 function printLPOandNDA(company, project, sub, items, lpo, others, toast) {
   printDocs(`${lpo} + NDA · ${sub?.name || 'Subcontractor'}`, [lpoBody(company, project, sub, items, lpo, others), ndaBody(company, project, sub)], toast)
+}
+
+function printStatement(company, project, sub, payments, toast) {
+  printDocs(`Statement of Account · ${sub?.name || 'Subcontractor'}`, [statementBody(company, project, sub, payments)], toast)
+}
+
+// ----- Statement of Account — contract value, all payments, running balance, balance due -----
+function statementBody(company, project, sub, payments = []) {
+  const esc = __escDoc
+  const n = v => Math.round(Number(v) || 0).toLocaleString('en-AE')
+  const fmtDate = d => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
+  const NAVY = '#0f2741', ACCENT = '#0099cc', MUT = '#6b7a8d', LINE = '#e7eef4', SOFT = '#f6fafc'
+  const serif = "'Playfair Display',Georgia,serif"
+  const subtotal = Number(sub?.contract_amount) || 0
+  const vat = sub?.apply_vat ? Math.round(subtotal * 0.05) : 0
+  const grand = subtotal + vat
+  const pays = (payments || []).slice().sort((a, b) => new Date(a.paid_on || 0) - new Date(b.paid_on || 0))
+  const totalPaid = pays.reduce((a, p) => a + (Number(p.amount) || 0), 0)
+  const balance = grand - totalPaid
+  let running = grand
+  const rows = pays.map((p, i) => {
+    running -= (Number(p.amount) || 0)
+    const meta = [p.method, p.reference].filter(Boolean).map(esc).join(' · ')
+    return `<tr style="${i % 2 ? 'background:' + SOFT + ';' : ''}">
+      <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${MUT};">${i + 1}</td>
+      <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${NAVY};white-space:nowrap;">${fmtDate(p.paid_on)}</td>
+      <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${MUT};">${meta || '—'}${p.note ? `<div style="font-size:9px;color:#8a97a5;">${esc(p.note)}</div>` : ''}</td>
+      <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;font-weight:600;color:#1e8e4a;">AED ${n(p.amount)}</td>
+      <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;font-weight:600;color:${NAVY};">AED ${n(running)}</td></tr>`
+  }).join('')
+  const logo = company?.logo_url ? `<img src="${esc(company.logo_url)}" style="height:48px;width:48px;object-fit:cover;border-radius:9px;flex-shrink:0;" />` : ''
+  const tile = (label, value, color) => `<div style="flex:1;border:1px solid ${LINE};border-radius:9px;padding:12px 15px;background:${SOFT};"><div style="font-size:8px;color:${ACCENT};text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">${label}</div><div style="font-family:${serif};font-size:17px;font-weight:700;margin-top:4px;color:${color};">AED ${n(value)}</div></div>`
+  return `<div class="__page" style="font-family:'Inter','Segoe UI',sans-serif;color:${NAVY};background:#fff;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div style="display:flex;gap:13px;align-items:center;">${logo}<div>
+        <div style="font-family:${serif};font-size:22px;font-weight:700;color:${NAVY};letter-spacing:.2px;line-height:1.1;">${esc(company?.name || 'Company')}</div>
+        <div style="font-size:10px;color:${MUT};margin-top:3px;">${esc(company?.phone || '')}${company?.location ? ' &nbsp;·&nbsp; ' + esc(company.location) : ''}</div>
+      </div></div>
+      <div style="text-align:right;">
+        <div style="font-family:${serif};font-size:20px;font-weight:700;color:${ACCENT};letter-spacing:.3px;line-height:1;">Statement of Account</div>
+        <div style="font-size:10.5px;color:${MUT};margin-top:5px;">As of&nbsp; <b style="color:${NAVY};">${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</b></div>
+      </div>
+    </div>
+    <div style="height:2.5px;background:linear-gradient(90deg,${ACCENT} 0%,${ACCENT} 28%,${ACCENT}1f 100%);margin:12px 0 16px;border-radius:2px;"></div>
+    <div style="display:flex;gap:14px;margin-bottom:14px;">
+      <div style="flex:1;border:1px solid ${LINE};border-radius:9px;padding:12px 15px;"><div style="font-size:8px;color:${ACCENT};text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">Subcontractor</div><div style="font-size:13.5px;font-weight:700;margin-top:4px;color:${NAVY};">${esc(sub.name)}</div><div style="font-size:10.5px;color:${MUT};margin-top:1px;">${esc(sub.trade || '')}${sub.phone ? ' · ' + esc(sub.phone) : ''}</div>${sub.contact_person ? `<div style="font-size:10px;color:${MUT};margin-top:3px;">Contact: <b style="color:${NAVY};">${esc(sub.contact_person)}</b></div>` : ''}${sub.vat_no ? `<div style="font-size:10px;color:${MUT};">TRN: <b style="color:${NAVY};">${esc(sub.vat_no)}</b></div>` : ''}</div>
+      <div style="flex:1;border:1px solid ${LINE};border-radius:9px;padding:12px 15px;"><div style="font-size:8px;color:${ACCENT};text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">Project</div><div style="font-size:13.5px;font-weight:700;margin-top:4px;color:${NAVY};">${esc(project.name)}</div><div style="font-size:10.5px;color:${MUT};margin-top:1px;">${esc(project.location || '')}</div>${sub.project_code ? `<div style="font-size:10px;color:${MUT};margin-top:3px;">Project code: <b style="color:${NAVY};">${esc(sub.project_code)}</b></div>` : ''}</div>
+    </div>
+    <div style="display:flex;gap:12px;margin-bottom:16px;">
+      ${tile('Contract Value' + (vat > 0 ? ' (incl. VAT)' : ''), grand, NAVY)}
+      ${tile('Total Paid', totalPaid, '#1e8e4a')}
+      ${tile('Balance Due', balance, balance > 0 ? '#c0392b' : '#1e8e4a')}
+    </div>
+    <table style="width:100%;border-collapse:separate;border-spacing:0;margin-bottom:14px;border:1px solid ${LINE};border-radius:9px;overflow:hidden;">
+      <thead><tr style="background:${NAVY};color:#fff;">
+        <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;width:34px;">#</th>
+        <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Date</th>
+        <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Method / Reference</th>
+        <th style="padding:10px 11px;text-align:right;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Paid</th>
+        <th style="padding:10px 11px;text-align:right;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Balance</th>
+      </tr></thead>
+      <tbody>
+        <tr><td colspan="4" style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${MUT};font-weight:600;">Opening — Contract value${vat > 0 ? ' (incl. 5% VAT)' : ''}</td><td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;font-weight:700;color:${NAVY};">AED ${n(grand)}</td></tr>
+        ${rows || `<tr><td colspan="5" style="padding:16px;text-align:center;color:#999;font-size:11px;">No payments recorded yet.</td></tr>`}
+      </tbody>
+    </table>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:14px;page-break-inside:avoid;">
+      <div style="min-width:290px;border:1px solid ${LINE};border-radius:9px;overflow:hidden;">
+        <div style="display:flex;justify-content:space-between;padding:8px 16px;font-size:11px;color:${MUT};"><span>Contract subtotal</span><span style="color:${NAVY};font-weight:600;">AED ${n(subtotal)}</span></div>
+        ${vat > 0 ? `<div style="display:flex;justify-content:space-between;padding:8px 16px;font-size:11px;color:${MUT};border-top:1px solid ${LINE};"><span>VAT (5%)</span><span style="color:${NAVY};font-weight:600;">AED ${n(vat)}</span></div>` : ''}
+        <div style="display:flex;justify-content:space-between;padding:8px 16px;font-size:11px;color:${MUT};border-top:1px solid ${LINE};"><span>Total paid to date</span><span style="color:#1e8e4a;font-weight:600;">− AED ${n(totalPaid)}</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 16px;background:${NAVY};color:#fff;"><span style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;font-weight:600;opacity:.85;">Balance Due</span><span style="font-family:${serif};font-size:17px;font-weight:700;color:${balance > 0 ? '#ff8a80' : '#4fd0f5'};">AED ${n(balance)}</span></div>
+      </div>
+    </div>
+    <div style="font-size:9px;color:${MUT};line-height:1.6;border-top:1px solid ${LINE};padding-top:10px;">This statement is issued for reconciliation and reflects payments recorded by ${esc(company?.name || 'the Company')} as of the date above. Please review and confirm; report any discrepancy within 7 days.</div>
+    <div style="display:flex;gap:30px;margin-top:22px;page-break-inside:avoid;">
+      <div style="flex:1;text-align:center;"><div style="border-bottom:1.5px solid ${NAVY};height:32px;"></div><div style="font-size:9px;color:${MUT};margin-top:5px;">For ${esc(company?.name || 'Company')}</div></div>
+      <div style="flex:1;text-align:center;"><div style="border-bottom:1.5px solid ${NAVY};height:32px;"></div><div style="font-size:9px;color:${MUT};margin-top:5px;">Confirmed — ${esc(sub.name)}</div></div>
+    </div>
+  </div>`
 }
