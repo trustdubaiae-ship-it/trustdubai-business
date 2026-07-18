@@ -1,6 +1,7 @@
 // Projects & Ops — projects (from won quotes), material requests and site
 // expenses with a budget/profit summary. Company-scoped (RLS).
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../lib/toast'
@@ -98,6 +99,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   const [soaPicker, setSoaPicker] = useState(false)      // "Combined Statement of Account" subcontractor picker
   const [extraModal, setExtraModal] = useState(null)     // subcontractor whose additional/extra work is being managed
   const [extraForm, setExtraForm] = useState(null)       // extra-work line being added/edited { id?, label, amount, date }
+  const [docView, setDocView] = useState(null)           // in-app document viewer { title, html } — no pop-ups (iPad-safe)
   const [subForm, setSubForm] = useState(null)
   const [scope, setScope] = useState([])
   const [scopeForm, setScopeForm] = useState(null)
@@ -121,6 +123,11 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   const [cDays, setCDays] = useState('')   // committed duration (days) — start_date + cDays = target end
 
   useEffect(() => { if (company?.id) loadProjects() }, [company?.id])
+  // route all printable docs (SoA, LPO+NDA…) into the in-app viewer — no pop-ups (iPad-safe)
+  useEffect(() => {
+    __docOpener = (title, html) => setDocView({ title, html })
+    return () => { __docOpener = null }
+  }, [])
   // keep the committed-days field showing the current start→end span (recomputes when either date changes / project switches)
   useEffect(() => {
     if (active?.start_date && active?.end_date) setCDays(String(Math.max(0, Math.round((new Date(active.end_date) - new Date(active.start_date)) / 86400000))))
@@ -670,6 +677,22 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   const lbl = { fontSize: 11.5, color: 'var(--text2)', display: 'block', marginBottom: 5, fontWeight: 600 }
   const Badge = ({ c, children }) => <span style={{ background: c + '1f', color: c, fontSize: 10.5, fontWeight: 700, padding: '2px 9px', borderRadius: 99 }}>{children}</span>
 
+  // In-app document viewer (SoA / LPO / etc.) — portalled to body, iPad-safe, no pop-ups.
+  const docViewNode = docView ? createPortal(
+    <div id="qv-docview">
+      <style dangerouslySetInnerHTML={{ __html: DOCVIEW_CSS }} />
+      <div className="qv-doc-bar">
+        <span className="qv-title">{docView.title}</span>
+        <span style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+          <button onClick={() => window.print()} style={{ background: '#0099cc', color: '#fff' }}><i className="ti ti-printer" style={{ verticalAlign: '-2px', marginRight: 5 }} />Print / Save PDF</button>
+          <button onClick={() => setDocView(null)} style={{ background: 'rgba(255,255,255,.16)', color: '#fff' }}>Close</button>
+        </span>
+      </div>
+      <div className="qv-doc-scroll" dangerouslySetInnerHTML={{ __html: docView.html }} />
+    </div>,
+    document.body
+  ) : null
+
   // ===== LIST =====
   if (view === 'list') {
     const totals = { value: projects.reduce((s, p) => s + (Number(p.contract_value) || 0), 0), ongoing: projects.filter(p => p.status === 'ongoing').length }
@@ -805,6 +828,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
             </div>
           )}
 
+        {docViewNode}
         {projModal && ProjectModal()}
         {soaPicker && (
           <div onClick={() => setSoaPicker(false)} style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
@@ -1333,6 +1357,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
         </label>
         <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6, lineHeight: 1.5 }}>Client visibility &amp; approval apply once the client view is live (Phase 3). A timeline change updates the project Target end{updForm.needs_approval ? ' after the client approves' : ''}.</div>
       </FormModal>}
+      {docViewNode}
       {subForm && <FormModal title={subForm.id ? 'Edit subcontractor' : 'Add subcontractor'} onClose={() => setSubForm(null)} onSave={saveSub} saving={saving}>
         {!subForm.id && (() => {
           const usedNames = new Set(subs.map(s => (s.name || '').trim().toLowerCase()))
@@ -1711,9 +1736,37 @@ function ndaBody(company, project, sub) {
   </div>`
 }
 
-// Open one print window holding several A4 sheets (each on its own page).
+// The active page registers an in-app document viewer here (avoids pop-up
+// windows, which iPad/Safari block and which open hidden behind the app).
+let __docOpener = null
+function buildSheetsHtml(sheets) {
+  return sheets.map((h, i) => `<div class="__sheet"${i < sheets.length - 1 ? ' style="page-break-after:always;"' : ''}>${h}</div>`).join('')
+}
+// Styles for the in-app A4 document viewer. On print, only the doc shows.
+const DOCVIEW_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap');
+#qv-docview{position:fixed;inset:0;z-index:4000;background:#e9eef3;display:flex;flex-direction:column}
+#qv-docview *{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box}
+#qv-docview .qv-doc-bar{flex-shrink:0;height:52px;background:#0f1d3a;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 12px;gap:10px}
+#qv-docview .qv-doc-bar .qv-title{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:'Inter','Segoe UI',sans-serif}
+#qv-docview .qv-doc-bar button{padding:9px 15px;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-family:'Inter','Segoe UI',sans-serif;font-size:13px;white-space:nowrap}
+#qv-docview .qv-doc-scroll{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:16px 8px 48px}
+#qv-docview .__sheet{width:794px;min-height:1123px;margin:16px auto;background:#fff;box-shadow:0 12px 44px rgba(15,30,50,.22);border-radius:2px;font-family:'Inter','Segoe UI',sans-serif}
+#qv-docview .__page{padding:28px 30px}
+@media print{
+  body>*:not(#qv-docview){display:none!important}
+  #qv-docview{position:static!important;background:#fff!important;display:block!important}
+  #qv-docview .qv-doc-bar{display:none!important}
+  #qv-docview .qv-doc-scroll{overflow:visible!important;padding:0!important}
+  #qv-docview .__sheet{width:auto!important;min-height:0!important;margin:0!important;box-shadow:none!important;border-radius:0!important}
+  #qv-docview .__page{padding:0!important}
+  @page{size:A4;margin:11mm}
+}`
+
+// Show A4 sheets. Prefer the in-app viewer; fall back to a pop-up window.
 function printDocs(titleText, sheets, toast) {
   const esc = __escDoc
+  if (__docOpener) { __docOpener(titleText, buildSheetsHtml(sheets)); return }
   const w = window.open('', '_blank')
   if (!w) { toast?.error?.('Allow pop-ups to print the document'); return }
   const sheetHtml = sheets.map((h, i) => `<div class="__sheet"${i < sheets.length - 1 ? ' style="page-break-after:always;"' : ''}>${h}</div>`).join('')
