@@ -253,7 +253,7 @@ export default function SubcontractHub({ company }) {
   // subcontractor in a project (auto-targets the linked project if posted from one).
   async function award(p, awarded) {
     await setStatus(p, 'under_discussion', awarded)
-    setAddSub({ post: p, name: awarded?.name || '', phone: awarded?.phone || '', email: awarded?.email || '', projectId: p.project_id || '' })
+    setAddSub({ post: p, name: awarded?.name || '', phone: awarded?.phone || '', email: awarded?.email || '', projectId: p.project_id || '', subCompanyId: awarded?.id || null })
   }
   async function confirmAddSub() {
     if (!addSub?.projectId) { toast.error('Pick a project'); return }
@@ -263,7 +263,7 @@ export default function SubcontractHub({ company }) {
         company_id: company.id, project_id: addSub.projectId, name: addSub.name || 'Subcontractor',
         phone: addSub.phone || null, contact_person: addSub.name || null, owner_mobile: addSub.phone || null,
         status: 'ongoing', notes: 'Added from Marketplace' + (addSub.post?.title ? ' — ' + addSub.post.title : ''),
-        apply_vat: true, payment_days: 30, payment_schedule: [],
+        apply_vat: true, payment_days: 30, payment_schedule: [], sub_company_id: addSub.subCompanyId || null,
       })
       if (error) throw error
       toast.success('Added as subcontractor ✓ — set the contract amount in Projects')

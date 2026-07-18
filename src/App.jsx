@@ -19,6 +19,7 @@ import ComingSoon from './pages/ComingSoon'
 import Organizer from './pages/Organizer'
 import MeetingsPage from './pages/MeetingsPage'
 import ProjectsPage from './pages/ProjectsPage'
+import MySubcontracts from './pages/MySubcontracts'
 import MeetingBell from './components/MeetingBell'
 import AIAssistant from './pages/AIAssistant'
 import AIAgents from './pages/AIAgents'
@@ -62,6 +63,7 @@ const PAGE_PERM = {
   quoteapprovals:     'view_leads',
   aiquote:            'view_leads',
   projects:           'view_profile',
+  mysubcontracts:     'view_profile',
   materials:          'view_profile',
   expenses:           'view_profile',
   aiassistant:        'view_dashboard',
@@ -96,7 +98,7 @@ const PAGE_PERM = {
   settings:           'view_profile',
 }
 
-const LIMITED_PAGES = ['controlwall', 'dashboard', 'menu', 'inbox', 'profile', 'portfolio', 'faq', 'notifications', 'team', 'documents', 'quoteSettings', 'leadform', 'tdleads', 'metaads', 'quoteapprovals', 'aiquote', 'projects', 'materials', 'expenses', 'aiassistant', 'aiagents', 'organizer', 'meetings', 'help']
+const LIMITED_PAGES = ['controlwall', 'dashboard', 'menu', 'inbox', 'profile', 'portfolio', 'faq', 'notifications', 'team', 'documents', 'quoteSettings', 'leadform', 'tdleads', 'metaads', 'quoteapprovals', 'aiquote', 'projects', 'mysubcontracts', 'materials', 'expenses', 'aiassistant', 'aiagents', 'organizer', 'meetings', 'help']
 
 // Pages that render their OWN one-step back button (list ↔ builder/detail).
 // On these we hide the topbar back so there's never two back buttons.
@@ -108,7 +110,7 @@ const OS_TITLE_PAGES = new Set([
   'notifications', 'organizer', 'meetings', 'purchases', 'profile', 'documents',
   'team', 'staff', 'faq', 'quotelibrary', 'quoteSettings', 'sponsored',
   'aiassistant', 'aiagents', 'revenueengine', 'quotations', 'invoices', 'projects',
-  'materials', 'expenses', 'leads', 'tdleads', 'menu', 'controlpanel',
+  'mysubcontracts', 'materials', 'expenses', 'leads', 'tdleads', 'menu', 'controlpanel',
   'verification', 'verificationStatus', 'plans', 'settings',
 ])
 
@@ -146,6 +148,7 @@ const PAGE_DESC = {
   quotations:   'Create, send & track your quotes',
   invoices:     'Invoice approved quotes & track payments',
   projects:     'Track jobs, scope, subcontractors & site spend',
+  mysubcontracts: 'Work other companies have awarded you as subcontractor',
   materials:    'Material requests across your projects',
   expenses:     'Site expenses across your projects',
   leads:        'Capture, track and close — every lead in one place',
@@ -164,7 +167,7 @@ const PAGE_DESC = {
 // views (list/builder/detail) can also persist a sub-route, e.g. #quotations/builder,
 // so a refresh keeps them on the same view instead of resetting to the list.
 const VALID_PAGES = [
-  'controlwall', 'dashboard', 'menu', 'revenueengine', 'inbox', 'profile', 'reviews', 'portfolio', 'analytics', 'leads', 'leadengine', 'leadform', 'tdleads', 'metaads', 'quotations', 'invoices', 'purchases', 'ledger', 'quoteSettings', 'quotelibrary', 'quoteapprovals', 'aiquote', 'projects', 'materials', 'expenses', 'aiassistant', 'aiagents', 'organizer', 'meetings',
+  'controlwall', 'dashboard', 'menu', 'revenueengine', 'inbox', 'profile', 'reviews', 'portfolio', 'analytics', 'leads', 'leadengine', 'leadform', 'tdleads', 'metaads', 'quotations', 'invoices', 'purchases', 'ledger', 'quoteSettings', 'quotelibrary', 'quoteapprovals', 'aiquote', 'projects', 'mysubcontracts', 'materials', 'expenses', 'aiassistant', 'aiagents', 'organizer', 'meetings',
   'sponsored', 'staff', 'team', 'documents', 'faq', 'notifications', 'trust',
   'controlpanel', 'verification', 'verificationStatus', 'plans', 'settings', 'help',
 ]
@@ -319,6 +322,7 @@ function Portal() {
     projects:           <ProjectsPage onNavigate={navigate} subRoute={subRoute} setSubRoute={setPageSub} />,
     materials:          <ProjectsPage onNavigate={navigate} subRoute={subRoute} setSubRoute={setPageSub} />,
     expenses:           <ProjectsPage onNavigate={navigate} subRoute={subRoute} setSubRoute={setPageSub} />,
+    mysubcontracts:     <MySubcontracts />,
     aiassistant:        <AIAssistant onNavigate={navigate} />,
     aiagents:           <AIAgents onNavigate={navigate} />,
     organizer:          <Organizer onNavigate={navigate} />,
@@ -345,7 +349,7 @@ function Portal() {
   }
 
   const pageTitles = {
-    controlwall:'Command Center', dashboard:'Command Center', menu:'All Features', revenueengine:'Revenue Engine', leadform:'Lead Form', tdleads:'Quvera Leads', metaads:'Meta Ads', quoteapprovals:'Quote Approvals', aiquote:'AI Quote Builder', projects:'Projects', materials:'Material Requests', expenses:'Site Expenses', aiassistant:'AI Assistant', aiagents:'AI Team', organizer:'My Organizer', meetings:'Planner', inbox:'Inbox', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
+    controlwall:'Command Center', dashboard:'Command Center', menu:'All Features', revenueengine:'Revenue Engine', leadform:'Lead Form', tdleads:'Quvera Leads', metaads:'Meta Ads', quoteapprovals:'Quote Approvals', aiquote:'AI Quote Builder', projects:'Projects', mysubcontracts:'My Subcontracts', materials:'Material Requests', expenses:'Site Expenses', aiassistant:'AI Assistant', aiagents:'AI Team', organizer:'My Organizer', meetings:'Planner', inbox:'Inbox', profile:'Company Profile', reviews:'Reviews', portfolio:'Portfolio',
     analytics:'Analytics', leads:'Business Hub', leadengine:'Lead Engine', quotations:'Quotations', invoices:'Invoices', purchases:'Purchases & Suppliers', ledger:'Ledger', quoteSettings:'Quote Settings', quotelibrary:'Description Library', sponsored:'Sponsored Placement', staff:'Staff & Access',
     team:'Our Team', documents:'Document Verification', faq:'FAQ Management', notifications:'Notifications', trust:'Trust Score', controlpanel:'Control Panel',
     verification:'Control Panel', verificationStatus:'Control Panel', plans:'Control Panel', settings:'Control Panel', help:'How it works',

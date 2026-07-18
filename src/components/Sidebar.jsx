@@ -53,9 +53,10 @@ export const MENU = [
   { id:'aiquote',       icon:'ti-sparkles',     label:'AI Quote Builder',   perm:'view_leads' },
 
   { section: 'PROJECTS & OPS' },
-  { id:'projects',  icon:'ti-briefcase',     label:'Projects',          perm:'view_profile' },
-  { id:'materials', icon:'ti-package',       label:'Material Requests', perm:'view_profile' },
-  { id:'expenses',  icon:'ti-coin',          label:'Site Expenses',     perm:'view_profile' },
+  { id:'projects',       icon:'ti-briefcase',     label:'Projects',          perm:'view_profile' },
+  { id:'mysubcontracts', icon:'ti-hammer',        label:'My Subcontracts',   perm:'view_profile' },
+  { id:'materials',      icon:'ti-package',       label:'Material Requests', perm:'view_profile' },
+  { id:'expenses',       icon:'ti-coin',          label:'Site Expenses',     perm:'view_profile' },
 
   { section: 'AI & CRM' },
   { id:'aiassistant', icon:'ti-robot',          label:'AI Assistant',   perm:'view_dashboard', addon:'ai' },

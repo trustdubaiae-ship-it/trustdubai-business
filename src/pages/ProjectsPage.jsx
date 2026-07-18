@@ -100,6 +100,9 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   const [extraModal, setExtraModal] = useState(null)     // subcontractor whose additional/extra work is being managed
   const [extraForm, setExtraForm] = useState(null)       // extra-work line being added/edited { id?, label, amount, date }
   const [docView, setDocView] = useState(null)           // in-app document viewer { title, html } — no pop-ups (iPad-safe)
+  const [subSearchQ, setSubSearchQ] = useState('')       // "link to a TrustDubai member" search box
+  const [subSearchRes, setSubSearchRes] = useState([])   // matching registered companies
+  const [subSearching, setSubSearching] = useState(false)
   const [subForm, setSubForm] = useState(null)
   const [scope, setScope] = useState([])
   const [scopeForm, setScopeForm] = useState(null)
@@ -128,6 +131,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
     __docOpener = (title, html) => setDocView({ title, html })
     return () => { __docOpener = null }
   }, [])
+  useEffect(() => { if (!subForm) { setSubSearchQ(''); setSubSearchRes([]) } }, [subForm])
   // keep the committed-days field showing the current start→end span (recomputes when either date changes / project switches)
   useEffect(() => {
     if (active?.start_date && active?.end_date) setCDays(String(Math.max(0, Math.round((new Date(active.end_date) - new Date(active.start_date)) / 86400000))))
@@ -344,6 +348,20 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   }
   async function delExpense(id) { try { await supabase.from('site_expenses').delete().eq('id', id).eq('company_id', company.id); reloadChildren() } catch (e) { toast.error('Delete failed') } }
 
+  // ----- link a subcontractor to their own TrustDubai company (member directory) -----
+  async function searchMemberCompanies(q) {
+    setSubSearchQ(q)
+    if (!q || q.trim().length < 2) { setSubSearchRes([]); return }
+    setSubSearching(true)
+    try { const { data } = await supabase.rpc('fn_search_companies', { q: q.trim() }); setSubSearchRes(data || []) }
+    catch { setSubSearchRes([]) } finally { setSubSearching(false) }
+  }
+  function linkMember(c) {
+    setSubForm(s => ({ ...s, sub_company_id: c.id, name: c.name || s.name, phone: c.phone || s.phone }))
+    setSubSearchQ(''); setSubSearchRes([])
+  }
+  function unlinkMember() { setSubForm(s => ({ ...s, sub_company_id: null })) }
+
   async function saveSub() {
     const x = subForm
     if (!x.name?.trim()) { toast.error('Subcontractor name is required'); return }
@@ -356,7 +374,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
         .filter(r => r.label || r.pct)
       const payload = { company_id: company.id, project_id: active.id, name: x.name.trim(), trade: x.trade || null, phone: x.phone || null, status: x.status || 'ongoing', notes: x.notes || null,
         contact_person: x.contact_person?.trim() || null, owner_name: x.owner_name?.trim() || null, owner_mobile: x.owner_mobile?.trim() || null, vat_no: x.vat_no?.trim() || null, project_code: x.project_code?.trim() || null, apply_vat: !!x.apply_vat,
-        payment_days: numOr(x.payment_days, 30), payment_schedule: schedule, full_project: !!x.full_project }
+        payment_days: numOr(x.payment_days, 30), payment_schedule: schedule, full_project: !!x.full_project, sub_company_id: x.sub_company_id || null }
       if (x.id) { const { error } = await supabase.from('project_subcontractors').update(payload).eq('id', x.id).eq('company_id', company.id); if (error) throw error }
       else { const { error } = await supabase.from('project_subcontractors').insert(payload); if (error) throw error }
       setSubForm(null); toast.success('Saved ✓'); reloadChildren()
@@ -1384,6 +1402,34 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
           )
         })()}
         <label style={lbl}>Name</label><input autoFocus value={subForm.name} onChange={e => setSubForm(s => ({ ...s, name: e.target.value }))} style={{ ...input, marginBottom: 10 }} placeholder="e.g. Al Noor MEP Works" />
+        {/* Optional: link this subcontractor to their own TrustDubai account so they see the project in their portal */}
+        <div style={{ marginBottom: 10 }}>
+          {subForm.sub_company_id ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.35)', borderRadius: 9, padding: '9px 12px' }}>
+              <i className="ti ti-link" style={{ color: '#16a34a', fontSize: 16 }} />
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', flex: 1 }}>Linked to a TrustDubai member — they'll see this project in their own portal</span>
+              <button onClick={unlinkMember} style={{ ...iconBtn, color: '#ef4444', width: 28, height: 28 }} title="Unlink"><i className="ti ti-unlink" style={{ fontSize: 15 }} /></button>
+            </div>
+          ) : (
+            <>
+              <label style={lbl}><i className="ti ti-building-community" style={{ verticalAlign: '-2px' }} /> Link to a TrustDubai member <span style={{ color: 'var(--text3)', fontWeight: 400 }}>· optional — so they see this project in their portal</span></label>
+              <input value={subSearchQ} onChange={e => searchMemberCompanies(e.target.value)} style={input} placeholder="Search company name or phone…" />
+              {subSearching && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>Searching…</div>}
+              {subSearchRes.length > 0 && (
+                <div style={{ border: '1px solid var(--border)', borderRadius: 9, marginTop: 6, overflow: 'hidden' }}>
+                  {subSearchRes.map(c => (
+                    <button key={c.id} onClick={() => linkMember(c)} style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', textAlign: 'left', padding: '9px 11px', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text)' }}>
+                      <span style={{ width: 26, height: 26, borderRadius: 7, overflow: 'hidden', background: 'var(--bg2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{c.logo_url ? <img src={c.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <i className="ti ti-building" style={{ fontSize: 14, color: 'var(--text3)' }} />}</span>
+                      <span style={{ flex: 1, minWidth: 0 }}><span style={{ fontSize: 13, fontWeight: 600, display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>{(c.category || c.phone) && <span style={{ fontSize: 11, color: 'var(--text3)' }}>{[c.category, c.phone].filter(Boolean).join(' · ')}</span>}</span>
+                      <i className="ti ti-plus" style={{ color: '#0099cc', fontSize: 16, flexShrink: 0 }} />
+                    </button>
+                  ))}
+                </div>
+              )}
+              {subSearchQ.trim().length >= 2 && !subSearching && subSearchRes.length === 0 && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>No member found — just type the name below to add them as an external subcontractor.</div>}
+            </>
+          )}
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 10 }}>
           <div><label style={lbl}>Trade / scope</label><select value={subForm.trade} onChange={e => setSubForm(s => ({ ...s, trade: e.target.value }))} style={input}>{TRADES.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
           <div><label style={lbl}>Phone</label><input value={subForm.phone} onChange={e => setSubForm(s => ({ ...s, phone: e.target.value }))} style={input} /></div>
