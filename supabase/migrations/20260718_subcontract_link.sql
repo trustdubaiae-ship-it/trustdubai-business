@@ -10,6 +10,19 @@ alter table public.project_subcontractors
   add column if not exists sub_company_id uuid references public.companies(id) on delete set null;
 create index if not exists psub_sub_company_idx on public.project_subcontractors(sub_company_id);
 
+-- Resolve the caller's company for OWNERS *and* STAFF (was owner-email only), so
+-- staff of a company also see "My Subcontracts" (and the subcontract board).
+create or replace function public.my_company_id()
+returns uuid language sql security definer set search_path = public stable as $$
+  select coalesce(
+    (select id from public.companies
+       where lower(owner_email) = lower(coalesce(auth.email(), '')) limit 1),
+    (select company_id from public.business_staff
+       where lower(email) = lower(coalesce(auth.email(), '')) and active = true limit 1)
+  )
+$$;
+grant execute on function public.my_company_id() to authenticated;
+
 -- Search registered companies to link when adding a subcontractor.
 -- Minimal public fields only; needs a query string; never returns the caller.
 create or replace function public.fn_search_companies(q text)
