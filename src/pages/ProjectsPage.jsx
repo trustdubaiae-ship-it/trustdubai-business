@@ -94,6 +94,10 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   const [expenses, setExpenses] = useState([])
   const [subs, setSubs] = useState([])
   const [subDirectory, setSubDirectory] = useState([])   // saved subcontractors (reuse across projects)
+  const [subLedger, setSubLedger] = useState([])         // every subcontractor merged across projects (name → contract/paid/balance)
+  const [soaPicker, setSoaPicker] = useState(false)      // "Combined Statement of Account" subcontractor picker
+  const [extraModal, setExtraModal] = useState(null)     // subcontractor whose additional/extra work is being managed
+  const [extraForm, setExtraForm] = useState(null)       // extra-work line being added/edited { id?, label, amount, date }
   const [subForm, setSubForm] = useState(null)
   const [scope, setScope] = useState([])
   const [scopeForm, setScopeForm] = useState(null)
@@ -200,8 +204,10 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
       const totalCost = Object.values(cost).reduce((s, v) => s + num(v), 0)
       // top subcontractors by outstanding balance (merge same names across projects)
       const map = {}
-      ;(allSubs || []).forEach(x => { const k = (x.name || '').trim().toLowerCase(); if (!k) return; const m = map[k] || { name: x.name, contract: 0, paid: 0 }; m.contract += subGross(x); m.paid += num(x.paid_amount); map[k] = m })
-      const topSubs = Object.values(map).map(m => ({ ...m, balance: m.contract - m.paid })).sort((a, b) => b.balance - a.balance).slice(0, 5)
+      ;(allSubs || []).forEach(x => { const k = (x.name || '').trim().toLowerCase(); if (!k) return; const m = map[k] || { name: x.name, contract: 0, paid: 0, projects: 0 }; m.contract += subGross(x); m.paid += num(x.paid_amount); m.projects += 1; map[k] = m })
+      const merged = Object.values(map).map(m => ({ ...m, balance: m.contract - m.paid })).sort((a, b) => b.balance - a.balance)
+      setSubLedger(merged)
+      const topSubs = merged.slice(0, 5)
       setSummary({
         totalContract, totalReceived, totalOutstanding: Math.max(0, totalContract - totalReceived),
         subContract, subPaid, subBalance: subContract - subPaid, siteSpend, totalCost,
@@ -381,10 +387,46 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
     } catch (e) { toast.error('Delete failed') }
   }
 
-  async function recomputeSubContract(subId, rows) {
+  // Contract value = assigned scope + any additional/extra work (both pre-VAT).
+  // Pass extraOverride when the extra-work list just changed (state not yet reloaded).
+  async function recomputeSubContract(subId, rows, extraOverride) {
     if (!subId) return
-    const total = (rows || scope).filter(s => s.sub_id === subId).reduce((a, s) => a + (Number(s.sub_amount) || 0), 0)
-    await supabase.from('project_subcontractors').update({ contract_amount: total }).eq('id', subId).eq('company_id', company.id)
+    const scopeTotal = (rows || scope).filter(s => s.sub_id === subId).reduce((a, s) => a + (Number(s.sub_amount) || 0), 0)
+    // additional work is preserved: use the just-changed list, else read it back from the DB
+    let extra = extraOverride
+    if (!Array.isArray(extra)) {
+      const { data } = await supabase.from('project_subcontractors').select('extra_work').eq('id', subId).eq('company_id', company.id).single()
+      extra = Array.isArray(data?.extra_work) ? data.extra_work : []
+    }
+    const extraTotal = extra.reduce((a, e) => a + (Number(e.amount) || 0), 0)
+    await supabase.from('project_subcontractors').update({ contract_amount: scopeTotal + extraTotal }).eq('id', subId).eq('company_id', company.id)
+  }
+
+  // ----- additional / extra work (beyond the original scope) -----
+  function openExtra(sub) { setExtraModal(sub); setExtraForm(null) }
+  async function saveExtraItem() {
+    const x = extraForm
+    if (!x.label?.trim()) { toast.error('Describe the additional work'); return }
+    if (!(Number(x.amount) > 0)) { toast.error('Enter the amount'); return }
+    setSaving(true)
+    try {
+      const cur = Array.isArray(extraModal.extra_work) ? extraModal.extra_work : []
+      const item = { id: x.id || ('x' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)), label: x.label.trim(), amount: Number(x.amount) || 0, date: x.date || null }
+      const next = x.id ? cur.map(e => e.id === x.id ? item : e) : [...cur, item]
+      const { error } = await supabase.from('project_subcontractors').update({ extra_work: next }).eq('id', extraModal.id).eq('company_id', company.id)
+      if (error) throw error
+      await recomputeSubContract(extraModal.id, scope, next)
+      setExtraForm(null); setExtraModal(m => ({ ...m, extra_work: next })); toast.success('Saved ✓'); reloadChildren()
+    } catch (e) { console.error(e); toast.error('Save failed: ' + (e?.message || e)) } finally { setSaving(false) }
+  }
+  async function delExtraItem(itemId) {
+    try {
+      const cur = Array.isArray(extraModal.extra_work) ? extraModal.extra_work : []
+      const next = cur.filter(e => e.id !== itemId)
+      await supabase.from('project_subcontractors').update({ extra_work: next }).eq('id', extraModal.id).eq('company_id', company.id)
+      await recomputeSubContract(extraModal.id, scope, next)
+      setExtraModal(m => ({ ...m, extra_work: next })); reloadChildren()
+    } catch (e) { console.error(e); toast.error('Delete failed') }
   }
   async function assignScope(item, subId, amount) {
     try {
@@ -462,6 +504,22 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   async function openStatement(sub) {
     const { data } = await supabase.from('sub_payments').select('*').eq('sub_id', sub.id).eq('company_id', company.id).order('paid_on', { ascending: true })
     printStatement(company, active, sub, data || [], toast)
+  }
+
+  // Combined Statement of Account for ONE subcontractor across EVERY project:
+  // each project's contract + payments + balance, then a grand total. One printable doc.
+  async function openCombinedStatement(name) {
+    try {
+      const { data: rows } = await supabase.from('project_subcontractors').select('*').eq('company_id', company.id).ilike('name', (name || '').trim())
+      if (!rows || !rows.length) { toast.error('No records for this subcontractor'); return }
+      const subIds = rows.map(r => r.id)
+      const { data: pays } = await supabase.from('sub_payments').select('*').eq('company_id', company.id).in('sub_id', subIds).order('paid_on', { ascending: true })
+      // resolve each assignment's project name from loaded projects
+      const projName = {}; projects.forEach(p => { projName[p.id] = p.name })
+      const enriched = rows.map(r => ({ ...r, _projName: projName[r.project_id] || 'Project' }))
+      printCombinedStatement(company, name, enriched, pays || [], toast)
+      setSoaPicker(false)
+    } catch (e) { console.error(e); toast.error('Could not build statement') }
   }
 
   // ----- milestones / timeline -----
@@ -620,6 +678,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
       <div style={{ color: 'var(--text)' }}>
         <style>{FX}</style>
         <HeroActions>
+          <button onClick={() => setSoaPicker(true)} className="btn btn-secondary"><i className="ti ti-file-text" style={{ fontSize: 16 }} /> Subcontractor SoA</button>
           <button onClick={newProject} className="btn btn-primary"><i className="ti ti-plus" style={{ fontSize: 16 }} /> New project</button>
         </HeroActions>
 
@@ -747,6 +806,36 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
           )}
 
         {projModal && ProjectModal()}
+        {soaPicker && (
+          <div onClick={() => setSoaPicker(false)} style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 18, width: '100%', maxWidth: 500, padding: 22, maxHeight: '92vh', overflowY: 'auto', color: 'var(--text)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 4 }}>
+                <span style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(139,92,246,0.14)', color: '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><i className="ti ti-file-text" style={{ fontSize: 18 }} /></span>
+                <div><div style={{ fontSize: 17, fontWeight: 700 }}>Combined Statement of Account</div><div style={{ fontSize: 12, color: 'var(--text3)' }}>Pick a subcontractor — every project in one statement</div></div>
+              </div>
+              <div style={{ marginTop: 14 }}>
+                {subLedger.length === 0 ? <div style={{ fontSize: 12.5, color: 'var(--text3)', padding: '20px 0', textAlign: 'center' }}>No subcontractors yet.</div>
+                  : <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {subLedger.map((t, i) => (
+                      <button key={i} onClick={() => openCombinedStatement(t.name)} style={{ display: 'flex', alignItems: 'center', gap: 11, textAlign: 'left', width: '100%', padding: '11px 13px', borderRadius: 11, border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--text)', cursor: 'pointer' }}>
+                        <span style={{ width: 30, height: 30, borderRadius: 8, background: 'rgba(139,92,246,0.12)', color: '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><i className="ti ti-user" style={{ fontSize: 15 }} /></span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.name}</div>
+                          <div style={{ fontSize: 11, color: 'var(--text3)' }}>{t.projects} project{t.projects === 1 ? '' : 's'} · Contract {AED(t.contract)} · Paid {AED(t.paid)}</div>
+                        </div>
+                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: t.balance > 0 ? '#ef4444' : '#22c55e' }}>{AED(t.balance)}</div>
+                          <div style={{ fontSize: 9.5, color: 'var(--text3)', letterSpacing: '.5px', textTransform: 'uppercase' }}>Balance</div>
+                        </div>
+                        <i className="ti ti-file-download" style={{ fontSize: 17, color: '#0099cc', flexShrink: 0 }} />
+                      </button>
+                    ))}
+                  </div>}
+              </div>
+              <button onClick={() => setSoaPicker(false)} style={{ width: '100%', marginTop: 16, padding: 12, borderRadius: 10, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>Close</button>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
@@ -1050,7 +1139,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
           </div>
           {subs.length === 0 ? <div style={{ ...card, textAlign: 'center', color: 'var(--text3)', padding: '34px 16px' }}>No subcontractors yet. Add MEP, Gypsum, Tiles…</div>
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-              {subs.map(s => { const ss = SSTATUS[s.status] || SSTATUS.ongoing; const bal = subGross(s) - (Number(s.paid_amount) || 0); return (
+              {subs.map(s => { const ss = SSTATUS[s.status] || SSTATUS.ongoing; const bal = subGross(s) - (Number(s.paid_amount) || 0); const extraItems = Array.isArray(s.extra_work) ? s.extra_work : []; const extraTotal = extraItems.reduce((a, e) => a + (Number(e.amount) || 0), 0); return (
                 <div key={s.id} style={{ ...card, padding: '12px 14px' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
                     <div style={{ flex: 1, minWidth: 160 }}>
@@ -1073,6 +1162,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
                     <button onClick={() => openPayments(s)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(34,197,94,0.3)', background: 'rgba(34,197,94,0.1)', color: '#22c55e', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}><i className="ti ti-cash" /> Payments</button>
                     <button onClick={() => generateLPO(s)} className="btn btn-secondary btn-sm"><i className="ti ti-files" style={{ verticalAlign: '-2px', marginRight: 4 }} />{s.lpo_number ? 'LPO + NDA · ' + s.lpo_number : 'Generate LPO + NDA'}</button>
                     <button onClick={() => openStatement(s)} className="btn btn-secondary btn-sm"><i className="ti ti-file-text" style={{ verticalAlign: '-2px', marginRight: 4 }} />Statement of Account</button>
+                    <button onClick={() => openExtra(s)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(245,158,11,0.35)', background: 'rgba(245,158,11,0.1)', color: '#f59e0b', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}><i className="ti ti-tools" /> Additional work{extraItems.length > 0 ? ` · ${extraItems.length} · ${AED(extraTotal)}` : ''}</button>
                     <button onClick={() => toggleContract(s)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, border: `1px solid ${s.contract_signed ? '#22c55e' : 'var(--border)'}`, background: s.contract_signed ? 'rgba(34,197,94,0.1)' : 'transparent', color: s.contract_signed ? '#22c55e' : 'var(--text2)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}><i className={'ti ' + (s.contract_signed ? 'ti-circle-check-filled' : 'ti-writing-sign')} /> {s.contract_signed ? 'Contract signed' : 'Mark contract signed'}</button>
                     {scope.filter(x => x.sub_id === s.id).length > 0 && <span style={{ fontSize: 11, color: 'var(--text3)' }}>{scope.filter(x => x.sub_id === s.id).length} scope items assigned</span>}
                   </div>
@@ -1374,6 +1464,54 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
           </div>
         )
       })()}
+      {extraModal && (() => {
+        const items = Array.isArray(extraModal.extra_work) ? extraModal.extra_work : []
+        const extraTotal = items.reduce((a, e) => a + (Number(e.amount) || 0), 0)
+        return (
+          <div onClick={() => { setExtraModal(null); setExtraForm(null) }} style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 18, width: '100%', maxWidth: 480, padding: 22, maxHeight: '92vh', overflowY: 'auto', color: 'var(--text)' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
+                <div>
+                  <div style={{ fontSize: 17, fontWeight: 700 }}>{extraModal.name}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text2)' }}>Additional work{extraModal.trade ? ' · ' + extraModal.trade : ''} — beyond original scope</div>
+                </div>
+                <button onClick={() => { setExtraModal(null); setExtraForm(null) }} style={{ ...iconBtn, width: 30, height: 30 }}><i className="ti ti-x" style={{ fontSize: 15 }} /></button>
+              </div>
+              <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 10, padding: '10px 13px', marginBottom: 14, fontSize: 12.5, color: 'var(--text2)' }}>
+                Added work is folded into the contract value{extraModal.apply_vat ? ' (5% VAT applies on top)' : ''}, so the balance & Statement of Account update automatically. Total additional: <b style={{ color: '#f59e0b' }}>{AED(extraTotal)}</b>
+              </div>
+              {!extraForm && <button onClick={() => setExtraForm({ label: '', amount: '', date: new Date().toISOString().slice(0, 10) })} className="btn btn-primary btn-sm" style={{ width: '100%', marginBottom: 12 }}><i className="ti ti-plus" /> Add additional work</button>}
+              {extraForm && (
+                <div style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 13, marginBottom: 12, background: 'var(--bg2)' }}>
+                  <label style={lbl}>Work done</label><input autoFocus value={extraForm.label} onChange={e => setExtraForm(f => ({ ...f, label: e.target.value }))} style={{ ...input, marginBottom: 10 }} placeholder="e.g. Extra partition wall — store room" />
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 10 }}>
+                    <div><label style={lbl}>Amount (AED){extraModal.apply_vat ? ' · pre-VAT' : ''}</label><input type="number" value={extraForm.amount} onChange={e => setExtraForm(f => ({ ...f, amount: e.target.value }))} style={input} /></div>
+                    <div><label style={lbl}>Date</label><input type="date" value={extraForm.date || ''} onChange={e => setExtraForm(f => ({ ...f, date: e.target.value }))} style={input} /></div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => setExtraForm(null)} style={{ flex: 1, padding: 9, borderRadius: 9, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+                    <button onClick={saveExtraItem} disabled={saving} style={{ flex: 1, padding: 9, borderRadius: 9, border: 'none', background: '#f59e0b', color: '#fff', fontWeight: 600, fontSize: 13, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}>{saving ? 'Saving…' : 'Save work'}</button>
+                  </div>
+                </div>
+              )}
+              {items.length === 0 ? <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 13, padding: '20px 10px' }}>No additional work added yet.</div>
+                : <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                  {items.map(e => (
+                    <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 11px', borderRadius: 10, border: '1px solid var(--border)' }}>
+                      <div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(245,158,11,0.12)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><i className="ti ti-tools" style={{ fontSize: 16 }} /></div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13.5, fontWeight: 600 }}>{e.label}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text3)' }}>{AED(e.amount)}{e.date ? ' · ' + fmtD(e.date) : ''}</div>
+                      </div>
+                      <button onClick={() => setExtraForm({ ...e })} style={iconBtn}><i className="ti ti-edit" style={{ fontSize: 14 }} /></button>
+                      <button onClick={() => delExtraItem(e.id)} style={{ ...iconBtn, color: '#ef4444' }}><i className="ti ti-trash" style={{ fontSize: 14 }} /></button>
+                    </div>
+                  ))}
+                </div>}
+            </div>
+          </div>
+        )
+      })()}
       {scopeForm && <FormModal title={scopeForm.id ? 'Edit scope item' : 'Add scope item'} onClose={() => setScopeForm(null)} onSave={saveScopeItem} saving={saving}>
         <label style={lbl}>Description</label><input autoFocus value={scopeForm.description} onChange={e => setScopeForm(s => ({ ...s, description: e.target.value }))} style={{ ...input, marginBottom: 10 }} placeholder="e.g. Gypsum false ceiling — living room" />
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', gap: 10, marginBottom: 10 }}>
@@ -1614,6 +1752,10 @@ function printStatement(company, project, sub, payments, toast) {
   printDocs(`Statement of Account · ${sub?.name || 'Subcontractor'}`, [statementBody(company, project, sub, payments)], toast)
 }
 
+function printCombinedStatement(company, subName, rows, payments, toast) {
+  printDocs(`Combined Statement · ${subName || 'Subcontractor'}`, [combinedStatementBody(company, subName, rows, payments)], toast)
+}
+
 // ----- Statement of Account — contract value, all payments, running balance, balance due -----
 function statementBody(company, project, sub, payments = []) {
   const esc = __escDoc
@@ -1622,6 +1764,9 @@ function statementBody(company, project, sub, payments = []) {
   const NAVY = '#0f2741', ACCENT = '#0099cc', MUT = '#6b7a8d', LINE = '#e7eef4', SOFT = '#f6fafc'
   const serif = "'Playfair Display',Georgia,serif"
   const subtotal = Number(sub?.contract_amount) || 0
+  const extraItems = Array.isArray(sub?.extra_work) ? sub.extra_work : []
+  const extraTotal = extraItems.reduce((a, e) => a + (Number(e.amount) || 0), 0)
+  const baseSubtotal = subtotal - extraTotal   // contract_amount already includes additional work
   const vat = sub?.apply_vat ? Math.round(subtotal * 0.05) : 0
   const grand = subtotal + vat
   const pays = (payments || []).slice().sort((a, b) => new Date(a.paid_on || 0) - new Date(b.paid_on || 0))
@@ -1661,6 +1806,10 @@ function statementBody(company, project, sub, payments = []) {
       ${tile('Total Paid', totalPaid, '#1e8e4a')}
       ${tile('Balance Due', balance, balance > 0 ? '#c0392b' : '#1e8e4a')}
     </div>
+    ${extraItems.length ? `<div style="border:1px solid ${LINE};border-radius:9px;overflow:hidden;margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 13px;background:#fff7ec;border-bottom:1px solid ${LINE};"><span style="font-size:9px;letter-spacing:1px;text-transform:uppercase;font-weight:700;color:#b9770e;">Additional / Variation work</span><span style="font-size:11px;font-weight:700;color:#b9770e;">AED ${n(extraTotal)}</span></div>
+      ${extraItems.map(e => `<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 13px;font-size:10.5px;color:${MUT};border-top:1px solid ${LINE};"><span style="color:${NAVY};">${esc(e.label)}${e.date ? ` <span style="color:${MUT};">· ${fmtDate(e.date)}</span>` : ''}</span><span style="color:${NAVY};font-weight:600;white-space:nowrap;">AED ${n(e.amount)}</span></div>`).join('')}
+    </div>` : ''}
     <table style="width:100%;border-collapse:separate;border-spacing:0;margin-bottom:14px;border:1px solid ${LINE};border-radius:9px;overflow:hidden;">
       <thead><tr style="background:${NAVY};color:#fff;">
         <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;width:34px;">#</th>
@@ -1670,13 +1819,14 @@ function statementBody(company, project, sub, payments = []) {
         <th style="padding:10px 11px;text-align:right;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Balance</th>
       </tr></thead>
       <tbody>
-        <tr><td colspan="4" style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${MUT};font-weight:600;">Opening — Contract value${vat > 0 ? ' (incl. 5% VAT)' : ''}</td><td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;font-weight:700;color:${NAVY};">AED ${n(grand)}</td></tr>
+        <tr><td colspan="4" style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${MUT};font-weight:600;">Opening — Contract value${extraTotal > 0 ? ' (incl. additional work)' : ''}${vat > 0 ? ' (incl. 5% VAT)' : ''}</td><td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;font-weight:700;color:${NAVY};">AED ${n(grand)}</td></tr>
         ${rows || `<tr><td colspan="5" style="padding:16px;text-align:center;color:#999;font-size:11px;">No payments recorded yet.</td></tr>`}
       </tbody>
     </table>
     <div style="display:flex;justify-content:flex-end;margin-bottom:14px;page-break-inside:avoid;">
       <div style="min-width:290px;border:1px solid ${LINE};border-radius:9px;overflow:hidden;">
-        <div style="display:flex;justify-content:space-between;padding:8px 16px;font-size:11px;color:${MUT};"><span>Contract subtotal</span><span style="color:${NAVY};font-weight:600;">AED ${n(subtotal)}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 16px;font-size:11px;color:${MUT};"><span>Contract subtotal${extraTotal > 0 ? ' (base scope)' : ''}</span><span style="color:${NAVY};font-weight:600;">AED ${n(baseSubtotal)}</span></div>
+        ${extraTotal > 0 ? `<div style="display:flex;justify-content:space-between;padding:8px 16px;font-size:11px;color:${MUT};border-top:1px solid ${LINE};"><span>Additional / variation work</span><span style="color:${NAVY};font-weight:600;">AED ${n(extraTotal)}</span></div>` : ''}
         ${vat > 0 ? `<div style="display:flex;justify-content:space-between;padding:8px 16px;font-size:11px;color:${MUT};border-top:1px solid ${LINE};"><span>VAT (5%)</span><span style="color:${NAVY};font-weight:600;">AED ${n(vat)}</span></div>` : ''}
         <div style="display:flex;justify-content:space-between;padding:8px 16px;font-size:11px;color:${MUT};border-top:1px solid ${LINE};"><span>Total paid to date</span><span style="color:#1e8e4a;font-weight:600;">− AED ${n(totalPaid)}</span></div>
         <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 16px;background:${NAVY};color:#fff;"><span style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;font-weight:600;opacity:.85;">Balance Due</span><span style="font-family:${serif};font-size:17px;font-weight:700;color:${balance > 0 ? '#ff8a80' : '#4fd0f5'};">AED ${n(balance)}</span></div>
@@ -1686,6 +1836,96 @@ function statementBody(company, project, sub, payments = []) {
     <div style="display:flex;gap:30px;margin-top:22px;page-break-inside:avoid;">
       <div style="flex:1;text-align:center;"><div style="border-bottom:1.5px solid ${NAVY};height:32px;"></div><div style="font-size:9px;color:${MUT};margin-top:5px;">For ${esc(company?.name || 'Company')}</div></div>
       <div style="flex:1;text-align:center;"><div style="border-bottom:1.5px solid ${NAVY};height:32px;"></div><div style="font-size:9px;color:${MUT};margin-top:5px;">Confirmed — ${esc(sub.name)}</div></div>
+    </div>
+  </div>`
+}
+
+// ----- Combined Statement of Account — one subcontractor across EVERY project -----
+// Each project shows its own contract, payments and balance; a grand total closes it.
+function combinedStatementBody(company, subName, rows = [], payments = []) {
+  const esc = __escDoc
+  const n = v => Math.round(Number(v) || 0).toLocaleString('en-AE')
+  const fmtDate = d => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
+  const NAVY = '#0f2741', ACCENT = '#0099cc', MUT = '#6b7a8d', LINE = '#e7eef4', SOFT = '#f6fafc'
+  const serif = "'Playfair Display',Georgia,serif"
+  const info = rows.find(r => r.trade || r.phone || r.vat_no || r.contact_person) || rows[0] || {}
+  const paysBySub = {}
+  ;(payments || []).forEach(p => { (paysBySub[p.sub_id] = paysBySub[p.sub_id] || []).push(p) })
+  const groups = rows.map(r => {
+    const subtotal = Number(r.contract_amount) || 0
+    const vat = r.apply_vat ? Math.round(subtotal * 0.05) : 0
+    const gross = subtotal + vat
+    const pays = (paysBySub[r.id] || []).slice().sort((a, b) => new Date(a.paid_on || 0) - new Date(b.paid_on || 0))
+    const paid = pays.reduce((a, p) => a + (Number(p.amount) || 0), 0)
+    const extra = (Array.isArray(r.extra_work) ? r.extra_work : []).reduce((a, e) => a + (Number(e.amount) || 0), 0)
+    return { row: r, subtotal, vat, gross, pays, paid, extra, balance: gross - paid }
+  }).sort((a, b) => (a.row._projName || '').localeCompare(b.row._projName || ''))
+  const grandSubtotal = groups.reduce((a, g) => a + g.subtotal, 0)
+  const grandVat = groups.reduce((a, g) => a + g.vat, 0)
+  const grandContract = groups.reduce((a, g) => a + g.gross, 0)
+  const grandPaid = groups.reduce((a, g) => a + g.paid, 0)
+  const grandBal = grandContract - grandPaid
+  const td = (extra) => `padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;${extra || ''}`
+  const sections = groups.map((g, gi) => {
+    let running = g.gross
+    const prows = g.pays.map((p) => {
+      running -= (Number(p.amount) || 0)
+      const meta = [p.method, p.reference].filter(Boolean).map(esc).join(' · ')
+      return `<tr>
+        <td style="${td('color:' + NAVY + ';white-space:nowrap;')}">${fmtDate(p.paid_on)}</td>
+        <td style="${td('color:' + MUT + ';')}">${meta || '—'}${p.note ? `<div style="font-size:9px;color:#8a97a5;">${esc(p.note)}</div>` : ''}</td>
+        <td style="${td('text-align:right;font-weight:600;color:#1e8e4a;')}">AED ${n(p.amount)}</td>
+        <td style="${td('text-align:right;font-weight:600;color:' + NAVY + ';')}">AED ${n(running)}</td></tr>`
+    }).join('')
+    return `<tr style="background:${SOFT};"><td colspan="3" style="padding:9px 11px;border-top:2px solid ${ACCENT};border-bottom:1px solid ${LINE};font-size:11px;font-weight:700;color:${NAVY};">${gi + 1}. ${esc(g.row._projName)}${g.extra > 0 ? ' <span style="font-weight:400;color:#b9770e;">· incl. additional AED ' + n(g.extra) + '</span>' : ''}${g.vat > 0 ? ' <span style="font-weight:400;color:' + MUT + ';">· incl. 5% VAT</span>' : ''}</td><td style="padding:9px 11px;border-top:2px solid ${ACCENT};border-bottom:1px solid ${LINE};text-align:right;font-size:10.5px;font-weight:700;color:${NAVY};">Contract AED ${n(g.gross)}</td></tr>
+      ${prows || `<tr><td colspan="4" style="${td('text-align:center;color:#999;')}">No payments recorded.</td></tr>`}
+      <tr><td colspan="3" style="${td('text-align:right;font-weight:700;color:' + NAVY + ';background:#fafcfe;')}">Balance — ${esc(g.row._projName)}</td><td style="${td('text-align:right;font-weight:700;background:#fafcfe;color:' + (g.balance > 0 ? '#c0392b' : '#1e8e4a') + ';')}">AED ${n(g.balance)}</td></tr>`
+  }).join('')
+  const logo = company?.logo_url ? `<img src="${esc(company.logo_url)}" style="height:48px;width:48px;object-fit:cover;border-radius:9px;flex-shrink:0;" />` : ''
+  const tile = (label, value, color) => `<div style="flex:1;border:1px solid ${LINE};border-radius:9px;padding:12px 15px;background:${SOFT};"><div style="font-size:8px;color:${ACCENT};text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">${label}</div><div style="font-family:${serif};font-size:17px;font-weight:700;margin-top:4px;color:${color};">AED ${n(value)}</div></div>`
+  return `<div class="__page" style="font-family:'Inter','Segoe UI',sans-serif;color:${NAVY};background:#fff;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div style="display:flex;gap:13px;align-items:center;">${logo}<div>
+        <div style="font-family:${serif};font-size:22px;font-weight:700;color:${NAVY};letter-spacing:.2px;line-height:1.1;">${esc(company?.name || 'Company')}</div>
+        <div style="font-size:10px;color:${MUT};margin-top:3px;">${esc(company?.phone || '')}${company?.location ? ' &nbsp;·&nbsp; ' + esc(company.location) : ''}</div>
+      </div></div>
+      <div style="text-align:right;">
+        <div style="font-family:${serif};font-size:20px;font-weight:700;color:${ACCENT};letter-spacing:.3px;line-height:1;">Combined Statement</div>
+        <div style="font-size:9px;color:${MUT};letter-spacing:1px;text-transform:uppercase;margin-top:2px;">Across all projects</div>
+        <div style="font-size:10.5px;color:${MUT};margin-top:5px;">As of&nbsp; <b style="color:${NAVY};">${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</b></div>
+      </div>
+    </div>
+    <div style="height:2.5px;background:linear-gradient(90deg,${ACCENT} 0%,${ACCENT} 28%,${ACCENT}1f 100%);margin:12px 0 16px;border-radius:2px;"></div>
+    <div style="display:flex;gap:14px;margin-bottom:14px;">
+      <div style="flex:1;border:1px solid ${LINE};border-radius:9px;padding:12px 15px;"><div style="font-size:8px;color:${ACCENT};text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">Subcontractor</div><div style="font-size:13.5px;font-weight:700;margin-top:4px;color:${NAVY};">${esc(subName)}</div><div style="font-size:10.5px;color:${MUT};margin-top:1px;">${esc(info.trade || '')}${info.phone ? ' · ' + esc(info.phone) : ''}</div>${info.contact_person ? `<div style="font-size:10px;color:${MUT};margin-top:3px;">Contact: <b style="color:${NAVY};">${esc(info.contact_person)}</b></div>` : ''}${info.vat_no ? `<div style="font-size:10px;color:${MUT};">TRN: <b style="color:${NAVY};">${esc(info.vat_no)}</b></div>` : ''}</div>
+      <div style="flex:1;border:1px solid ${LINE};border-radius:9px;padding:12px 15px;"><div style="font-size:8px;color:${ACCENT};text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">Scope</div><div style="font-size:13.5px;font-weight:700;margin-top:4px;color:${NAVY};">${groups.length} project${groups.length === 1 ? '' : 's'}</div><div style="font-size:10.5px;color:${MUT};margin-top:1px;">${groups.map(g => esc(g.row._projName)).join(' · ')}</div></div>
+    </div>
+    <div style="display:flex;gap:12px;margin-bottom:16px;">
+      ${tile('Total Contract' + (grandVat > 0 ? ' (incl. VAT)' : ''), grandContract, NAVY)}
+      ${tile('Total Paid', grandPaid, '#1e8e4a')}
+      ${tile('Balance Due', grandBal, grandBal > 0 ? '#c0392b' : '#1e8e4a')}
+    </div>
+    <table style="width:100%;border-collapse:separate;border-spacing:0;margin-bottom:14px;border:1px solid ${LINE};border-radius:9px;overflow:hidden;">
+      <thead><tr style="background:${NAVY};color:#fff;">
+        <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Date</th>
+        <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Method / Reference</th>
+        <th style="padding:10px 11px;text-align:right;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Paid</th>
+        <th style="padding:10px 11px;text-align:right;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Balance</th>
+      </tr></thead>
+      <tbody>${sections}</tbody>
+    </table>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:14px;page-break-inside:avoid;">
+      <div style="min-width:290px;border:1px solid ${LINE};border-radius:9px;overflow:hidden;">
+        <div style="display:flex;justify-content:space-between;padding:8px 16px;font-size:11px;color:${MUT};"><span>Contract subtotal</span><span style="color:${NAVY};font-weight:600;">AED ${n(grandSubtotal)}</span></div>
+        ${grandVat > 0 ? `<div style="display:flex;justify-content:space-between;padding:8px 16px;font-size:11px;color:${MUT};border-top:1px solid ${LINE};"><span>VAT (5%)</span><span style="color:${NAVY};font-weight:600;">AED ${n(grandVat)}</span></div>` : ''}
+        <div style="display:flex;justify-content:space-between;padding:8px 16px;font-size:11px;color:${MUT};border-top:1px solid ${LINE};"><span>Total paid to date</span><span style="color:#1e8e4a;font-weight:600;">− AED ${n(grandPaid)}</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 16px;background:${NAVY};color:#fff;"><span style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;font-weight:600;opacity:.85;">Balance Due</span><span style="font-family:${serif};font-size:17px;font-weight:700;color:${grandBal > 0 ? '#ff8a80' : '#4fd0f5'};">AED ${n(grandBal)}</span></div>
+      </div>
+    </div>
+    <div style="font-size:9px;color:${MUT};line-height:1.6;border-top:1px solid ${LINE};padding-top:10px;">This combined statement consolidates every project assigned to ${esc(subName)} and reflects payments recorded by ${esc(company?.name || 'the Company')} as of the date above. Please review and confirm; report any discrepancy within 7 days.</div>
+    <div style="display:flex;gap:30px;margin-top:22px;page-break-inside:avoid;">
+      <div style="flex:1;text-align:center;"><div style="border-bottom:1.5px solid ${NAVY};height:32px;"></div><div style="font-size:9px;color:${MUT};margin-top:5px;">For ${esc(company?.name || 'Company')}</div></div>
+      <div style="flex:1;text-align:center;"><div style="border-bottom:1.5px solid ${NAVY};height:32px;"></div><div style="font-size:9px;color:${MUT};margin-top:5px;">Confirmed — ${esc(subName)}</div></div>
     </div>
   </div>`
 }
