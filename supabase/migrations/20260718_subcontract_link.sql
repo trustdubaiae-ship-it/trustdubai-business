@@ -39,6 +39,32 @@ language sql security definer set search_path = public stable as $$
 $$;
 grant execute on function public.fn_search_companies(text) to authenticated;
 
+-- Does a subcontractor row belong to the CALLER's company?
+--  • an explicit link (sub_company_id) always wins; otherwise
+--  • for OLD unlinked rows added before this feature, fall back to a strict
+--    match: exact (case-insensitive) name, or the same phone (last 9 digits,
+--    so +9715… and 05… match). Keeps pre-existing assignments visible.
+create or replace function public.fn_sub_row_is_mine(p_link uuid, p_name text, p_phone text)
+returns boolean language sql security definer set search_path = public stable as $$
+  select case when public.my_company_id() is null then false else exists (
+    select 1 from public.companies me
+    where me.id = public.my_company_id()
+      and (
+        p_link = me.id
+        or (p_link is null and (
+          (length(trim(coalesce(p_name,''))) > 0 and lower(trim(p_name)) = lower(trim(me.name)))
+          or (
+            length(regexp_replace(coalesce(me.phone,''), '\D', '', 'g')) >= 9
+            and length(regexp_replace(coalesce(p_phone,''), '\D', '', 'g')) >= 9
+            and right(regexp_replace(coalesce(me.phone,''), '\D', '', 'g'), 9)
+              = right(regexp_replace(coalesce(p_phone,''), '\D', '', 'g'), 9)
+          )
+        ))
+      )
+  ) end
+$$;
+grant execute on function public.fn_sub_row_is_mine(uuid, text, text) to authenticated;
+
 -- The subcontracts awarded TO the caller's company (they are the subcontractor).
 -- SAFE fields only — no client name, project value or the contractor's margin.
 create or replace function public.fn_my_subcontracts()
@@ -68,8 +94,7 @@ language sql security definer set search_path = public stable as $$
   from public.project_subcontractors s
   join public.ops_projects p on p.id = s.project_id
   join public.companies c on c.id = s.company_id          -- the contractor who awarded it
-  where public.my_company_id() is not null
-    and s.sub_company_id = public.my_company_id()
+  where public.fn_sub_row_is_mine(s.sub_company_id, s.name, s.phone)
   order by s.created_at desc
 $$;
 grant execute on function public.fn_my_subcontracts() to authenticated;
@@ -82,10 +107,9 @@ language sql security definer set search_path = public stable as $$
   select sp.id, sp.amount, sp.paid_on, sp.method, sp.reference, sp.note
   from public.sub_payments sp
   where sp.sub_id = p_sub_id
-    and public.my_company_id() is not null
     and exists (
       select 1 from public.project_subcontractors s
-      where s.id = p_sub_id and s.sub_company_id = public.my_company_id()
+      where s.id = p_sub_id and public.fn_sub_row_is_mine(s.sub_company_id, s.name, s.phone)
     )
   order by sp.paid_on
 $$;
