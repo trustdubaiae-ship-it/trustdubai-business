@@ -2215,7 +2215,9 @@ function clientStatementBody(company, project, d) {
       <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;font-weight:600;color:${NAVY};">AED ${n(running)}</td></tr>`
   }).join('')
 
-  const invRows = (invoices || []).map(iv => `<tr>
+  // oldest first — the client reads this as a chronology, not in fetch order
+  const invSorted = (invoices || []).slice().sort((a, b) => new Date(a.issue_date || 0) - new Date(b.issue_date || 0))
+  const invRows = invSorted.map(iv => `<tr>
     <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${NAVY};">${esc(iv.invoice_number || '—')}</td>
     <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10px;color:${MUT};">${esc(iv.milestone_label || iv.kind || '')}</td>
     <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10px;color:${MUT};white-space:nowrap;">${fmtDate(iv.issue_date)}</td>
