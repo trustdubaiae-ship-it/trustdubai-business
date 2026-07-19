@@ -673,7 +673,10 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   const totalInvoiced = liveInvoices.reduce((s, i) => s + (Number(i.total) || 0), 0)
   const clientReceived = liveInvoices.reduce((s, i) => s + invPaid(i), 0)
   const clientOutstanding = Math.max(0, value - clientReceived)   // vs the contract value
-  const netCash = clientReceived - subsPaid - totalExpenses        // actual money position
+  // Actual money position. Subs use what was really paid (not the contract); materials
+  // and purchases have no payment tracking of their own, so they count at full cost —
+  // which keeps this consistent with totalCost instead of silently ignoring them.
+  const netCash = clientReceived - subsPaid - totalExpenses - totalMatActual - totalPurchases
   const workPct = milestones.length ? weightedPct(milestones) : (Number(active?.progress) || 0)
   const paymentPct = value > 0 ? Math.min(100, Math.round((clientReceived / value) * 100)) : 0
 
@@ -684,7 +687,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
       origValue, voAdj, value, clientReceived, clientOutstanding,
       subs, totalSubs, subsPaid, materials, totalMatActual,
       expenses, totalExpenses, purchases, totalPurchases,
-      totalCost, margin, marginPct,
+      totalCost, margin, marginPct, netCash,
     }, toast)
   }
 
@@ -1300,10 +1303,10 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
           <div style={{ ...card, padding: '12px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', background: `linear-gradient(135deg, ${netCash >= 0 ? '#22c55e' : '#ef4444'}14, transparent)` }}>
             <i className={'ti ' + (netCash >= 0 ? 'ti-trending-up' : 'ti-trending-down')} style={{ fontSize: 22, color: netCash >= 0 ? '#22c55e' : '#ef4444' }} />
             <div style={{ flex: 1, minWidth: 140 }}>
-              <div style={{ fontSize: 11.5, color: 'var(--text2)' }}>Net cash position <span style={{ color: 'var(--text3)' }}>(received − sub paid − site spend)</span></div>
+              <div style={{ fontSize: 11.5, color: 'var(--text2)' }}>Net cash position <span style={{ color: 'var(--text3)' }}>(received − sub paid − site spend − materials − purchases)</span></div>
               <div style={{ fontSize: 18, fontWeight: 800, color: netCash >= 0 ? '#22c55e' : '#ef4444' }}>{AED(netCash)}</div>
             </div>
-            <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'right' }}>Paid to subs {AED(subsPaid)}<br />Site spend {AED(totalExpenses)}</div>
+            <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'right' }}>Paid to subs {AED(subsPaid)}<br />Site spend {AED(totalExpenses)}{totalMatActual > 0 ? <><br />Materials {AED(totalMatActual)}</> : null}{totalPurchases > 0 ? <><br />Purchases {AED(totalPurchases)}</> : null}</div>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
@@ -2072,7 +2075,7 @@ function projectStatementBody(company, project, d) {
   const serif = "'Playfair Display',Georgia,serif"
   const { origValue, voAdj, value, clientReceived, clientOutstanding,
           subs, totalSubs, subsPaid, materials, totalMatActual,
-          expenses, totalExpenses, purchases, totalPurchases, totalCost, margin, marginPct } = d
+          expenses, totalExpenses, purchases, totalPurchases, totalCost, margin, marginPct, netCash } = d
 
   const logo = company?.logo_url ? `<img src="${esc(company.logo_url)}" style="height:48px;width:48px;object-fit:cover;border-radius:9px;flex-shrink:0;" />` : ''
   const tile = (label, val, color) => `<div style="flex:1;border:1px solid ${LINE};border-radius:9px;padding:12px 15px;background:${SOFT};"><div style="font-size:8px;color:${ACCENT};text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">${label}</div><div style="font-family:${serif};font-size:17px;font-weight:700;margin-top:4px;color:${color};">AED ${n(val)}</div></div>`
@@ -2161,10 +2164,10 @@ function projectStatementBody(company, project, d) {
       </div>
     </div>
     <div style="border:1px solid ${LINE};border-radius:9px;padding:10px 14px;margin-bottom:12px;background:${SOFT};display:flex;justify-content:space-between;gap:16px;">
-      <span style="font-size:10px;color:${MUT};">Cash position — received from client <b style="color:${GREEN};">AED ${n(clientReceived)}</b> less paid to subcontractors <b style="color:${NAVY};">AED ${n(subsPaid)}</b> and site expenses <b style="color:${NAVY};">AED ${n(totalExpenses)}</b></span>
-      <span style="font-size:12px;font-weight:700;white-space:nowrap;color:${(clientReceived - subsPaid - totalExpenses) >= 0 ? GREEN : RED};">AED ${n(clientReceived - subsPaid - totalExpenses)}</span>
+      <span style="font-size:10px;color:${MUT};">Cash position — received from client <b style="color:${GREEN};">AED ${n(clientReceived)}</b> less paid to subcontractors <b style="color:${NAVY};">AED ${n(subsPaid)}</b>, site expenses <b style="color:${NAVY};">AED ${n(totalExpenses)}</b>, materials <b style="color:${NAVY};">AED ${n(totalMatActual)}</b> and purchases <b style="color:${NAVY};">AED ${n(totalPurchases)}</b></span>
+      <span style="font-size:12px;font-weight:700;white-space:nowrap;color:${netCash >= 0 ? GREEN : RED};">AED ${n(netCash)}</span>
     </div>
-    <div style="font-size:9px;color:${MUT};line-height:1.6;border-top:1px solid ${LINE};padding-top:10px;">Internal management statement for ${esc(project?.name || 'this project')}, prepared from records held by ${esc(company?.name || 'the Company')} as of the date above. Material lines marked &ldquo;estimate&rdquo; use the estimated cost until an actual cost is entered, so the profit shown may still move. Not to be issued to the client.</div>
+    <div style="font-size:9px;color:${MUT};line-height:1.6;border-top:1px solid ${LINE};padding-top:10px;">Internal management statement for ${esc(project?.name || 'this project')}, prepared from records held by ${esc(company?.name || 'the Company')} as of the date above. Material lines marked &ldquo;estimate&rdquo; use the estimated cost until an actual cost is entered, so the profit shown may still move. Subcontractors are counted at what has actually been paid; materials and purchases carry no separate payment record, so the cash position counts them at full cost. Not to be issued to the client.</div>
   </div>`
 }
 
