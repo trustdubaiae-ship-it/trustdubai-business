@@ -677,6 +677,17 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   const workPct = milestones.length ? weightedPct(milestones) : (Number(active?.progress) || 0)
   const paymentPct = value > 0 ? Math.min(100, Math.round((clientReceived / value) * 100)) : 0
 
+  // Internal P&L statement for the open project — built from the same totals the
+  // tiles show, so the doc can never disagree with the screen.
+  function openProjectStatement() {
+    printProjectStatement(company, active, {
+      origValue, voAdj, value, clientReceived, clientOutstanding,
+      subs, totalSubs, subsPaid, materials, totalMatActual,
+      expenses, totalExpenses, purchases, totalPurchases,
+      totalCost, margin, marginPct,
+    }, toast)
+  }
+
   const card = { background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: 16 }
   const heroBg = 'linear-gradient(135deg, #0a2540 0%, #0d6e8f 45%, #6d28d9 130%)'
   const FX = `
@@ -907,6 +918,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
             </div>
             <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,.78)', marginTop: 2 }}><i className="ti ti-user" style={{ fontSize: 13, verticalAlign: '-1px' }} /> {active.client_name || 'No client'}{active.location ? ' · ' + active.location : ''}</div>
           </div>
+          <button onClick={openProjectStatement} title="Internal P&L statement — income, cost and profit" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '9px 15px', borderRadius: 10, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(255,255,255,.12)', color: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}><i className="ti ti-file-analytics" /> Statement</button>
           <button onClick={() => editProject(active)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '9px 15px', borderRadius: 10, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(255,255,255,.12)', color: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}><i className="ti ti-edit" /> Edit</button>
           <button onClick={() => deleteProject(active.id)} style={{ width: 36, height: 36, borderRadius: 10, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(239,68,68,0.25)', color: '#fff', cursor: 'pointer', flexShrink: 0 }}><i className="ti ti-trash" style={{ fontSize: 15 }} /></button>
         </div>
@@ -2045,4 +2057,117 @@ function combinedStatementBody(company, subName, rows = [], payments = []) {
       <div style="flex:1;text-align:center;"><div style="border-bottom:1.5px solid ${NAVY};height:32px;"></div><div style="font-size:9px;color:${MUT};margin-top:5px;">Confirmed — ${esc(subName)}</div></div>
     </div>
   </div>`
+}
+
+// ----- Project Statement — one project's full P&L: income in, cost out, profit -----
+// INTERNAL document: it exposes margin, so it is never meant for the client.
+// Cost lines mirror totalCost in the detail view (subs incl. VAT + materials +
+// site expenses + purchases) so the statement can never disagree with the tiles.
+function projectStatementBody(company, project, d) {
+  const esc = __escDoc
+  const n = v => Math.round(Number(v) || 0).toLocaleString('en-AE')
+  const fmtDate = x => x ? new Date(x).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
+  const NAVY = '#0f2741', ACCENT = '#0099cc', MUT = '#6b7a8d', LINE = '#e7eef4', SOFT = '#f6fafc'
+  const GREEN = '#1e8e4a', RED = '#c0392b'
+  const serif = "'Playfair Display',Georgia,serif"
+  const { origValue, voAdj, value, clientReceived, clientOutstanding,
+          subs, totalSubs, subsPaid, materials, totalMatActual,
+          expenses, totalExpenses, purchases, totalPurchases, totalCost, margin, marginPct } = d
+
+  const logo = company?.logo_url ? `<img src="${esc(company.logo_url)}" style="height:48px;width:48px;object-fit:cover;border-radius:9px;flex-shrink:0;" />` : ''
+  const tile = (label, val, color) => `<div style="flex:1;border:1px solid ${LINE};border-radius:9px;padding:12px 15px;background:${SOFT};"><div style="font-size:8px;color:${ACCENT};text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">${label}</div><div style="font-family:${serif};font-size:17px;font-weight:700;margin-top:4px;color:${color};">AED ${n(val)}</div></div>`
+
+  // one cost group: a shaded header carrying the group total, then its lines
+  const section = (label, total, lines) => `
+    <tr><td colspan="3" style="padding:9px 11px;background:${SOFT};border-bottom:1px solid ${LINE};font-size:9px;letter-spacing:1px;text-transform:uppercase;font-weight:700;color:${ACCENT};">${esc(label)}</td>
+        <td style="padding:9px 11px;background:${SOFT};border-bottom:1px solid ${LINE};font-size:11px;text-align:right;font-weight:700;color:${NAVY};">AED ${n(total)}</td></tr>
+    ${lines.length ? lines.join('') : `<tr><td colspan="4" style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10px;color:#9aa7b4;">None recorded.</td></tr>`}`
+  const line = (name, meta, amount) => `<tr>
+    <td style="padding:7px 11px 7px 22px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${NAVY};">${esc(name)}</td>
+    <td colspan="2" style="padding:7px 11px;border-bottom:1px solid ${LINE};font-size:10px;color:${MUT};">${esc(meta || '')}</td>
+    <td style="padding:7px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;color:${NAVY};">AED ${n(amount)}</td></tr>`
+
+  const subLines = (subs || []).map(s => {
+    const gross = subGross(s)
+    const paid = Number(s.paid_amount) || 0
+    return line(s.name || 'Subcontractor', [s.trade, s.apply_vat ? 'incl. 5% VAT' : null, `paid AED ${n(paid)} · balance AED ${n(gross - paid)}`].filter(Boolean).join(' · '), gross)
+  })
+  const matLines = (materials || []).filter(m => MAT_COUNTS(m.status)).map(m =>
+    line(m.item, [`${m.quantity || 1} ${m.unit || ''}`.trim(), m.vendor, (MSTATUS[m.status] || {}).l,
+      Number(m.actual_cost) ? 'actual' : 'estimate'].filter(Boolean).join(' · '),
+      Number(m.actual_cost) || Number(m.est_cost) || 0))
+  const expLines = (expenses || []).map(x =>
+    line(x.description || (ECAT[x.category] || {}).l || 'Expense', [(ECAT[x.category] || {}).l, fmtDate(x.spent_on)].filter(Boolean).join(' · '), x.amount))
+  const purLines = (purchases || []).map(p =>
+    line(p.supplier_name || 'Supplier', [p.invoice_number, fmtDate(p.invoice_date)].filter(Boolean).join(' · '), p.total))
+
+  const incomeRow = (label, meta, amount, color, bold) => `<tr>
+    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${NAVY};${bold ? 'font-weight:700;' : ''}">${esc(label)}</td>
+    <td colspan="2" style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10px;color:${MUT};">${esc(meta || '')}</td>
+    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;font-weight:${bold ? 700 : 600};color:${color || NAVY};">AED ${n(amount)}</td></tr>`
+
+  return `<div class="__page" style="font-family:'Inter','Segoe UI',sans-serif;color:${NAVY};background:#fff;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div style="display:flex;gap:13px;align-items:center;">${logo}<div>
+        <div style="font-family:${serif};font-size:22px;font-weight:700;color:${NAVY};letter-spacing:.2px;line-height:1.1;">${esc(company?.name || 'Company')}</div>
+        <div style="font-size:10px;color:${MUT};margin-top:3px;">${esc(company?.phone || '')}${company?.location ? ' &nbsp;·&nbsp; ' + esc(company.location) : ''}</div>
+      </div></div>
+      <div style="text-align:right;">
+        <div style="font-family:${serif};font-size:20px;font-weight:700;color:${ACCENT};letter-spacing:.3px;line-height:1;">Project Statement</div>
+        <div style="display:inline-block;margin-top:6px;padding:2px 8px;border-radius:4px;background:#fdecea;color:${RED};font-size:8px;letter-spacing:1.1px;text-transform:uppercase;font-weight:700;">Internal — not for client</div>
+        <div style="font-size:10.5px;color:${MUT};margin-top:5px;">As of&nbsp; <b style="color:${NAVY};">${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</b></div>
+      </div>
+    </div>
+    <div style="height:2.5px;background:linear-gradient(90deg,${ACCENT} 0%,${ACCENT} 28%,${ACCENT}1f 100%);margin:12px 0 16px;border-radius:2px;"></div>
+    <div style="display:flex;gap:14px;margin-bottom:14px;">
+      <div style="flex:1;border:1px solid ${LINE};border-radius:9px;padding:12px 15px;"><div style="font-size:8px;color:${ACCENT};text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">Project</div><div style="font-size:13.5px;font-weight:700;margin-top:4px;color:${NAVY};">${esc(project?.name || '')}</div><div style="font-size:10.5px;color:${MUT};margin-top:1px;">${esc(project?.location || '')}</div></div>
+      <div style="flex:1;border:1px solid ${LINE};border-radius:9px;padding:12px 15px;"><div style="font-size:8px;color:${ACCENT};text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">Client</div><div style="font-size:13.5px;font-weight:700;margin-top:4px;color:${NAVY};">${esc(project?.client_name || '—')}</div><div style="font-size:10.5px;color:${MUT};margin-top:1px;">${project?.start_date ? fmtDate(project.start_date) : ''}${project?.end_date ? ' → ' + fmtDate(project.end_date) : ''}</div></div>
+    </div>
+    <div style="display:flex;gap:12px;margin-bottom:16px;">
+      ${tile('Contract Value', value, NAVY)}
+      ${tile('Total Cost', totalCost, RED)}
+      ${tile('Profit · ' + marginPct + '%', margin, margin >= 0 ? GREEN : RED)}
+    </div>
+    <table style="width:100%;border-collapse:separate;border-spacing:0;margin-bottom:14px;border:1px solid ${LINE};border-radius:9px;overflow:hidden;">
+      <thead><tr style="background:${NAVY};color:#fff;">
+        <th colspan="3" style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Income</th>
+        <th style="padding:10px 11px;text-align:right;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Amount</th>
+      </tr></thead>
+      <tbody>
+        ${incomeRow('Contract value', 'Original agreed scope', origValue)}
+        ${voAdj !== 0 ? incomeRow('Variation orders', 'Approved additions / omissions', voAdj, voAdj >= 0 ? GREEN : RED) : ''}
+        ${incomeRow('Revised contract value', '', value, NAVY, true)}
+        ${incomeRow('Received from client', 'Payments recorded against invoices', clientReceived, GREEN)}
+        ${incomeRow('Outstanding from client', '', clientOutstanding, clientOutstanding > 0 ? RED : GREEN)}
+      </tbody>
+    </table>
+    <table style="width:100%;border-collapse:separate;border-spacing:0;margin-bottom:14px;border:1px solid ${LINE};border-radius:9px;overflow:hidden;">
+      <thead><tr style="background:${NAVY};color:#fff;">
+        <th colspan="3" style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Expenses</th>
+        <th style="padding:10px 11px;text-align:right;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Amount</th>
+      </tr></thead>
+      <tbody>
+        ${section('Subcontractors', totalSubs, subLines)}
+        ${section('Materials', totalMatActual, matLines)}
+        ${section('Site expenses', totalExpenses, expLines)}
+        ${section('Purchases', totalPurchases, purLines)}
+      </tbody>
+    </table>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:14px;page-break-inside:avoid;">
+      <div style="min-width:310px;border:1px solid ${LINE};border-radius:9px;overflow:hidden;">
+        <div style="display:flex;justify-content:space-between;padding:8px 16px;font-size:11px;color:${MUT};"><span>Revised contract value</span><span style="color:${NAVY};font-weight:600;">AED ${n(value)}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 16px;font-size:11px;color:${MUT};border-top:1px solid ${LINE};"><span>Total cost</span><span style="color:${RED};font-weight:600;">− AED ${n(totalCost)}</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 16px;background:${NAVY};color:#fff;"><span style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;font-weight:600;opacity:.85;">Profit · ${marginPct}%</span><span style="font-family:${serif};font-size:17px;font-weight:700;color:${margin >= 0 ? '#4fd0f5' : '#ff8a80'};">AED ${n(margin)}</span></div>
+      </div>
+    </div>
+    <div style="border:1px solid ${LINE};border-radius:9px;padding:10px 14px;margin-bottom:12px;background:${SOFT};display:flex;justify-content:space-between;gap:16px;">
+      <span style="font-size:10px;color:${MUT};">Cash position — received from client <b style="color:${GREEN};">AED ${n(clientReceived)}</b> less paid to subcontractors <b style="color:${NAVY};">AED ${n(subsPaid)}</b> and site expenses <b style="color:${NAVY};">AED ${n(totalExpenses)}</b></span>
+      <span style="font-size:12px;font-weight:700;white-space:nowrap;color:${(clientReceived - subsPaid - totalExpenses) >= 0 ? GREEN : RED};">AED ${n(clientReceived - subsPaid - totalExpenses)}</span>
+    </div>
+    <div style="font-size:9px;color:${MUT};line-height:1.6;border-top:1px solid ${LINE};padding-top:10px;">Internal management statement for ${esc(project?.name || 'this project')}, prepared from records held by ${esc(company?.name || 'the Company')} as of the date above. Material lines marked &ldquo;estimate&rdquo; use the estimated cost until an actual cost is entered, so the profit shown may still move. Not to be issued to the client.</div>
+  </div>`
+}
+
+function printProjectStatement(company, project, d, toast) {
+  printDocs(`Project Statement · ${project?.name || 'Project'}`, [projectStatementBody(company, project, d)], toast)
 }
