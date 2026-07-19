@@ -171,10 +171,11 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
       })
       setRecvByProject(recv)
       // company-wide rollup for the dashboard + per-project cost (incl. matching purchases)
-      const [{ data: allSubs }, { data: allExp }, { data: allPur }] = await Promise.all([
+      const [{ data: allSubs }, { data: allExp }, { data: allPur }, { data: allMat }] = await Promise.all([
         supabase.from('project_subcontractors').select('name,project_id,contract_amount,paid_amount,apply_vat').eq('company_id', company.id).limit(5000),
         supabase.from('site_expenses').select('project_id,amount').eq('company_id', company.id).limit(5000),
         supabase.from('purchase_invoices').select('client_id,client_name,total').eq('company_id', company.id).limit(5000),
+        supabase.from('material_requests').select('project_id,status,est_cost,actual_cost').eq('company_id', company.id).eq('status', 'received').limit(5000),
       ])
       const num = v => Number(v) || 0
       // per-project cost: subcontractor contracts + site expenses + purchase bills tagged to this project's client
@@ -182,6 +183,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
       projs.forEach(p => { cost[p.id] = 0 })
       ;(allSubs || []).forEach(x => { if (cost[x.project_id] != null) cost[x.project_id] += subGross(x) })
       ;(allExp || []).forEach(x => { if (cost[x.project_id] != null) cost[x.project_id] += num(x.amount) })
+      ;(allMat || []).forEach(x => { if (cost[x.project_id] != null) cost[x.project_id] += (num(x.actual_cost) || num(x.est_cost)) })
       ;(allPur || []).forEach(x => {
         const p = projs.find(pp => (x.client_id && pp.client_id && String(pp.client_id) === String(x.client_id)) || (x.client_name && pp.client_name && pp.client_name.trim().toLowerCase() === x.client_name.trim().toLowerCase()))
         if (p) cost[p.id] += num(x.total)
@@ -326,7 +328,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
     if (!m.item?.trim()) { toast.error('Item is required'); return }
     setSaving(true)
     try {
-      const payload = { company_id: company.id, project_id: active.id, item: m.item.trim(), quantity: Number(m.quantity) || 1, unit: m.unit || null, vendor: m.vendor || null, est_cost: Number(m.est_cost) || 0, status: m.status || 'requested', notes: m.notes || null }
+      const payload = { company_id: company.id, project_id: active.id, item: m.item.trim(), quantity: Number(m.quantity) || 1, unit: m.unit || null, vendor: m.vendor || null, est_cost: Number(m.est_cost) || 0, actual_cost: Number(m.actual_cost) || 0, status: m.status || 'requested', notes: m.notes || null }
       if (m.id) { const { error } = await supabase.from('material_requests').update(payload).eq('id', m.id).eq('company_id', company.id); if (error) throw error }
       else { const { error } = await supabase.from('material_requests').insert(payload); if (error) throw error }
       setMatForm(null); toast.success('Saved ✓'); reloadChildren()
@@ -648,14 +650,17 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   }
 
   const totalExpenses = expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0)
-  const totalMaterials = materials.reduce((s, m) => s + (Number(m.est_cost) || 0), 0)
+  const totalMaterials = materials.reduce((s, m) => s + (Number(m.est_cost) || 0), 0)   // budget
+  // only received materials are real spend; falls back to the estimate if no actual was entered
+  const totalMatActual = materials.filter(m => m.status === 'received')
+    .reduce((s, m) => s + (Number(m.actual_cost) || Number(m.est_cost) || 0), 0)
   const totalSubs = subs.reduce((s, x) => s + subGross(x), 0)
   const subsPaid = subs.reduce((s, x) => s + (Number(x.paid_amount) || 0), 0)
   const voAdj = projVos.reduce((s, v) => s + (Number(v.total) || 0), 0)   // + additions / − omissions
   const origValue = Number(active?.contract_value) || 0
   const value = origValue + voAdj                                          // revised contract value
   const totalPurchases = purchases.reduce((s, x) => s + (Number(x.total) || 0), 0)
-  const totalCost = totalSubs + totalExpenses + totalPurchases
+  const totalCost = totalSubs + totalExpenses + totalPurchases + totalMatActual
   const margin = value - totalCost
   const marginPct = value > 0 ? Math.round((margin / value) * 100) : 0
   // client cash-in (from linked invoices)
@@ -910,6 +915,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
         <StatTile icon="ti-users-group" label="Subcontractors" value={AED(totalSubs)} color="#8b5cf6" />
         <StatTile icon="ti-coin" label="Site expenses" value={AED(totalExpenses)} color="#f59e0b" />
         {totalPurchases > 0 && <StatTile icon="ti-shopping-cart" label="Purchases" value={AED(totalPurchases)} color="#9a3412" />}
+        {totalMatActual > 0 && <StatTile icon="ti-package" label="Materials" value={AED(totalMatActual)} color="#0099cc" />}
         <StatTile icon="ti-receipt" label="Total cost" value={AED(totalCost)} color="#ef4444" />
         <StatTile icon={margin >= 0 ? 'ti-trending-up' : 'ti-trending-down'} label={margin >= 0 ? 'Profit' : 'Loss'} value={AED(Math.abs(margin)) + (value > 0 ? ` · ${marginPct}%` : '')} color={margin >= 0 ? '#22c55e' : '#ef4444'} />
       </div>
@@ -1217,8 +1223,12 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
       {tab === 'materials' && (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <div style={{ fontSize: 12.5, color: 'var(--text2)' }}>Estimated materials cost: <b style={{ color: 'var(--text)' }}>{AED(totalMaterials)}</b></div>
-            <button onClick={() => setMatForm({ item: '', quantity: 1, unit: '', vendor: '', est_cost: 0, status: 'requested' })} className="btn btn-primary btn-sm"><i className="ti ti-plus" /> Add material</button>
+            <div style={{ fontSize: 12.5, color: 'var(--text2)' }}>
+              Estimated: <b style={{ color: 'var(--text)' }}>{AED(totalMaterials)}</b>
+              <span style={{ margin: '0 6px', color: 'var(--text3)' }}>·</span>
+              Actual (received): <b style={{ color: 'var(--text)' }}>{AED(totalMatActual)}</b>
+            </div>
+            <button onClick={() => setMatForm({ item: '', quantity: 1, unit: '', vendor: '', est_cost: 0, actual_cost: 0, status: 'requested' })} className="btn btn-primary btn-sm"><i className="ti ti-plus" /> Add material</button>
           </div>
           {materials.length === 0 ? <div style={{ ...card, textAlign: 'center', color: 'var(--text3)', padding: '34px 16px' }}>No material requests yet.</div>
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
@@ -1226,7 +1236,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
                 <div key={m.id} style={{ ...card, padding: '12px 14px', display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
                   <div style={{ flex: 1, minWidth: 160 }}>
                     <div style={{ fontSize: 14, fontWeight: 600 }}>{m.item}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{m.quantity} {m.unit || ''}{m.vendor ? ' · ' + m.vendor : ''}{m.est_cost ? ' · ' + AED(m.est_cost) : ''}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{m.quantity} {m.unit || ''}{m.vendor ? ' · ' + m.vendor : ''}{m.est_cost ? ' · est ' + AED(m.est_cost) : ''}{Number(m.actual_cost) ? ' · actual ' + AED(m.actual_cost) : ''}</div>
                   </div>
                   <select value={m.status} onChange={e => setMatStatus(m, e.target.value)} style={{ ...input, width: 'auto', padding: '6px 9px', fontSize: 12 }}>
                     {Object.entries(MSTATUS).map(([k, v]) => <option key={k} value={k}>{v.l}</option>)}
@@ -1332,6 +1342,11 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 10 }}>
           <div><label style={lbl}>Vendor</label><input value={matForm.vendor} onChange={e => setMatForm(m => ({ ...m, vendor: e.target.value }))} style={input} /></div>
           <div><label style={lbl}>Est. cost (AED)</label><input type="number" value={matForm.est_cost} onChange={e => setMatForm(m => ({ ...m, est_cost: e.target.value }))} style={input} /></div>
+          <div>
+            <label style={lbl}>Actual cost (AED)</label>
+            <input type="number" value={matForm.actual_cost ?? 0} onChange={e => setMatForm(m => ({ ...m, actual_cost: e.target.value }))} style={input} />
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>Counts as project expense once status is Received.</div>
+          </div>
         </div>
         <label style={lbl}>Status</label><select value={matForm.status} onChange={e => setMatForm(m => ({ ...m, status: e.target.value }))} style={input}>{Object.entries(MSTATUS).map(([k, v]) => <option key={k} value={k}>{v.l}</option>)}</select>
       </FormModal>}
