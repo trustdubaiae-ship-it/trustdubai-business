@@ -21,6 +21,8 @@ const PSTATUS = {
   cancelled:      { label: 'Cancelled',          color: '#ef4444', icon: 'ti-x' },
 }
 const MSTATUS = { requested: { l: 'Requested', c: '#64748b' }, approved: { l: 'Approved', c: '#0099cc' }, ordered: { l: 'Ordered', c: '#f59e0b' }, received: { l: 'Received', c: '#22c55e' } }
+// A material counts toward project cost once it is committed; 'requested' is still just a wish-list.
+const MAT_COUNTS = st => st === 'approved' || st === 'ordered' || st === 'received'
 // kinds of project-history updates (Overview timeline)
 const UPD_KIND = {
   meeting:     { l: 'Meeting',          c: '#0099cc', icon: 'ti-users' },
@@ -175,7 +177,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
         supabase.from('project_subcontractors').select('name,project_id,contract_amount,paid_amount,apply_vat').eq('company_id', company.id).limit(5000),
         supabase.from('site_expenses').select('project_id,amount').eq('company_id', company.id).limit(5000),
         supabase.from('purchase_invoices').select('client_id,client_name,total').eq('company_id', company.id).limit(5000),
-        supabase.from('material_requests').select('project_id,status,est_cost,actual_cost').eq('company_id', company.id).eq('status', 'received').limit(5000),
+        supabase.from('material_requests').select('project_id,status,est_cost,actual_cost').eq('company_id', company.id).neq('status', 'requested').limit(5000),
       ])
       const num = v => Number(v) || 0
       // per-project cost: subcontractor contracts + site expenses + purchase bills tagged to this project's client
@@ -651,8 +653,9 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
 
   const totalExpenses = expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0)
   const totalMaterials = materials.reduce((s, m) => s + (Number(m.est_cost) || 0), 0)   // budget
-  // only received materials are real spend; falls back to the estimate if no actual was entered
-  const totalMatActual = materials.filter(m => m.status === 'received')
+  // committed materials are real spend — 'requested' is only a wish-list, so it stays out.
+  // Falls back to the estimate until an actual cost is entered.
+  const totalMatActual = materials.filter(m => MAT_COUNTS(m.status))
     .reduce((s, m) => s + (Number(m.actual_cost) || Number(m.est_cost) || 0), 0)
   const totalSubs = subs.reduce((s, x) => s + subGross(x), 0)
   const subsPaid = subs.reduce((s, x) => s + (Number(x.paid_amount) || 0), 0)
@@ -1226,7 +1229,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
             <div style={{ fontSize: 12.5, color: 'var(--text2)' }}>
               Estimated: <b style={{ color: 'var(--text)' }}>{AED(totalMaterials)}</b>
               <span style={{ margin: '0 6px', color: 'var(--text3)' }}>·</span>
-              Actual (received): <b style={{ color: 'var(--text)' }}>{AED(totalMatActual)}</b>
+              Counted in cost: <b style={{ color: 'var(--text)' }}>{AED(totalMatActual)}</b>
             </div>
             <button onClick={() => setMatForm({ item: '', quantity: 1, unit: '', vendor: '', est_cost: 0, actual_cost: 0, status: 'requested' })} className="btn btn-primary btn-sm"><i className="ti ti-plus" /> Add material</button>
           </div>
@@ -1345,7 +1348,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
           <div>
             <label style={lbl}>Actual cost (AED)</label>
             <input type="number" value={matForm.actual_cost ?? 0} onChange={e => setMatForm(m => ({ ...m, actual_cost: e.target.value }))} style={input} />
-            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>Counts as project expense once status is Received.</div>
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>Leave 0 to use the estimate. Counts as project cost unless status is Requested.</div>
           </div>
         </div>
         <label style={lbl}>Status</label><select value={matForm.status} onChange={e => setMatForm(m => ({ ...m, status: e.target.value }))} style={input}>{Object.entries(MSTATUS).map(([k, v]) => <option key={k} value={k}>{v.l}</option>)}</select>
