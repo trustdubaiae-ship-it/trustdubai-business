@@ -691,6 +691,14 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
     }, toast)
   }
 
+  // Client-facing SoA — money only, no cost or margin. Uses liveInvoices so
+  // cancelled / on-hold invoices never reach the client.
+  function openClientStatement() {
+    printClientStatement(company, active, {
+      origValue, voAdj, value, invoices: liveInvoices, totalInvoiced, clientReceived, clientOutstanding,
+    }, toast)
+  }
+
   const card = { background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: 16 }
   const heroBg = 'linear-gradient(135deg, #0a2540 0%, #0d6e8f 45%, #6d28d9 130%)'
   const FX = `
@@ -921,7 +929,8 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
             </div>
             <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,.78)', marginTop: 2 }}><i className="ti ti-user" style={{ fontSize: 13, verticalAlign: '-1px' }} /> {active.client_name || 'No client'}{active.location ? ' · ' + active.location : ''}</div>
           </div>
-          <button onClick={openProjectStatement} title="Internal P&L statement — income, cost and profit" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '9px 15px', borderRadius: 10, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(255,255,255,.12)', color: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}><i className="ti ti-file-analytics" /> Statement</button>
+          <button onClick={openProjectStatement} title="Internal P&L statement — income, cost and profit. Not for the client." style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '9px 15px', borderRadius: 10, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(255,255,255,.12)', color: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}><i className="ti ti-file-analytics" /> Internal</button>
+          <button onClick={openClientStatement} title="Client Statement of Account — payable, received and balance. Safe to send." style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '9px 15px', borderRadius: 10, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(255,255,255,.12)', color: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}><i className="ti ti-file-invoice" /> Client SoA</button>
           <button onClick={() => editProject(active)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '9px 15px', borderRadius: 10, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(255,255,255,.12)', color: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}><i className="ti ti-edit" /> Edit</button>
           <button onClick={() => deleteProject(active.id)} style={{ width: 36, height: 36, borderRadius: 10, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(239,68,68,0.25)', color: '#fff', cursor: 'pointer', flexShrink: 0 }}><i className="ti ti-trash" style={{ fontSize: 15 }} /></button>
         </div>
@@ -2173,4 +2182,110 @@ function projectStatementBody(company, project, d) {
 
 function printProjectStatement(company, project, d, toast) {
   printDocs(`Project Statement · ${project?.name || 'Project'}`, [projectStatementBody(company, project, d)], toast)
+}
+
+// ----- Client Statement of Account — what the client owes and has paid -----
+// Deliberately carries NO cost or margin: this is the one project document that
+// leaves the building. Invoices are listed as supporting detail; the balance is
+// driven by the revised contract value, not by what happens to have been invoiced.
+function clientStatementBody(company, project, d) {
+  const esc = __escDoc
+  const n = v => Math.round(Number(v) || 0).toLocaleString('en-AE')
+  const fmtDate = x => x ? new Date(x).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
+  const NAVY = '#0f2741', ACCENT = '#0099cc', MUT = '#6b7a8d', LINE = '#e7eef4', SOFT = '#f6fafc'
+  const GREEN = '#1e8e4a', RED = '#c0392b'
+  const serif = "'Playfair Display',Georgia,serif"
+  const { origValue, voAdj, value, invoices, totalInvoiced, clientReceived, clientOutstanding } = d
+
+  // every payment across every live invoice, oldest first, with a running balance
+  const pays = []
+  ;(invoices || []).forEach(iv => {
+    (Array.isArray(iv.payments) ? iv.payments : []).forEach(p => pays.push({ ...p, invoice_number: iv.invoice_number }))
+  })
+  pays.sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0))
+  let running = value
+  const payRows = pays.map((p, i) => {
+    running -= (Number(p.amount) || 0)
+    const meta = [p.method, p.reference, p.note].filter(Boolean).map(esc).join(' · ')
+    return `<tr style="${i % 2 ? 'background:' + SOFT + ';' : ''}">
+      <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${MUT};">${i + 1}</td>
+      <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${NAVY};white-space:nowrap;">${fmtDate(p.date)}</td>
+      <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${MUT};">${esc(p.invoice_number || '')}${meta ? `<div style="font-size:9px;color:#8a97a5;">${meta}</div>` : ''}</td>
+      <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;font-weight:600;color:${GREEN};">AED ${n(p.amount)}</td>
+      <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;font-weight:600;color:${NAVY};">AED ${n(running)}</td></tr>`
+  }).join('')
+
+  const invRows = (invoices || []).map(iv => `<tr>
+    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${NAVY};">${esc(iv.invoice_number || '—')}</td>
+    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10px;color:${MUT};">${esc(iv.milestone_label || iv.kind || '')}</td>
+    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10px;color:${MUT};white-space:nowrap;">${fmtDate(iv.issue_date)}</td>
+    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;color:${NAVY};">AED ${n(iv.total)}</td></tr>`).join('')
+
+  const logo = company?.logo_url ? `<img src="${esc(company.logo_url)}" style="height:48px;width:48px;object-fit:cover;border-radius:9px;flex-shrink:0;" />` : ''
+  const tile = (label, val, color) => `<div style="flex:1;border:1px solid ${LINE};border-radius:9px;padding:12px 15px;background:${SOFT};"><div style="font-size:8px;color:${ACCENT};text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">${label}</div><div style="font-family:${serif};font-size:17px;font-weight:700;margin-top:4px;color:${color};">AED ${n(val)}</div></div>`
+
+  return `<div class="__page" style="font-family:'Inter','Segoe UI',sans-serif;color:${NAVY};background:#fff;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div style="display:flex;gap:13px;align-items:center;">${logo}<div>
+        <div style="font-family:${serif};font-size:22px;font-weight:700;color:${NAVY};letter-spacing:.2px;line-height:1.1;">${esc(company?.name || 'Company')}</div>
+        <div style="font-size:10px;color:${MUT};margin-top:3px;">${esc(company?.phone || '')}${company?.location ? ' &nbsp;·&nbsp; ' + esc(company.location) : ''}</div>
+      </div></div>
+      <div style="text-align:right;">
+        <div style="font-family:${serif};font-size:20px;font-weight:700;color:${ACCENT};letter-spacing:.3px;line-height:1;">Statement of Account</div>
+        <div style="font-size:10.5px;color:${MUT};margin-top:5px;">As of&nbsp; <b style="color:${NAVY};">${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</b></div>
+      </div>
+    </div>
+    <div style="height:2.5px;background:linear-gradient(90deg,${ACCENT} 0%,${ACCENT} 28%,${ACCENT}1f 100%);margin:12px 0 16px;border-radius:2px;"></div>
+    <div style="display:flex;gap:14px;margin-bottom:14px;">
+      <div style="flex:1;border:1px solid ${LINE};border-radius:9px;padding:12px 15px;"><div style="font-size:8px;color:${ACCENT};text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">Client</div><div style="font-size:13.5px;font-weight:700;margin-top:4px;color:${NAVY};">${esc(project?.client_name || '—')}</div><div style="font-size:10.5px;color:${MUT};margin-top:1px;">${esc(project?.client_phone || '')}</div></div>
+      <div style="flex:1;border:1px solid ${LINE};border-radius:9px;padding:12px 15px;"><div style="font-size:8px;color:${ACCENT};text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">Project</div><div style="font-size:13.5px;font-weight:700;margin-top:4px;color:${NAVY};">${esc(project?.name || '')}</div><div style="font-size:10.5px;color:${MUT};margin-top:1px;">${esc(project?.location || '')}</div></div>
+    </div>
+    <div style="display:flex;gap:12px;margin-bottom:16px;">
+      ${tile('Total Payable', value, NAVY)}
+      ${tile('Received', clientReceived, GREEN)}
+      ${tile('Balance Due', clientOutstanding, clientOutstanding > 0 ? RED : GREEN)}
+    </div>
+    ${invRows ? `<table style="width:100%;border-collapse:separate;border-spacing:0;margin-bottom:14px;border:1px solid ${LINE};border-radius:9px;overflow:hidden;">
+      <thead><tr style="background:${NAVY};color:#fff;">
+        <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Invoice</th>
+        <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Description</th>
+        <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Issued</th>
+        <th style="padding:10px 11px;text-align:right;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Amount</th>
+      </tr></thead>
+      <tbody>${invRows}
+        <tr><td colspan="3" style="padding:9px 11px;font-size:10.5px;color:${MUT};font-weight:600;">Total invoiced</td><td style="padding:9px 11px;font-size:10.5px;text-align:right;font-weight:700;color:${NAVY};">AED ${n(totalInvoiced)}</td></tr>
+      </tbody>
+    </table>` : ''}
+    <table style="width:100%;border-collapse:separate;border-spacing:0;margin-bottom:14px;border:1px solid ${LINE};border-radius:9px;overflow:hidden;">
+      <thead><tr style="background:${NAVY};color:#fff;">
+        <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;width:34px;">#</th>
+        <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Date</th>
+        <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Invoice / Method</th>
+        <th style="padding:10px 11px;text-align:right;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Received</th>
+        <th style="padding:10px 11px;text-align:right;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Balance</th>
+      </tr></thead>
+      <tbody>
+        <tr><td colspan="4" style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${MUT};font-weight:600;">Opening — Contract value${voAdj !== 0 ? ' (incl. approved variations)' : ''}</td><td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;font-weight:700;color:${NAVY};">AED ${n(value)}</td></tr>
+        ${payRows || `<tr><td colspan="5" style="padding:16px;text-align:center;color:#999;font-size:11px;">No payments received yet.</td></tr>`}
+      </tbody>
+    </table>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:14px;page-break-inside:avoid;">
+      <div style="min-width:300px;border:1px solid ${LINE};border-radius:9px;overflow:hidden;">
+        <div style="display:flex;justify-content:space-between;padding:8px 16px;font-size:11px;color:${MUT};"><span>Contract value</span><span style="color:${NAVY};font-weight:600;">AED ${n(origValue)}</span></div>
+        ${voAdj !== 0 ? `<div style="display:flex;justify-content:space-between;padding:8px 16px;font-size:11px;color:${MUT};border-top:1px solid ${LINE};"><span>Approved variations</span><span style="color:${NAVY};font-weight:600;">${voAdj < 0 ? '− ' : ''}AED ${n(Math.abs(voAdj))}</span></div>` : ''}
+        <div style="display:flex;justify-content:space-between;padding:8px 16px;font-size:11px;color:${MUT};border-top:1px solid ${LINE};"><span>Total payable</span><span style="color:${NAVY};font-weight:600;">AED ${n(value)}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 16px;font-size:11px;color:${MUT};border-top:1px solid ${LINE};"><span>Received to date</span><span style="color:${GREEN};font-weight:600;">− AED ${n(clientReceived)}</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 16px;background:${NAVY};color:#fff;"><span style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;font-weight:600;opacity:.85;">Balance Due</span><span style="font-family:${serif};font-size:17px;font-weight:700;color:${clientOutstanding > 0 ? '#ff8a80' : '#4fd0f5'};">AED ${n(clientOutstanding)}</span></div>
+      </div>
+    </div>
+    <div style="font-size:9px;color:${MUT};line-height:1.6;border-top:1px solid ${LINE};padding-top:10px;">This statement reflects amounts payable and payments received as recorded by ${esc(company?.name || 'the Company')} as of the date above. Please review and confirm; kindly report any discrepancy within 7 days.</div>
+    <div style="display:flex;gap:30px;margin-top:22px;page-break-inside:avoid;">
+      <div style="flex:1;text-align:center;"><div style="border-bottom:1.5px solid ${NAVY};height:32px;"></div><div style="font-size:9px;color:${MUT};margin-top:5px;">For ${esc(company?.name || 'Company')}</div></div>
+      <div style="flex:1;text-align:center;"><div style="border-bottom:1.5px solid ${NAVY};height:32px;"></div><div style="font-size:9px;color:${MUT};margin-top:5px;">Confirmed — ${esc(project?.client_name || 'Client')}</div></div>
+    </div>
+  </div>`
+}
+
+function printClientStatement(company, project, d, toast) {
+  printDocs(`Statement of Account · ${project?.client_name || project?.name || 'Client'}`, [clientStatementBody(company, project, d)], toast)
 }
