@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import * as XLSX from 'xlsx'
 import { useAuth } from '../lib/auth'
 import { useToast } from '../lib/toast'
 import { supabase } from '../lib/supabase'
@@ -194,6 +195,7 @@ export default function LeadsPage() {
   const blankAdd = { name:'', phone:'', source:'Meta Ads', projectType:'', email:'', whatsapp:'', location:'', budget:'', followUp:'', status:'new', temp:'warm', notes:'' }
   const [addF, setAddF] = useState(blankAdd)
   const [dupMatch, setDupMatch] = useState(null)   // existing lead found while adding a duplicate
+  const [importPreview, setImportPreview] = useState(null) // parsed file waiting for confirm: { fileName, fresh:[records], dupes:[{name,phone,reason}] }
   const [lostFor, setLostFor] = useState(null)     // lead being closed — drives the "reason" popup
   const [lostNote, setLostNote] = useState('')
   const [editId, setEditId] = useState(null)
@@ -780,14 +782,27 @@ export default function LeadsPage() {
     if (cur.length || row.length) { row.push(cur); rows.push(row) }
     return rows.filter(r => r.some(c => c.trim()))
   }
+  // .xlsx/.xls via SheetJS, else CSV — both return array-of-arrays (header row + data rows)
+  async function parseFileToRows(file) {
+    if (/\.(xlsx|xls)$/i.test(file.name)) {
+      const buf = await file.arrayBuffer()
+      const wb = XLSX.read(new Uint8Array(buf), { type: 'array' })
+      const ws = wb.Sheets[wb.SheetNames[0]]
+      // raw:false → phones/numbers come as formatted strings (no scientific notation)
+      const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false })
+      return aoa.filter(r => Array.isArray(r) && r.some(c => String(c).trim()))
+    }
+    return parseCSV(await file.text())
+  }
+
+  // Step 1: parse the Excel/CSV, flag duplicates, and stage a preview — nothing is saved yet.
   async function handleCSV(e) {
     const file = e.target.files?.[0]; if (!file) return
     setImporting(true)
     try {
-      const text = await file.text()
-      const rows = parseCSV(text)
-      if (rows.length < 2) { toast.error('CSV empty or invalid'); setImporting(false); return }
-      const head = rows[0].map(h => h.trim().toLowerCase())
+      const rows = await parseFileToRows(file)
+      if (rows.length < 2) { toast.error('File empty or invalid'); setImporting(false); if (fileRef.current) fileRef.current.value = ''; return }
+      const head = rows[0].map(h => String(h).trim().toLowerCase())
       const idx = (names) => { for (const n of names) { const i = head.indexOf(n); if (i >= 0) return i } return -1 }
       const ci = {
         name: idx(['name','client name','full name']), phone: idx(['phone','whatsapp','primary contact','mobile','contact']),
@@ -795,14 +810,30 @@ export default function LeadsPage() {
         loc: idx(['location','area','city']), budget: idx(['budget','budget (aed)','amount','value']),
         source: idx(['source','lead source']), status: idx(['status']), notes: idx(['notes','note','remarks']),
       }
-      if (ci.name < 0) { toast.error('CSV mein "Name" column nahi mila'); setImporting(false); return }
-      const records = []
+      if (ci.name < 0) { toast.error('File mein "Name" column nahi mila'); setImporting(false); if (fileRef.current) fileRef.current.value = ''; return }
+
+      // existing phones/emails across my leads + Quvera leads → to flag "already in your list"
+      const exPhones = new Set(), exEmails = new Set()
+      for (const s of submissions) { const p = normPhone(s.phone); if (p) exPhones.add(p); const em = (s.email || '').trim().toLowerCase(); if (em) exEmails.add(em) }
+      for (const d of distLeads) { const s = d.lead_submissions || {}; const p = normPhone(s.phone); if (p) exPhones.add(p); const em = (s.email || '').trim().toLowerCase(); if (em) exEmails.add(em) }
+
+      const seenPhones = new Set(), seenEmails = new Set()
+      const fresh = [], dupes = []
       for (let r = 1; r < rows.length; r++) {
-        const row = rows[r]; const get = (k) => ci[k] >= 0 ? (row[ci[k]] || '').trim() : ''
+        const row = rows[r]; const get = (k) => ci[k] >= 0 ? String(row[ci[k]] || '').trim() : ''
         const name = get('name'); if (!name) continue
         const status = STATUS_MAP[get('status').toLowerCase()] || 'new'
         let phone = get('phone'); if (phone === name) phone = ''
         let email = get('email'); if (email === name || !email.includes('@')) email = ''
+        const pk = normPhone(phone), ek = email.toLowerCase()
+        // duplicate = already in the DB, or repeated earlier in THIS same file
+        let reason = ''
+        if (pk && exPhones.has(pk)) reason = 'already in your leads'
+        else if (ek && exEmails.has(ek)) reason = 'already in your leads'
+        else if (pk && seenPhones.has(pk)) reason = 'repeated in file'
+        else if (ek && seenEmails.has(ek)) reason = 'repeated in file'
+        if (reason) { dupes.push({ name, phone, reason }); continue }
+        if (pk) seenPhones.add(pk); if (ek) seenEmails.add(ek)
         const answers = {}
         const t = get('type'), l = get('loc'), b = get('budget'), s = get('source'), nn = get('notes')
         if (t && t !== name) answers['Project Type'] = t
@@ -810,31 +841,37 @@ export default function LeadsPage() {
         if (b && b !== name) answers['Budget (AED)'] = b
         if (s && s !== name) answers['Source'] = s
         if (nn && nn !== name) answers['Notes'] = nn
-        records.push({ company_id: company.id, name, phone, email, status, status_updated_at: new Date().toISOString(), answers })
+        fresh.push({ company_id: company.id, name, phone, email, status, status_updated_at: new Date().toISOString(), answers })
       }
-      if (records.length === 0) { toast.error('Koi valid lead nahi mila'); setImporting(false); return }
+      if (fresh.length === 0 && dupes.length === 0) { toast.error('Koi valid lead nahi mila'); setImporting(false); if (fileRef.current) fileRef.current.value = ''; return }
+      setImportPreview({ fileName: file.name, fresh, dupes })
+    } catch (err) { console.error(err); toast.error('Import failed — file format check karo') }
+    setImporting(false)
+    if (fileRef.current) fileRef.current.value = ''
+  }
+
+  // Step 2: runs only after the user confirms the preview — this is where rows are actually saved.
+  async function runImport(records) {
+    if (!records || records.length === 0) { setImportPreview(null); return }
+    setImporting(true)
+    try {
       let ok = 0
       for (let i = 0; i < records.length; i += 50) {
         const chunk = records.slice(i, i + 50)
         const { error } = await supabase.from('lead_submissions').insert(chunk)
         if (!error) ok += chunk.length
       }
-
       const clientRows = records.map(r => ({
-        company_id: company.id,
-        name: r.name,
-        phone: r.phone || null,
-        email: r.email || null,
+        company_id: company.id, name: r.name,
+        phone: r.phone || null, email: r.email || null,
         source: r.answers?.['Source'] || 'excel',
       }))
       for (let i = 0; i < clientRows.length; i += 50) {
         await supabase.from('clients').insert(clientRows.slice(i, i + 50))
       }
-
-      await fetchAll(); toast.success(`${ok} leads imported!`); setMainTab('mine') 
-    } catch (err) { console.error(err); toast.error('Import failed — CSV format check karo') }
-    setImporting(false)
-    if (fileRef.current) fileRef.current.value = ''
+      await fetchAll(); toast.success(`${ok} leads imported!`); setMainTab('mine')
+    } catch (err) { console.error(err); toast.error('Import failed') }
+    setImportPreview(null); setImporting(false)
   }
 
   // earliest upcoming meeting per lead (today onward) — powers the card's "Next action" so it shows the timed meeting, not just a date
@@ -2120,7 +2157,52 @@ export default function LeadsPage() {
         </div>
       )}
       <ShareModal />
-      <input ref={fileRef} type="file" accept=".csv" onChange={handleCSV} style={{ display: 'none' }} />
+      <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" onChange={handleCSV} style={{ display: 'none' }} />
+
+      {importPreview && (
+        <div onClick={() => !importing && setImportPreview(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 260, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 460, maxHeight: '85vh', display: 'flex', flexDirection: 'column', background: 'var(--card)', borderRadius: 14, border: '0.5px solid var(--border)', overflow: 'hidden' }}>
+            <div style={{ padding: '16px 18px', borderBottom: '0.5px solid var(--border)' }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Import review</div>
+              <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 2, wordBreak: 'break-all' }}>{importPreview.fileName}</div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, padding: '14px 18px 4px' }}>
+              <div style={{ flex: 1, background: 'rgba(16,185,129,0.10)', border: '0.5px solid rgba(16,185,129,0.35)', borderRadius: 10, padding: '10px 12px' }}>
+                <div style={{ fontSize: 22, fontWeight: 800, color: '#059669', lineHeight: 1 }}>{importPreview.fresh.length}</div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', marginTop: 3 }}>New leads to add</div>
+              </div>
+              <div style={{ flex: 1, background: 'rgba(245,158,11,0.10)', border: '0.5px solid rgba(245,158,11,0.35)', borderRadius: 10, padding: '10px 12px' }}>
+                <div style={{ fontSize: 22, fontWeight: 800, color: '#b45309', lineHeight: 1 }}>{importPreview.dupes.length}</div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', marginTop: 3 }}>Duplicates (will skip)</div>
+              </div>
+            </div>
+            <div style={{ overflowY: 'auto', padding: '10px 18px 4px' }}>
+              {importPreview.dupes.length > 0 && (
+                <>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: 0.4, margin: '4px 0 6px' }}>Already in your list</div>
+                  {importPreview.dupes.map((d, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderBottom: '0.5px solid var(--border)' }}>
+                      <i className="ti ti-user-x" style={{ fontSize: 15, color: '#b45309' }} />
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.name}</div>
+                        {d.phone && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{d.phone}</div>}
+                      </div>
+                      <span style={{ fontSize: 9.5, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: 'rgba(245,158,11,0.14)', color: '#b45309', whiteSpace: 'nowrap' }}>{d.reason}</span>
+                    </div>
+                  ))}
+                </>
+              )}
+              {importPreview.fresh.length === 0 && (
+                <div style={{ fontSize: 12.5, color: 'var(--text3)', textAlign: 'center', padding: '14px 0' }}>Koi nayi lead nahi — sab pehle se list mein hain.</div>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 8, padding: 16, borderTop: '0.5px solid var(--border)' }}>
+              <button onClick={() => setImportPreview(null)} disabled={importing} style={{ flex: 1, padding: 10, borderRadius: 9, border: '0.5px solid var(--border)', background: 'var(--card)', color: 'var(--text)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={() => runImport(importPreview.fresh)} disabled={importing || importPreview.fresh.length === 0} style={{ flex: 1.4, padding: 10, borderRadius: 9, border: 'none', background: importPreview.fresh.length === 0 ? 'var(--text3)' : '#059669', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: importPreview.fresh.length === 0 ? 'default' : 'pointer' }}>{importing ? 'Importing…' : `Import ${importPreview.fresh.length} new`}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
       <div style={{ display: 'inline-flex', gap: 3, maxWidth: '100%', background: 'var(--bg2)', border: '0.5px solid var(--border)', borderRadius: 11, padding: 3, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
