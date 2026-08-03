@@ -6,6 +6,7 @@ import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../lib/toast'
 import HeroActions from '../components/HeroActions'
+import { awardedGross, awardedStatementSheet } from '../lib/subcontractStatement'
 
 const PSTATUS = {
   planning:       { label: 'Planning',           color: '#64748b', icon: 'ti-pencil' },
@@ -97,6 +98,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   const [expenses, setExpenses] = useState([])
   const [subs, setSubs] = useState([])
   const [subDirectory, setSubDirectory] = useState([])   // saved subcontractors (reuse across projects)
+  const [awarded, setAwarded] = useState([])             // work OTHER companies awarded to us (we are the subcontractor)
   const [subLedger, setSubLedger] = useState([])         // every subcontractor merged across projects (name → contract/paid/balance)
   const [soaPicker, setSoaPicker] = useState(false)      // "Combined Statement of Account" subcontractor picker
   const [extraModal, setExtraModal] = useState(null)     // subcontractor whose additional/extra work is being managed
@@ -105,6 +107,8 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   const [subSearchQ, setSubSearchQ] = useState('')       // "link to a TrustDubai member" search box
   const [subSearchRes, setSubSearchRes] = useState([])   // matching registered companies
   const [subSearching, setSubSearching] = useState(false)
+  const [autoLink, setAutoLink] = useState([])           // members auto-detected from the typed name/phone
+  const [autoLinkOff, setAutoLinkOff] = useState(false)  // user dismissed the suggestion for this form
   const [subForm, setSubForm] = useState(null)
   const [scope, setScope] = useState([])
   const [scopeForm, setScopeForm] = useState(null)
@@ -127,13 +131,33 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   const [saving, setSaving] = useState(false)
   const [cDays, setCDays] = useState('')   // committed duration (days) — start_date + cDays = target end
 
-  useEffect(() => { if (company?.id) loadProjects() }, [company?.id])
+  useEffect(() => { if (company?.id) { loadProjects(); loadAwarded() } }, [company?.id]) // eslint-disable-line react-hooks/exhaustive-deps
   // route all printable docs (SoA, LPO+NDA…) into the in-app viewer — no pop-ups (iPad-safe)
   useEffect(() => {
     __docOpener = (title, html) => setDocView({ title, html })
     return () => { __docOpener = null }
   }, [])
-  useEffect(() => { if (!subForm) { setSubSearchQ(''); setSubSearchRes([]) } }, [subForm])
+  useEffect(() => { if (!subForm) { setSubSearchQ(''); setSubSearchRes([]); setAutoLink([]); setAutoLinkOff(false) } }, [subForm])
+  // While typing a subcontractor's name/phone, look them up in the member directory
+  // and offer to link — otherwise the sub never sees the project in their own portal.
+  useEffect(() => {
+    if (!subForm || subForm.sub_company_id || autoLinkOff) { setAutoLink([]); return }
+    const name = (subForm.name || '').trim()
+    const digits = (subForm.phone || '').replace(/\D/g, '')
+    if (name.length < 3 && digits.length < 7) { setAutoLink([]); return }
+    let alive = true
+    const t = setTimeout(async () => {
+      // phone is matched on the last 9 digits so +9715… and 05… both hit
+      const queries = [digits.length >= 7 ? digits.slice(-9) : null, name.length >= 3 ? name : null].filter(Boolean)
+      const found = {}
+      for (const q of queries) {
+        try { const { data } = await supabase.rpc('fn_search_companies', { q }); (data || []).forEach(c => { if (!found[c.id]) found[c.id] = c }) }
+        catch { /* suggestion is optional — never block the form */ }
+      }
+      if (alive) setAutoLink(Object.values(found).slice(0, 3))
+    }, 400)
+    return () => { alive = false; clearTimeout(t) }
+  }, [subForm?.name, subForm?.phone, subForm?.sub_company_id, autoLinkOff]) // eslint-disable-line react-hooks/exhaustive-deps
   // keep the committed-days field showing the current start→end span (recomputes when either date changes / project switches)
   useEffect(() => {
     if (active?.start_date && active?.end_date) setCDays(String(Math.max(0, Math.round((new Date(active.end_date) - new Date(active.start_date)) / 86400000))))
@@ -232,6 +256,22 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
       })
     } catch (e) { console.error('summary', e) }
   }
+  // Projects another company awarded to US as a subcontractor. Read-only and
+  // safe-scoped by the RPC (no client name, project value or their margin).
+  async function loadAwarded() {
+    try {
+      const { data, error } = await supabase.rpc('fn_my_subcontracts')
+      if (error) throw error
+      setAwarded(data || [])
+    } catch (e) { console.error('awarded', e) } // optional section — never block the page
+  }
+  async function openAwardedStatement(r) {
+    try {
+      const { data } = await supabase.rpc('fn_my_subcontract_payments', { p_sub_id: r.sub_id })
+      printDocs(`Statement · ${r.project_name || 'Project'}`, [awardedStatementSheet(r, company?.name || 'Our company', data || [])], toast)
+    } catch (e) { console.error(e); toast.error('Could not open statement') }
+  }
+
   // Auto-create a project for any approved quotation that doesn't have one yet.
   async function backfillFromQuotes() {
     try {
@@ -798,12 +838,24 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
 
         {loading ? <div style={{ textAlign: 'center', padding: 40, color: 'var(--text3)' }}>Loading…</div>
           : projects.length === 0 ? (
-            <div style={{ ...card, textAlign: 'center', padding: '50px 20px' }}>
-              <i className="ti ti-briefcase-off" style={{ fontSize: 34, color: 'var(--text3)', display: 'block', marginBottom: 10 }} />
-              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>No projects yet</div>
-              <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 18 }}>Approve a quotation to auto-create a project, or add one manually.</div>
-              <button onClick={newProject} className="btn btn-primary"><i className="ti ti-plus" /> New project</button>
-            </div>
+            awarded.length > 0 ? (
+              // Pure subcontractor: no own projects, but work awarded by others — shown below.
+              <div style={{ ...card, display: 'flex', alignItems: 'center', gap: 11, padding: '14px 16px' }}>
+                <i className="ti ti-briefcase-off" style={{ fontSize: 22, color: 'var(--text3)', flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 700 }}>No projects of your own yet</div>
+                  <div style={{ fontSize: 12, color: 'var(--text2)' }}>Subcontract work awarded to you is listed below.</div>
+                </div>
+                <button onClick={newProject} className="btn btn-primary btn-sm"><i className="ti ti-plus" /> New project</button>
+              </div>
+            ) : (
+              <div style={{ ...card, textAlign: 'center', padding: '50px 20px' }}>
+                <i className="ti ti-briefcase-off" style={{ fontSize: 34, color: 'var(--text3)', display: 'block', marginBottom: 10 }} />
+                <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>No projects yet</div>
+                <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 18 }}>Approve a quotation to auto-create a project, or add one manually.</div>
+                <button onClick={newProject} className="btn btn-primary"><i className="ti ti-plus" /> New project</button>
+              </div>
+            )
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px,1fr))', gap: 12 }}>
               {projects.map(p => {
@@ -875,6 +927,75 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
               })}
             </div>
           )}
+
+        {/* Work OTHER contractors awarded to us — we are the subcontractor here.
+            Read-only: our scope, contract and payments only (RPC-scoped). */}
+        {awarded.length > 0 && (() => {
+          const tot = awarded.reduce((a, r) => {
+            const g = awardedGross(r), paid = Number(r.paid_amount) || 0
+            a.contract += g; a.paid += paid; a.balance += (g - paid); return a
+          }, { contract: 0, paid: 0, balance: 0 })
+          const PUR = '#8b5cf6'
+          return (
+            <div style={{ marginTop: projects.length ? 24 : 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 11 }}>
+                <span style={{ width: 30, height: 30, borderRadius: 9, background: PUR + '1f', color: PUR, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><i className="ti ti-hammer" style={{ fontSize: 16 }} /></span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '-.2px' }}>Awarded to me · subcontract work</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--text3)' }}>{awarded.length} project{awarded.length === 1 ? '' : 's'} where another company hired you — read-only</div>
+                </div>
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                  {[['Contract', tot.contract, PUR], ['Received', tot.paid, '#22c55e'], ['Balance', tot.balance, tot.balance > 0 ? '#ef4444' : '#22c55e']].map(([k, v, c]) => (
+                    <div key={k} style={{ textAlign: 'right' }}><div style={{ fontSize: 13.5, fontWeight: 800, color: c }}>{AED(v)}</div><div style={{ fontSize: 10, color: 'var(--text3)' }}>{k}</div></div>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px,1fr))', gap: 12 }}>
+                {awarded.map(r => {
+                  const ss = SSTATUS[r.status] || { l: r.status === 'cancelled' ? 'Cancelled' : 'Ongoing', c: r.status === 'cancelled' ? '#ef4444' : '#0099cc' }
+                  const g = awardedGross(r), paid = Number(r.paid_amount) || 0, bal = g - paid
+                  const payPct = g > 0 ? Math.min(100, Math.round((paid / g) * 100)) : 0
+                  const extraItems = Array.isArray(r.extra_work) ? r.extra_work : []
+                  const extraTotal = extraItems.reduce((a, e) => a + (Number(e.amount) || 0), 0)
+                  const row = (top) => ({ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 11px', borderTop: top ? '1px solid var(--border)' : 'none' })
+                  const lb = { fontSize: 11.5, color: 'var(--text2)' }
+                  const vl = { marginLeft: 'auto', fontSize: 12, fontWeight: 700, color: 'var(--text)' }
+                  return (
+                    <div key={r.sub_id} className="fx-proj" onClick={() => openAwardedStatement(r)} title="Open Statement of Account"
+                      style={{ cursor: 'pointer', background: `radial-gradient(130% 85% at 50% -10%, ${PUR}26, transparent 55%), var(--card)`, border: `1px solid ${PUR}40`, borderRadius: 16, padding: 14, boxShadow: 'var(--shadow-md)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
+                        <span style={{ fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 99, background: PUR, color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 4, textTransform: 'uppercase', letterSpacing: '.4px', boxShadow: `0 3px 10px ${PUR}55` }}>
+                          <i className="ti ti-hammer" style={{ fontSize: 12 }} /> Subcontract
+                        </span>
+                        <span style={{ fontSize: 16, fontWeight: 800, color: PUR, letterSpacing: '-.3px' }}>{AED(g)}</span>
+                      </div>
+                      <div style={{ fontSize: 16, fontWeight: 800, lineHeight: 1.2, wordBreak: 'break-word' }}>{r.project_name || 'Project'}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 9 }}>
+                        <span style={{ width: 30, height: 30, borderRadius: 9, overflow: 'hidden', background: PUR + '1f', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          {r.contractor_logo ? <img src={r.contractor_logo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <i className="ti ti-building" style={{ fontSize: 15, color: PUR }} />}
+                        </span>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.25, wordBreak: 'break-word' }}>{r.contractor_name || 'Contractor'}</div>
+                          <div style={{ fontSize: 11, color: 'var(--text3)', lineHeight: 1.25 }}>{[r.trade, r.project_location].filter(Boolean).join(' · ') || 'Awarded to you'}</div>
+                        </div>
+                        <span style={{ marginLeft: 'auto', background: ss.c + '1f', color: ss.c, fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 99, flexShrink: 0 }}>{ss.l}</span>
+                      </div>
+                      <div style={{ marginTop: 11, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+                        <div style={row(false)}><i className="ti ti-cash" style={{ fontSize: 14, color: '#22c55e' }} /><span style={lb}>Received</span><span style={vl}>{payPct}% · {AED(paid)}</span></div>
+                        <div style={row(true)}><i className="ti ti-clock-dollar" style={{ fontSize: 14, color: bal > 0 ? '#ef4444' : '#22c55e' }} /><span style={lb}>Balance</span><span style={{ ...vl, color: bal > 0 ? '#ef4444' : '#22c55e' }}>{AED(bal)}</span></div>
+                        {extraTotal > 0 && <div style={row(true)}><i className="ti ti-tools" style={{ fontSize: 14, color: '#f59e0b' }} /><span style={lb}>Additional work</span><span style={{ ...vl, color: '#f59e0b' }}>{AED(extraTotal)}</span></div>}
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 11, flexWrap: 'wrap' }}>
+                        <button onClick={e => { e.stopPropagation(); openAwardedStatement(r) }} className="btn btn-secondary btn-sm"><i className="ti ti-file-text" style={{ verticalAlign: '-2px', marginRight: 4 }} />Statement</button>
+                        {r.contractor_phone && <a href={`tel:${r.contractor_phone}`} onClick={e => e.stopPropagation()} className="btn btn-secondary btn-sm"><i className="ti ti-phone" style={{ verticalAlign: '-2px', marginRight: 4 }} />Call</a>}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
 
         {docViewNode}
         {projModal && ProjectModal()}
@@ -1454,6 +1575,25 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
             </div>
           ) : (
             <>
+              {autoLink.length > 0 && (
+                <div style={{ marginBottom: 10, borderRadius: 11, border: '1px solid rgba(0,153,204,0.45)', background: 'rgba(0,153,204,0.09)', padding: '10px 11px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
+                    <i className="ti ti-sparkles" style={{ color: '#0099cc', fontSize: 16, flexShrink: 0 }} />
+                    <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)', flex: 1, minWidth: 0 }}>Looks like a TrustDubai member — link them?</span>
+                    <button onClick={() => { setAutoLinkOff(true); setAutoLink([]) }} title="Not them" style={{ width: 24, height: 24, borderRadius: 7, border: 'none', background: 'transparent', color: 'var(--text3)', cursor: 'pointer', flexShrink: 0 }}><i className="ti ti-x" style={{ fontSize: 14 }} /></button>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {autoLink.map(c => (
+                      <button key={c.id} onClick={() => linkMember(c)} style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 9, border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--text)', cursor: 'pointer' }}>
+                        <span style={{ width: 26, height: 26, borderRadius: 7, overflow: 'hidden', background: 'var(--bg2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{c.logo_url ? <img src={c.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <i className="ti ti-building" style={{ fontSize: 14, color: 'var(--text3)' }} />}</span>
+                        <span style={{ flex: 1, minWidth: 0 }}><span style={{ fontSize: 13, fontWeight: 600, display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>{(c.category || c.phone) && <span style={{ fontSize: 11, color: 'var(--text3)' }}>{[c.category, c.phone].filter(Boolean).join(' · ')}</span>}</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#fff', background: '#0099cc', padding: '4px 10px', borderRadius: 99, flexShrink: 0 }}>Link</span>
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 10.5, color: 'var(--text3)', marginTop: 7, lineHeight: 1.45 }}>Linked subcontractors see this project — their scope, contract and payments only — in their own portal.</div>
+                </div>
+              )}
               <label style={lbl}><i className="ti ti-building-community" style={{ verticalAlign: '-2px' }} /> Link to a TrustDubai member <span style={{ color: 'var(--text3)', fontWeight: 400 }}>· optional — so they see this project in their portal</span></label>
               <input value={subSearchQ} onChange={e => searchMemberCompanies(e.target.value)} style={input} placeholder="Search company name or phone…" />
               {subSearching && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>Searching…</div>}
