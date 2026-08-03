@@ -99,6 +99,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   const [subs, setSubs] = useState([])
   const [subDirectory, setSubDirectory] = useState([])   // saved subcontractors (reuse across projects)
   const [awarded, setAwarded] = useState([])             // work OTHER companies awarded to us (we are the subcontractor)
+  const [awardedPays, setAwardedPays] = useState([])     // what the contractor has paid us on the open awarded project
   const [subLedger, setSubLedger] = useState([])         // every subcontractor merged across projects (name → contract/paid/balance)
   const [soaPicker, setSoaPicker] = useState(false)      // "Combined Statement of Account" subcontractor picker
   const [extraModal, setExtraModal] = useState(null)     // subcontractor whose additional/extra work is being managed
@@ -262,8 +263,42 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
     try {
       const { data, error } = await supabase.rpc('fn_my_subcontracts')
       if (error) throw error
-      setAwarded(data || [])
+      const rows = data || []
+      setAwarded(rows)
+      if (rows.length && await syncAwardedProjects(rows)) loadProjects()
     } catch (e) { console.error('awarded', e) } // optional section — never block the page
+  }
+  // Mirror every awarded subcontract as a real project in OUR company, so the
+  // subcontractor gets the same workspace as any own project (timeline, scope,
+  // their own subs, materials, expenses, P&L). The contractor's row stays the
+  // source of truth for the contract amount and what they have paid us.
+  async function syncAwardedProjects(rows) {
+    try {
+      const { data: mine } = await supabase.from('ops_projects')
+        .select('id,awarded_sub_id,contract_value').eq('company_id', company.id).not('awarded_sub_id', 'is', null)
+      const have = {}
+      ;(mine || []).forEach(p => { have[p.awarded_sub_id] = p })
+      const fresh = rows.filter(r => !have[r.sub_id]).map(r => ({
+        company_id: company.id, awarded_sub_id: r.sub_id,
+        name: r.project_name || `Subcontract — ${r.contractor_name || 'Contractor'}`,
+        client_name: r.contractor_name || null, client_phone: r.contractor_phone || null,
+        location: r.project_location || null, contract_value: awardedGross(r),
+        status: r.status === 'completed' ? 'completed' : r.status === 'on_hold' ? 'on_hold' : 'ongoing',
+        created_by_email: user?.email || null,
+      }))
+      let changed = false
+      if (fresh.length) { const { error } = await supabase.from('ops_projects').insert(fresh); if (error) throw error; changed = true }
+      // keep the value in step with the contractor's LPO + any additional work
+      for (const r of rows) {
+        const p = have[r.sub_id]; if (!p) continue
+        const g = awardedGross(r)
+        if (Math.round(Number(p.contract_value) || 0) !== Math.round(g)) {
+          await supabase.from('ops_projects').update({ contract_value: g }).eq('id', p.id).eq('company_id', company.id)
+          changed = true
+        }
+      }
+      return changed
+    } catch (e) { console.error('syncAwardedProjects', e); return false }
   }
   async function openAwardedStatement(r) {
     try {
@@ -318,6 +353,11 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
       const { data: upd } = await supabase.from('project_updates').select('*').eq('project_id', id).order('event_date', { ascending: false }).order('created_at', { ascending: false })
       setUpdates(upd || [])
     } catch (e) { setUpdates([]) }
+    // On work awarded to us, the cash-in is the contractor's payment ledger — we don't invoice ourselves.
+    if (proj?.awarded_sub_id) {
+      try { const { data } = await supabase.rpc('fn_my_subcontract_payments', { p_sub_id: proj.awarded_sub_id }); setAwardedPays(data || []) }
+      catch { setAwardedPays([]) }
+    } else setAwardedPays([])
     // Client cash-in lives in the Invoices module — pull the linked invoices (single source of truth).
     let inv = []
     if (proj?.quote_id) { const { data } = await supabase.from('invoices').select('id,invoice_number,total,payments,status,kind,milestone_label,issue_date,due_date').eq('company_id', company.id).eq('quotation_id', proj.quote_id).order('issue_date', { ascending: false }); inv = data || [] }
@@ -695,6 +735,14 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   const totalMaterials = materials.reduce((s, m) => s + (Number(m.est_cost) || 0), 0)   // budget
   // committed materials are real spend — 'requested' is only a wish-list, so it stays out.
   // Falls back to the estimate until an actual cost is entered.
+  // Projects that exist because another contractor awarded us the work.
+  // If the contractor later removes the subcontract, the mirror project stays
+  // and simply behaves like any normal project (we keep our own data).
+  const awardedBySub = {}
+  awarded.forEach(r => { awardedBySub[r.sub_id] = r })
+  const awardedOf = p => (p?.awarded_sub_id ? awardedBySub[p.awarded_sub_id] || null : null)
+  const activeAwarded = awardedOf(active)
+
   const totalMatActual = materials.filter(m => MAT_COUNTS(m.status))
     .reduce((s, m) => s + (Number(m.actual_cost) || Number(m.est_cost) || 0), 0)
   const totalSubs = subs.reduce((s, x) => s + subGross(x), 0)
@@ -711,7 +759,9 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   // cancelled / on-hold invoices don't count toward billed or received
   const liveInvoices = invoices.filter(i => i.status !== 'cancelled' && i.status !== 'hold')
   const totalInvoiced = liveInvoices.reduce((s, i) => s + (Number(i.total) || 0), 0)
-  const clientReceived = liveInvoices.reduce((s, i) => s + invPaid(i), 0)
+  // On awarded work the contractor's ledger is the cash-in — we don't invoice ourselves.
+  const clientReceived = activeAwarded ? (Number(activeAwarded.paid_amount) || 0)
+    : liveInvoices.reduce((s, i) => s + invPaid(i), 0)
   const clientOutstanding = Math.max(0, value - clientReceived)   // vs the contract value
   // Actual money position. Subs use what was really paid (not the contract); materials
   // and purchases have no payment tracking of their own, so they count at full cost —
@@ -761,6 +811,89 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
       <div style={{ fontSize: 20, fontWeight: 800, marginTop: 8, color, position: 'relative', letterSpacing: '-.3px' }}>{value}</div>
     </div>
   )
+  // One project card. `aw` = the awarded subcontract behind it (we are the sub),
+  // which only changes the accent, the cash-in source and the extra button —
+  // the project itself works exactly like any other.
+  const ProjectCard = ({ p, aw }) => {
+    const PUR = '#8b5cf6'
+    const tl = stageByProject[p.id]
+    const st = (p.status === 'on_hold' || p.status === 'cancelled' || !tl) ? coarseStatus(p) : tl
+    const recv = aw ? (Number(aw.paid_amount) || 0) : (Number(recvByProject[p.id]) || 0)
+    const cv = Number(p.contract_value) || 0
+    const payPct = cv > 0 ? Math.min(100, Math.round((recv / cv) * 100)) : 0
+    const spent = Number(costByProject[p.id]) || 0
+    const prof = cv - spent
+    const profPct = cv > 0 ? Math.round((prof / cv) * 100) : 0
+    const prog = Math.max(0, Math.min(100, p.progress || 0))
+    const RC = 2 * Math.PI * 20
+    const fmtShort = d => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : null
+    const s1 = fmtShort(p.start_date), s2 = fmtShort(p.end_date)
+    const row = (top) => ({ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 11px', borderTop: top ? '1px solid var(--border)' : 'none' })
+    const lb = { fontSize: 11.5, color: 'var(--text2)' }
+    const vl = { marginLeft: 'auto', fontSize: 12, fontWeight: 700, color: 'var(--text)' }
+    return (
+      <div className="fx-proj" onClick={() => openProject(p)}
+        style={{ cursor: 'pointer', background: `radial-gradient(130% 85% at 50% -10%, ${(aw ? PUR : st.color)}24, transparent 55%), var(--card)`, border: '1px solid ' + (aw ? PUR + '40' : 'var(--border)'), borderRadius: 16, padding: 14, boxShadow: 'var(--shadow-md)' }}>
+        {/* status + contract value */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
+          <span style={{ fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 99, background: st.color, color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 4, textTransform: 'uppercase', letterSpacing: '.4px', boxShadow: `0 3px 10px ${st.color}55`, minWidth: 0, maxWidth: '72%' }}>
+            <i className={'ti ' + st.icon} style={{ fontSize: 12, flexShrink: 0 }} /> <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{st.label}</span>
+          </span>
+          <span style={{ fontSize: 16, fontWeight: 800, color: aw ? PUR : '#0099cc', letterSpacing: '-.3px' }}>{AED(cv)}</span>
+        </div>
+        {aw && (
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 9.5, fontWeight: 800, letterSpacing: '.4px', textTransform: 'uppercase', color: PUR, background: PUR + '1f', border: `1px solid ${PUR}3d`, padding: '3px 9px', borderRadius: 99, marginBottom: 9 }}>
+            <i className="ti ti-hammer" style={{ fontSize: 11 }} /> Subcontract{aw.trade ? ' · ' + aw.trade : ''}
+          </div>
+        )}
+        {/* name + progress ring */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ flex: 1, minWidth: 0, fontSize: 16, fontWeight: 800, color: 'var(--text)', lineHeight: 1.2, wordBreak: 'break-word' }}>{p.name}</div>
+          <div style={{ position: 'relative', width: 52, height: 52, flexShrink: 0 }}>
+            <svg width="52" height="52" style={{ transform: 'rotate(-90deg)' }}>
+              <circle cx="26" cy="26" r="20" fill="none" stroke="var(--border)" strokeWidth="4" />
+              <circle cx="26" cy="26" r="20" fill="none" stroke={st.color} strokeWidth="4" strokeLinecap="round" strokeDasharray={RC} strokeDashoffset={RC * (1 - prog / 100)} style={{ transition: 'stroke-dashoffset .4s' }} />
+            </svg>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', lineHeight: 1 }}>{prog}<span style={{ fontSize: 8 }}>%</span></span>
+              <span style={{ fontSize: 7, fontWeight: 700, color: 'var(--text3)', letterSpacing: '.3px' }}>DONE</span>
+            </div>
+          </div>
+        </div>
+        {/* client (the contractor, on awarded work) + location */}
+        {(p.client_name || p.location) && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 9 }}>
+            <div style={{ width: 30, height: 30, borderRadius: 9, overflow: 'hidden', background: (aw ? PUR : st.color) + '1f', color: aw ? PUR : st.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              {aw?.contractor_logo ? <img src={aw.contractor_logo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <i className={'ti ' + (aw ? 'ti-building' : 'ti-user')} style={{ fontSize: 15 }} />}
+            </div>
+            <div style={{ minWidth: 0 }}>
+              {p.client_name && <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)', lineHeight: 1.25, wordBreak: 'break-word' }}>{aw ? 'Awarded by ' : ''}{p.client_name}</div>}
+              {p.location && <div style={{ fontSize: 11, color: 'var(--text3)', lineHeight: 1.25 }}>{p.location}</div>}
+            </div>
+          </div>
+        )}
+        {/* money rows */}
+        <div style={{ marginTop: 11, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+          <div style={row(false)}><i className="ti ti-cash" style={{ fontSize: 14, color: '#0099cc' }} /><span style={lb}>{aw ? 'Received' : 'Paid'}</span><span style={vl}>{payPct}% · {AED(recv)}</span></div>
+          <div style={row(true)}><i className="ti ti-coin" style={{ fontSize: 14, color: '#f59e0b' }} /><span style={lb}>Spent</span><span style={vl}>{AED(spent)}</span></div>
+          <div style={row(true)}><i className={'ti ' + (prof >= 0 ? 'ti-trending-up' : 'ti-trending-down')} style={{ fontSize: 14, color: prof >= 0 ? '#22c55e' : '#ef4444' }} /><span style={lb}>{prof >= 0 ? 'Profit' : 'Loss'}</span><span style={{ ...vl, color: prof >= 0 ? '#22c55e' : '#ef4444' }}>{AED(Math.abs(prof))}{cv > 0 ? ` · ${profPct}%` : ''}</span></div>
+        </div>
+        {/* timeline */}
+        {(s1 || s2) && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 11, padding: '9px 11px', borderRadius: 10, background: 'var(--bg2)', border: '1px solid var(--border)' }}>
+            <i className="ti ti-calendar-event" style={{ fontSize: 16, color: st.color, flexShrink: 0 }} />
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{s1 || '—'} <span style={{ color: 'var(--text3)' }}>→</span> {s2 || '—'}</div>
+          </div>
+        )}
+        {aw && (
+          <div style={{ display: 'flex', gap: 8, marginTop: 11, flexWrap: 'wrap' }}>
+            <button onClick={e => { e.stopPropagation(); openAwardedStatement(aw) }} className="btn btn-secondary btn-sm"><i className="ti ti-file-text" style={{ verticalAlign: '-2px', marginRight: 4 }} />Statement</button>
+            {aw.contractor_phone && <a href={`tel:${aw.contractor_phone}`} onClick={e => e.stopPropagation()} className="btn btn-secondary btn-sm"><i className="ti ti-phone" style={{ verticalAlign: '-2px', marginRight: 4 }} />Call</a>}
+          </div>
+        )}
+      </div>
+    )
+  }
   const input = { width: '100%', padding: '9px 11px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg2,rgba(127,127,127,0.05))', color: 'var(--text)', fontSize: 13.5, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }
   const lbl = { fontSize: 11.5, color: 'var(--text2)', display: 'block', marginBottom: 5, fontWeight: 600 }
   const Badge = ({ c, children }) => <span style={{ background: c + '1f', color: c, fontSize: 10.5, fontWeight: 700, padding: '2px 9px', borderRadius: 99 }}>{children}</span>
@@ -785,6 +918,9 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   if (view === 'list') {
     const totals = { value: projects.reduce((s, p) => s + (Number(p.contract_value) || 0), 0), ongoing: projects.filter(p => p.status === 'ongoing').length }
     const totalCompleted = projects.filter(p => p.status === 'completed').length
+    // work another contractor awarded us gets its own section; the rest are ours
+    const awardedProjects = projects.map(p => ({ p, aw: awardedOf(p) })).filter(x => x.aw)
+    const ownProjects = projects.filter(p => !awardedOf(p))
     return (
       <div style={{ color: 'var(--text)' }}>
         <style>{FX}</style>
@@ -794,7 +930,10 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
         </HeroActions>
 
         {projects.length > 0 && (() => {
-          const s = summary || { totalContract: totals.value, totalReceived: 0, totalOutstanding: totals.value, totalCost: 0, profit: totals.value, subBalance: 0, siteSpend: 0, counts: { total: projects.length, ongoing: totals.ongoing, completed: totalCompleted, planning: 0, on_hold: 0 }, topSubs: [] }
+          const sBase = summary || { totalContract: totals.value, totalReceived: 0, totalOutstanding: totals.value, totalCost: 0, profit: totals.value, subBalance: 0, siteSpend: 0, counts: { total: projects.length, ongoing: totals.ongoing, completed: totalCompleted, planning: 0, on_hold: 0 }, topSubs: [] }
+          // cash-in on awarded work comes from the contractor's ledger, not our invoices
+          const awPaid = awardedProjects.reduce((a, { aw }) => a + (Number(aw.paid_amount) || 0), 0)
+          const s = awPaid ? { ...sBase, totalReceived: sBase.totalReceived + awPaid, totalOutstanding: Math.max(0, sBase.totalContract - sBase.totalReceived - awPaid) } : sBase
           const mPct = s.totalContract > 0 ? Math.round((s.profit / s.totalContract) * 100) : 0
           return (
             <div style={{ marginBottom: 16 }}>
@@ -837,7 +976,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
         })()}
 
         {loading ? <div style={{ textAlign: 'center', padding: 40, color: 'var(--text3)' }}>Loading…</div>
-          : projects.length === 0 ? (
+          : ownProjects.length === 0 ? (
             awarded.length > 0 ? (
               // Pure subcontractor: no own projects, but work awarded by others — shown below.
               <div style={{ ...card, display: 'flex', alignItems: 'center', gap: 11, padding: '14px 16px' }}>
@@ -858,91 +997,29 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
             )
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px,1fr))', gap: 12 }}>
-              {projects.map(p => {
-                const tl = stageByProject[p.id]
-                const st = (p.status === 'on_hold' || p.status === 'cancelled' || !tl)
-                  ? coarseStatus(p) : tl
-                const recv = Number(recvByProject[p.id]) || 0
-                const cv = Number(p.contract_value) || 0
-                const payPct = cv > 0 ? Math.min(100, Math.round((recv / cv) * 100)) : 0
-                const spent = Number(costByProject[p.id]) || 0
-                const prof = cv - spent
-                const profPct = cv > 0 ? Math.round((prof / cv) * 100) : 0
-                const prog = Math.max(0, Math.min(100, p.progress || 0))
-                const RC = 2 * Math.PI * 20
-                const fmtShort = d => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : null
-                const s1 = fmtShort(p.start_date), s2 = fmtShort(p.end_date)
-                const row = (top) => ({ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 11px', borderTop: top ? '1px solid var(--border)' : 'none' })
-                const lbl = { fontSize: 11.5, color: 'var(--text2)' }
-                const val = { marginLeft: 'auto', fontSize: 12, fontWeight: 700, color: 'var(--text)' }
-                return (
-                  <div key={p.id} className="fx-proj" onClick={() => openProject(p)}
-                    style={{ cursor: 'pointer', background: `radial-gradient(130% 85% at 50% -10%, ${st.color}24, transparent 55%), var(--card)`, border: '1px solid var(--border)', borderRadius: 16, padding: 14, boxShadow: 'var(--shadow-md)' }}>
-                    {/* status + contract value */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
-                      <span style={{ fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 99, background: st.color, color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 4, textTransform: 'uppercase', letterSpacing: '.4px', boxShadow: `0 3px 10px ${st.color}55`, minWidth: 0, maxWidth: '72%' }}>
-                        <i className={'ti ' + st.icon} style={{ fontSize: 12, flexShrink: 0 }} /> <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{st.label}</span>
-                      </span>
-                      <span style={{ fontSize: 16, fontWeight: 800, color: '#0099cc', letterSpacing: '-.3px' }}>{AED(cv)}</span>
-                    </div>
-                    {/* name + progress ring */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                      <div style={{ flex: 1, minWidth: 0, fontSize: 16, fontWeight: 800, color: 'var(--text)', lineHeight: 1.2, wordBreak: 'break-word' }}>{p.name}</div>
-                      <div style={{ position: 'relative', width: 52, height: 52, flexShrink: 0 }}>
-                        <svg width="52" height="52" style={{ transform: 'rotate(-90deg)' }}>
-                          <circle cx="26" cy="26" r="20" fill="none" stroke="var(--border)" strokeWidth="4" />
-                          <circle cx="26" cy="26" r="20" fill="none" stroke={st.color} strokeWidth="4" strokeLinecap="round" strokeDasharray={RC} strokeDashoffset={RC * (1 - prog / 100)} style={{ transition: 'stroke-dashoffset .4s' }} />
-                        </svg>
-                        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                          <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', lineHeight: 1 }}>{prog}<span style={{ fontSize: 8 }}>%</span></span>
-                          <span style={{ fontSize: 7, fontWeight: 700, color: 'var(--text3)', letterSpacing: '.3px' }}>DONE</span>
-                        </div>
-                      </div>
-                    </div>
-                    {/* client + location */}
-                    {(p.client_name || p.location) && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 9 }}>
-                        <div style={{ width: 30, height: 30, borderRadius: 9, background: st.color + '1f', color: st.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><i className="ti ti-user" style={{ fontSize: 15 }} /></div>
-                        <div style={{ minWidth: 0 }}>
-                          {p.client_name && <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)', lineHeight: 1.25, wordBreak: 'break-word' }}>{p.client_name}</div>}
-                          {p.location && <div style={{ fontSize: 11, color: 'var(--text3)', lineHeight: 1.25 }}>{p.location}</div>}
-                        </div>
-                      </div>
-                    )}
-                    {/* money rows */}
-                    <div style={{ marginTop: 11, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-                      <div style={row(false)}><i className="ti ti-cash" style={{ fontSize: 14, color: '#0099cc' }} /><span style={lbl}>Paid</span><span style={val}>{payPct}% · {AED(recv)}</span></div>
-                      <div style={row(true)}><i className="ti ti-coin" style={{ fontSize: 14, color: '#f59e0b' }} /><span style={lbl}>Spent</span><span style={val}>{AED(spent)}</span></div>
-                      <div style={row(true)}><i className={'ti ' + (prof >= 0 ? 'ti-trending-up' : 'ti-trending-down')} style={{ fontSize: 14, color: prof >= 0 ? '#22c55e' : '#ef4444' }} /><span style={lbl}>{prof >= 0 ? 'Profit' : 'Loss'}</span><span style={{ ...val, color: prof >= 0 ? '#22c55e' : '#ef4444' }}>{AED(Math.abs(prof))}{cv > 0 ? ` · ${profPct}%` : ''}</span></div>
-                    </div>
-                    {/* timeline */}
-                    {(s1 || s2) && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 11, padding: '9px 11px', borderRadius: 10, background: 'var(--bg2)', border: '1px solid var(--border)' }}>
-                        <i className="ti ti-calendar-event" style={{ fontSize: 16, color: st.color, flexShrink: 0 }} />
-                        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{s1 || '—'} <span style={{ color: 'var(--text3)' }}>→</span> {s2 || '—'}</div>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
+              {ownProjects.map(p => <ProjectCard key={p.id} p={p} />)}
             </div>
           )}
 
-        {/* Work OTHER contractors awarded to us — we are the subcontractor here.
-            Read-only: our scope, contract and payments only (RPC-scoped). */}
+        {/* Work another contractor awarded us — we are the subcontractor here.
+            Each one is a real project of ours: open it and you get the full
+            workspace (timeline, scope, your own subs, materials, expenses). */}
         {awarded.length > 0 && (() => {
           const tot = awarded.reduce((a, r) => {
             const g = awardedGross(r), paid = Number(r.paid_amount) || 0
             a.contract += g; a.paid += paid; a.balance += (g - paid); return a
           }, { contract: 0, paid: 0, balance: 0 })
+          // rows whose project row isn't there yet (first load, or migration not run)
+          const mirrored = new Set(awardedProjects.map(x => x.aw.sub_id))
+          const pending = awarded.filter(r => !mirrored.has(r.sub_id))
           const PUR = '#8b5cf6'
           return (
-            <div style={{ marginTop: projects.length ? 24 : 16 }}>
+            <div style={{ marginTop: 24 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 11 }}>
                 <span style={{ width: 30, height: 30, borderRadius: 9, background: PUR + '1f', color: PUR, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><i className="ti ti-hammer" style={{ fontSize: 16 }} /></span>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '-.2px' }}>Awarded to me · subcontract work</div>
-                  <div style={{ fontSize: 11.5, color: 'var(--text3)' }}>{awarded.length} project{awarded.length === 1 ? '' : 's'} where another company hired you — read-only</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--text3)' }}>{awarded.length} project{awarded.length === 1 ? '' : 's'} another company hired you for — manage them like any project</div>
                 </div>
                 <div style={{ marginLeft: 'auto', display: 'flex', gap: 14, flexWrap: 'wrap' }}>
                   {[['Contract', tot.contract, PUR], ['Received', tot.paid, '#22c55e'], ['Balance', tot.balance, tot.balance > 0 ? '#ef4444' : '#22c55e']].map(([k, v, c]) => (
@@ -951,43 +1028,22 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
                 </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px,1fr))', gap: 12 }}>
-                {awarded.map(r => {
-                  const ss = SSTATUS[r.status] || { l: r.status === 'cancelled' ? 'Cancelled' : 'Ongoing', c: r.status === 'cancelled' ? '#ef4444' : '#0099cc' }
+                {awardedProjects.map(({ p, aw }) => <ProjectCard key={p.id} p={p} aw={aw} />)}
+                {/* fallback card until the project row exists — still fully readable */}
+                {pending.map(r => {
                   const g = awardedGross(r), paid = Number(r.paid_amount) || 0, bal = g - paid
-                  const payPct = g > 0 ? Math.min(100, Math.round((paid / g) * 100)) : 0
-                  const extraItems = Array.isArray(r.extra_work) ? r.extra_work : []
-                  const extraTotal = extraItems.reduce((a, e) => a + (Number(e.amount) || 0), 0)
-                  const row = (top) => ({ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 11px', borderTop: top ? '1px solid var(--border)' : 'none' })
-                  const lb = { fontSize: 11.5, color: 'var(--text2)' }
-                  const vl = { marginLeft: 'auto', fontSize: 12, fontWeight: 700, color: 'var(--text)' }
                   return (
                     <div key={r.sub_id} className="fx-proj" onClick={() => openAwardedStatement(r)} title="Open Statement of Account"
                       style={{ cursor: 'pointer', background: `radial-gradient(130% 85% at 50% -10%, ${PUR}26, transparent 55%), var(--card)`, border: `1px solid ${PUR}40`, borderRadius: 16, padding: 14, boxShadow: 'var(--shadow-md)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
-                        <span style={{ fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 99, background: PUR, color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 4, textTransform: 'uppercase', letterSpacing: '.4px', boxShadow: `0 3px 10px ${PUR}55` }}>
-                          <i className="ti ti-hammer" style={{ fontSize: 12 }} /> Subcontract
-                        </span>
-                        <span style={{ fontSize: 16, fontWeight: 800, color: PUR, letterSpacing: '-.3px' }}>{AED(g)}</span>
+                        <span style={{ fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 99, background: PUR, color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 4, textTransform: 'uppercase', letterSpacing: '.4px' }}><i className="ti ti-hammer" style={{ fontSize: 12 }} /> Subcontract</span>
+                        <span style={{ fontSize: 16, fontWeight: 800, color: PUR }}>{AED(g)}</span>
                       </div>
                       <div style={{ fontSize: 16, fontWeight: 800, lineHeight: 1.2, wordBreak: 'break-word' }}>{r.project_name || 'Project'}</div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 9 }}>
-                        <span style={{ width: 30, height: 30, borderRadius: 9, overflow: 'hidden', background: PUR + '1f', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          {r.contractor_logo ? <img src={r.contractor_logo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <i className="ti ti-building" style={{ fontSize: 15, color: PUR }} />}
-                        </span>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.25, wordBreak: 'break-word' }}>{r.contractor_name || 'Contractor'}</div>
-                          <div style={{ fontSize: 11, color: 'var(--text3)', lineHeight: 1.25 }}>{[r.trade, r.project_location].filter(Boolean).join(' · ') || 'Awarded to you'}</div>
-                        </div>
-                        <span style={{ marginLeft: 'auto', background: ss.c + '1f', color: ss.c, fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 99, flexShrink: 0 }}>{ss.l}</span>
-                      </div>
-                      <div style={{ marginTop: 11, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-                        <div style={row(false)}><i className="ti ti-cash" style={{ fontSize: 14, color: '#22c55e' }} /><span style={lb}>Received</span><span style={vl}>{payPct}% · {AED(paid)}</span></div>
-                        <div style={row(true)}><i className="ti ti-clock-dollar" style={{ fontSize: 14, color: bal > 0 ? '#ef4444' : '#22c55e' }} /><span style={lb}>Balance</span><span style={{ ...vl, color: bal > 0 ? '#ef4444' : '#22c55e' }}>{AED(bal)}</span></div>
-                        {extraTotal > 0 && <div style={row(true)}><i className="ti ti-tools" style={{ fontSize: 14, color: '#f59e0b' }} /><span style={lb}>Additional work</span><span style={{ ...vl, color: '#f59e0b' }}>{AED(extraTotal)}</span></div>}
-                      </div>
-                      <div style={{ display: 'flex', gap: 8, marginTop: 11, flexWrap: 'wrap' }}>
-                        <button onClick={e => { e.stopPropagation(); openAwardedStatement(r) }} className="btn btn-secondary btn-sm"><i className="ti ti-file-text" style={{ verticalAlign: '-2px', marginRight: 4 }} />Statement</button>
-                        {r.contractor_phone && <a href={`tel:${r.contractor_phone}`} onClick={e => e.stopPropagation()} className="btn btn-secondary btn-sm"><i className="ti ti-phone" style={{ verticalAlign: '-2px', marginRight: 4 }} />Call</a>}
+                      <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 4 }}>Awarded by {r.contractor_name || 'Contractor'}{r.trade ? ' · ' + r.trade : ''}</div>
+                      <div style={{ display: 'flex', gap: 14, marginTop: 11 }}>
+                        <div><div style={{ fontSize: 13, fontWeight: 700, color: '#22c55e' }}>{AED(paid)}</div><div style={{ fontSize: 10, color: 'var(--text3)' }}>Received</div></div>
+                        <div><div style={{ fontSize: 13, fontWeight: 700, color: bal > 0 ? '#ef4444' : '#22c55e' }}>{AED(bal)}</div><div style={{ fontSize: 10, color: 'var(--text3)' }}>Balance</div></div>
                       </div>
                     </div>
                   )
@@ -1047,13 +1103,17 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
               <h1 className="font-syne fw-700" style={{ fontSize: 21, margin: 0, wordBreak: 'break-word', letterSpacing: '-.4px' }}>{active.name}</h1>
               <span style={{ background: 'rgba(255,255,255,.18)', color: '#fff', fontSize: 10.5, fontWeight: 700, padding: '3px 10px', borderRadius: 99, border: '1px solid rgba(255,255,255,.25)' }}>{st.label}</span>
+              {activeAwarded && <span style={{ background: 'rgba(139,92,246,.4)', color: '#fff', fontSize: 10.5, fontWeight: 700, padding: '3px 10px', borderRadius: 99, border: '1px solid rgba(255,255,255,.3)', display: 'inline-flex', alignItems: 'center', gap: 4 }}><i className="ti ti-hammer" style={{ fontSize: 12 }} /> Subcontract{activeAwarded.trade ? ' · ' + activeAwarded.trade : ''}</span>}
             </div>
-            <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,.78)', marginTop: 2 }}><i className="ti ti-user" style={{ fontSize: 13, verticalAlign: '-1px' }} /> {active.client_name || 'No client'}{active.location ? ' · ' + active.location : ''}</div>
+            <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,.78)', marginTop: 2 }}><i className={'ti ' + (activeAwarded ? 'ti-building' : 'ti-user')} style={{ fontSize: 13, verticalAlign: '-1px' }} /> {activeAwarded ? 'Awarded by ' : ''}{active.client_name || 'No client'}{active.location ? ' · ' + active.location : ''}</div>
           </div>
           <button onClick={openProjectStatement} title="Internal P&L statement — income, cost and profit. Not for the client." style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '9px 15px', borderRadius: 10, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(255,255,255,.12)', color: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}><i className="ti ti-file-analytics" /> Internal</button>
-          <button onClick={openClientStatement} title="Client Statement of Account — payable, received and balance. Safe to send." style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '9px 15px', borderRadius: 10, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(255,255,255,.12)', color: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}><i className="ti ti-file-invoice" /> Client SoA</button>
+          {activeAwarded
+            ? <button onClick={() => openAwardedStatement(activeAwarded)} title="Statement of Account issued by the contractor who awarded you this work." style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '9px 15px', borderRadius: 10, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(255,255,255,.12)', color: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}><i className="ti ti-file-invoice" /> Statement</button>
+            : <button onClick={openClientStatement} title="Client Statement of Account — payable, received and balance. Safe to send." style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '9px 15px', borderRadius: 10, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(255,255,255,.12)', color: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}><i className="ti ti-file-invoice" /> Client SoA</button>}
           <button onClick={() => editProject(active)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '9px 15px', borderRadius: 10, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(255,255,255,.12)', color: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}><i className="ti ti-edit" /> Edit</button>
-          <button onClick={() => deleteProject(active.id)} style={{ width: 36, height: 36, borderRadius: 10, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(239,68,68,0.25)', color: '#fff', cursor: 'pointer', flexShrink: 0 }}><i className="ti ti-trash" style={{ fontSize: 15 }} /></button>
+          {/* an awarded project would just be re-created on the next load — no delete */}
+          {!activeAwarded && <button onClick={() => deleteProject(active.id)} style={{ width: 36, height: 36, borderRadius: 10, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(239,68,68,0.25)', color: '#fff', cursor: 'pointer', flexShrink: 0 }}><i className="ti ti-trash" style={{ fontSize: 15 }} /></button>}
         </div>
       </div>
 
@@ -1425,8 +1485,8 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
       {tab === 'payments' && (
         <div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px,1fr))', gap: 10, marginBottom: 14 }}>
-            <StatTile icon="ti-wallet" label="Contract value" value={AED(value)} color="#0099cc" />
-            <StatTile icon="ti-file-invoice" label="Invoiced" value={AED(totalInvoiced)} color="#8b5cf6" />
+            <StatTile icon="ti-wallet" label={activeAwarded ? 'Contract (LPO)' : 'Contract value'} value={AED(value)} color="#0099cc" />
+            {!activeAwarded && <StatTile icon="ti-file-invoice" label="Invoiced" value={AED(totalInvoiced)} color="#8b5cf6" />}
             <StatTile icon="ti-cash" label="Received" value={AED(clientReceived)} color="#22c55e" />
             <StatTile icon="ti-clock-dollar" label="Outstanding" value={AED(clientOutstanding)} color="#ef4444" />
           </div>
@@ -1439,6 +1499,33 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
             <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'right' }}>Paid to subs {AED(subsPaid)}<br />Site spend {AED(totalExpenses)}{totalMatActual > 0 ? <><br />Materials {AED(totalMatActual)}</> : null}{totalPurchases > 0 ? <><br />Purchases {AED(totalPurchases)}</> : null}</div>
           </div>
 
+          {activeAwarded ? (<>
+          {/* Awarded work: the contractor records the payments, we only read them. */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ fontSize: 12.5, color: 'var(--text2)' }}>Payments recorded by <b>{activeAwarded.contractor_name || 'the contractor'}</b> against this subcontract — read-only.</div>
+            <button onClick={() => openAwardedStatement(activeAwarded)} className="btn btn-primary btn-sm"><i className="ti ti-file-text" style={{ verticalAlign: '-2px', marginRight: 4 }} /> Statement of Account</button>
+          </div>
+          {awardedPays.length === 0 ? (
+            <div style={{ ...card, textAlign: 'center', color: 'var(--text3)', padding: '34px 16px' }}>
+              <i className="ti ti-cash-off" style={{ fontSize: 28, display: 'block', marginBottom: 8 }} />
+              No payment received yet.<br />
+              <span style={{ fontSize: 12 }}>Whatever the contractor records against your contract appears here.</span>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+              {awardedPays.map(pay => (
+                <div key={pay.id} style={{ ...card, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 11, flexWrap: 'wrap' }}>
+                  <span style={{ width: 32, height: 32, borderRadius: 9, background: 'rgba(34,197,94,0.12)', color: '#22c55e', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><i className="ti ti-cash" style={{ fontSize: 16 }} /></span>
+                  <div style={{ flex: 1, minWidth: 140 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 700 }}>{fmtD(pay.paid_on)}</div>
+                    <div style={{ fontSize: 11.5, color: 'var(--text3)' }}>{[pay.method, pay.reference].filter(Boolean).join(' · ') || 'Payment received'}{pay.note ? ' — ' + pay.note : ''}</div>
+                  </div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: '#22c55e' }}>{AED(pay.amount)}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          </>) : (<>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
             <div style={{ fontSize: 12.5, color: 'var(--text2)' }}>Receipts come from the linked invoices — managed in the Invoices module.</div>
             <button onClick={() => onNavigate && onNavigate('invoices')} className="btn btn-primary btn-sm"><i className="ti ti-external-link" style={{ verticalAlign: '-2px', marginRight: 4 }} /> Open Invoices</button>
@@ -1477,6 +1564,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
               })}
             </div>
           )}
+          </>)}
         </div>
       )}
 
