@@ -1998,6 +1998,17 @@ function lpoBody(company, project, sub, items, lpo, others = []) {
         <span style="display:flex;gap:16px;align-items:center;"><b style="font-size:11px;color:${ACCENT};min-width:34px;text-align:right;">${Number(s.pct) || 0}%</b><span style="font-size:11.5px;font-weight:700;color:${NAVY};min-width:96px;text-align:right;">AED ${n(grandTotal * (Number(s.pct) || 0) / 100)}</span></span>
       </div>`).join('')}
     </div>
+    <div style="border:1.5px solid #e0a03a;border-radius:9px;overflow:hidden;margin-bottom:13px;page-break-inside:avoid;background:#fffaf0;">
+      <div style="background:#fdf0d5;padding:8px 14px;border-bottom:1px solid #f0dcae;display:flex;justify-content:space-between;align-items:center;gap:10px;">
+        <span style="font-size:8.5px;font-weight:700;color:#a3701a;text-transform:uppercase;letter-spacing:1px;">Site Verification &amp; Design Match — Mandatory</span>
+        <span style="font-size:8px;font-weight:700;color:#a3701a;text-transform:uppercase;letter-spacing:.6px;white-space:nowrap;">Subcontractor’s responsibility</span>
+      </div>
+      <div style="padding:10px 14px;font-size:9.2px;color:#5d4a2a;line-height:1.6;text-align:justify;">
+        <div style="margin-bottom:6px;"><b style="color:#8a5a00;">1. Re-check every size on site.</b> All dimensions shown in this order, the drawings or the 3D are for reference only. Before fabrication, ordering or installation the Subcontractor shall physically re-measure every element on site and work to the verified site dimensions. Any material produced or work executed to unverified sizes shall be corrected or replaced at the Subcontractor’s own cost and in its own time.</div>
+        <div style="margin-bottom:6px;"><b style="color:#8a5a00;">2. Check the 3D design carefully.</b> The Subcontractor shall study the approved 3D design against the drawings, the scope above and the actual site condition, and satisfy itself that every item matches — finish, material, colour, profile, hardware, service point and position. Any discrepancy, missing detail or clash between the 3D, the drawings and the site shall be reported to the Company in writing before that work is started.</div>
+        <div><b style="color:#8a5a00;">3. No change without prior approval.</b> No deviation from the approved 3D, drawings or specification — however small — shall be executed without the Company’s prior written approval. Unapproved work shall be removed and redone at the Subcontractor’s cost, and the Subcontractor shall bear any resulting delay, back-charge or damage.</div>
+      </div>
+    </div>
     <div style="border-top:1px solid ${LINE};padding-top:12px;margin-bottom:8px;">
       ${term('Payment', `Payment shall be released as per the schedule above, against work actually completed and certified by the Company, within <b>${payDays} days</b> of a correct, undisputed invoice for each stage. Each stage payment is subject to satisfactory progress, snagging clearance and the signed NDA. The Company may set off against any sum due any amount owed by the Subcontractor (including back-charges, damages or liquidated damages).`)}
       ${term('Timeline', `The Subcontractor shall complete all works ${subDue ? 'on or before <b style="color:#c0392b;">' + subDue + '</b>' : 'by the agreed completion date'}${bufferDays ? ', which is ' + bufferDays + ' days (15% of the project schedule) before the project completion date' : ''}, to allow time for inspection, snagging and handover. <b>Time is of the essence.</b>`)}
