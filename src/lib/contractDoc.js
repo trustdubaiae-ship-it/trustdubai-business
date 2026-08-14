@@ -218,6 +218,15 @@ export default function buildContractHTML(contract, ctx = {}) {
   // behalf of <company>" line. Applied to BOTH columns so the lines stay level.
   const signGap = signArt ? 66 : 30
 
+  // Signed-on date, written under the line in a handwriting face. Falls back to
+  // the contract's own date when no separate signing date was entered.
+  const signedOn = signArt
+    ? fmtDate(c.sign_date || c.contract_date)
+    : ''
+  const signDateLine = signedOn && signedOn !== '—'
+    ? `<div style="font-family:'Caveat','Segoe Script',cursive;font-size:16px;color:#1a2b4a;margin-top:3px;line-height:1.1;">${escapeHtml(signedOn)}</div>`
+    : ''
+
   return `<div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;max-width:760px;margin:0 auto;background:#fff;">
     <div style="height:5px;background:${ACC};"></div>
     <div style="padding:22px 30px 0;">
@@ -283,6 +292,7 @@ export default function buildContractHTML(contract, ctx = {}) {
         <div style="font-size:9px;font-weight:700;color:#6b6b6b;margin-bottom:${signGap}px;">For and on behalf of ${cName}</div>
         ${signArt}
         <div style="border-bottom:1px solid #1a1a1a;"></div>
+        ${signDateLine}
         <div style="font-size:8px;color:#999;margin-top:4px;">Authorised Signatory · Date · Company Stamp</div>
       </div>
       <div style="flex:1;min-width:220px;text-align:center;">

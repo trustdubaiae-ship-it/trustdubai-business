@@ -341,6 +341,17 @@ function ContractTab({ q, contract, cForm, setCForm, cBusy, onGenerate, onSave, 
               </label>
             ))}
           </div>
+          {(cForm.show_sign_image || cForm.show_stamp_image) && (ui.signatureData || ui.stampData) && (
+            <div style={{ display:'flex', alignItems:'center', gap:10, background:subBg, border:`1px solid ${border}`, borderRadius:8, padding:'9px 12px', marginTop:9, flexWrap:'wrap' }}>
+              <i className="ti ti-calendar-event" style={{ fontSize:15, color:textSub }}/>
+              <div style={{ flex:1, minWidth:110 }}>
+                <div style={{ fontSize:13, color:text }}>Signed on</div>
+                <div style={{ fontSize:11, color:textMuted }}>Leave blank to use the contract date</div>
+              </div>
+              <input type="date" value={cForm.sign_date || ''} onChange={e=>set('sign_date', e.target.value)}
+                style={{ ...inputStyle, width:'auto', minWidth:148, flexShrink:0 }}/>
+            </div>
+          )}
         </div>
 
         <div style={{ borderTop:`1px solid ${border}`, paddingTop:14, marginTop:2 }}>
@@ -467,6 +478,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   // not something that should happen to every quote automatically.
   const [showSignImage, setShowSignImage]   = useState(false)
   const [showStampImage, setShowStampImage] = useState(false)
+  const [signDate, setSignDate]             = useState('')   // blank = use the quotation's own date
   const [showTerms, setShowTerms] = useState(true)
   const [showPayment, setShowPayment] = useState(true)
   const [showWhyUs, setShowWhyUs] = useState(true)
@@ -576,7 +588,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         setItems(Array.isArray(d.items) && d.items.length ? d.items : [blankItem()])
         setVatEnabled(d.vatEnabled ?? true)
         setDiscountType(d.discountType ?? null); setDiscountValue(d.discountValue ?? 0)
-        setNotes(d.notes || ''); setShowFooter(d.showFooter ?? true); setShowSignature(d.showSignature ?? true); setShowBank(d.showBank ?? false); setShowSignImage(d.showSignImage ?? false); setShowStampImage(d.showStampImage ?? false); setShowTerms(d.showTerms ?? true); setShowPayment(d.showPayment ?? true); setShowWhyUs(d.showWhyUs ?? true); setQuoteTheme(d.quoteTheme ?? 'gold'); setProjTimeline(d.projTimeline ?? [])
+        setNotes(d.notes || ''); setShowFooter(d.showFooter ?? true); setShowSignature(d.showSignature ?? true); setShowBank(d.showBank ?? false); setShowSignImage(d.showSignImage ?? false); setShowStampImage(d.showStampImage ?? false); setSignDate(d.signDate || ''); setShowTerms(d.showTerms ?? true); setShowPayment(d.showPayment ?? true); setShowWhyUs(d.showWhyUs ?? true); setQuoteTheme(d.quoteTheme ?? 'gold'); setProjTimeline(d.projTimeline ?? [])
         setLocation(d.location || ''); setPreparedBy(d.preparedBy || ''); setClientEmail(d.clientEmail || ''); setClientTrn(d.clientTrn || '')
         setSourceLead(d.sourceLead || null)
         setWorkType(d.workType || defaultPresetName); setPayTerms(Array.isArray(d.payTerms) ? d.payTerms : []); setQuoteTerms(d.quoteTerms || ''); setValidUntil(d.validUntil || ''); setRevision(d.revision || 0)
@@ -857,7 +869,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         payment_terms: q.payment_terms, why_choose_us: q.why_choose_us, terms: q.terms,
         work_type: q.work_type || null, valid_until: null,
         show_footer: q.show_footer ?? true, show_signature: q.show_signature ?? true, show_bank: q.show_bank ?? false,
-        showSignImage: q.show_sign_image ?? false, showStampImage: q.show_stamp_image ?? false,
+        showSignImage: q.show_sign_image ?? false, showStampImage: q.show_stamp_image ?? false, signDate: q.sign_date || '',
         quote_theme: q.quote_theme || 'gold', project_timeline: q.project_timeline || null,
         status: 'draft',
       }
@@ -919,7 +931,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     setVisualSections(normMode(d.mode) === 'visual' && Array.isArray(d.items) && d.items.some(it => (it.trade || '').trim()))
     setVatEnabled(d.vatEnabled ?? true)
     setDiscountType(d.discountType ?? null); setDiscountValue(d.discountValue ?? 0)
-    setNotes(d.notes || ''); setShowFooter(d.showFooter ?? true); setShowSignature(d.showSignature ?? true); setShowBank(d.showBank ?? false); setShowSignImage(d.showSignImage ?? false); setShowStampImage(d.showStampImage ?? false); setShowTerms(d.showTerms ?? true); setShowPayment(d.showPayment ?? true); setShowWhyUs(d.showWhyUs ?? true)
+    setNotes(d.notes || ''); setShowFooter(d.showFooter ?? true); setShowSignature(d.showSignature ?? true); setShowBank(d.showBank ?? false); setShowSignImage(d.showSignImage ?? false); setShowStampImage(d.showStampImage ?? false); setSignDate(d.signDate || ''); setShowTerms(d.showTerms ?? true); setShowPayment(d.showPayment ?? true); setShowWhyUs(d.showWhyUs ?? true)
     setLocation(d.location || ''); setPreparedBy(d.preparedBy || ''); setClientEmail(d.clientEmail || '')
     setSourceLead(d.sourceLead || null)
     setWorkType(d.workType || defaultPresetName); setPayTerms(Array.isArray(d.payTerms) ? d.payTerms : []); setQuoteTerms(d.quoteTerms || ''); setValidUntil(d.validUntil || ''); setRevision(d.revision || 0)
@@ -940,7 +952,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     setNotes(q.notes || '')
     setVatEnabled(q.vat_enabled != null ? q.vat_enabled : (!!q.vat_amount || (tpl?.default_vat_enabled ?? true)))
     setDiscountType(q.discount_type || null); setDiscountValue(q.discount_value || 0)
-    setShowFooter(q.show_footer ?? true); setShowSignature(q.show_signature ?? true); setShowBank(q.show_bank ?? (tpl?.default_show_bank ?? false)); setShowSignImage(q.show_sign_image ?? false); setShowStampImage(q.show_stamp_image ?? false); setShowTerms(q.show_terms ?? true); setShowPayment(q.show_payment ?? true); setShowWhyUs(q.show_why_us ?? true)
+    setShowFooter(q.show_footer ?? true); setShowSignature(q.show_signature ?? true); setShowBank(q.show_bank ?? (tpl?.default_show_bank ?? false)); setShowSignImage(q.show_sign_image ?? false); setShowStampImage(q.show_stamp_image ?? false); setSignDate(q.sign_date || ''); setShowTerms(q.show_terms ?? true); setShowPayment(q.show_payment ?? true); setShowWhyUs(q.show_why_us ?? true)
     setQuoteTheme(q.quote_theme || 'gold'); setProjTimeline(parseTimeline(q.project_timeline))
     setLocation(q.location || ''); setPreparedBy(q.prepared_by || ''); setClientEmail(q.client_email || ''); setClientTrn(q.client_trn || ''); setSourceLead(null)
     setWorkType(q.work_type || defaultPresetName)
@@ -1091,7 +1103,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
       work_type: workType || null, valid_until: validUntil || null, revision: Number(revision) || 0,
       notes: notes.trim() || null,
       show_footer: showFooter, show_signature: showSignature, show_bank: showBank,
-      show_sign_image: showSignImage, show_stamp_image: showStampImage,
+      show_sign_image: showSignImage, show_stamp_image: showStampImage, sign_date: signDate || null,
       show_terms: showTerms, show_payment: showPayment, show_why_us: showWhyUs,
       quote_theme: quoteTheme, project_timeline: projTimeline.length ? projTimeline : null,
       created_at: new Date().toISOString(),
@@ -1137,7 +1149,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         revision: Number(revision) || 0,
         notes: notes.trim() || null,
         show_footer: showFooter, show_signature: showSignature, show_bank: showBank,
-      show_sign_image: showSignImage, show_stamp_image: showStampImage,
+      show_sign_image: showSignImage, show_stamp_image: showStampImage, sign_date: signDate || null,
       show_terms: showTerms, show_payment: showPayment, show_why_us: showWhyUs,
         quote_theme: quoteTheme, project_timeline: projTimeline.length ? projTimeline : null,
         status: sendNow ? 'sent' : 'draft',
@@ -1318,6 +1330,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         status: cForm.status || 'draft',
         show_sign_image: !!cForm.show_sign_image,
         show_stamp_image: !!cForm.show_stamp_image,
+        sign_date: cForm.sign_date || null,
       }
       const { data, error } = await supabase.from('contracts').update(patch)
         .eq('id', cForm.id).eq('company_id', company.id).select().single()
@@ -1493,9 +1506,19 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
       // lines stay level with each other.
       const signGap = signArt ? 58 : 24
 
+      // Signed-on date, written under the line in a handwriting face so it reads
+      // as part of the signature rather than as printed body text. Falls back to
+      // the document's own date when no signing date was entered.
+      const signedOn = signArt
+        ? new Date(q.sign_date || q.created_at || Date.now()).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })
+        : ''
+      const signDateLine = signedOn
+        ? `<div style="font-family:'Caveat','Segoe Script',cursive;font-size:15px;color:#1a2b4a;margin-top:3px;line-height:1.1;">${escapeHtml(signedOn)}</div>`
+        : ''
+
       const signBlock = wantSign ? `
         <div style="padding:20px 30px 6px;margin-top:14px;border-top:0.5px solid #eee;display:flex;gap:30px;page-break-inside:avoid;break-inside:avoid;">
-          <div style="flex:1;text-align:center;"><div style="font-size:9px;font-weight:700;color:#6b6b6b;margin-bottom:${signGap}px;">For ${cName}</div>${signArt}<div style="border-bottom:1px solid #1a1a1a;"></div><div style="font-size:8px;color:#999;margin-top:4px;">Authorized Signatory · Date · Stamp</div></div>
+          <div style="flex:1;text-align:center;"><div style="font-size:9px;font-weight:700;color:#6b6b6b;margin-bottom:${signGap}px;">For ${cName}</div>${signArt}<div style="border-bottom:1px solid #1a1a1a;"></div>${signDateLine}<div style="font-size:8px;color:#999;margin-top:4px;">Authorized Signatory · Date · Stamp</div></div>
           <div style="flex:1;text-align:center;"><div style="font-size:9px;font-weight:700;color:#6b6b6b;margin-bottom:${signGap}px;">Client Acceptance & Approval</div><div style="border-bottom:1px solid #1a1a1a;"></div><div style="font-size:9px;color:#1a1a1a;font-weight:700;margin-top:4px;">${q.client_prefix?escapeHtml(q.client_prefix)+' ':''}${escapeHtml(q.client_name||'Client')}</div><div style="font-size:8px;color:#999;margin-top:1px;">Signature · Date</div></div>
         </div>` : ''
 
@@ -1684,11 +1707,19 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     const w = window.open('', '_blank')
     if (!w) { toast.error('Allow pop-ups for Print / PDF'); return }
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title || 'Document')}</title>
+      <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+      <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&display=swap" rel="stylesheet">
       <style>@page{ size:A4; margin:12mm } * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; } html,body{ margin:0; background:#fff }</style>
       </head><body>${html}<script>
         (function(){
           function go(){ try{ window.focus(); window.print(); }catch(e){} }
           function ready(){
+            // Wait for the handwriting face too — printing before it lands would
+            // render the signed-on date in a fallback serif.
+            var fonts = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
+            fonts.then(afterFonts, afterFonts);
+          }
+          function afterFonts(){
             var imgs = Array.prototype.slice.call(document.images || []);
             var pending = imgs.filter(function(im){ return !im.complete; });
             if (!pending.length){ setTimeout(go, 80); return; }
@@ -2705,6 +2736,19 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
                 {asset && <img src={asset} alt="" style={{ height:22, maxWidth:56, objectFit:'contain', background:'#fff', borderRadius:4, padding:2 }}/>}
               </label>
             ))}
+            {/* Signed-on date, written under the line in handwriting. Prefilled
+                with the quotation's own date; only offered once artwork prints. */}
+            {showSignature && (showSignImage || showStampImage) && (tpl?.signature_data || tpl?.stamp_data) && (
+              <div style={{ display:'flex', alignItems:'center', gap:10, background:cardBg, border:`1px solid ${border}`, borderRadius:8, padding:'9px 12px', flexWrap:'wrap' }}>
+                <i className="ti ti-calendar-event" style={{ fontSize:15, color:textSub }}/>
+                <div style={{ flex:1, minWidth:110 }}>
+                  <div style={{ fontSize:13, color:text }}>Signed on</div>
+                  <div style={{ fontSize:11, color:textMuted }}>Leave blank to use the quotation date</div>
+                </div>
+                <input type="date" value={signDate} onChange={e=>setSignDate(e.target.value)}
+                  style={{ ...inputStyle, width:'auto', minWidth:148, flexShrink:0 }}/>
+              </div>
+            )}
             <label style={{ display:'flex', alignItems:'center', gap:10, background:cardBg, border:`1px solid ${showBank?'#0099cc':border}`, borderRadius:8, padding:'9px 12px', cursor:'pointer' }}>
               <input type="checkbox" checked={showBank} onChange={e=>setShowBank(e.target.checked)} style={{ width:'auto' }}/>
               <i className="ti ti-building-bank" style={{ fontSize:15, color:textSub }}/>
