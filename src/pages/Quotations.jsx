@@ -4,6 +4,8 @@ import { useAuth } from '../lib/auth'
 import { useToast } from '../lib/toast'
 import UpgradeLockModal from '../components/UpgradeLockModal'
 import HeroActions from '../components/HeroActions'
+import DocViewer from '../components/DocViewer'
+import buildContractHTML, { contractNoFromQuote, DEFAULT_CLAUSES, buildSnapshot, scopeReferenceFor } from '../lib/contractDoc'
 
 const STATUS_STYLE = {
   draft:    { label:'draft',    color:'#64748b', bg:'#f1f5f9' },
@@ -249,6 +251,143 @@ function A4Preview({ html }) {
   )
 }
 
+/* Contract tab body — empty state, clause editor, and the A4 preview.
+   Kept as its own component so the preview screen stays readable; all colours
+   come in through `ui` so it follows the page's light/dark tokens. */
+function ContractTab({ q, contract, cForm, setCForm, cBusy, onGenerate, onSave, onDelete, onPrint, html, ui }) {
+  const { text, textSub, textMuted, border, cardBg, subBg, inputStyle, isDark } = ui
+
+  if (!contract) {
+    return (
+      <div style={{ background:cardBg, border:`1px dashed ${border}`, borderRadius:14, padding:'40px 22px', textAlign:'center' }}>
+        <div style={{ width:56, height:56, borderRadius:14, background:subBg, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 14px' }}>
+          <i className="ti ti-file-certificate" style={{ fontSize:26, color:textMuted }}/>
+        </div>
+        <h3 style={{ fontSize:16, fontWeight:700, color:text, margin:'0 0 6px' }}>No contract yet</h3>
+        <p style={{ fontSize:13, color:textSub, margin:'0 auto 18px', lineHeight:1.6, maxWidth:440 }}>
+          Generate a formal Contract Agreement from this quotation. The line items, totals and payment
+          schedule are copied across and frozen, so later changes to the quotation will not alter the contract.
+        </p>
+        <button onClick={onGenerate} disabled={cBusy}
+          style={{ padding:'11px 20px', background:'#0099cc', color:'#fff', border:'none', borderRadius:9, fontSize:13.5, fontWeight:600, cursor: cBusy?'default':'pointer', opacity: cBusy?0.6:1 }}>
+          <i className="ti ti-file-plus" style={{ fontSize:15, verticalAlign:'-2px', marginRight:6 }}/>
+          {cBusy ? 'Generating…' : 'Generate Contract from Quotation'}
+        </button>
+        <div style={{ fontSize:11.5, color:textMuted, marginTop:12 }}>
+          Contract number will be <strong style={{ color:textSub }}>{contractNoFromQuote(q.quote_number)}</strong>
+        </div>
+      </div>
+    )
+  }
+
+  // ---- editing ----
+  if (cForm) {
+    const set = (k, v) => setCForm(prev => ({ ...prev, [k]: v }))
+    const extras = Array.isArray(cForm.extra_clauses) ? cForm.extra_clauses : []
+    const setExtra = (i, k, v) => setCForm(prev => ({ ...prev, extra_clauses: extras.map((x, j) => j === i ? { ...x, [k]: v } : x) }))
+    const field = (label, key, rows) => (
+      <div style={{ marginBottom:14 }}>
+        <label style={{ display:'block', fontSize:12, fontWeight:600, color:textSub, marginBottom:5 }}>{label}</label>
+        {rows
+          ? <textarea value={cForm[key] || ''} onChange={e=>set(key, e.target.value)} rows={rows}
+              style={{ ...inputStyle, resize:'vertical', lineHeight:1.6, fontFamily:'inherit' }}/>
+          : <input value={cForm[key] || ''} onChange={e=>set(key, e.target.value)} style={inputStyle}/>}
+      </div>
+    )
+    return (
+      <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:14, padding:'16px 16px 18px' }}>
+        <div style={{ fontSize:15, fontWeight:700, color:text, marginBottom:4 }}>Edit contract {cForm.contract_no}</div>
+        <div style={{ fontSize:12, color:textMuted, marginBottom:16 }}>
+          Scope, items and totals are frozen from the quotation and cannot be edited here.
+        </div>
+
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(210px,1fr))', gap:'0 14px' }}>
+          <div style={{ marginBottom:14 }}>
+            <label style={{ display:'block', fontSize:12, fontWeight:600, color:textSub, marginBottom:5 }}>Contract date</label>
+            <input type="date" value={cForm.contract_date || ''} onChange={e=>set('contract_date', e.target.value)} style={inputStyle}/>
+          </div>
+          <div style={{ marginBottom:14 }}>
+            <label style={{ display:'block', fontSize:12, fontWeight:600, color:textSub, marginBottom:5 }}>Status</label>
+            <select value={cForm.status || 'draft'} onChange={e=>set('status', e.target.value)} style={inputStyle}>
+              <option value="draft">Draft</option><option value="sent">Sent</option><option value="signed">Signed</option>
+            </select>
+          </div>
+          {field('Client name', 'client_name')}
+          {field('Client phone', 'client_phone')}
+        </div>
+        {field('Client address', 'client_address', 2)}
+        {field('Scope reference', 'scope_reference', 2)}
+        {field('Timeline', 'timeline_text', 3)}
+        {field('Warranty', 'warranty_text', 3)}
+        {field('Payment terms', 'payment_terms_text', 3)}
+        {field('Variation orders', 'variation_text', 3)}
+
+        <div style={{ borderTop:`1px solid ${border}`, paddingTop:14, marginTop:2 }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:9, gap:10, flexWrap:'wrap' }}>
+            <span style={{ fontSize:13, fontWeight:600, color:text }}>Additional clauses</span>
+            <button onClick={()=>setCForm(prev=>({ ...prev, extra_clauses:[...extras, { title:'', body:'' }] }))}
+              style={{ padding:'7px 13px', borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:12, fontWeight:600, cursor:'pointer' }}>
+              <i className="ti ti-plus" style={{ fontSize:12, verticalAlign:'-2px', marginRight:3 }}/> Add clause
+            </button>
+          </div>
+          {extras.length === 0 && <div style={{ fontSize:11.5, color:textMuted, marginBottom:8 }}>No additional clauses. They are numbered automatically on the document.</div>}
+          {extras.map((x, i) => (
+            <div key={i} style={{ border:`1px solid ${border}`, borderRadius:9, padding:11, marginBottom:9, background:subBg }}>
+              <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:7 }}>
+                <span style={{ fontSize:11, fontWeight:700, color:textMuted, flexShrink:0 }}>10.{i+1}</span>
+                <input value={x.title || ''} onChange={e=>setExtra(i,'title',e.target.value)} placeholder="Clause title" style={{ ...inputStyle, flex:1 }}/>
+                <button onClick={()=>setCForm(prev=>({ ...prev, extra_clauses: extras.filter((_,j)=>j!==i) }))}
+                  title="Remove clause"
+                  style={{ width:30, height:30, flexShrink:0, borderRadius:7, border:`1px solid ${border}`, background:cardBg, color:'#dc2626', cursor:'pointer' }}>
+                  <i className="ti ti-trash" style={{ fontSize:14 }}/>
+                </button>
+              </div>
+              <textarea value={x.body || ''} onChange={e=>setExtra(i,'body',e.target.value)} rows={2} placeholder="Clause text"
+                style={{ ...inputStyle, resize:'vertical', lineHeight:1.6, fontFamily:'inherit' }}/>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display:'flex', gap:8, marginTop:16, flexWrap:'wrap' }}>
+          <button onClick={onSave} disabled={cBusy}
+            style={{ padding:'10px 20px', borderRadius:9, border:'none', background:'#0099cc', color:'#fff', fontSize:13, fontWeight:600, cursor: cBusy?'default':'pointer', opacity: cBusy?0.6:1 }}>
+            {cBusy ? 'Saving…' : 'Save contract'}
+          </button>
+          <button onClick={()=>setCForm(null)} disabled={cBusy}
+            style={{ padding:'10px 18px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}>Cancel</button>
+          <button onClick={onDelete} disabled={cBusy}
+            style={{ padding:'10px 16px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:'#dc2626', fontSize:13, fontWeight:600, cursor:'pointer', marginLeft:'auto' }}>
+            <i className="ti ti-trash" style={{ fontSize:14, verticalAlign:'-2px', marginRight:4 }}/> Delete
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ---- preview ----
+  const stCol = contract.status === 'signed' ? '#0f6e56' : contract.status === 'sent' ? '#92400e' : '#64748b'
+  return (
+    <div>
+      <div style={{ display:'flex', alignItems:'center', gap:9, marginBottom:12, flexWrap:'wrap' }}>
+        <span style={{ fontSize:14, fontWeight:700, color:text }}>{contract.contract_no}</span>
+        <span style={{ fontSize:11, fontWeight:600, color:stCol, background:isDark?stCol+'22':stCol+'18', padding:'3px 10px', borderRadius:99, textTransform:'capitalize' }}>{contract.status || 'draft'}</span>
+        <span style={{ fontSize:11.5, color:textMuted }}>Frozen from {contract.snapshot?.quote_number || q.quote_number}</span>
+      </div>
+      <A4Preview html={html} />
+      <div style={{ display:'flex', gap:8, justifyContent:'center', marginTop:16, flexWrap:'wrap' }}>
+        <button onClick={onPrint}
+          style={{ padding:'10px 18px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+          <i className="ti ti-printer" style={{ fontSize:14, verticalAlign:'-2px', marginRight:5 }}/> Print / PDF
+        </button>
+        <button onClick={()=>setCForm(contract)}
+          style={{ padding:'10px 18px', borderRadius:9, border:'none', background:'#0099cc', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer' }}>
+          <i className="ti ti-edit" style={{ fontSize:14, verticalAlign:'-2px', marginRight:5 }}/> Edit
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function Quotations({ subRoute = '', setSubRoute, startAi = false }) {
   const { company, user } = useAuth()
   const toast = useToast()
@@ -339,6 +478,15 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
 
   const [restoring, setRestoring] = useState(true)
 
+  // ---- Contract state ----
+  // contractByQuote powers the list badge; `contract` is the one for the open quote.
+  const [contractByQuote, setContractByQuote] = useState({})   // { [quotation_id]: contract }
+  const [contract, setContract]     = useState(null)
+  const [docTab, setDocTab]         = useState('quotation')    // 'quotation' | 'contract'
+  const [cForm, setCForm]           = useState(null)           // editable draft, null = not editing
+  const [cBusy, setCBusy]           = useState(false)
+  const [docView, setDocView]       = useState(null)           // in-app A4 viewer { title, html, filename }
+
   // Trades come from BOTH Quote Settings (default_trades) AND the Description Library
   // (distinct trade_section values), merged + de-duplicated. Falls back to defaults only if empty.
   const tradeList = (() => {
@@ -377,7 +525,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   }
 
   useEffect(() => {
-    if (company?.id) { fetchQuotes(); fetchTemplate(); loadLibrary() }
+    if (company?.id) { fetchQuotes(); fetchTemplate(); loadLibrary(); fetchContracts() }
     setDraftExists(!!loadDraft())
     const observer = new MutationObserver(() => forceUpdate(n => n + 1))
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
@@ -417,6 +565,10 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
       if (q) {
         setActiveQuote(q)
         if (v === 'detail') { setVos([]); fetchVos(q.id) }
+        // Reset the doc tab only when a DIFFERENT quote is opened — otherwise the
+        // "Contract" button on the detail screen (which pre-selects the tab and
+        // then navigates) would have its choice wiped by this effect.
+        if (activeQuote?.id !== q.id) { setCForm(null); setDocTab('quotation') }
         setViewRaw(v)
       } else {
         setViewRaw('list'); setSub('')
@@ -442,6 +594,13 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     setRestoring(false)
   }, [loading, subRoute, quotes])
 
+  // Keep the open quote's contract in step with the company-wide map. The map is
+  // fetched asynchronously, so reading it once during route restore would miss a
+  // contract that arrives a moment later.
+  useEffect(() => {
+    setContract(activeQuote ? (contractByQuote[activeQuote.id] || null) : null)
+  }, [activeQuote, contractByQuote])
+
   // "AI Quote Builder" sidebar entry → open a fresh builder with the AI modal already up.
   const aiStartedRef = useRef(false)
   useEffect(() => {
@@ -461,6 +620,17 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     const { data } = await supabase.from('quotation_templates').select('*')
       .eq('company_id', company.id).maybeSingle()
     setTpl(data || null)
+  }
+  // Every contract for this company, keyed by quotation — drives the list badge
+  // and tells the Contract tab whether one already exists.
+  async function fetchContracts() {
+    try {
+      const { data } = await supabase.from('contracts').select('*')
+        .eq('company_id', company.id).order('created_at', { ascending: false })
+      const map = {}
+      for (const row of data || []) if (!map[row.quotation_id]) map[row.quotation_id] = row
+      setContractByQuote(map)
+    } catch { setContractByQuote({}) }
   }
   async function loadLibrary() {
     try {
@@ -1058,6 +1228,100 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     toast.success('Variation deleted')
   }
 
+  // ============ CONTRACTS ============
+  // A contract is a frozen snapshot of the quotation at the moment it is
+  // generated — later revisions to the quote must never alter an issued
+  // contract, so everything commercial is copied into `snapshot` here and the
+  // document renders from that copy, not from the live quotation row.
+  async function generateContract(q) {
+    if (!q || cBusy) return
+    setCBusy(true)
+    try {
+      const payments = parsePaymentTpl(q.payment_terms || tpl?.payment_schedule)
+      const row = {
+        company_id: company.id,
+        quotation_id: q.id,
+        contract_no: contractNoFromQuote(q.quote_number),
+        contract_date: new Date().toISOString().slice(0, 10),
+        client_name: q.client_name || '',
+        client_address: q.location || '',
+        client_phone: q.client_phone || '',
+        scope_reference: scopeReferenceFor(q),
+        snapshot: buildSnapshot(q, payments.length ? payments : DEFAULT_PAYMENTS),
+        timeline_text: DEFAULT_CLAUSES.timeline_text,
+        warranty_text: DEFAULT_CLAUSES.warranty_text,
+        payment_terms_text: DEFAULT_CLAUSES.payment_terms_text,
+        variation_text: DEFAULT_CLAUSES.variation_text,
+        extra_clauses: [],
+        status: 'draft',
+      }
+      const { data, error } = await supabase.from('contracts').insert(row).select().single()
+      if (error) throw error
+      setContract(data)
+      setContractByQuote(prev => ({ ...prev, [q.id]: data }))
+      setCForm(data)                     // open straight into edit so the clauses can be adjusted
+      toast.success(`Contract ${data.contract_no} generated`)
+    } catch (e) {
+      // PostgREST reports an unknown table through the schema cache, not 42P01 —
+      // point at the migration rather than showing a cryptic message.
+      const msg = String(e?.message || '')
+      const missingTable = /schema cache|does not exist|find the table/i.test(msg)
+      toast.error(missingTable ? 'Run the contracts migration in Supabase first' : (msg || 'Could not generate the contract'))
+    } finally { setCBusy(false) }
+  }
+
+  async function saveContract() {
+    if (!cForm || cBusy) return
+    setCBusy(true)
+    try {
+      const patch = {
+        contract_date: cForm.contract_date || null,
+        client_name: cForm.client_name || '',
+        client_address: cForm.client_address || '',
+        client_phone: cForm.client_phone || '',
+        scope_reference: cForm.scope_reference || '',
+        timeline_text: cForm.timeline_text || '',
+        warranty_text: cForm.warranty_text || '',
+        payment_terms_text: cForm.payment_terms_text || '',
+        variation_text: cForm.variation_text || '',
+        extra_clauses: Array.isArray(cForm.extra_clauses)
+          ? cForm.extra_clauses.filter(x => (x.title || '').trim() || (x.body || '').trim()) : [],
+        status: cForm.status || 'draft',
+      }
+      const { data, error } = await supabase.from('contracts').update(patch)
+        .eq('id', cForm.id).eq('company_id', company.id).select().single()
+      if (error) throw error
+      setContract(data)
+      setContractByQuote(prev => ({ ...prev, [data.quotation_id]: data }))
+      setCForm(null)
+      toast.success('Contract saved')
+    } catch (e) { toast.error(e?.message || 'Save failed') }
+    finally { setCBusy(false) }
+  }
+
+  async function deleteContract() {
+    if (!contract) return
+    if (!window.confirm('Delete this contract? The quotation itself is not affected.')) return
+    const { error } = await supabase.from('contracts').delete().eq('id', contract.id).eq('company_id', company.id)
+    if (error) { toast.error('Delete failed'); return }
+    setContractByQuote(prev => { const n = { ...prev }; delete n[contract.quotation_id]; return n })
+    setContract(null); setCForm(null)
+    toast.success('Contract deleted')
+  }
+
+  // Filename pattern: CNT-011_ClientName.pdf
+  function contractFileName(c) {
+    const client = String(c?.client_name || 'Client').replace(/[\\/:*?"<>|]+/g, '').trim().replace(/\s+/g, '')
+    return `${c?.contract_no || 'CNT'}_${client || 'Client'}`
+  }
+  function printContract(c) {
+    setDocView({
+      title: `Contract Agreement · ${c.contract_no}`,
+      filename: contractFileName(c),
+      html: buildContractHTML(c, { company, tpl }),
+    })
+  }
+
   // ============ PDF HTML GENERATOR (quotes + VO) ============
   function buildQuoteHTML(q, voMeta) {
     const cName  = escapeHtml(tpl?.company_legal_name || company?.name || 'Company')
@@ -1497,14 +1761,46 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
             {canPremium && <div style={{ fontSize:11, color:'#d97706', fontWeight:600 }}>Premium template</div>}
           </div>
         </div>
-        <A4Preview html={pageHtml} />
-        <div style={{ display:'flex', gap:8, justifyContent:'center', marginTop:16, flexWrap:'wrap' }}>
-          <button onClick={()=>printQuote(q)} style={{ padding:'10px 18px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}><i className="ti ti-printer" style={{ fontSize:14, verticalAlign:'-2px', marginRight:5 }}/> Print / PDF</button>
-          <button onClick={()=>whatsappQuote(q)} style={{ padding:'10px 18px', borderRadius:9, border:'none', background:'#22c55e', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer' }}><i className="ti ti-brand-whatsapp" style={{ fontSize:14, verticalAlign:'-2px', marginRight:5 }}/> Send via WhatsApp</button>
-          {!previewDraft && q.public_token && (
-            <button onClick={()=>copyApprovalLink(q)} style={{ padding:'10px 18px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}><i className="ti ti-link" style={{ fontSize:14, verticalAlign:'-2px', marginRight:5 }}/> Approval link</button>
-          )}
-        </div>
+        {/* Document tabs — an unsaved draft preview has no quotation row yet, so
+            it cannot have a contract; the tabs only appear for saved quotes. */}
+        {!previewDraft && (
+          <div style={{ display:'flex', gap:6, marginBottom:14, background:subBg, border:`1px solid ${border}`, borderRadius:10, padding:4, width:'fit-content', maxWidth:'100%', overflowX:'auto' }}>
+            {[['quotation','Quotation','ti-file-text'], ['contract','Contract','ti-file-certificate']].map(([key,label,icon]) => {
+              const on = docTab === key
+              return (
+                <button key={key} onClick={()=>setDocTab(key)}
+                  style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:7, border:'none', cursor:'pointer', whiteSpace:'nowrap',
+                    background: on ? (isDark?'rgba(3,193,245,0.15)':'#e0f9ff') : 'transparent',
+                    color: on ? '#0099cc' : textSub, fontSize:13, fontWeight: on?600:400 }}>
+                  <i className={`ti ${icon}`} style={{ fontSize:15 }}/> {label}
+                  {key==='contract' && contract && <span style={{ width:6, height:6, borderRadius:'50%', background:'#16a34a' }}/>}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {(previewDraft || docTab === 'quotation') ? (
+          <>
+            <A4Preview html={pageHtml} />
+            <div style={{ display:'flex', gap:8, justifyContent:'center', marginTop:16, flexWrap:'wrap' }}>
+              <button onClick={()=>printQuote(q)} style={{ padding:'10px 18px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}><i className="ti ti-printer" style={{ fontSize:14, verticalAlign:'-2px', marginRight:5 }}/> Print / PDF</button>
+              <button onClick={()=>whatsappQuote(q)} style={{ padding:'10px 18px', borderRadius:9, border:'none', background:'#22c55e', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer' }}><i className="ti ti-brand-whatsapp" style={{ fontSize:14, verticalAlign:'-2px', marginRight:5 }}/> Send via WhatsApp</button>
+              {!previewDraft && q.public_token && (
+                <button onClick={()=>copyApprovalLink(q)} style={{ padding:'10px 18px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}><i className="ti ti-link" style={{ fontSize:14, verticalAlign:'-2px', marginRight:5 }}/> Approval link</button>
+              )}
+            </div>
+          </>
+        ) : (
+          <ContractTab
+            q={q} contract={contract} cForm={cForm} setCForm={setCForm} cBusy={cBusy}
+            onGenerate={()=>generateContract(q)} onSave={saveContract} onDelete={deleteContract}
+            onPrint={()=>printContract(contract)}
+            html={contract ? buildContractHTML(contract, { company, tpl }) : ''}
+            ui={{ text, textSub, textMuted, border, cardBg, subBg, inputStyle, isDark }}
+          />
+        )}
+        <DocViewer doc={docView} onClose={()=>setDocView(null)} />
       </div>
     )
   }
@@ -1803,6 +2099,10 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
           </button>
           <button onClick={()=>openPreview(q)} style={{ flex:1, minWidth:80, padding:'10px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:13, fontWeight:600, cursor:'pointer' }}>
             <i className="ti ti-eye" style={{ fontSize:14, verticalAlign:'-2px', marginRight:4 }}/> View
+          </button>
+          {/* Jumps to the preview screen with the Contract tab already open. */}
+          <button onClick={()=>{ setDocTab('contract'); openPreview(q) }} style={{ flex:1, minWidth:80, padding:'10px', borderRadius:9, border:`1px solid ${border}`, background:cardBg, color: contractByQuote[q.id] ? '#0f6e56' : text, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+            <i className="ti ti-file-certificate" style={{ fontSize:14, verticalAlign:'-2px', marginRight:4 }}/> {contractByQuote[q.id] ? contractByQuote[q.id].contract_no : 'Contract'}
           </button>
           <button onClick={deleteQuote} style={{ flex:1, minWidth:80, padding:'10px', borderRadius:9, border:`1px solid #fca5a5`, background:cardBg, color:'#dc2626', fontSize:13, fontWeight:600, cursor:'pointer' }}>
             <i className="ti ti-trash" style={{ fontSize:14, verticalAlign:'-2px', marginRight:4 }}/> Delete
@@ -2504,6 +2804,12 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
                   <div style={{ fontSize:14, fontWeight:600, color:text, display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
                     {q.quote_number||'Untitled'}
                     {Number(q.revision) > 0 && <span style={{ fontSize:10, fontWeight:700, color:'#d97706', background:isDark?'#d9770622':'#fff7ed', padding:'1px 7px', borderRadius:99 }}>Rev. {Number(q.revision)}</span>}
+                    {contractByQuote[q.id] && (
+                      <span title={`Contract ${contractByQuote[q.id].contract_no}`}
+                        style={{ display:'inline-flex', alignItems:'center', gap:3, fontSize:10, fontWeight:700, color:'#0f6e56', background:isDark?'#0f6e5622':'#e1f5ee', padding:'1px 7px', borderRadius:99 }}>
+                        <i className="ti ti-file-certificate" style={{ fontSize:11 }}/>{contractByQuote[q.id].contract_no}
+                      </span>
+                    )}
                     <span style={{ fontSize:11, color:md.color, background:isDark?md.color+'22':md.bg, padding:'1px 8px', borderRadius:99 }}>{md.label}</span>
                     {q.client_uid && <span style={{ fontSize:10, color:textMuted, fontFamily:'monospace' }}>{q.client_uid}</span>}
                   </div>
