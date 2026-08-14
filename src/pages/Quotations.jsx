@@ -322,6 +322,27 @@ function ContractTab({ q, contract, cForm, setCForm, cBusy, onGenerate, onSave, 
         {field('Payment terms', 'payment_terms_text', 3)}
         {field('Variation orders', 'variation_text', 3)}
 
+        {/* Signature / stamp on the printed contract — same opt-in as the quote */}
+        <div style={{ borderTop:`1px solid ${border}`, paddingTop:14, marginTop:2, marginBottom:6 }}>
+          <div style={{ fontSize:13, fontWeight:600, color:text, marginBottom:9 }}>Signature &amp; stamp</div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))', gap:9 }}>
+            {[
+              ['show_sign_image',  'Print signature',     'ti-signature', ui.signatureData],
+              ['show_stamp_image', 'Print company stamp', 'ti-stamp',     ui.stampData],
+            ].map(([key, label, icon, asset]) => (
+              <label key={key} style={{ display:'flex', alignItems:'center', gap:10, background:subBg, border:`1px solid ${cForm[key]&&asset?'#0099cc':border}`, borderRadius:8, padding:'9px 12px', cursor: asset?'pointer':'not-allowed', opacity: asset?1:0.55 }}>
+                <input type="checkbox" checked={!!(cForm[key] && asset)} disabled={!asset} onChange={e=>set(key, e.target.checked)} style={{ width:'auto' }}/>
+                <i className={`ti ${icon}`} style={{ fontSize:15, color:textSub }}/>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:13, color:text }}>{label}</div>
+                  <div style={{ fontSize:11, color:textMuted }}>{asset ? 'Placed over the signing line' : 'Upload it in Quote Settings first'}</div>
+                </div>
+                {asset && <img src={asset} alt="" style={{ height:22, maxWidth:56, objectFit:'contain', background:'#fff', borderRadius:4, padding:2 }}/>}
+              </label>
+            ))}
+          </div>
+        </div>
+
         <div style={{ borderTop:`1px solid ${border}`, paddingTop:14, marginTop:2 }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:9, gap:10, flexWrap:'wrap' }}>
             <span style={{ fontSize:13, fontWeight:600, color:text }}>Additional clauses</span>
@@ -441,6 +462,11 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   const [showFooter, setShowFooter] = useState(true)
   const [showSignature, setShowSignature] = useState(true)
   const [showBank, setShowBank] = useState(false)
+  // Print the uploaded signature / stamp into the signature block. Opt-in per
+  // document and default off — putting a signature on paper is a deliberate act,
+  // not something that should happen to every quote automatically.
+  const [showSignImage, setShowSignImage]   = useState(false)
+  const [showStampImage, setShowStampImage] = useState(false)
   const [showTerms, setShowTerms] = useState(true)
   const [showPayment, setShowPayment] = useState(true)
   const [showWhyUs, setShowWhyUs] = useState(true)
@@ -550,7 +576,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         setItems(Array.isArray(d.items) && d.items.length ? d.items : [blankItem()])
         setVatEnabled(d.vatEnabled ?? true)
         setDiscountType(d.discountType ?? null); setDiscountValue(d.discountValue ?? 0)
-        setNotes(d.notes || ''); setShowFooter(d.showFooter ?? true); setShowSignature(d.showSignature ?? true); setShowBank(d.showBank ?? false); setShowTerms(d.showTerms ?? true); setShowPayment(d.showPayment ?? true); setShowWhyUs(d.showWhyUs ?? true); setQuoteTheme(d.quoteTheme ?? 'gold'); setProjTimeline(d.projTimeline ?? [])
+        setNotes(d.notes || ''); setShowFooter(d.showFooter ?? true); setShowSignature(d.showSignature ?? true); setShowBank(d.showBank ?? false); setShowSignImage(d.showSignImage ?? false); setShowStampImage(d.showStampImage ?? false); setShowTerms(d.showTerms ?? true); setShowPayment(d.showPayment ?? true); setShowWhyUs(d.showWhyUs ?? true); setQuoteTheme(d.quoteTheme ?? 'gold'); setProjTimeline(d.projTimeline ?? [])
         setLocation(d.location || ''); setPreparedBy(d.preparedBy || ''); setClientEmail(d.clientEmail || ''); setClientTrn(d.clientTrn || '')
         setSourceLead(d.sourceLead || null)
         setWorkType(d.workType || defaultPresetName); setPayTerms(Array.isArray(d.payTerms) ? d.payTerms : []); setQuoteTerms(d.quoteTerms || ''); setValidUntil(d.validUntil || ''); setRevision(d.revision || 0)
@@ -831,6 +857,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         payment_terms: q.payment_terms, why_choose_us: q.why_choose_us, terms: q.terms,
         work_type: q.work_type || null, valid_until: null,
         show_footer: q.show_footer ?? true, show_signature: q.show_signature ?? true, show_bank: q.show_bank ?? false,
+        showSignImage: q.show_sign_image ?? false, showStampImage: q.show_stamp_image ?? false,
         quote_theme: q.quote_theme || 'gold', project_timeline: q.project_timeline || null,
         status: 'draft',
       }
@@ -892,7 +919,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     setVisualSections(normMode(d.mode) === 'visual' && Array.isArray(d.items) && d.items.some(it => (it.trade || '').trim()))
     setVatEnabled(d.vatEnabled ?? true)
     setDiscountType(d.discountType ?? null); setDiscountValue(d.discountValue ?? 0)
-    setNotes(d.notes || ''); setShowFooter(d.showFooter ?? true); setShowSignature(d.showSignature ?? true); setShowBank(d.showBank ?? false); setShowTerms(d.showTerms ?? true); setShowPayment(d.showPayment ?? true); setShowWhyUs(d.showWhyUs ?? true)
+    setNotes(d.notes || ''); setShowFooter(d.showFooter ?? true); setShowSignature(d.showSignature ?? true); setShowBank(d.showBank ?? false); setShowSignImage(d.showSignImage ?? false); setShowStampImage(d.showStampImage ?? false); setShowTerms(d.showTerms ?? true); setShowPayment(d.showPayment ?? true); setShowWhyUs(d.showWhyUs ?? true)
     setLocation(d.location || ''); setPreparedBy(d.preparedBy || ''); setClientEmail(d.clientEmail || '')
     setSourceLead(d.sourceLead || null)
     setWorkType(d.workType || defaultPresetName); setPayTerms(Array.isArray(d.payTerms) ? d.payTerms : []); setQuoteTerms(d.quoteTerms || ''); setValidUntil(d.validUntil || ''); setRevision(d.revision || 0)
@@ -913,7 +940,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     setNotes(q.notes || '')
     setVatEnabled(q.vat_enabled != null ? q.vat_enabled : (!!q.vat_amount || (tpl?.default_vat_enabled ?? true)))
     setDiscountType(q.discount_type || null); setDiscountValue(q.discount_value || 0)
-    setShowFooter(q.show_footer ?? true); setShowSignature(q.show_signature ?? true); setShowBank(q.show_bank ?? (tpl?.default_show_bank ?? false)); setShowTerms(q.show_terms ?? true); setShowPayment(q.show_payment ?? true); setShowWhyUs(q.show_why_us ?? true)
+    setShowFooter(q.show_footer ?? true); setShowSignature(q.show_signature ?? true); setShowBank(q.show_bank ?? (tpl?.default_show_bank ?? false)); setShowSignImage(q.show_sign_image ?? false); setShowStampImage(q.show_stamp_image ?? false); setShowTerms(q.show_terms ?? true); setShowPayment(q.show_payment ?? true); setShowWhyUs(q.show_why_us ?? true)
     setQuoteTheme(q.quote_theme || 'gold'); setProjTimeline(parseTimeline(q.project_timeline))
     setLocation(q.location || ''); setPreparedBy(q.prepared_by || ''); setClientEmail(q.client_email || ''); setClientTrn(q.client_trn || ''); setSourceLead(null)
     setWorkType(q.work_type || defaultPresetName)
@@ -1064,6 +1091,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
       work_type: workType || null, valid_until: validUntil || null, revision: Number(revision) || 0,
       notes: notes.trim() || null,
       show_footer: showFooter, show_signature: showSignature, show_bank: showBank,
+      show_sign_image: showSignImage, show_stamp_image: showStampImage,
       show_terms: showTerms, show_payment: showPayment, show_why_us: showWhyUs,
       quote_theme: quoteTheme, project_timeline: projTimeline.length ? projTimeline : null,
       created_at: new Date().toISOString(),
@@ -1109,6 +1137,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         revision: Number(revision) || 0,
         notes: notes.trim() || null,
         show_footer: showFooter, show_signature: showSignature, show_bank: showBank,
+      show_sign_image: showSignImage, show_stamp_image: showStampImage,
       show_terms: showTerms, show_payment: showPayment, show_why_us: showWhyUs,
         quote_theme: quoteTheme, project_timeline: projTimeline.length ? projTimeline : null,
         status: sendNow ? 'sent' : 'draft',
@@ -1287,6 +1316,8 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         extra_clauses: Array.isArray(cForm.extra_clauses)
           ? cForm.extra_clauses.filter(x => (x.title || '').trim() || (x.body || '').trim()) : [],
         status: cForm.status || 'draft',
+        show_sign_image: !!cForm.show_sign_image,
+        show_stamp_image: !!cForm.show_stamp_image,
       }
       const { data, error } = await supabase.from('contracts').update(patch)
         .eq('id', cForm.id).eq('company_id', company.id).select().single()
@@ -1442,9 +1473,23 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
           </div>
         </div>` : ''
 
+      // Signature / stamp artwork, printed only when this document opts in AND
+      // the company has uploaded one. Absolutely positioned over the signing
+      // line so ticking the box never reflows the block or shifts page breaks.
+      const signArt = (() => {
+        const sig = (q.show_sign_image ?? false) ? (tpl?.signature_data || '') : ''
+        const stp = (q.show_stamp_image ?? false) ? (tpl?.stamp_data || '') : ''
+        if (!sig && !stp) return ''
+        const img = (src, extra) => `<img src="${escapeHtml(src)}" style="position:absolute;bottom:2px;max-height:52px;max-width:46%;object-fit:contain;${extra}">`
+        return `<div style="position:relative;height:0;">
+          ${stp ? img(stp, 'right:6%;opacity:.92;') : ''}
+          ${sig ? img(sig, 'left:8%;') : ''}
+        </div>`
+      })()
+
       const signBlock = wantSign ? `
         <div style="padding:20px 30px 6px;margin-top:14px;border-top:0.5px solid #eee;display:flex;gap:30px;page-break-inside:avoid;break-inside:avoid;">
-          <div style="flex:1;text-align:center;"><div style="font-size:9px;font-weight:700;color:#6b6b6b;margin-bottom:24px;">For ${cName}</div><div style="border-bottom:1px solid #1a1a1a;"></div><div style="font-size:8px;color:#999;margin-top:4px;">Authorized Signatory · Date · Stamp</div></div>
+          <div style="flex:1;text-align:center;"><div style="font-size:9px;font-weight:700;color:#6b6b6b;margin-bottom:24px;">For ${cName}</div>${signArt}<div style="border-bottom:1px solid #1a1a1a;"></div><div style="font-size:8px;color:#999;margin-top:4px;">Authorized Signatory · Date · Stamp</div></div>
           <div style="flex:1;text-align:center;"><div style="font-size:9px;font-weight:700;color:#6b6b6b;margin-bottom:24px;">Client Acceptance & Approval</div><div style="border-bottom:1px solid #1a1a1a;"></div><div style="font-size:9px;color:#1a1a1a;font-weight:700;margin-top:4px;">${q.client_prefix?escapeHtml(q.client_prefix)+' ':''}${escapeHtml(q.client_name||'Client')}</div><div style="font-size:8px;color:#999;margin-top:1px;">Signature · Date</div></div>
         </div>` : ''
 
@@ -1797,7 +1842,8 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
             onGenerate={()=>generateContract(q)} onSave={saveContract} onDelete={deleteContract}
             onPrint={()=>printContract(contract)}
             html={contract ? buildContractHTML(contract, { company, tpl }) : ''}
-            ui={{ text, textSub, textMuted, border, cardBg, subBg, inputStyle, isDark }}
+            ui={{ text, textSub, textMuted, border, cardBg, subBg, inputStyle, isDark,
+                  signatureData: tpl?.signature_data || '', stampData: tpl?.stamp_data || '' }}
           />
         )}
         <DocViewer doc={docView} onClose={()=>setDocView(null)} />
@@ -2637,6 +2683,22 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
                 <div style={{ fontSize:11, color:textMuted }}>{canPremium?'Dual-party signature block':'Authorized signature block'} on the PDF</div>
               </div>
             </label>
+            {/* Print the uploaded artwork into that block. Only offered when the
+                block itself is on, and disabled until something is uploaded. */}
+            {showSignature && [
+              ['sign',  'Print signature',   'ti-signature', showSignImage,  setShowSignImage,  tpl?.signature_data],
+              ['stamp', 'Print company stamp', 'ti-stamp',   showStampImage, setShowStampImage, tpl?.stamp_data],
+            ].map(([key, label, icon, on, set, asset]) => (
+              <label key={key} style={{ display:'flex', alignItems:'center', gap:10, background:cardBg, border:`1px solid ${on&&asset?'#0099cc':border}`, borderRadius:8, padding:'9px 12px', cursor: asset?'pointer':'not-allowed', opacity: asset?1:0.55 }}>
+                <input type="checkbox" checked={!!(on && asset)} disabled={!asset} onChange={e=>set(e.target.checked)} style={{ width:'auto' }}/>
+                <i className={`ti ${icon}`} style={{ fontSize:15, color:textSub }}/>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:13, color:text }}>{label}</div>
+                  <div style={{ fontSize:11, color:textMuted }}>{asset ? 'Placed over the signing line' : 'Upload it in Quote Settings first'}</div>
+                </div>
+                {asset && <img src={asset} alt="" style={{ height:22, maxWidth:56, objectFit:'contain', background:'#fff', borderRadius:4, padding:2 }}/>}
+              </label>
+            ))}
             <label style={{ display:'flex', alignItems:'center', gap:10, background:cardBg, border:`1px solid ${showBank?'#0099cc':border}`, borderRadius:8, padding:'9px 12px', cursor:'pointer' }}>
               <input type="checkbox" checked={showBank} onChange={e=>setShowBank(e.target.checked)} style={{ width:'auto' }}/>
               <i className="ti ti-building-bank" style={{ fontSize:15, color:textSub }}/>

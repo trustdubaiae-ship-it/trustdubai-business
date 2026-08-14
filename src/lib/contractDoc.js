@@ -200,6 +200,20 @@ export default function buildContractHTML(contract, ctx = {}) {
 
   const clientLine = `${snap.client_prefix ? escapeHtml(snap.client_prefix) + ' ' : ''}${escapeHtml(c.client_name || '')}`
 
+  // Signature / stamp artwork on the contractor side, printed only when this
+  // contract opts in AND the company has uploaded one. Absolutely positioned
+  // over the signing line so ticking the box never reflows the block.
+  const signArt = (() => {
+    const sig = c.show_sign_image ? (tpl?.signature_data || '') : ''
+    const stp = c.show_stamp_image ? (tpl?.stamp_data || '') : ''
+    if (!sig && !stp) return ''
+    const img = (src, extra) => `<img src="${escapeHtml(src)}" style="position:absolute;bottom:2px;max-height:58px;max-width:46%;object-fit:contain;${extra}">`
+    return `<div style="position:relative;height:0;">
+      ${stp ? img(stp, 'right:4%;opacity:.92;') : ''}
+      ${sig ? img(sig, 'left:6%;') : ''}
+    </div>`
+  })()
+
   return `<div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;max-width:760px;margin:0 auto;background:#fff;">
     <div style="height:5px;background:${ACC};"></div>
     <div style="padding:22px 30px 0;">
@@ -263,6 +277,7 @@ export default function buildContractHTML(contract, ctx = {}) {
     <div style="padding:6px 30px 8px;display:flex;gap:30px;flex-wrap:wrap;page-break-inside:avoid;break-inside:avoid;">
       <div style="flex:1;min-width:220px;text-align:center;">
         <div style="font-size:9px;font-weight:700;color:#6b6b6b;margin-bottom:30px;">For and on behalf of ${cName}</div>
+        ${signArt}
         <div style="border-bottom:1px solid #1a1a1a;"></div>
         <div style="font-size:8px;color:#999;margin-top:4px;">Authorised Signatory · Date · Company Stamp</div>
       </div>

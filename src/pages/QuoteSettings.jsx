@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { useToast } from '../lib/toast'
 import HeroActions from '../components/HeroActions'
+import { fileToDataUri, dataUriBytes, formatBytes } from '../lib/imageData'
 
 const DEFAULT_TRADES = ['Civil', 'MEP', 'False Ceiling', 'Flooring', 'Painting', 'Joinery', 'Sanitary']
 const DEFAULT_WHY = [
@@ -136,6 +137,11 @@ export default function QuoteSettings() {
   const [bankSwift, setBankSwift]             = useState('')
   const [bankBranch, setBankBranch]           = useState('')
   const [showBankDefault, setShowBankDefault] = useState(false)
+  // Signature + company stamp, held as data URIs on the row (never uploaded to
+  // the public company-assets bucket - see supabase/migrations/20260815).
+  const [signatureData, setSignatureData] = useState('')
+  const [stampData, setStampData] = useState('')
+  const [imgBusy, setImgBusy] = useState('')   // 'signature' | 'stamp' while encoding
 
   useEffect(() => {
     if (company?.id) fetchTemplate()
@@ -169,6 +175,8 @@ export default function QuoteSettings() {
       setBankSwift(data.bank_swift || '')
       setBankBranch(data.bank_branch || '')
       setShowBankDefault(data.default_show_bank ?? false)
+      setSignatureData(data.signature_data || '')
+      setStampData(data.stamp_data || '')
     } else {
       // no row yet — sensible defaults pulled from company
       setLegalName(company?.name || '')
@@ -275,6 +283,8 @@ export default function QuoteSettings() {
         bank_swift: bankSwift.trim() || null,
         bank_branch: bankBranch.trim() || null,
         default_show_bank: showBankDefault,
+        signature_data: signatureData || null,
+        stamp_data: stampData || null,
       }
       const { error } = await supabase.from('quotation_templates')
         .upsert(payload, { onConflict: 'company_id' })
@@ -485,6 +495,58 @@ export default function QuoteSettings() {
             <p style={{ margin:'8px 0 0', fontSize:11, color:textMuted }}>One point per line. Appears in the footer of quotes using this work type.</p>
           </div>
         )}
+      </div>
+
+      {/* Signature & Company Stamp */}
+      <div style={cardStyle}>
+        <div style={cardHead}><i className="ti ti-signature" style={{ fontSize:18, color:'#0099cc' }}/> Signature &amp; Company Stamp</div>
+        <p style={{ margin:'0 0 14px', fontSize:11, color:textMuted, lineHeight:1.6 }}>
+          Upload once here, then tick &ldquo;Print signature&rdquo; or &ldquo;Print stamp&rdquo; on any quotation or contract to place them
+          on the printed document. A transparent PNG works best, cropped tight, so it sits over the signing line
+          without a white box. Images are stored on your company record, not in public file storage.
+        </p>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(240px,1fr))', gap:14 }}>
+          {[
+            ['signature', 'Signature', signatureData, setSignatureData],
+            ['stamp',     'Company stamp', stampData, setStampData],
+          ].map(([key, label, value, setter]) => (
+            <div key={key}>
+              <label style={labelStyle}>{label}</label>
+              <div style={{ border:`1px dashed ${border}`, borderRadius:10, padding:12, background:subBg }}>
+                {/* white plate behind the preview: these are transparent PNGs and
+                    would be invisible against the dark-mode card */}
+                <div style={{ background:'#fff', borderRadius:8, minHeight:96, display:'flex', alignItems:'center', justifyContent:'center', padding:8, marginBottom:10, overflow:'hidden' }}>
+                  {value
+                    ? <img src={value} alt={label} style={{ maxWidth:'100%', maxHeight:110, objectFit:'contain' }}/>
+                    : <span style={{ fontSize:11.5, color:'#94a3b8' }}>No {label.toLowerCase()} uploaded</span>}
+                </div>
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
+                  <label style={{ padding:'8px 14px', borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:text, fontSize:12.5, fontWeight:600, cursor: imgBusy?'default':'pointer', opacity: imgBusy===key?0.6:1 }}>
+                    <i className="ti ti-upload" style={{ fontSize:13, verticalAlign:'-2px', marginRight:5 }}/>
+                    {imgBusy === key ? 'Processing...' : (value ? 'Replace' : 'Upload')}
+                    <input type="file" accept="image/png,image/jpeg" style={{ display:'none' }}
+                      onChange={async e => {
+                        const f = e.target.files && e.target.files[0]
+                        e.target.value = ''
+                        if (!f) return
+                        setImgBusy(key)
+                        try { setter(await fileToDataUri(f)); toast.success(`${label} ready — remember to save`) }
+                        catch (err) { toast.error(err.message || 'Could not read that image') }
+                        finally { setImgBusy('') }
+                      }}/>
+                  </label>
+                  {value && (
+                    <button onClick={()=>setter('')}
+                      style={{ padding:'8px 12px', borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:'#dc2626', fontSize:12.5, fontWeight:600, cursor:'pointer' }}>
+                      <i className="ti ti-trash" style={{ fontSize:13, verticalAlign:'-2px', marginRight:4 }}/> Remove
+                    </button>
+                  )}
+                  {value && <span style={{ fontSize:11, color:textMuted }}>{formatBytes(dataUriBytes(value))}</span>}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Bank / Payment Account */}
