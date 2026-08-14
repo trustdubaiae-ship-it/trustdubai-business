@@ -224,8 +224,9 @@ export default function buildContractHTML(contract, ctx = {}) {
         </div>
       </div>
 
-      <!-- 2. Parties -->
-      ${sectionHead(1, 'Parties')}
+      <!-- 2. Parties. The title block above is section 1, so the numbered
+           sections start at 2 and run unbroken to 11. -->
+      ${sectionHead(2, 'Parties')}
       <div style="display:flex;gap:14px;margin-bottom:4px;flex-wrap:wrap;">
         <div style="flex:1;min-width:220px;background:#faf9f7;border-left:2.5px solid ${ACC};padding:10px 13px;">
           <div style="font-size:8.5px;color:#b08f3f;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:4px;">The Contractor</div>
@@ -256,7 +257,10 @@ export default function buildContractHTML(contract, ctx = {}) {
     ${extraBlock}
 
     <!-- 11. Signatures -->
-    <div style="padding:22px 30px 8px;margin-top:16px;border-top:0.5px solid #eee;display:flex;gap:30px;flex-wrap:wrap;page-break-inside:avoid;break-inside:avoid;">
+    <div style="padding:16px 30px 0;page-break-inside:avoid;break-inside:avoid;">
+      ${sectionHead(11, 'Signatures')}
+    </div>
+    <div style="padding:6px 30px 8px;display:flex;gap:30px;flex-wrap:wrap;page-break-inside:avoid;break-inside:avoid;">
       <div style="flex:1;min-width:220px;text-align:center;">
         <div style="font-size:9px;font-weight:700;color:#6b6b6b;margin-bottom:30px;">For and on behalf of ${cName}</div>
         <div style="border-bottom:1px solid #1a1a1a;"></div>

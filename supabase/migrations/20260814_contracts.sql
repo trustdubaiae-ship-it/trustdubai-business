@@ -27,7 +27,7 @@ create table if not exists public.contracts (
   warranty_text text,
   payment_terms_text text,
   variation_text text,
-  extra_clauses jsonb default '[]'::jsonb, -- [{ title, body }] — auto-numbered on the document
+  extra_clauses jsonb default '[]'::jsonb, -- [{ title, body }] auto-numbered on the document
 
   status text default 'draft',             -- draft | sent | signed
 
@@ -42,10 +42,18 @@ create unique index if not exists contracts_company_no_uidx
 create index if not exists contracts_company_idx    on public.contracts(company_id);
 create index if not exists contracts_quotation_idx  on public.contracts(quotation_id);
 
--- keep updated_at honest
+-- keep updated_at honest.
+-- Named dollar tag ($fn$) rather than bare $$: some SQL editors split pasted
+-- statements on the semicolons inside the body when the tag is anonymous.
 create or replace function public.fn_contracts_touch()
-returns trigger language plpgsql as $$
-begin new.updated_at = now(); return new; end; $$;
+returns trigger
+language plpgsql
+as $fn$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$fn$;
 
 drop trigger if exists contracts_touch on public.contracts;
 create trigger contracts_touch before update on public.contracts
@@ -58,8 +66,20 @@ create trigger contracts_touch before update on public.contracts
 -- ---------------------------------------------------------------------------
 grant select, insert, update, delete on public.contracts to anon, authenticated;
 
+-- Supabase enables RLS on new public tables, so without a policy every write is
+-- rejected with 42501. This policy scopes access to SIGNED-IN users only, which
+-- is already stricter than quotations/invoices: those are readable with the bare
+-- anon key that ships in the client bundle, this is not.
+--
+-- It is not yet scoped per company - see the note below - so the company_id
+-- filter every query already applies is still what separates tenants.
+alter table public.contracts enable row level security;
+drop policy if exists contracts_authenticated on public.contracts;
+create policy contracts_authenticated on public.contracts
+  for all to authenticated using (true) with check (true);
+
 -- ---------------------------------------------------------------------------
--- OPTIONAL HARDENING — read this before enabling.
+-- OPTIONAL HARDENING - read this before enabling.
 --
 -- The block below turns on real row-level security so a company can only reach
 -- its own contracts. It is left commented out because it is only half-complete:
