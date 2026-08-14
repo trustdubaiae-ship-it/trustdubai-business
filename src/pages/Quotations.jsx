@@ -1487,10 +1487,16 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         </div>`
       })()
 
+      // Room above the signing line. The artwork is 52px tall but the default
+      // gap is only 24px, so without this the signature printed straight through
+      // the "For <company>" line. Applied to BOTH columns so the two signing
+      // lines stay level with each other.
+      const signGap = signArt ? 58 : 24
+
       const signBlock = wantSign ? `
         <div style="padding:20px 30px 6px;margin-top:14px;border-top:0.5px solid #eee;display:flex;gap:30px;page-break-inside:avoid;break-inside:avoid;">
-          <div style="flex:1;text-align:center;"><div style="font-size:9px;font-weight:700;color:#6b6b6b;margin-bottom:24px;">For ${cName}</div>${signArt}<div style="border-bottom:1px solid #1a1a1a;"></div><div style="font-size:8px;color:#999;margin-top:4px;">Authorized Signatory · Date · Stamp</div></div>
-          <div style="flex:1;text-align:center;"><div style="font-size:9px;font-weight:700;color:#6b6b6b;margin-bottom:24px;">Client Acceptance & Approval</div><div style="border-bottom:1px solid #1a1a1a;"></div><div style="font-size:9px;color:#1a1a1a;font-weight:700;margin-top:4px;">${q.client_prefix?escapeHtml(q.client_prefix)+' ':''}${escapeHtml(q.client_name||'Client')}</div><div style="font-size:8px;color:#999;margin-top:1px;">Signature · Date</div></div>
+          <div style="flex:1;text-align:center;"><div style="font-size:9px;font-weight:700;color:#6b6b6b;margin-bottom:${signGap}px;">For ${cName}</div>${signArt}<div style="border-bottom:1px solid #1a1a1a;"></div><div style="font-size:8px;color:#999;margin-top:4px;">Authorized Signatory · Date · Stamp</div></div>
+          <div style="flex:1;text-align:center;"><div style="font-size:9px;font-weight:700;color:#6b6b6b;margin-bottom:${signGap}px;">Client Acceptance & Approval</div><div style="border-bottom:1px solid #1a1a1a;"></div><div style="font-size:9px;color:#1a1a1a;font-weight:700;margin-top:4px;">${q.client_prefix?escapeHtml(q.client_prefix)+' ':''}${escapeHtml(q.client_name||'Client')}</div><div style="font-size:8px;color:#999;margin-top:1px;">Signature · Date</div></div>
         </div>` : ''
 
       const bankBlock = (wantBank && bankFields.length) ? `

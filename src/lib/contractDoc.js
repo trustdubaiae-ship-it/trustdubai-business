@@ -213,6 +213,10 @@ export default function buildContractHTML(contract, ctx = {}) {
       ${sig ? img(sig, 'left:6%;') : ''}
     </div>`
   })()
+  // Room above the signing line. The artwork is 58px tall but the default gap is
+  // only 30px, so without this the signature printed through the "For and on
+  // behalf of <company>" line. Applied to BOTH columns so the lines stay level.
+  const signGap = signArt ? 66 : 30
 
   return `<div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;max-width:760px;margin:0 auto;background:#fff;">
     <div style="height:5px;background:${ACC};"></div>
@@ -276,13 +280,13 @@ export default function buildContractHTML(contract, ctx = {}) {
     </div>
     <div style="padding:6px 30px 8px;display:flex;gap:30px;flex-wrap:wrap;page-break-inside:avoid;break-inside:avoid;">
       <div style="flex:1;min-width:220px;text-align:center;">
-        <div style="font-size:9px;font-weight:700;color:#6b6b6b;margin-bottom:30px;">For and on behalf of ${cName}</div>
+        <div style="font-size:9px;font-weight:700;color:#6b6b6b;margin-bottom:${signGap}px;">For and on behalf of ${cName}</div>
         ${signArt}
         <div style="border-bottom:1px solid #1a1a1a;"></div>
         <div style="font-size:8px;color:#999;margin-top:4px;">Authorised Signatory · Date · Company Stamp</div>
       </div>
       <div style="flex:1;min-width:220px;text-align:center;">
-        <div style="font-size:9px;font-weight:700;color:#6b6b6b;margin-bottom:30px;">For and on behalf of the Client</div>
+        <div style="font-size:9px;font-weight:700;color:#6b6b6b;margin-bottom:${signGap}px;">For and on behalf of the Client</div>
         <div style="border-bottom:1px solid #1a1a1a;"></div>
         <div style="font-size:9px;color:#1a1a1a;font-weight:700;margin-top:4px;">${clientLine || 'Client'}</div>
         <div style="font-size:8px;color:#999;margin-top:1px;">Signature · Date</div>
