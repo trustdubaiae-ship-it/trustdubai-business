@@ -458,7 +458,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
         .filter(r => r.label || r.pct)
       const payload = { company_id: company.id, project_id: active.id, name: x.name.trim(), trade: x.trade || null, phone: x.phone || null, status: x.status || 'ongoing', notes: x.notes || null,
         contact_person: x.contact_person?.trim() || null, owner_name: x.owner_name?.trim() || null, owner_mobile: x.owner_mobile?.trim() || null, vat_no: x.vat_no?.trim() || null, project_code: x.project_code?.trim() || null, apply_vat: !!x.apply_vat,
-        payment_days: numOr(x.payment_days, 30), payment_schedule: schedule, full_project: !!x.full_project, sub_company_id: x.sub_company_id || null }
+        payment_days: numOr(x.payment_days, 30), retention_pct: numOr(x.retention_pct, 0), payment_schedule: schedule, full_project: !!x.full_project, sub_company_id: x.sub_company_id || null }
       if (x.id) { const { error } = await supabase.from('project_subcontractors').update(payload).eq('id', x.id).eq('company_id', company.id); if (error) throw error }
       else { const { error } = await supabase.from('project_subcontractors').insert(payload); if (error) throw error }
       setSubForm(null); toast.success('Saved ✓'); reloadChildren()
@@ -537,12 +537,18 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
       setExtraModal(m => ({ ...m, extra_work: next })); reloadChildren()
     } catch (e) { console.error(e); toast.error('Delete failed') }
   }
-  async function assignScope(item, subId, amount) {
+  async function assignScope(item, subId, amount, rate) {
     try {
       const sub_amount = amount != null ? (Number(amount) || 0) : (Number(item.sub_amount) || 0)
+      // Derived when not typed, so an amount entered directly on a measured line
+      // still prints its per-unit rate on the LPO. Null on lump-sum lines.
+      const qty = Number(item.quantity) || 0
+      const sub_rate = rate !== undefined && rate !== null && rate !== ''
+        ? Number(rate)
+        : (qty > 0 && sub_amount > 0 ? +(sub_amount / qty).toFixed(4) : null)
       const prevSub = item.sub_id
-      await supabase.from('project_scope').update({ sub_id: subId || null, sub_amount }).eq('id', item.id).eq('company_id', company.id)
-      const next = scope.map(s => s.id === item.id ? { ...s, sub_id: subId || null, sub_amount } : s)
+      await supabase.from('project_scope').update({ sub_id: subId || null, sub_amount, sub_rate }).eq('id', item.id).eq('company_id', company.id)
+      const next = scope.map(s => s.id === item.id ? { ...s, sub_id: subId || null, sub_amount, sub_rate } : s)
       setScope(next)
       if (subId) await recomputeSubContract(subId, next)
       if (prevSub && prevSub !== subId) await recomputeSubContract(prevSub, next)
@@ -553,7 +559,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   async function doAssign(item, draft) {
     if (!draft.sub_id) { toast.error('Select a subcontractor first'); return }
     if (!(Number(draft.sub_amount) > 0)) { toast.error('Enter the amount before assigning'); return }
-    await assignScope(item, draft.sub_id, draft.sub_amount)
+    await assignScope(item, draft.sub_id, draft.sub_amount, draft.sub_rate)
     setAssignDrafts(d => { const n = { ...d }; delete n[item.id]; return n })
     setEditScopeId(null)
   }
@@ -568,7 +574,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
       const { data: q } = await supabase.from('quotations').select('items').eq('id', active.quote_id).eq('company_id', company.id).maybeSingle()
       const items = Array.isArray(q?.items) ? q.items : []
       if (!items.length) { toast.error('Quotation has no line items'); return }
-      const rows = items.map(it => ({ company_id: company.id, project_id: active.id, description: it.desc || '', unit: it.unit || null, quantity: Number(it.qty) || 1, client_amount: (Number(it.qty) || 0) * (Number(it.rate) || 0), trade: it.trade || null })).filter(r => r.description)
+      const rows = items.map(it => ({ company_id: company.id, project_id: active.id, description: it.desc || '', unit: it.unit || null, quantity: Number(it.qty) || 1, client_rate: Number(it.rate) || null, client_amount: (Number(it.qty) || 0) * (Number(it.rate) || 0), trade: it.trade || null })).filter(r => r.description)
       if (rows.length) { const { error } = await supabase.from('project_scope').insert(rows); if (error) throw error }
       toast.success(`Imported ${rows.length} scope items ✓`); reloadChildren()
     } catch (e) { console.error(e); toast.error('Import failed: ' + (e?.message || e)) }
@@ -578,7 +584,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
     if (!x.description?.trim()) { toast.error('Description is required'); return }
     setSaving(true)
     try {
-      const payload = { company_id: company.id, project_id: active.id, description: x.description.trim(), unit: x.unit || null, quantity: Number(x.quantity) || 1, client_amount: Number(x.client_amount) || 0, trade: x.trade || null }
+      const payload = { company_id: company.id, project_id: active.id, description: x.description.trim(), unit: x.unit || null, quantity: Number(x.quantity) || 1, client_amount: Number(x.client_amount) || 0, client_rate: x.client_rate === '' || x.client_rate == null ? null : Number(x.client_rate), trade: x.trade || null }
       if (x.id) { const { error } = await supabase.from('project_scope').update(payload).eq('id', x.id).eq('company_id', company.id); if (error) throw error }
       else { const { error } = await supabase.from('project_scope').insert(payload); if (error) throw error }
       setScopeForm(null); toast.success('Saved ✓'); reloadChildren()
@@ -1329,7 +1335,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
             <div style={{ fontSize: 12.5, color: 'var(--text2)' }}>Assign each scope line to a subcontractor with an amount.</div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {active.quote_id && scope.length === 0 && <button onClick={importScopeFromQuote} className="btn btn-secondary btn-sm"><i className="ti ti-download" /> Import from quote</button>}
-              <button onClick={() => setScopeForm({ description: '', unit: '', quantity: 1, client_amount: 0, trade: '' })} className="btn btn-primary btn-sm"><i className="ti ti-plus" /> Add item</button>
+              <button onClick={() => setScopeForm({ description: '', unit: '', quantity: 1, client_rate: '', client_amount: 0, trade: '' })} className="btn btn-primary btn-sm"><i className="ti ti-plus" /> Add item</button>
             </div>
           </div>
           {scope.length === 0 ? <div style={{ ...card, textAlign: 'center', color: 'var(--text3)', padding: '34px 16px' }}>{active.quote_id ? 'Import the scope from the linked quote, or add items manually.' : 'Add scope-of-work items.'}</div>
@@ -1351,12 +1357,12 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
                       return (
                         <div style={{ display: 'flex', gap: 8, marginTop: 9, flexWrap: 'wrap', alignItems: 'center' }}>
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#8b5cf6', background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.25)', borderRadius: 99, padding: '5px 11px' }}><i className="ti ti-user-check" style={{ fontSize: 14 }} /> {assignedSub ? assignedSub.name : 'Subcontractor'} · {AED(it.sub_amount)}</span>
-                          <button onClick={() => { setEditScopeId(it.id); setAssignDrafts(d => ({ ...d, [it.id]: { sub_id: it.sub_id, sub_amount: it.sub_amount } })) }} style={{ ...iconBtn, width: 'auto', height: 28, padding: '0 11px', fontSize: 12, fontWeight: 600 }}><i className="ti ti-switch-horizontal" style={{ fontSize: 13, verticalAlign: '-2px', marginRight: 3 }} /> Change</button>
+                          <button onClick={() => { setEditScopeId(it.id); setAssignDrafts(d => ({ ...d, [it.id]: { sub_id: it.sub_id, sub_amount: it.sub_amount, sub_rate: it.sub_rate ?? '' } })) }} style={{ ...iconBtn, width: 'auto', height: 28, padding: '0 11px', fontSize: 12, fontWeight: 600 }}><i className="ti ti-switch-horizontal" style={{ fontSize: 13, verticalAlign: '-2px', marginRight: 3 }} /> Change</button>
                           <button onClick={() => unassign(it)} style={{ ...iconBtn, width: 'auto', height: 28, padding: '0 11px', fontSize: 12, fontWeight: 600, color: '#ef4444' }}><i className="ti ti-user-minus" style={{ fontSize: 13, verticalAlign: '-2px', marginRight: 3 }} /> Remove</button>
                         </div>
                       )
                     }
-                    const draft = assignDrafts[it.id] || { sub_id: '', sub_amount: '' }
+                    const draft = assignDrafts[it.id] || { sub_id: '', sub_amount: '', sub_rate: '' }
                     const setDraft = patch => setAssignDrafts(d => ({ ...d, [it.id]: { ...draft, ...patch } }))
                     return (
                       <div style={{ display: 'flex', gap: 8, marginTop: 9, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -1365,7 +1371,30 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
                           <option value="">— Select subcontractor —</option>
                           {subs.map(s => <option key={s.id} value={s.id}>{s.name}{s.trade ? ' (' + s.trade + ')' : ''}</option>)}
                         </select>
-                        <input type="number" value={draft.sub_amount} onChange={e => setDraft({ sub_amount: e.target.value })} placeholder="Amount (AED)" style={{ ...input, width: 130, padding: '6px 9px', fontSize: 12 }} />
+                        {/* Rate is what actually gets negotiated with a sub
+                            ("8.50 a metre"), so it is the first box. Qty × rate
+                            fills the amount; a lump-sum line can still be typed
+                            straight into the amount and leaves the rate blank. */}
+                        <input type="number" step="any" value={draft.sub_rate ?? ''} placeholder={`Rate${it.unit ? ' /' + it.unit : ''}`}
+                          onChange={e => {
+                            const rate = e.target.value
+                            const qty = Number(it.quantity) || 0
+                            setDraft({ sub_rate: rate, ...(rate === '' ? {} : { sub_amount: +(qty * Number(rate)).toFixed(2) }) })
+                          }}
+                          style={{ ...input, width: 96, padding: '6px 9px', fontSize: 12 }} />
+                        <input type="number" step="any" value={draft.sub_amount}
+                          onChange={e => {
+                            const amt = e.target.value
+                            const qty = Number(it.quantity) || 0
+                            setDraft({ sub_amount: amt, ...(qty > 0 && amt !== '' ? { sub_rate: +(Number(amt) / qty).toFixed(4) } : {}) })
+                          }}
+                          placeholder="Amount (AED)" style={{ ...input, width: 130, padding: '6px 9px', fontSize: 12 }} />
+                        {Number(it.quantity) > 0 && Number(draft.sub_rate) > 0 && Number(it.client_amount) > 0 && (() => {
+                          const margin = Number(it.client_amount) - Number(draft.sub_amount || 0)
+                          return <span style={{ fontSize: 11, fontWeight: 700, color: margin >= 0 ? '#16a34a' : '#ef4444', whiteSpace: 'nowrap' }}>
+                            margin {margin >= 0 ? '+' : ''}{AED(margin)}
+                          </span>
+                        })()}
                         <button onClick={() => doAssign(it, draft)} style={{ height: 30, padding: '0 14px', borderRadius: 8, border: 'none', background: '#8b5cf6', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}><i className="ti ti-check" style={{ fontSize: 14, verticalAlign: '-2px', marginRight: 3 }} /> Assign</button>
                         {editing && <button onClick={() => { setEditScopeId(null); setAssignDrafts(d => { const n = { ...d }; delete n[it.id]; return n }) }} style={{ ...iconBtn, width: 'auto', height: 30, padding: '0 11px', fontSize: 12, fontWeight: 600 }}>Cancel</button>}
                       </div>
@@ -1390,7 +1419,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
                   onNavigate ? onNavigate('leads') : (window.location.hash = 'leads')
                 }} className="btn btn-secondary btn-sm"><i className="ti ti-building-store" style={{ verticalAlign: '-2px', marginRight: 3 }} /> Find on Marketplace</button>
               )}
-              <button onClick={() => setSubForm({ name: '', trade: 'MEP', phone: '', status: 'ongoing', notes: '', apply_vat: true, payment_days: 30, payment_schedule: [{ label: 'Advance on signing', pct: 40 }, { label: 'On delivery to site', pct: 30 }, { label: 'On completion & handover', pct: 30 }] })} className="btn btn-primary btn-sm"><i className="ti ti-plus" /> Add subcontractor</button>
+              <button onClick={() => setSubForm({ name: '', trade: 'MEP', phone: '', status: 'ongoing', notes: '', apply_vat: true, payment_days: 30, retention_pct: 0, payment_schedule: [{ label: 'Advance on signing', pct: 40 }, { label: 'On delivery to site', pct: 30 }, { label: 'On completion & handover', pct: 30 }] })} className="btn btn-primary btn-sm"><i className="ti ti-plus" /> Add subcontractor</button>
             </div>
           </div>
           {subs.length === 0 ? <div style={{ ...card, textAlign: 'center', color: 'var(--text3)', padding: '34px 16px' }}>No subcontractors yet. Add MEP, Gypsum, Tiles…</div>
@@ -1406,7 +1435,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
                       </div>
                       {s.phone && <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}><i className="ti ti-phone" style={{ fontSize: 12, verticalAlign: '-1px' }} /> {s.phone}{s.notes ? ' · ' + s.notes : ''}</div>}
                     </div>
-                    <button onClick={() => setSubForm({ ...s, apply_vat: s.apply_vat ?? true, payment_days: s.payment_days ?? 30, payment_schedule: (Array.isArray(s.payment_schedule) && s.payment_schedule.length) ? s.payment_schedule : [{ label: 'Advance on signing', pct: 40 }, { label: 'On delivery to site', pct: 30 }, { label: 'On completion & handover', pct: 30 }] })} style={iconBtn}><i className="ti ti-edit" style={{ fontSize: 15 }} /></button>
+                    <button onClick={() => setSubForm({ ...s, apply_vat: s.apply_vat ?? true, payment_days: s.payment_days ?? 30, retention_pct: s.retention_pct ?? 0, payment_schedule: (Array.isArray(s.payment_schedule) && s.payment_schedule.length) ? s.payment_schedule : [{ label: 'Advance on signing', pct: 40 }, { label: 'On delivery to site', pct: 30 }, { label: 'On completion & handover', pct: 30 }] })} style={iconBtn}><i className="ti ti-edit" style={{ fontSize: 15 }} /></button>
                     <button onClick={() => delSub(s.id)} style={{ ...iconBtn, color: '#ef4444' }}><i className="ti ti-trash" style={{ fontSize: 15 }} /></button>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', gap: 8, marginTop: 10 }}>
@@ -1742,8 +1771,14 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
               ))}
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 2 }}>
                 <button onClick={() => setSched([...sched, { label: '', pct: 0 }])} className="btn btn-secondary btn-sm" style={{ flex: 1 }}><i className="ti ti-plus" /> Add stage</button>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><label style={{ ...lbl, margin: 0, whiteSpace: 'nowrap' }}>Pay within</label><input type="number" min="0" value={subForm.payment_days ?? 30} onChange={e => setSubForm(s => ({ ...s, payment_days: e.target.value }))} style={{ ...input, width: 60, textAlign: 'center' }} /><span style={{ fontSize: 12, color: 'var(--text3)' }}>days</span></div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><label style={{ ...lbl, margin: 0, whiteSpace: 'nowrap' }}>Pay within</label><input type="number" min="0" value={subForm.payment_days ?? 30} onChange={e => setSubForm(s => ({ ...s, payment_days: e.target.value }))} style={{ ...input, width: 60, textAlign: 'center' }} /><span style={{ fontSize: 12, color: 'var(--text3)' }}>days of approval</span></div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><label style={{ ...lbl, margin: 0, whiteSpace: 'nowrap' }}>Retention</label><input type="number" min="0" max="100" value={subForm.retention_pct ?? 0} onChange={e => setSubForm(s => ({ ...s, retention_pct: e.target.value }))} style={{ ...input, width: 60, textAlign: 'center' }} /><span style={{ fontSize: 12, color: 'var(--text3)' }}>%</span></div>
               </div>
+              {Number(subForm.retention_pct) > 0 && (
+                <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 7, lineHeight: 1.6 }}>
+                  <i className="ti ti-lock" style={{ color: '#e0a000' }} /> {subForm.retention_pct}% held from each payment — half released on handover &amp; snag clearance, the rest after the 12-month defects liability period. A Retention clause is added to the LPO.
+                </div>
+              )}
             </>
           )
         })()}
@@ -1860,7 +1895,34 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
           <div><label style={lbl}>Unit</label><input value={scopeForm.unit} onChange={e => setScopeForm(s => ({ ...s, unit: e.target.value }))} style={input} placeholder="m² / Nos" /></div>
           <div><label style={lbl}>Trade</label><select value={scopeForm.trade} onChange={e => setScopeForm(s => ({ ...s, trade: e.target.value }))} style={input}><option value="">—</option>{TRADES.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
         </div>
-        <label style={lbl}>Client amount (AED) <span style={{ fontWeight: 400, color: 'var(--text3)' }}>— from the quote (revenue)</span></label><input type="number" value={scopeForm.client_amount} onChange={e => setScopeForm(s => ({ ...s, client_amount: e.target.value }))} style={input} />
+        {/* Rate and amount are two views of the same number. Typing a rate
+            multiplies it out by Qty; typing an amount divides it back. Lines
+            that are genuinely a lump sum just leave the rate blank. */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10 }}>
+          <div>
+            <label style={lbl}>Client rate (AED{scopeForm.unit ? ' / ' + scopeForm.unit : ' per unit'})</label>
+            <input type="number" step="any" value={scopeForm.client_rate ?? ''} placeholder="e.g. 17"
+              onChange={e => {
+                const rate = e.target.value
+                const qty = Number(scopeForm.quantity) || 0
+                setScopeForm(s => ({ ...s, client_rate: rate, client_amount: rate === '' ? s.client_amount : +(qty * Number(rate)).toFixed(2) }))
+              }} style={input} />
+          </div>
+          <div>
+            <label style={lbl}>Client amount (AED) <span style={{ fontWeight: 400, color: 'var(--text3)' }}>— revenue</span></label>
+            <input type="number" step="any" value={scopeForm.client_amount}
+              onChange={e => {
+                const amt = e.target.value
+                const qty = Number(scopeForm.quantity) || 0
+                setScopeForm(s => ({ ...s, client_amount: amt, client_rate: qty > 0 && amt !== '' ? +(Number(amt) / qty).toFixed(4) : s.client_rate }))
+              }} style={input} />
+          </div>
+        </div>
+        {Number(scopeForm.quantity) > 0 && Number(scopeForm.client_rate) > 0 && (
+          <div style={{ fontSize: 11.5, color: 'var(--text3)', marginTop: 7 }}>
+            {scopeForm.quantity} {scopeForm.unit || 'unit'} × AED {Number(scopeForm.client_rate).toLocaleString('en-AE')} = <b style={{ color: 'var(--text)' }}>AED {(Number(scopeForm.quantity) * Number(scopeForm.client_rate)).toLocaleString('en-AE')}</b>
+          </div>
+        )}
       </FormModal>}
     </div>
   )
@@ -1915,12 +1977,18 @@ const __escDoc = s => String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<
 function lpoBody(company, project, sub, items, lpo, others = []) {
   const esc = __escDoc
   const n = v => Math.round(Number(v) || 0).toLocaleString('en-AE')
+  // Rates carry decimals a rounded dirham figure would destroy (8.50, 17.25).
+  const rate = v => Number(v).toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const total = items.reduce((a, s) => a + (Number(s.sub_amount) || 0), 0)
   // 5% VAT — applied when the "Add 5% VAT" option is ticked for this subcontractor
   const vat = sub?.apply_vat ? Math.round(total * 0.05) : 0
   const grandTotal = total + vat
   // subcontractor payment terms — a custom schedule of stages (label + %), editable per subcontractor
   const payDays = Number(sub?.payment_days ?? 30)
+  // Retention held back from each payment, released after the defects liability
+  // period. The column has existed since 2026-06-22 but nothing read it.
+  const retPct = Math.max(0, Number(sub?.retention_pct ?? 0)) || 0
+  const retAmount = Math.round(grandTotal * retPct / 100)
   const DEFAULT_SCHEDULE = [{ label: 'Advance on signing', pct: 40 }, { label: 'On delivery to site', pct: 30 }, { label: 'On completion & handover', pct: 30 }]
   const schedule = (Array.isArray(sub?.payment_schedule) && sub.payment_schedule.length ? sub.payment_schedule : DEFAULT_SCHEDULE).filter(s => s && (s.label || Number(s.pct)))
   // whole-project handover — this subcontractor is responsible for the entire project
@@ -1949,6 +2017,7 @@ function lpoBody(company, project, sub, items, lpo, others = []) {
       ${imgCell(s)}
       <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${NAVY};">${esc(s.description)}</td>
       <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:center;color:${MUT};">${esc(s.quantity || '')} ${esc(s.unit || '')}</td>
+      <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;color:${MUT};">${Number(s.sub_rate) > 0 ? 'AED ' + rate(s.sub_rate) : '—'}</td>
       <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;font-weight:600;color:${NAVY};">AED ${n(s.sub_amount)}</td></tr>`).join('')
   const term = (t, d) => `<div style="margin-bottom:8px;page-break-inside:avoid;"><div style="font-size:8.5px;font-weight:700;color:${ACCENT};text-transform:uppercase;letter-spacing:1px;margin-bottom:2px;">${t}</div><div style="font-size:9.2px;color:#5d6b7a;line-height:1.55;text-align:justify;">${d}</div></div>`
   const logo = company?.logo_url ? `<img src="${esc(company.logo_url)}" style="height:48px;width:48px;object-fit:cover;border-radius:9px;flex-shrink:0;" />` : ''
@@ -1980,9 +2049,10 @@ function lpoBody(company, project, sub, items, lpo, others = []) {
         ${withImg ? `<th style="padding:10px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;width:52px;">Photo</th>` : ''}
         <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Scope of Work</th>
         <th style="padding:10px 11px;text-align:center;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Qty</th>
+        <th style="padding:10px 11px;text-align:right;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Rate</th>
         <th style="padding:10px 11px;text-align:right;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Amount</th>
       </tr></thead>
-      <tbody>${rows || `<tr><td colspan="${withImg ? 5 : 4}" style="padding:16px;text-align:center;color:#999;font-size:11px;">No scope assigned to this subcontractor yet.</td></tr>`}</tbody>
+      <tbody>${rows || `<tr><td colspan="${withImg ? 6 : 5}" style="padding:16px;text-align:center;color:#999;font-size:11px;">No scope assigned to this subcontractor yet.</td></tr>`}</tbody>
     </table>
     <div style="display:flex;justify-content:flex-end;margin-bottom:13px;page-break-inside:avoid;">
       <div style="min-width:280px;border:1px solid ${LINE};border-radius:9px;overflow:hidden;">
@@ -1992,7 +2062,7 @@ function lpoBody(company, project, sub, items, lpo, others = []) {
       </div>
     </div>
     <div style="border:1px solid ${LINE};border-radius:9px;overflow:hidden;margin-bottom:13px;page-break-inside:avoid;">
-      <div style="background:${SOFT};padding:9px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid ${LINE};"><span style="font-size:8.5px;font-weight:700;color:${ACCENT};text-transform:uppercase;letter-spacing:1px;">Payment Schedule</span><span style="font-size:9px;color:${MUT};">within ${payDays} days of each certified invoice</span></div>
+      <div style="background:${SOFT};padding:9px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid ${LINE};"><span style="font-size:8.5px;font-weight:700;color:${ACCENT};text-transform:uppercase;letter-spacing:1px;">Payment Schedule</span><span style="font-size:9px;color:${MUT};">within ${payDays} days of each approved invoice${retPct > 0 ? ' · less ' + retPct + '% retention' : ''}</span></div>
       ${schedule.map((s, i) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;${i < schedule.length - 1 ? 'border-bottom:1px solid ' + LINE + ';' : ''}">
         <span style="font-size:11px;color:${NAVY};">${esc(s.label || ('Stage ' + (i + 1)))}</span>
         <span style="display:flex;gap:16px;align-items:center;"><b style="font-size:11px;color:${ACCENT};min-width:34px;text-align:right;">${Number(s.pct) || 0}%</b><span style="font-size:11.5px;font-weight:700;color:${NAVY};min-width:96px;text-align:right;">AED ${n(grandTotal * (Number(s.pct) || 0) / 100)}</span></span>
@@ -2010,7 +2080,8 @@ function lpoBody(company, project, sub, items, lpo, others = []) {
       </div>
     </div>
     <div style="border-top:1px solid ${LINE};padding-top:12px;margin-bottom:8px;">
-      ${term('Payment', `Payment shall be released as per the schedule above, against work actually completed and certified by the Company, within <b>${payDays} days</b> of a correct, undisputed invoice for each stage. Each stage payment is subject to satisfactory progress, snagging clearance and the signed NDA. The Company may set off against any sum due any amount owed by the Subcontractor (including back-charges, damages or liquidated damages).`)}
+      ${term('Payment', `Payment shall be released as per the schedule above, against work actually completed and certified by the Company, <b>within ${payDays} days after the Subcontractor's invoice is approved by the Company</b>. An invoice is approved only once the works it covers have been inspected and accepted; an invoice that is incorrect, incomplete or disputed is not approved, and the ${payDays} days run from the date the corrected invoice is approved. Each stage payment is subject to satisfactory progress, snagging clearance and the signed NDA. The Company may set off against any sum due any amount owed by the Subcontractor (including back-charges, damages or liquidated damages).`)}
+      ${retPct > 0 ? term('Retention', `The Company shall retain <b>${retPct}% of each payment</b> (approximately <b>AED ${n(retAmount)}</b> of this order value) as retention. Half of the retention is released on practical completion, handover and clearance of all snags; the balance is released ${'twelve (12) months'} after handover, on expiry of the defects liability period and rectification of any defect notified during it. Retention is not released while any defect, back-charge or outstanding obligation remains.`) : ''}
       ${term('Timeline', `The Subcontractor shall complete all works ${subDue ? 'on or before <b style="color:#c0392b;">' + subDue + '</b>' : 'by the agreed completion date'}${bufferDays ? ', which is ' + bufferDays + ' days (15% of the project schedule) before the project completion date' : ''}, to allow time for inspection, snagging and handover. <b>Time is of the essence.</b>`)}
       ${term('Delay / Liquidated Damages', `If the Subcontractor fails to complete by the date above, the Company may, without prejudice to its other rights, levy liquidated damages of <b>1% of this LPO value for each day</b> of delay (or part thereof), up to a maximum of <b>10%</b> of the LPO value, and/or engage others to complete the works and back-charge the Subcontractor with the cost.`)}
       ${term('Coordination with Other Contractors &amp; Team', `Multiple contractors and trades are engaged on this project. The Subcontractor shall fully coordinate and cooperate with ${otherList ? 'the other contractors on this project (<b>' + otherList + '</b>)' : 'all other contractors and trades'} and with the Company’s site team and project engineer, follow the agreed work sequence, programme and site instructions, share access, scaffolding and services, and shall not obstruct, delay or damage the works of others. The Subcontractor shall attend coordination meetings as required and is liable for any delay, rework or damage it causes to other trades.`)}
@@ -2047,15 +2118,19 @@ function ndaBody(company, project, sub) {
     ${c('2. Confidentiality Obligations', `The Receiving Party shall: (a) keep all Confidential Information strictly secret and secure; (b) use it solely to perform the agreed works for the Disclosing Party and for no other purpose; (c) disclose it only to those of its personnel who strictly need it and who are bound by obligations no less protective than these; and (d) not copy, store on personal devices, publish, reverse-engineer or disclose it to any third party without the Disclosing Party’s prior written consent. The Receiving Party is fully liable for any breach by its partners, employees, workers or agents.`)}
     ${c('3. Non-Circumvention &amp; Non-Solicitation of Clients', `During the engagement and for <b>twenty-four (24) months</b> after its completion or termination, the Receiving Party shall not, whether directly or indirectly (including through relatives, associates or any other entity), approach, solicit, contact, quote to, accept work from, or transact with any client, customer, lead or prospect of the Disclosing Party that the Receiving Party became aware of or was introduced to through this engagement, for the same or similar works.`)}
     ${c('4. No Bypass', `The Receiving Party shall not attempt to bypass, circumvent or compete with the Disclosing Party in respect of the project or its end client, nor enter into any direct or indirect arrangement with the end client that deprives the Disclosing Party of its business, fees or margin.`)}
-    ${c('5. Non-Solicitation of Staff &amp; Suppliers', `During the engagement and for twelve (12) months thereafter, the Receiving Party shall not solicit or entice away any employee, worker or supplier of the Disclosing Party.`)}
-    ${c('6. Intellectual Property &amp; Ownership', `All Confidential Information, designs, drawings and documents remain the exclusive property of the Disclosing Party. No licence or right of any kind is granted to the Receiving Party except the limited right to use them strictly for the agreed works.`)}
-    ${c('7. Exclusions', `These obligations do not apply to information that the Receiving Party can prove: (a) is or becomes public other than through its breach; (b) was lawfully known to it before disclosure; or (c) is required to be disclosed by law or a competent court, provided the Receiving Party gives prompt written notice and discloses only the minimum required.`)}
-    ${c('8. Return &amp; Destruction', `On completion or termination, or on demand, the Receiving Party shall promptly return or, at the Disclosing Party’s option, permanently destroy all materials (and copies) containing Confidential Information and certify such destruction in writing.`)}
-    ${c('9. Term &amp; Survival', `This Agreement takes effect on the date above and the confidentiality obligations survive for twenty-four (24) months after completion or termination of the works, and indefinitely in respect of trade secrets.`)}
-    ${c('10. Remedies &amp; Injunctive Relief', `The Receiving Party acknowledges that any breach would cause the Disclosing Party irreparable harm for which damages alone are inadequate. The Disclosing Party shall be entitled, without the need to post any bond, to injunctive relief in addition to all other remedies, and to recover all resulting losses, lost profits, and legal and enforcement costs.`)}
-    ${c('11. Indemnity', `The Receiving Party shall indemnify and hold the Disclosing Party harmless against all losses, damages, claims and expenses arising out of or in connection with any breach of this Agreement by the Receiving Party or its personnel.`)}
-    ${c('12. General', `This Agreement is the entire agreement between the parties on its subject matter and supersedes any prior understanding. No failure to enforce any term is a waiver of it. If any provision is held invalid, the remainder stays in full force. Any amendment must be in writing and signed by both parties.`)}
-    ${c('13. Governing Law &amp; Jurisdiction', `This Agreement is governed by the laws of the United Arab Emirates, and the parties irrevocably submit to the exclusive jurisdiction of the competent courts of the Emirate in which the Disclosing Party is registered.`)}
+    ${c('5. Identity on Site &amp; the Disclosing Party’s Uniform', `The works are carried out in the Disclosing Party’s name. Accordingly, at all times on site the Receiving Party and every one of its personnel shall <b>wear the uniform / T-shirt supplied or approved by the Disclosing Party</b>, and shall not wear, display or apply any clothing, badge, signage, banner, sticker, tool marking or vehicle branding bearing the Receiving Party’s own name or logo. The Receiving Party shall not give the client, the consultant, the building management or any occupant its own business card, telephone number, e-mail, website or social media details, and shall not discuss rates, prices, margins, its own contract with the Disclosing Party, or any commercial matter with them. All such questions shall be referred to the Disclosing Party. Where identification is requested, the Receiving Party shall present itself as working for and on behalf of ${co}.`)}
+    ${c('6. No Photography, Filming or Publication', `The Receiving Party shall not photograph, film, record or scan the site, the drawings, the 3D designs, the samples or the finished works, save where strictly required to execute the works and permitted in writing by the Disclosing Party. It shall not publish, post, share, forward or display any such image or information — including on Instagram, TikTok, Facebook, LinkedIn, YouTube, WhatsApp status or groups, any website, portfolio, brochure, tender submission or advertisement — whether or not the Disclosing Party or the client is named or identifiable, without the Disclosing Party’s prior written consent. Any such material already published shall be removed on demand.`)}
+    ${c('7. Workers, Documents &amp; Site Conduct', `The Receiving Party shall deploy only the workers named in the list submitted to and approved by the Disclosing Party, and shall not substitute, add or replace any worker without prior approval. Every worker shall hold a valid Emirates ID and a valid UAE residence visa and work permit for the Receiving Party, and copies shall be provided on request. The Receiving Party is solely responsible for its personnel’s wages, insurance, accommodation, transport and statutory entitlements, and warrants full compliance with UAE labour, immigration and health-and-safety law. Its personnel shall observe all site rules, working hours, access, security and safety requirements of the Disclosing Party, the client and the building management, and shall wear the required personal protective equipment. The Disclosing Party may require the immediate removal from site of any person it considers unsuitable, unsafe or in breach of this Agreement, without any claim arising.`)}
+    ${c('8. Agreed Compensation for Circumvention', `Given the difficulty of quantifying the loss caused by a breach of clauses 3, 4 or 5, the parties agree that on any such breach the Receiving Party shall pay the Disclosing Party, as agreed compensation and not as a penalty, the greater of <b>AED 50,000</b> or <b>25% of the value of the work taken, quoted or performed</b> in breach. This is in addition to, and not in substitution for, the Disclosing Party’s right to injunctive relief, to recover its actual losses and lost profits where these exceed the sum above, and to recover its legal and enforcement costs. The Receiving Party confirms this sum is a genuine pre-estimate of loss, reasonable in the circumstances, and agreed with the benefit of an opportunity to take advice.`)}
+    ${c('9. Non-Solicitation of Staff &amp; Suppliers', `During the engagement and for twelve (12) months thereafter, the Receiving Party shall not solicit or entice away any employee, worker or supplier of the Disclosing Party.`)}
+    ${c('10. Intellectual Property &amp; Ownership', `All Confidential Information, designs, drawings and documents remain the exclusive property of the Disclosing Party. No licence or right of any kind is granted to the Receiving Party except the limited right to use them strictly for the agreed works.`)}
+    ${c('11. Exclusions', `These obligations do not apply to information that the Receiving Party can prove: (a) is or becomes public other than through its breach; (b) was lawfully known to it before disclosure; or (c) is required to be disclosed by law or a competent court, provided the Receiving Party gives prompt written notice and discloses only the minimum required.`)}
+    ${c('12. Return &amp; Destruction', `On completion or termination, or on demand, the Receiving Party shall promptly return or, at the Disclosing Party’s option, permanently destroy all materials (and copies) containing Confidential Information and certify such destruction in writing.`)}
+    ${c('13. Term &amp; Survival', `This Agreement takes effect on the date above and the confidentiality obligations survive for twenty-four (24) months after completion or termination of the works, and indefinitely in respect of trade secrets.`)}
+    ${c('14. Remedies &amp; Injunctive Relief', `The Receiving Party acknowledges that any breach would cause the Disclosing Party irreparable harm for which damages alone are inadequate. The Disclosing Party shall be entitled, without the need to post any bond, to injunctive relief in addition to all other remedies, and to recover all resulting losses, lost profits, and legal and enforcement costs.`)}
+    ${c('15. Indemnity', `The Receiving Party shall indemnify and hold the Disclosing Party harmless against all losses, damages, claims and expenses arising out of or in connection with any breach of this Agreement by the Receiving Party or its personnel.`)}
+    ${c('16. General', `This Agreement is the entire agreement between the parties on its subject matter and supersedes any prior understanding. No failure to enforce any term is a waiver of it. If any provision is held invalid, the remainder stays in full force. Any amendment must be in writing and signed by both parties.`)}
+    ${c('17. Governing Law &amp; Jurisdiction', `This Agreement is governed by the laws of the United Arab Emirates, and the parties irrevocably submit to the exclusive jurisdiction of the competent courts of the Emirate in which the Disclosing Party is registered.`)}
     <div style="display:flex;gap:30px;margin-top:24px;">
       <div style="flex:1;"><div style="font-size:9px;color:#0077a3;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:24px;">Disclosing Party</div><div style="border-bottom:1px solid #1a1a1a;"></div><div style="font-size:10px;color:#444;margin-top:4px;font-weight:700;">${co}</div><div style="font-size:8.5px;color:#999;">Name · Signature · Date · Stamp</div></div>
       <div style="flex:1;"><div style="font-size:9px;color:#0077a3;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:24px;">Receiving Party</div><div style="border-bottom:1px solid #1a1a1a;"></div><div style="font-size:10px;color:#444;margin-top:4px;font-weight:700;">${subName}</div><div style="font-size:8.5px;color:#999;">Name · Signature · Date · Emirates ID</div></div>
