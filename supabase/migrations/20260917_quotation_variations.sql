@@ -100,3 +100,10 @@ create policy quotation_variations_authenticated on public.quotation_variations
 -- Per-company hardening is the same unfinished story as contracts: see the
 -- OPTIONAL HARDENING note in supabase/migrations/20260814_contracts.sql. Once
 -- fn_user_company_ids() covers staff logins, this table should adopt it too.
+
+-- PostgREST keeps its own copy of the schema, and a table it has never seen is
+-- invisible to the REST API until that copy is refreshed - the request comes
+-- back as PGRST205 "Could not find the table in the schema cache" even though
+-- the table is right there. Supabase usually reloads on DDL, but not always, so
+-- ask for it explicitly. Harmless when the cache is already current.
+notify pgrst, 'reload schema';
