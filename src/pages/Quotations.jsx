@@ -33,6 +33,19 @@ function mapUnit(u) {
   return f || null
 }
 
+// Why a Variation Order write bounced. 42P01 = the table was never created,
+// 42501 = it exists but row-level security has no policy for this role. Both are
+// setup problems on the database side, not something the user typed wrong, so
+// name the fix instead of echoing a bare Postgres code.
+const VO_SETUP_FIX = 'run supabase/migrations/20260917_quotation_variations.sql in Supabase \u2192 SQL Editor'
+function voErrorHint(e) {
+  const code = e?.code || ''
+  if (code === '42P01') return 'the Variation Orders table is missing \u2014 ' + VO_SETUP_FIX
+  if (code === '42501') return 'the database is blocking Variation Order writes (row-level security) \u2014 ' + VO_SETUP_FIX
+  if (code === '23505') return 'that VO number was just taken \u2014 reopen the quote and save again'
+  return e?.message || 'unknown error'
+}
+
 const blankItem  = () => ({ title:'', desc:'', unit:'Nos', qty:1, rate:0 })
 const blankItemT = (trade) => ({ title:'', desc:'', unit:'Nos', qty:1, rate:0, trade: trade || '' })
 
@@ -513,6 +526,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   const [voAddTrade, setVoAddTrade] = useState('')
   const [voSaving, setVoSaving]   = useState(false)
   const [voPreview, setVoPreview] = useState(null)
+  const [voError, setVoError]     = useState('')   // set when the VO table itself refuses the query
 
   const [restoring, setRestoring] = useState(true)
 
@@ -679,9 +693,14 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   }
   async function fetchVos(quotationId) {
     setVoLoading(true)
-    const { data } = await supabase.from('quotation_variations').select('*')
+    // A failing read here used to be swallowed, so a missing table or a blocked
+    // policy looked identical to "no variations yet" - and every VO the user
+    // saved seemed to vanish. Say which one it is.
+    const { data, error } = await supabase.from('quotation_variations').select('*')
       .eq('quotation_id', quotationId).eq('company_id', company.id).order('vo_number', { ascending: true })
-    setVos(data || []); setVoLoading(false)
+    if (error) { setVoError(voErrorHint(error)); setVos([]) }
+    else { setVoError(''); setVos(data || []) }
+    setVoLoading(false)
   }
 
   // ---- Description Library: autocomplete fill + auto-grow ----
@@ -1250,21 +1269,21 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
       await fetchVos(activeQuote.id)
       setView('detail', `detail/${activeQuote.id}`)
     } catch (e) {
-      toast.error('Save failed: ' + (e.message || 'unknown'))
+      toast.error('Save failed: ' + voErrorHint(e))
     } finally { setVoSaving(false) }
   }
 
   async function changeVoStatus(v, newStatus) {
     if ((v.status||'draft') === newStatus) return
     const { error } = await supabase.from('quotation_variations').update({ status: newStatus }).eq('id', v.id).eq('company_id', company.id)
-    if (error) { toast.error('Status update failed'); return }
+    if (error) { toast.error('Status update failed: ' + voErrorHint(error)); return }
     await fetchVos(activeQuote.id)
     toast.success('VO status updated')
   }
   async function deleteVo(v) {
     if (!window.confirm(`Delete VO-${String(v.vo_number).padStart(2,'0')}? This cannot be undone.`)) return
     const { error } = await supabase.from('quotation_variations').delete().eq('id', v.id).eq('company_id', company.id)
-    if (error) { toast.error('Delete failed'); return }
+    if (error) { toast.error('Delete failed: ' + voErrorHint(error)); return }
     await fetchVos(activeQuote.id)
     toast.success('Variation deleted')
   }
@@ -2213,6 +2232,16 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
             </div>
           ) : voLoading ? (
             <div style={{ textAlign:'center', padding:20, color:textMuted, fontSize:13 }}>Loading variations...</div>
+          ) : voError ? (
+            <div style={{ background:isDark?'rgba(220,38,38,0.10)':'#fef2f2', border:'1px solid #fca5a5', borderRadius:10, padding:'14px 16px' }}>
+              <div style={{ fontSize:13, fontWeight:600, color:'#b91c1c' }}>
+                <i className="ti ti-alert-triangle" style={{ fontSize:15, verticalAlign:'-2px', marginRight:6 }}/> Variation Orders can&rsquo;t be loaded
+              </div>
+              <div style={{ fontSize:12, color:textSub, marginTop:5, wordBreak:'break-word' }}>{voError}</div>
+              <button onClick={()=>fetchVos(q.id)} style={{ marginTop:10, fontSize:12, padding:'6px 13px', borderRadius:8, border:`1px solid ${border}`, background:cardBg, color:text, fontWeight:600, cursor:'pointer' }}>
+                <i className="ti ti-refresh" style={{ fontSize:13, verticalAlign:'-2px', marginRight:4 }}/> Try again
+              </button>
+            </div>
           ) : (
             <>
               {vos.length === 0 ? (
