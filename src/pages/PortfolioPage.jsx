@@ -66,20 +66,24 @@ export default function PortfolioPage() {
 
   async function deleteItem(item) {
     try {
+      // The stored file is removed best-effort - it may already be gone - but the
+      // row must really be deleted before the photo disappears from the list.
       if (item.storage_path) await supabase.storage.from('company-assets').remove([item.storage_path])
-      await supabase.from('portfolio_items').delete().eq('id', item.id)
+      const { error } = await supabase.from('portfolio_items').delete().eq('id', item.id)
+      if (error) throw error
       setItems(prev => prev.filter(i => i.id !== item.id))
       toast.success('Photo deleted')
-    } catch (e) { toast.error('Could not delete photo') }
+    } catch (e) { console.error(e); toast.error('Could not delete photo: ' + (e?.message || e)) }
   }
 
   async function saveEdit(item) {
     try {
-      await supabase.from('portfolio_items').update({ title: editTitle, description: editDesc }).eq('id', item.id)
+      const { error } = await supabase.from('portfolio_items').update({ title: editTitle, description: editDesc }).eq('id', item.id)
+      if (error) throw error
       setItems(prev => prev.map(i => i.id === item.id ? { ...i, title: editTitle, description: editDesc } : i))
       setEditingId(null)
       toast.success('Updated!')
-    } catch (e) { toast.error('Could not update') }
+    } catch (e) { console.error(e); toast.error('Could not update: ' + (e?.message || e)) }
   }
 
   function onDrop(e) { e.preventDefault(); setDragging(false); if (isAtLimit) { setShowUpgradePopup(true); return } uploadFiles(e.dataTransfer.files) }

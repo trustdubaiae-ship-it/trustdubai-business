@@ -48,16 +48,18 @@ export default function ReviewsPage() {
     if (!replyText.trim()) return
     setSendingReply(true)
     try {
-      await supabase.from('reviews').update({
+      const { error } = await supabase.from('reviews').update({
         owner_reply: replyText,
         replied_at: new Date().toISOString()
       }).eq('id', reviewId)
+      if (error) throw error
       await fetchReviews()
       setReplyingTo(null)
       setReplyText('')
       toast.success('Reply posted!')
     } catch (e) {
-      toast.error('Failed to post reply')
+      console.error(e)
+      toast.error('Failed to post reply: ' + (e?.message || e))
     } finally {
       setSendingReply(false)
     }

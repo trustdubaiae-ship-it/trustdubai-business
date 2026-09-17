@@ -392,11 +392,17 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   async function deleteProject(id) {
     if (!window.confirm('Delete this project with all its materials & expenses? This cannot be undone.')) return
     try {
-      await supabase.from('site_expenses').delete().eq('project_id', id).eq('company_id', company.id)
-      await supabase.from('material_requests').delete().eq('project_id', id).eq('company_id', company.id)
-      await supabase.from('ops_projects').delete().eq('id', id).eq('company_id', company.id)
+      // Cascading delete: children first, project last. A step that is refused has
+      // to stop the rest, or the project disappears from the screen while its rows
+      // are still in the database.
+      const { error: expErr } = await supabase.from('site_expenses').delete().eq('project_id', id).eq('company_id', company.id)
+      if (expErr) throw expErr
+      const { error: matErr } = await supabase.from('material_requests').delete().eq('project_id', id).eq('company_id', company.id)
+      if (matErr) throw matErr
+      const { error: projErr } = await supabase.from('ops_projects').delete().eq('id', id).eq('company_id', company.id)
+      if (projErr) throw projErr
       toast.success('Project deleted'); setView('list'); setActive(null); if (setSubRoute) setSubRoute(''); loadProjects()
-    } catch (e) { console.error(e); toast.error('Delete failed') }
+    } catch (e) { console.error(e); toast.error('Delete failed: ' + (e?.message || e)) }
   }
   async function patchActive(patch) {
     if (!active) return
