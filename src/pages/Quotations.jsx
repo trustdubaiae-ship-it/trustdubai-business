@@ -885,10 +885,14 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         mode: q.mode, items: q.items,
         subtotal: q.subtotal, vat_amount: q.vat_amount, total: q.total,
         discount_type: q.discount_type || null, discount_value: q.discount_value || 0, vat_enabled: q.vat_enabled ?? null,
+        client_trn: q.client_trn || null,
         payment_terms: q.payment_terms, why_choose_us: q.why_choose_us, terms: q.terms,
-        work_type: q.work_type || null, valid_until: null,
+        work_type: q.work_type || null, valid_until: null,   // the copy gets a fresh validity, not the original's
+        revision: 0,                                         // a copy is a new document, not a revision of the old one
+        notes: q.notes || null,
         show_footer: q.show_footer ?? true, show_signature: q.show_signature ?? true, show_bank: q.show_bank ?? false,
-        showSignImage: q.show_sign_image ?? false, showStampImage: q.show_stamp_image ?? false, signDate: q.sign_date || '',
+        show_sign_image: q.show_sign_image ?? false, show_stamp_image: q.show_stamp_image ?? false, sign_date: q.sign_date || null,
+        show_terms: q.show_terms ?? true, show_payment: q.show_payment ?? true, show_why_us: q.show_why_us ?? true,
         quote_theme: q.quote_theme || 'gold', project_timeline: q.project_timeline || null,
         status: 'draft',
       }
