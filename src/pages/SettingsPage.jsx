@@ -33,16 +33,20 @@ export default function SettingsPage() {
   async function saveNotifications() {
     setSaving(true)
     try {
-      await supabase.from('companies').update({
+      // supabase-js reports a rejected write in `error`; it does not throw. Without
+      // this check the catch below never runs and the success toast fires anyway.
+      const { error } = await supabase.from('companies').update({
         notif_new_review: notifs.newReview,
         notif_new_lead: notifs.newLead,
         notif_weekly_report: notifs.weeklyReport,
         notif_plan_expiry: notifs.planExpiry,
       }).eq('id', company.id)
+      if (error) throw error
       await refreshCompany()
       toast.success('Settings saved!')
     } catch (e) {
-      toast.error('Could not save settings')
+      console.error(e)
+      toast.error('Could not save settings: ' + (e?.message || e))
     } finally {
       setSaving(false)
     }
@@ -94,12 +98,14 @@ export default function SettingsPage() {
     if (slugStatus !== 'available' || slugLocked) return
     setSavingSlug(true)
     try {
-      await supabase.from('companies').update({ slug }).eq('id', company.id)
+      const { error } = await supabase.from('companies').update({ slug }).eq('id', company.id)
+      if (error) throw error
       await refreshCompany()
       setSlugStatus('saved')
       toast.success('Username saved!')
     } catch (e) {
-      toast.error('Could not save username')
+      console.error(e)
+      toast.error('Could not save username: ' + (e?.message || e))
     } finally {
       setSavingSlug(false)
     }

@@ -200,18 +200,22 @@ export default function MeetingsPage({ onNavigate }) {
   // quick follow-up set from client detail — with a time it also schedules a timed agenda item
   async function setClientFollowup(leadId, date, time, leadName) {
     try {
-      await supabase.from('lead_submissions').update({ follow_up_date: date || null }).eq('id', leadId)
+      // The follow-up date is the thing the user actually asked to save, so a
+      // rejected write has to reach the catch rather than pass for success.
+      const { error: fuErr } = await supabase.from('lead_submissions').update({ follow_up_date: date || null }).eq('id', leadId)
+      if (fuErr) throw fuErr
       if (date && time) {
-        await supabase.from('company_meetings').insert({
+        const { error: mtErr } = await supabase.from('company_meetings').insert({
           company_id: company.id, created_by_email: user?.email || null,
           title: `Follow-up — ${leadName || 'Lead'}`, kind: 'followup',
           start_at: new Date(`${date}T${time}`).toISOString(), remind_minutes: 30,
           status: 'scheduled', lead_id: leadId, lead_name: leadName || null,
         })
+        if (mtErr) throw mtErr
       }
       if (date) await supabase.from('lead_activity').insert({ lead_id: leadId, company_id: company.id, actor_name: company?.name || null, kind: 'follow_up', outcome: 'Scheduled', note: time ? `Next follow-up ${date} ${time}` : 'Next follow-up set', next_follow_up: date })
       toast.success(time ? 'Scheduled ✓' : 'Follow-up updated ✓'); await load(); openClientDetail(leadId)
-    } catch (e) { console.error(e); toast.error('Could not update') }
+    } catch (e) { console.error(e); toast.error('Could not update: ' + (e?.message || e)) }
   }
 
   // Planner follows the app theme (light / dark) via CSS variables.

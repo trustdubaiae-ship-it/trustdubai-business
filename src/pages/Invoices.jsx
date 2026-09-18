@@ -62,6 +62,7 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
   const [payNote, setPayNote] = useState('')
   const [payLinkBusy, setPayLinkBusy] = useState(false)
   const [selVos, setSelVos] = useState([])   // approved Variation Orders for the selected quote
+  const [selVoIds, setSelVoIds] = useState([])  // VOs ticked for a variation-only invoice
 
   useEffect(() => {
     if (company?.id) { fetchInvoices(); fetchTemplate() }
@@ -69,9 +70,10 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
 
   // load approved VOs for the selected quote → revised contract = quote + VOs
   useEffect(() => {
-    if (!selQuote?.id || !company?.id) { setSelVos([]); return }
+    if (!selQuote?.id || !company?.id) { setSelVos([]); setSelVoIds([]); return }
+    setSelVoIds([])
     supabase.from('quotation_variations')
-      .select('vo_number, description, subtotal, vat_amount, total, items, status')
+      .select('id, vo_number, description, subtotal, vat_amount, total, items, status')
       .eq('quotation_id', selQuote.id).eq('company_id', company.id).eq('status', 'approved')
       .order('vo_number', { ascending: true })
       .then(({ data }) => setSelVos(data || []))
@@ -93,7 +95,7 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
     setApprovedQuotes(data || [])
   }
 
-  function openCreate() { setSelQuote(null); setInvType('full'); setIssueDate(todayStr()); setDueDate(''); setQuoteSearch(''); fetchApprovedQuotes(); setView('create') }
+  function openCreate() { setSelQuote(null); setInvType('full'); setSelVoIds([]); setIssueDate(todayStr()); setDueDate(''); setQuoteSearch(''); fetchApprovedQuotes(); setView('create') }
   function openDetail(inv) { setActive(inv); setPayAmount(''); setPayMethod('Cash'); setPayRef(''); setPayNote(''); setPayDate(todayStr()); setView('detail') }
 
   async function createInvoice() {
@@ -108,8 +110,27 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
       const revVat = Number(q.vat_amount || 0) + selVos.reduce((s, v) => s + (Number(v.vat_amount) || 0), 0)
       const revSub = Number(q.subtotal || 0) + selVos.reduce((s, v) => s + (Number(v.subtotal) || 0), 0)
       let kind = 'full', milestone_label = null, items = [], subtotal = 0, vat_amount = 0, total = 0
+      let variation_ids = []
       let mode = q.mode || 'simple', vat_enabled = (q.vat_enabled != null ? q.vat_enabled : !!q.vat_amount)
-      if (invType === 'full') {
+      if (invType === 'vo') {
+        // Variation billed on its own: the invoice is exactly those VOs, at the
+        // figures the client already approved on them. Nothing is prorated and
+        // the payment schedule is not touched - this money left it.
+        const billedIds = new Set(invoices
+          .filter(iv => iv.quotation_id === q.id && iv.status !== 'cancelled')
+          .flatMap(iv => { const a = iv?.variation_ids; if (Array.isArray(a)) return a
+            try { return JSON.parse(a || '[]') } catch { return [] } })
+          .map(String))
+        const picked = selVos.filter(v => selVoIds.some(x => String(x) === String(v.id)) && !billedIds.has(String(v.id)))
+        if (!picked.length) { toast.error('Tick at least one variation to invoice'); setSaving(false); return }
+        items = picked.map(v => ({ desc: `Variation VO-${String(v.vo_number).padStart(2, '0')}${v.description ? ' — ' + v.description : ''}`, unit: 'Lump Sum', qty: 1, rate: Number(v.subtotal) || 0 }))
+        subtotal = picked.reduce((a, v) => a + (Number(v.subtotal) || 0), 0)
+        vat_amount = picked.reduce((a, v) => a + (Number(v.vat_amount) || 0), 0)
+        total = picked.reduce((a, v) => a + (Number(v.total) || 0), 0)
+        variation_ids = picked.map(v => v.id)
+        kind = 'variation'; mode = 'simple'; vat_enabled = vat_amount > 0
+        milestone_label = picked.map(v => `VO-${String(v.vo_number).padStart(2, '0')}`).join(', ')
+      } else if (invType === 'full') {
         items = [...(Array.isArray(q.items) ? q.items : []), ...selVos.map(v => ({ desc: `Variation VO-${String(v.vo_number).padStart(2, '0')}${v.description ? ' — ' + v.description : ''}`, unit: 'Lump Sum', qty: 1, rate: Number(v.subtotal) || 0 }))]
         subtotal = revSub; vat_amount = revVat; total = revTotal; vat_enabled = revVat > 0
       } else {
@@ -149,7 +170,7 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
         client_id: q.client_id, client_uid: q.client_uid, client_name: q.client_name, client_phone: q.client_phone, client_email: q.client_email,
         client_trn: q.client_trn || null,
         project_title: q.project_title, location: q.location,
-        kind, milestone_label, mode, items, vat_enabled, subtotal, vat_amount, total,
+        kind, milestone_label, mode, items, vat_enabled, subtotal, vat_amount, total, variation_ids,
         issue_date: issueDate || todayStr(), due_date: dueDate || null,
         payments: [], status: 'unpaid', phase: 'proforma',
       }
@@ -400,11 +421,28 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
     const contractTotal = origTotal + voTotal                                        // REVISED contract = quote + approved VOs
     const paidTotal = quoteInvoices.reduce((a, iv) => a + sumPaid(iv), 0)            // collected so far on this quote
     const collectedSummary = { paid: paidTotal, total: contractTotal, remaining: Math.max(0, contractTotal - paidTotal) }
+    // ---- variations billed on their own invoice ----
+    // A VO raised separately LEAVES the payment schedule. If it stayed in, the
+    // milestone would keep asking for its share while the VO invoice is still
+    // open, and the same work would sit on two unpaid invoices at once. So the
+    // schedule runs on the rest of the contract and counts only its own money.
+    const voIdsOf = iv => { const a = iv?.variation_ids; if (Array.isArray(a)) return a
+      try { return JSON.parse(a || '[]') } catch { return [] } }
+    const voInvoiceOf = voId => quoteInvoices.find(iv => voIdsOf(iv).some(x => String(x) === String(voId)))
+    const billedVoTotal = selVos.reduce((s, v) => s + (voInvoiceOf(v.id) ? (Number(v.total) || 0) : 0), 0)
+    const schedBase = contractTotal - billedVoTotal                                 // what the milestone % applies to
+    const varPaid = quoteInvoices.filter(iv => iv.kind === 'variation').reduce((a, iv) => a + sumPaid(iv), 0)
+    const milestonePaid = paidTotal - varPaid                                       // collected against the schedule only
+    const freeVos = selVos.filter(v => !voInvoiceOf(v.id))                          // still available to bill on their own
+    const pickedVos = selVos.filter(v => selVoIds.some(x => String(x) === String(v.id)) && !voInvoiceOf(v.id))
+    const pickedVoTotal = pickedVos.reduce((s, v) => s + (Number(v.total) || 0), 0)
     const nextIdx = schedule.findIndex(m => !milInv(m))                              // first milestone not yet invoiced
-    const cumExpectedTo = i => { let p = 0; for (let k = 0; k <= i; k++) p += Number(schedule[k]?.percent) || 0; return Math.round(contractTotal * p / 100) }
-    const dueForMilestone = i => Math.max(0, cumExpectedTo(i) - paidTotal)           // this milestone's share + any carried shortfall
+    const cumExpectedTo = i => { let p = 0; for (let k = 0; k <= i; k++) p += Number(schedule[k]?.percent) || 0; return Math.round(schedBase * p / 100) }
+    const dueForMilestone = i => Math.max(0, cumExpectedTo(i) - milestonePaid)       // this milestone's share + any carried shortfall
     // only the NEXT milestone (or Full, when nothing invoiced) can be created
-    const selInvoiced = invType === 'full' ? fullDisabled : (invType !== nextIdx || !!fullInv)
+    const selInvoiced = invType === 'full' ? fullDisabled
+      : invType === 'vo' ? pickedVos.length === 0
+      : (invType !== nextIdx || !!fullInv)
     const invBadge = iv => { if (!iv) return null; const p = sumPaid(iv); const paid = p > 0 && p >= Math.round(Number(iv.total) || 0)
       return <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 99, marginLeft: 7, letterSpacing: '.3px', background: paid ? 'rgba(15,110,86,0.14)' : 'rgba(148,163,184,0.18)', color: paid ? '#0f6e56' : '#64748b' }}>{paid ? 'PAID ✓' : 'INVOICED'} · {iv.invoice_number}</span> }
     const qList = approvedQuotes.filter(q => {
@@ -510,6 +548,53 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
                 )
               })}
               {schedule.length === 0 && <div style={{ fontSize: 11.5, color: textMuted }}>This quote has no payment milestones — only a full invoice is available.</div>}
+
+              {/* Variations billed on their own, instead of waiting for the next
+                  milestone to absorb them. Ticking one takes it out of the
+                  schedule above, so the same work is never billed twice. */}
+              {selVos.length > 0 && (
+                <div style={{ marginTop: 8, padding: '10px 11px', borderRadius: 9, border: `1px solid ${invType === 'vo' ? '#0099cc' : border}`, opacity: freeVos.length === 0 ? 0.6 : 1 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: freeVos.length === 0 ? 'not-allowed' : 'pointer' }}>
+                    <input type="radio" disabled={freeVos.length === 0} checked={invType === 'vo'} onChange={() => setInvType('vo')} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: text }}>Variation only{freeVos.length === 0 && <i className="ti ti-lock" style={{ fontSize: 12, marginLeft: 5, color: textMuted }} />}</div>
+                      <div style={{ fontSize: 11, color: textMuted, marginTop: 2 }}>
+                        {freeVos.length === 0 ? 'Every variation is already invoiced' : 'Bill the extra work now — it leaves the payment schedule'}
+                      </div>
+                    </div>
+                    {invType === 'vo' && pickedVoTotal > 0 && (
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#0099cc' }}>{fmt(pickedVoTotal)}</div>
+                        <div style={{ fontSize: 9, color: textMuted, letterSpacing: '.3px' }}>DUE NOW</div>
+                      </div>
+                    )}
+                  </label>
+                  <div style={{ marginTop: 9, paddingTop: 9, borderTop: `1px solid ${border}`, display: 'flex', flexDirection: 'column', gap: 7 }}>
+                    {selVos.map(v => {
+                      const billed = voInvoiceOf(v.id)
+                      const on = selVoIds.some(x => String(x) === String(v.id))
+                      return (
+                        <label key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 9, cursor: billed || invType !== 'vo' ? 'default' : 'pointer', opacity: billed ? 0.6 : 1 }}>
+                          <input type="checkbox" disabled={!!billed || invType !== 'vo'} checked={!billed && on}
+                            onChange={e => setSelVoIds(prev => e.target.checked
+                              ? [...prev, v.id]
+                              : prev.filter(x => String(x) !== String(v.id)))} />
+                          <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            VO-{String(v.vo_number).padStart(2, '0')}{v.description ? ' · ' + v.description : ''}
+                          </span>
+                          {billed && invBadge(billed)}
+                          <span style={{ fontSize: 12, fontWeight: 600, color: Number(v.total) < 0 ? '#b45309' : text }}>{Number(v.total) < 0 ? '− ' : ''}{fmt(Math.abs(Number(v.total) || 0))}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                  {billedVoTotal !== 0 && (
+                    <div style={{ marginTop: 9, fontSize: 11, color: textMuted }}>
+                      {fmt(billedVoTotal)} of variations is invoiced separately — the milestones above now run on {fmt(schedBase)}.
+                    </div>
+                  )}
+                </div>
+              )}
               {schedule.length > 0 && quoteInvoices.length > 0 && (
                 <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 9, background: subBg, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
                   <span style={{ color: textSub }}>Collected <b style={{ color: '#0f6e56' }}>{fmt(collectedSummary.paid)}</b> of {fmt(collectedSummary.total)}</span>
