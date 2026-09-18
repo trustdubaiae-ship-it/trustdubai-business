@@ -360,12 +360,34 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
     } else setAwardedPays([])
     // Client cash-in lives in the Invoices module — pull the linked invoices (single source of truth).
     let inv = []
-    if (proj?.quote_id) { const { data } = await supabase.from('invoices').select('id,invoice_number,total,payments,status,kind,milestone_label,issue_date,due_date').eq('company_id', company.id).eq('quotation_id', proj.quote_id).order('issue_date', { ascending: false }); inv = data || [] }
-    else if (proj?.client_id) { const { data } = await supabase.from('invoices').select('id,invoice_number,total,payments,status,kind,milestone_label,issue_date,due_date').eq('company_id', company.id).eq('client_id', proj.client_id).order('issue_date', { ascending: false }); inv = data || [] }
+    if (proj?.quote_id) { const { data } = await supabase.from('invoices').select('id,invoice_number,quotation_id,total,payments,status,kind,milestone_label,issue_date,due_date').eq('company_id', company.id).eq('quotation_id', proj.quote_id).order('issue_date', { ascending: false }); inv = data || [] }
+    else if (proj?.client_id) { const { data } = await supabase.from('invoices').select('id,invoice_number,quotation_id,total,payments,status,kind,milestone_label,issue_date,due_date').eq('company_id', company.id).eq('client_id', proj.client_id).order('issue_date', { ascending: false }); inv = data || [] }
     setInvoices(inv)
-    // Approved Variation Orders on the linked quote → revised contract value
+    // Approved Variation Orders → revised contract value.
+    //
+    // The invoice query above falls back to the client when a project carries no
+    // quote_id. This one had no fallback at all, so such a project listed every
+    // invoice — the variation ones included — while its contract value stayed at
+    // the original quote. The statement then billed the client the ORIGINAL
+    // contract less everything received: on a live job that printed a balance of
+    // AED 300 where AED 14,160 was actually owed, because AED 13,860 of approved
+    // variations had gone missing from the top line while their invoices sat in
+    // the list below it.
+    //
+    // So: the project's own quote when it has one, otherwise the quotes its own
+    // invoices point at.
     let voList = []
-    try { if (proj?.quote_id) { const { data } = await supabase.from('quotation_variations').select('total, status').eq('company_id', company.id).eq('quotation_id', proj.quote_id).eq('status', 'approved'); voList = data || [] } } catch (e) { /* VOs optional */ }
+    const voQuoteIds = proj?.quote_id ? [proj.quote_id]
+      : [...new Set(inv.map(i => i.quotation_id).filter(Boolean))]
+    if (voQuoteIds.length) {
+      const { data, error } = await supabase.from('quotation_variations')
+        .select('total, status').eq('company_id', company.id)
+        .in('quotation_id', voQuoteIds).eq('status', 'approved')
+      // Not swallowed any more: a failed read here understates what the client
+      // owes, which is the one thing this screen must never do quietly.
+      if (error) console.error('project variations:', error.message)
+      voList = data || []
+    }
     setProjVos(voList)
     // Purchase bills tagged to this project's client (counted in project cost)
     let pur = []
