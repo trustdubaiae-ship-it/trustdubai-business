@@ -355,6 +355,47 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
     const logoBox = cLogo
       ? `<img src="${escapeHtml(cLogo)}" style="width:50px;height:50px;border-radius:10px;object-fit:cover;">`
       : `<div style="width:50px;height:50px;border-radius:10px;background:#1a1a1a;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:20px;color:#c9952a;">${cName[0] || 'C'}</div>`
+    const ACC = '#c9952a'
+    // Bank account comes from Quote Settings — the same account the quotation shows,
+    // so the client is never asked to pay into two different places.
+    const bankFields = [
+      ['Bank', tpl?.bank_name], ['Account Name', tpl?.bank_account_name], ['Account No', tpl?.bank_account_number],
+      ['IBAN', tpl?.bank_iban], ['SWIFT', tpl?.bank_swift], ['Branch', tpl?.bank_branch],
+    ].filter(([, v]) => v && String(v).trim()).map(([k, v]) => [k, escapeHtml(v)])
+    const isProgress = inv.kind === 'progress'
+    const dueTxt = inv.due_date ? `by ${dateStr(inv.due_date)}` : 'on receipt of this invoice'
+    const terms = [
+      isProgress
+        ? `This invoice is for work completed to date, measured on site. Quantities and rates are per the approved quotation${inv.quote_number ? ' ' + escapeHtml(inv.quote_number) : ''}; work not yet carried out is not charged here.`
+        : `This invoice is raised against the approved quotation${inv.quote_number ? ' ' + escapeHtml(inv.quote_number) : ''}.`,
+      `Payment is due ${dueTxt}.`,
+      bankFields.length
+        ? `Please transfer to the account shown above and quote <b>${escapeHtml(inv.invoice_number || '')}</b> as the payment reference. Cheques to be drawn in favour of ${cName}.`
+        : `Please quote <b>${escapeHtml(inv.invoice_number || '')}</b> as the payment reference. Cheques to be drawn in favour of ${cName}.`,
+      `Any discrepancy in quantities or amounts must be notified in writing within 7 days of receipt; after that this invoice is treated as accepted.`,
+      `Materials delivered to site remain the property of ${cName} until this invoice is paid in full.`,
+      vat > 0 ? `VAT is charged at 5% in accordance with UAE VAT law${trn ? ' under TRN ' + trn : ''}.` : null,
+    ].filter(Boolean)
+    const supportBlock = isProgress ? `
+      <div style="padding:16px 30px 0;page-break-inside:avoid;break-inside:avoid;">
+        <div style="border:0.5px solid #eee;border-left:2px solid ${ACC};border-radius:4px;padding:10px 13px;font-size:10px;color:#4a4a4a;">
+          <b style="color:#1a1a1a;">Supporting document</b> &nbsp;·&nbsp; Progressive Work Sheet — measured quantities completed to date, attached with this invoice.
+        </div>
+      </div>` : ''
+    const bankBlock = bankFields.length ? `
+      <div style="padding:16px 30px 0;page-break-inside:avoid;break-inside:avoid;">
+        <div style="font-size:10px;color:${ACC};text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:9px;">— Payment Details</div>
+        <div style="border:0.5px solid #eee;border-left:2px solid ${ACC};border-radius:4px;padding:11px 14px;display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;">
+          ${bankFields.map(([k, v]) => `<div style="display:flex;gap:8px;font-size:10px;"><span style="color:#999;min-width:80px;">${k}</span><span style="font-weight:600;color:#1a1a1a;word-break:break-word;">${v}</span></div>`).join('')}
+        </div>
+      </div>` : ''
+    const termsBlock = `
+      <div style="padding:16px 30px 0;page-break-inside:avoid;break-inside:avoid;">
+        <div style="font-size:10px;color:${ACC};text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:8px;">— Terms of Payment</div>
+        <ol style="margin:0;padding-left:16px;font-size:9.5px;color:#4a4a4a;line-height:1.65;">
+          ${terms.map(t => `<li style="margin-bottom:2px;">${t}</li>`).join('')}
+        </ol>
+      </div>`
     const paidOn = payments.map(p => p.date).filter(Boolean).sort().slice(-1)[0] || ''
     const paidStamp = bal <= 0
       ? `<div style="position:absolute;top:47%;left:50%;transform:translate(-50%,-50%) rotate(-15deg);border:3px solid #0f6e56;color:#0f6e56;font-weight:800;font-size:30px;letter-spacing:4px;padding:8px 22px;border-radius:12px;opacity:.8;text-align:center;z-index:5;">PAID${paidOn ? `<div style="font-size:11px;letter-spacing:1px;font-weight:700;margin-top:3px;">${dateStr(paidOn)}</div>` : ''}</div>` : ''
@@ -418,6 +459,9 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
         <div style="font-size:10px;color:#c9952a;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:8px;">— Payments Received</div>
         <table style="width:100%;border-collapse:collapse;"><tbody>${payRows}</tbody></table>
       </div>` : ''}
+      ${supportBlock}
+      ${bankBlock}
+      ${termsBlock}
       <div style="background:#1a1a1a;color:#9a9a9a;font-size:8.5px;text-align:center;padding:9px;margin-top:20px;">${cName} · ${cPhone}${trn ? ' · TRN ' + trn : ''}</div>
     </div>`
   }
