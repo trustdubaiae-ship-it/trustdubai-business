@@ -15,6 +15,7 @@ const PAY_METHODS = ['Cash', 'Bank Transfer', 'Card', 'Cheque', 'Online']
 const todayStr = () => new Date().toISOString().slice(0, 10)
 const fmt = n => 'AED ' + Math.round(Number(n) || 0).toLocaleString('en-AE')
 const num = n => Math.round(Number(n) || 0).toLocaleString('en-AE')
+const qty = n => (Math.round((Number(n) || 0) * 100) / 100).toLocaleString('en-AE')
 const initials = nm => nm ? nm.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase() : '?'
 
 function parsePayments(raw) {
@@ -22,6 +23,11 @@ function parsePayments(raw) {
 }
 function parseSchedule(raw) {
   try { const a = Array.isArray(raw) ? raw : JSON.parse(raw || '[]'); return Array.isArray(a) ? a.map(x => ({ percent: Number(x.percent) || 0, label: x.label || '', description: x.description || '' })) : [] } catch { return [] }
+}
+function parseQtyMap(raw) {
+  // { itemIndex: quantity billed on that invoice } — written by measured invoices
+  try { const o = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : JSON.parse(raw || '{}')
+    return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {} } catch { return {} }
 }
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
@@ -63,6 +69,7 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
   const [payLinkBusy, setPayLinkBusy] = useState(false)
   const [selVos, setSelVos] = useState([])   // approved Variation Orders for the selected quote
   const [selVoIds, setSelVoIds] = useState([])  // VOs ticked for a variation-only invoice
+  const [measQty, setMeasQty] = useState({})   // { quote item index: quantity completed this time }
 
   useEffect(() => {
     if (company?.id) { fetchInvoices(); fetchTemplate() }
@@ -70,8 +77,8 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
 
   // load approved VOs for the selected quote → revised contract = quote + VOs
   useEffect(() => {
-    if (!selQuote?.id || !company?.id) { setSelVos([]); setSelVoIds([]); return }
-    setSelVoIds([])
+    if (!selQuote?.id || !company?.id) { setSelVos([]); setSelVoIds([]); setMeasQty({}); return }
+    setSelVoIds([]); setMeasQty({})
     supabase.from('quotation_variations')
       .select('id, vo_number, description, subtotal, vat_amount, total, items, status')
       .eq('quotation_id', selQuote.id).eq('company_id', company.id).eq('status', 'approved')
@@ -95,7 +102,7 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
     setApprovedQuotes(data || [])
   }
 
-  function openCreate() { setSelQuote(null); setInvType('full'); setSelVoIds([]); setIssueDate(todayStr()); setDueDate(''); setQuoteSearch(''); fetchApprovedQuotes(); setView('create') }
+  function openCreate() { setSelQuote(null); setInvType('full'); setSelVoIds([]); setMeasQty({}); setIssueDate(todayStr()); setDueDate(''); setQuoteSearch(''); fetchApprovedQuotes(); setView('create') }
   function openDetail(inv) { setActive(inv); setPayAmount(''); setPayMethod('Cash'); setPayRef(''); setPayNote(''); setPayDate(todayStr()); setView('detail') }
 
   async function createInvoice() {
@@ -110,7 +117,7 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
       const revVat = Number(q.vat_amount || 0) + selVos.reduce((s, v) => s + (Number(v.vat_amount) || 0), 0)
       const revSub = Number(q.subtotal || 0) + selVos.reduce((s, v) => s + (Number(v.subtotal) || 0), 0)
       let kind = 'full', milestone_label = null, items = [], subtotal = 0, vat_amount = 0, total = 0
-      let variation_ids = []
+      let variation_ids = [], item_qtys = {}
       let mode = q.mode || 'simple', vat_enabled = (q.vat_enabled != null ? q.vat_enabled : !!q.vat_amount)
       if (invType === 'vo') {
         // Variation billed on its own: the invoice is exactly those VOs, at the
@@ -130,6 +137,52 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
         variation_ids = picked.map(v => v.id)
         kind = 'variation'; mode = 'simple'; vat_enabled = vat_amount > 0
         milestone_label = picked.map(v => `VO-${String(v.vo_number).padStart(2, '0')}`).join(', ')
+      } else if (invType === 'progress') {
+        // Measured billing: the client is charged for the quantity actually
+        // built, at the rate they already approved. What each invoice billed
+        // is written to item_qtys, so the same square metre cannot come round
+        // twice. Anything still unpaid from an earlier invoice rides along on
+        // this one — one figure to pay, not two open documents to chase.
+        const qi = Array.isArray(q.items) ? q.items : []
+        const prior = invoices.filter(iv => iv.quotation_id === q.id && iv.status !== 'cancelled')
+        const billedQty = idx => prior.reduce((a, iv) => a + (Number(parseQtyMap(iv.item_qtys)[idx]) || 0), 0)
+        const rows = qi.map((it, i) => {
+          const quoted = Number(it.qty) || 0
+          const done = billedQty(i)
+          const now = Math.max(0, Math.min(Math.max(0, quoted - done), Number(measQty[i]) || 0))
+          return { i, it, quoted, done, now, rate: Number(it.rate) || 0 }
+        }).filter(r => r.now > 0)
+        if (!rows.length) { toast.error('Enter the quantity completed against at least one item'); setSaving(false); return }
+        const vatRate = Number(q.subtotal) > 0 ? (Number(q.vat_amount) || 0) / Number(q.subtotal) : 0
+        const workSub = rows.reduce((a, r) => a + r.now * r.rate, 0)
+        // everything earned on this quote once this invoice's work is counted in
+        const earnedSub = qi.reduce((a, it, i) => {
+          const r = rows.find(x => x.i === i)
+          return a + (billedQty(i) + (r ? r.now : 0)) * (Number(it.rate) || 0)
+        }, 0)
+        // money collected against the contract work — variation invoices carry their own
+        const paidHere = iv => parsePayments(iv.payments).reduce((x, p) => x + (Number(p.amount) || 0), 0)
+        const paidT = prior.reduce((a, iv) => a + (iv.kind === 'variation' ? 0 : paidHere(iv)), 0)
+        total = Math.max(0, Math.round(earnedSub * (1 + vatRate)) - paidT)
+        if (total <= 0) { toast.error('Nothing due yet — the client has already paid for this much work'); setSaving(false); return }
+        vat_amount = Math.round(total * vatRate / (1 + vatRate))
+        subtotal = total - vat_amount
+        items = rows.map(r => {
+          const base = `${r.it.title ? r.it.title + ' — ' : ''}${r.it.desc || ''}`.trim() || 'Work completed'
+          const cum = r.done + r.now
+          return {
+            desc: r.quoted > 0 ? `${base} · ${cum} of ${r.quoted} ${r.it.unit || ''} to date`.trim() : base,
+            unit: r.it.unit || 'Nos', qty: r.now, rate: r.rate,
+          }
+        })
+        // the measured lines are the work; this line is the difference between
+        // that work and what the client actually owes today
+        const adj = subtotal - Math.round(workSub)
+        if (adj > 0) items.push({ desc: 'Carried balance from previous invoice', unit: 'Lump Sum', qty: 1, rate: adj })
+        else if (adj < 0) items.push({ desc: 'Less: amount already received', unit: 'Lump Sum', qty: 1, rate: adj })
+        item_qtys = Object.fromEntries(rows.map(r => [String(r.i), r.now]))
+        kind = 'progress'; mode = 'simple'; vat_enabled = vat_amount > 0
+        milestone_label = 'Work done (measured)'
       } else if (invType === 'full') {
         items = [...(Array.isArray(q.items) ? q.items : []), ...selVos.map(v => ({ desc: `Variation VO-${String(v.vo_number).padStart(2, '0')}${v.description ? ' — ' + v.description : ''}`, unit: 'Lump Sum', qty: 1, rate: Number(v.subtotal) || 0 }))]
         subtotal = revSub; vat_amount = revVat; total = revTotal; vat_enabled = revVat > 0
@@ -170,7 +223,7 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
         client_id: q.client_id, client_uid: q.client_uid, client_name: q.client_name, client_phone: q.client_phone, client_email: q.client_email,
         client_trn: q.client_trn || null,
         project_title: q.project_title, location: q.location,
-        kind, milestone_label, mode, items, vat_enabled, subtotal, vat_amount, total, variation_ids,
+        kind, milestone_label, mode, items, vat_enabled, subtotal, vat_amount, total, variation_ids, item_qtys,
         issue_date: issueDate || todayStr(), due_date: dueDate || null,
         payments: [], status: 'unpaid', phase: 'proforma',
       }
@@ -414,8 +467,9 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
     const sumPaid = iv => parsePayments(iv.payments).reduce((a, p) => a + (Number(p.amount) || 0), 0)
     const fullInv = quoteInvoices.find(iv => iv.kind === 'full')
     const hasMilestoneInv = quoteInvoices.some(iv => iv.kind === 'milestone')
+    const hasProgressInv = quoteInvoices.some(iv => iv.kind === 'progress')
     const milInv = m => { const lbl = `${m.label || 'Payment'} (${Number(m.percent) || 0}%)`; return quoteInvoices.find(iv => (iv.milestone_label || '') === lbl) }
-    const fullDisabled = !!fullInv || hasMilestoneInv
+    const fullDisabled = !!fullInv || hasMilestoneInv || hasProgressInv
     const origTotal = Number(selQuote?.total || 0)
     const voTotal = selVos.reduce((s, v) => s + (Number(v.total) || 0), 0)           // + adds, − omissions
     const contractTotal = origTotal + voTotal                                        // REVISED contract = quote + approved VOs
@@ -436,13 +490,37 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
     const freeVos = selVos.filter(v => !voInvoiceOf(v.id))                          // still available to bill on their own
     const pickedVos = selVos.filter(v => selVoIds.some(x => String(x) === String(v.id)) && !voInvoiceOf(v.id))
     const pickedVoTotal = pickedVos.reduce((s, v) => s + (Number(v.total) || 0), 0)
+    // ---- measured billing: bill the quantity actually completed ----
+    // Each item carries the quantity already billed on earlier invoices, so what
+    // is left is never guesswork and the same metre cannot be charged twice.
+    const qItems = Array.isArray(selQuote?.items) ? selQuote.items : []
+    const billedQty = idx => quoteInvoices.reduce((a, iv) => a + (Number(parseQtyMap(iv.item_qtys)[idx]) || 0), 0)
+    const vatRate = Number(selQuote?.subtotal) > 0 ? (Number(selQuote?.vat_amount) || 0) / Number(selQuote.subtotal) : 0
+    const measRows = qItems.map((it, i) => {
+      const quoted = Number(it.qty) || 0
+      const done = billedQty(i)
+      const left = Math.max(0, quoted - done)
+      const typed = Number(measQty[i]) || 0
+      const now = Math.max(0, Math.min(left, typed))
+      return { i, it, quoted, done, left, typed, now, rate: Number(it.rate) || 0, amount: now * (Number(it.rate) || 0) }
+    })
+    const measWork = measRows.reduce((a, r) => a + r.amount, 0)                     // this invoice's work, ex-VAT
+    const measEarned = measRows.reduce((a, r) => a + (r.done + r.now) * r.rate, 0)  // all work to date, ex-VAT
+    const measGross = Math.round(measWork * (1 + vatRate))
+    const measDue = Math.max(0, Math.round(measEarned * (1 + vatRate)) - milestonePaid)
+    const measCarry = measDue - measGross                                           // unpaid balance riding along
+    const measOpen = qItems.length > 0 && !fullInv && !hasMilestoneInv
+    // Carrying a balance forward means this invoice asks for money an earlier
+    // invoice is still asking for. Both cannot stand, so name the ones it replaces.
+    const measSuperseded = quoteInvoices.filter(iv => iv.kind !== 'variation' && Math.round(Number(iv.total) || 0) - sumPaid(iv) > 0)
     const nextIdx = schedule.findIndex(m => !milInv(m))                              // first milestone not yet invoiced
     const cumExpectedTo = i => { let p = 0; for (let k = 0; k <= i; k++) p += Number(schedule[k]?.percent) || 0; return Math.round(schedBase * p / 100) }
     const dueForMilestone = i => Math.max(0, cumExpectedTo(i) - milestonePaid)       // this milestone's share + any carried shortfall
     // only the NEXT milestone (or Full, when nothing invoiced) can be created
     const selInvoiced = invType === 'full' ? fullDisabled
       : invType === 'vo' ? pickedVos.length === 0
-      : (invType !== nextIdx || !!fullInv)
+      : invType === 'progress' ? (measWork <= 0 || measDue <= 0)
+      : (invType !== nextIdx || !!fullInv || hasProgressInv)
     const invBadge = iv => { if (!iv) return null; const p = sumPaid(iv); const paid = p > 0 && p >= Math.round(Number(iv.total) || 0)
       return <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 99, marginLeft: 7, letterSpacing: '.3px', background: paid ? 'rgba(15,110,86,0.14)' : 'rgba(148,163,184,0.18)', color: paid ? '#0f6e56' : '#64748b' }}>{paid ? 'PAID ✓' : 'INVOICED'} · {iv.invoice_number}</span> }
     const qList = approvedQuotes.filter(q => {
@@ -519,7 +597,7 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
               {schedule.map((m, i) => {
                 const base = Math.round(contractTotal * (Number(m.percent) || 0) / 100)
                 const inv = milInv(m)
-                const isNext = !inv && i === nextIdx && !fullInv
+                const isNext = !inv && i === nextIdx && !fullInv && !hasProgressInv
                 const disabled = !isNext
                 const paid = inv ? sumPaid(inv) : 0
                 const invoiced = inv ? (Number(inv.total) || base) : 0
@@ -547,7 +625,95 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
                   </label>
                 )
               })}
-              {schedule.length === 0 && <div style={{ fontSize: 11.5, color: textMuted }}>This quote has no payment milestones — only a full invoice is available.</div>}
+              {schedule.length === 0 && <div style={{ fontSize: 11.5, color: textMuted }}>This quote has no payment milestones — bill it in full{qItems.length > 0 ? ', or by the work completed below' : ''}.</div>}
+
+              {/* Work actually done, measured against the quote's own quantities.
+                  Per-m² (or per-unit) work is not a percentage of anything — the
+                  client is billed for what was built, at the rate they approved. */}
+              {qItems.length > 0 && (
+                <div style={{ marginTop: 8, padding: '10px 11px', borderRadius: 9, border: `1px solid ${invType === 'progress' ? '#0099cc' : border}`, opacity: measOpen ? 1 : 0.6 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: measOpen ? 'pointer' : 'not-allowed' }}>
+                    <input type="radio" disabled={!measOpen} checked={invType === 'progress'} onChange={() => setInvType('progress')} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: text }}>Work done (measured){!measOpen && <i className="ti ti-lock" style={{ fontSize: 12, marginLeft: 5, color: textMuted }} />}</div>
+                      <div style={{ fontSize: 11, color: textMuted, marginTop: 2 }}>
+                        {!measOpen
+                          ? (fullInv ? 'The full amount is already invoiced' : 'This quote is being billed by milestones')
+                          : 'Enter the quantity completed — billed at the quoted rate'}
+                      </div>
+                    </div>
+                    {invType === 'progress' && measDue > 0 && (
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#0099cc' }}>{fmt(measDue)}</div>
+                        <div style={{ fontSize: 9, color: textMuted, letterSpacing: '.3px' }}>DUE NOW</div>
+                      </div>
+                    )}
+                  </label>
+
+                  {invType === 'progress' && (
+                    <div style={{ marginTop: 9, paddingTop: 9, borderTop: `1px solid ${border}` }}>
+                      {measRows.map((r, n) => {
+                        const over = r.typed > r.left
+                        const unit = r.it.unit || ''
+                        return (
+                          <div key={r.i} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '7px 0', borderBottom: n < measRows.length - 1 ? `1px solid ${border}` : 'none', opacity: r.left <= 0 ? 0.55 : 1 }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 12, color: text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {`${r.it.title ? r.it.title + ' — ' : ''}${r.it.desc || ''}`.trim() || 'Item ' + (r.i + 1)}
+                              </div>
+                              <div style={{ fontSize: 10.5, color: over ? '#b45309' : textMuted, marginTop: 2 }}>
+                                {qty(r.quoted)} {unit} @ {fmt(r.rate)}
+                                {r.done > 0 ? ` · ${qty(r.done)} billed` : ''}
+                                {r.left <= 0 ? ' · fully billed' : over ? ` · only ${qty(r.left)} ${unit} left` : ''}
+                              </div>
+                            </div>
+                            <input type="number" min="0" step="any" disabled={r.left <= 0}
+                              value={measQty[r.i] ?? ''} placeholder="0"
+                              onChange={e => setMeasQty(prev => ({ ...prev, [r.i]: e.target.value }))}
+                              style={{ ...inputStyle, width: 74, padding: '7px 6px', textAlign: 'center', borderColor: over ? '#b45309' : border }} />
+                            <div style={{ width: 86, textAlign: 'right', fontSize: 12, fontWeight: 600, color: r.now > 0 ? text : textMuted }}>{fmt(r.amount)}</div>
+                          </div>
+                        )
+                      })}
+
+                      <div style={{ marginTop: 10, paddingTop: 9, borderTop: `1px solid ${border}`, fontSize: 12 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', color: textSub }}>
+                          <span>Work billed now{vatRate > 0 ? ' (incl. VAT)' : ''}</span><span>{fmt(measGross)}</span>
+                        </div>
+                        {measCarry > 0 && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#b45309', marginTop: 4 }}>
+                            <span>Carried balance from previous invoice</span><span>+ {fmt(measCarry)}</span>
+                          </div>
+                        )}
+                        {measCarry < 0 && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#0f6e56', marginTop: 4 }}>
+                            <span>Already received in advance</span><span>− {fmt(Math.abs(measCarry))}</span>
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, color: text, marginTop: 7, paddingTop: 7, borderTop: `1px solid ${border}` }}>
+                          <span>Due now</span><span>{fmt(measDue)}</span>
+                        </div>
+                        {measCarry > 0 && measSuperseded.length > 0 && (
+                          <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 8, background: isDark ? 'rgba(180,83,9,0.12)' : '#fffbeb', border: `1px solid ${isDark ? 'rgba(180,83,9,0.35)' : '#fde68a'}`, fontSize: 11, color: isDark ? '#fbbf24' : '#92400e' }}>
+                            <i className="ti ti-alert-triangle" style={{ verticalAlign: '-2px', marginRight: 4 }} />
+                            {measSuperseded.map(iv => iv.invoice_number).join(', ')} {measSuperseded.length > 1 ? 'are' : 'is'} still open for {fmt(measSuperseded.reduce((a, iv) => a + Math.round(Number(iv.total) || 0) - sumPaid(iv), 0))} — that money is inside this invoice too.
+                            Send this one to the client and cancel the earlier {measSuperseded.length > 1 ? 'ones' : 'one'}, or the same work is demanded twice.
+                          </div>
+                        )}
+                        {measWork > 0 && measDue <= 0 && (
+                          <div style={{ fontSize: 11, color: textMuted, marginTop: 6 }}>The client has already paid for this much work — nothing to invoice yet.</div>
+                        )}
+                        {freeVos.length > 0 && (
+                          <div style={{ fontSize: 11, color: textMuted, marginTop: 6 }}>
+                            <i className="ti ti-info-circle" style={{ verticalAlign: '-2px', marginRight: 3 }} />
+                            Variations are not measured here — bill them with “Variation only”.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Variations billed on their own, instead of waiting for the next
                   milestone to absorb them. Ticking one takes it out of the
