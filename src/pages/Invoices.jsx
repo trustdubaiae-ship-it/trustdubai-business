@@ -13,7 +13,7 @@ const STATUS_STYLE = {
 }
 const PAY_METHODS = ['Cash', 'Bank Transfer', 'Card', 'Cheque', 'Online']
 const todayStr = () => new Date().toISOString().slice(0, 10)
-const fmt = n => 'AED ' + Math.round(Number(n) || 0).toLocaleString('en-AE')
+const fmt = n => { const v = Math.round(Number(n) || 0); return (v < 0 ? '− ' : '') + 'AED ' + Math.abs(v).toLocaleString('en-AE') }
 const num = n => Math.round(Number(n) || 0).toLocaleString('en-AE')
 const qty = n => (Math.round((Number(n) || 0) * 100) / 100).toLocaleString('en-AE')
 const initials = nm => nm ? nm.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase() : '?'
@@ -167,6 +167,13 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
         if (total <= 0) { toast.error('Nothing due yet — the client has already paid for this much work'); setSaving(false); return }
         vat_amount = Math.round(total * vatRate / (1 + vatRate))
         subtotal = total - vat_amount
+        // Whole-dirham rounding of the VAT can leave the measured lines a dirham
+        // off the subtotal. That is not money carried in or out, so it goes into
+        // the VAT split rather than onto the invoice as a ±1 balance line.
+        if (Math.abs(total - Math.round(workSub * (1 + vatRate))) <= 1) {
+          subtotal = Math.round(workSub)
+          vat_amount = total - subtotal
+        }
         items = rows.map(r => {
           const base = `${r.it.title ? r.it.title + ' — ' : ''}${r.it.desc || ''}`.trim() || 'Work completed'
           const cum = r.done + r.now
@@ -331,7 +338,7 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
     const cPhone = escapeHtml(tpl?.contact_phone || company?.phone || '')
     const trn = escapeHtml(tpl?.trn_number || '')
     const items = Array.isArray(inv.items) ? inv.items : []
-    const n = v => Math.round(Number(v) || 0).toLocaleString('en-AE')
+    const n = v => { const x = Math.round(Number(v) || 0); return (x < 0 ? '− ' : '') + Math.abs(x).toLocaleString('en-AE') }
     const sub = Number(inv.subtotal || 0), vat = Number(inv.vat_amount || 0), tot = Number(inv.total || 0)
     const disc = Math.max(0, Math.round(sub - (tot - vat)))   // discount = gross subtotal − (total − VAT), so Subtotal − Discount + VAT = Total
     const payments = parsePayments(inv.payments)
@@ -552,7 +559,8 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
     const measEarned = measRows.reduce((a, r) => a + (r.done + r.now) * r.rate, 0)  // all work to date, ex-VAT
     const measGross = Math.round(measWork * (1 + vatRate))
     const measDue = Math.max(0, Math.round(measEarned * (1 + vatRate)) - milestonePaid)
-    const measCarry = measDue - measGross                                           // unpaid balance riding along
+    // unpaid balance riding along; a dirham either way is VAT rounding, not a balance
+    const measCarry = Math.abs(measDue - measGross) <= 1 ? 0 : measDue - measGross
     const measOpen = qItems.length > 0 && !fullInv && !hasMilestoneInv
     // Carrying a balance forward means this invoice asks for money an earlier
     // invoice is still asking for. Both cannot stand, so name the ones it replaces.
@@ -722,7 +730,7 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
 
                       <div style={{ marginTop: 10, paddingTop: 9, borderTop: `1px solid ${border}`, fontSize: 12 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', color: textSub }}>
-                          <span>Work billed now{vatRate > 0 ? ' (incl. VAT)' : ''}</span><span>{fmt(measGross)}</span>
+                          <span>Work billed now{vatRate > 0 ? ' (incl. VAT)' : ''}</span><span>{fmt(measDue - measCarry)}</span>
                         </div>
                         {measCarry > 0 && (
                           <div style={{ display: 'flex', justifyContent: 'space-between', color: '#b45309', marginTop: 4 }}>
