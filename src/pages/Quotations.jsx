@@ -1249,16 +1249,24 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   function removeVoItemBoq(idx) { setVoItems(prev => prev.filter((_,i)=>i!==idx)) }
 
   async function saveVo() {
-    const validItems = voItems.filter(it => it.desc.trim())
-    if (!voDescription.trim()) { toast.error('Add a variation description'); return }
+    // A line counts if it has a description or a title; a title-only line (common
+    // on items picked from the quote) saves with the title as its description.
+    const txt = v => String(v ?? '').trim()
+    const validItems = voItems
+      .map(it => ({ ...it, desc: txt(it.desc) || txt(it.title) }))
+      .filter(it => it.desc)
     if (validItems.length === 0) { toast.error('Add at least one line item'); return }
+    // An omission built from picked quote items already says what is coming off,
+    // so name it from those items rather than refusing to save.
+    const description = txt(voDescription) || (voOmission ? 'Omitted: ' + validItems.map(it => txt(it.title) || it.desc).join(', ').slice(0, 200) : '')
+    if (!description) { toast.error('Add a variation description'); return }
     setVoSaving(true)
     try {
       const payload = {
         quotation_id: activeQuote.id, company_id: company.id,
-        description: voDescription.trim(),
+        description,
         items: validItems.map(it => ({
-          title:(it.title||'').trim(), desc:it.desc.trim(), unit:it.unit||'Nos', qty:Number(it.qty)||0, rate:Number(it.rate)||0,
+          title:txt(it.title), desc:it.desc, unit:it.unit||'Nos', qty:Number(it.qty)||0, rate:Number(it.rate)||0,
           ...(voMode === 'boq' ? { trade: it.trade || 'Misc' } : {}),
           ...(voOmission && it.src_idx != null ? { src_idx: it.src_idx } : {}),
         })),
