@@ -1983,7 +1983,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         <div style={{ display:'flex', gap:8, marginBottom:14 }}>
           {[['add','Addition (+)','#0f6e56','Adds work / cost to the contract'],['omit','Omission (−)','#b45309','Removes work / cost from the contract']].map(([k,l,c,sub])=>{
             const on = (k==='omit') === voOmission
-            return <button key={k} type="button" onClick={()=>setVoOmission(k==='omit')} title={sub} style={{ flex:1, padding:'9px 10px', borderRadius:9, border:`1px solid ${on?c:border}`, background: on ? c+'18' : 'transparent', color: on?c:textSub, fontSize:12.5, fontWeight:700, cursor:'pointer' }}>{l}</button>
+            return <button key={k} type="button" onClick={()=>{ const omit = k==='omit'; setVoOmission(omit); if (!omit) setVoItems(prev => { const kept = prev.filter(it => it.src_idx == null); return kept.length || voMode==='boq' ? kept : [blankItem()] }) }} title={sub} style={{ flex:1, padding:'9px 10px', borderRadius:9, border:`1px solid ${on?c:border}`, background: on ? c+'18' : 'transparent', color: on?c:textSub, fontSize:12.5, fontWeight:700, cursor:'pointer' }}>{l}</button>
           })}
         </div>
         <label style={{ fontSize:12, color:textSub, display:'block', marginBottom:5 }}>Variation description <span style={{ color:'#dc2626' }}>*</span></label>
