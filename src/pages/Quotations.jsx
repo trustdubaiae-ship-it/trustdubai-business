@@ -1231,7 +1231,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     const m = v.items && v.items.some(it => it.trade) ? 'boq' : 'simple'
     setVoMode(m === 'boq' && canBoq ? 'boq' : 'simple')
     setVoItems(Array.isArray(v.items) && v.items.length
-      ? v.items.map(it => ({ title:it.title||'', desc:it.desc||'', unit:it.unit||'Nos', qty:it.qty??1, rate:it.rate??0, trade: it.trade || '' }))
+      ? v.items.map(it => ({ title:it.title||'', desc:it.desc||'', unit:it.unit||'Nos', qty:it.qty??1, rate:it.rate??0, trade: it.trade || '', ...(it.src_idx != null ? { src_idx: it.src_idx } : {}) }))
       : [blankItem()])
     setVoVat(!!v.vat_amount); setVoOmission(Number(v.total) < 0); setVoAddTrade('')
     setView('voBuilder', `voBuilder/${activeQuote.id}`)
@@ -1240,6 +1240,12 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   function addVoItem() { setVoItems(prev => [...prev, voMode==='boq'?blankItemT(tradeList[0]||'Misc'):blankItem()]) }
   function removeVoItem(idx) { setVoItems(prev => prev.length===1?prev:prev.filter((_,i)=>i!==idx)) }
   function addVoItemToTrade(trade) { setVoItems(prev => [...prev, blankItemT(trade)]) }
+  // Omission: pull a line straight from the quotation, at its quoted unit and rate,
+  // so the client sees exactly which item comes off and at what price.
+  function addOmitItem(src, i, left) {
+    const row = { title: src.title || '', desc: (src.desc || src.title || '').trim(), unit: src.unit || 'Nos', qty: left, rate: Number(src.rate) || 0, trade: src.trade || '', src_idx: i }
+    setVoItems(prev => [...prev.filter(it => (it.desc || '').trim() || (it.title || '').trim()), row])
+  }
   function removeVoItemBoq(idx) { setVoItems(prev => prev.filter((_,i)=>i!==idx)) }
 
   async function saveVo() {
@@ -1254,6 +1260,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         items: validItems.map(it => ({
           title:(it.title||'').trim(), desc:it.desc.trim(), unit:it.unit||'Nos', qty:Number(it.qty)||0, rate:Number(it.rate)||0,
           ...(voMode === 'boq' ? { trade: it.trade || 'Misc' } : {}),
+          ...(voOmission && it.src_idx != null ? { src_idx: it.src_idx } : {}),
         })),
         subtotal: (voOmission ? -1 : 1) * voSubtotal, vat_enabled: voVat, vat_amount: (voOmission ? -1 : 1) * voVatAmount, total: (voOmission ? -1 : 1) * voTotal,
         status: 'draft',
@@ -1944,6 +1951,13 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   if (view === 'voBuilder' && activeQuote) {
     const voGroups = voMode === 'boq' ? groupByTradeIdx(voItems, tradeList) : null
     const voAvailTrades = tradeList.filter(t => !(voGroups||[]).some(g => g.trade === t))
+    // quoted items an omission can take off; qty already omitted by other live VOs is not offered twice
+    const omitSrc = (Array.isArray(activeQuote.items) ? activeQuote.items : []).map((it, i) => {
+      const quoted = Number(it.qty) || 0
+      const gone = vos.filter(v => v.id !== voEditId && Number(v.total) < 0 && (v.status || 'draft') !== 'rejected')
+        .reduce((a, v) => a + (Array.isArray(v.items) ? v.items : []).reduce((b, x) => b + (x.src_idx === i ? Number(x.qty) || 0 : 0), 0), 0)
+      return { it, i, quoted, left: Math.max(0, quoted - gone), inVo: voItems.some(x => x.src_idx === i) }
+    }).filter(r => r.quoted > 0 && ((r.it.desc || '').trim() || (r.it.title || '').trim()))
     return (
       <div>
         {LibDatalist()}
@@ -1966,6 +1980,33 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         </div>
         <label style={{ fontSize:12, color:textSub, display:'block', marginBottom:5 }}>Variation description <span style={{ color:'#dc2626' }}>*</span></label>
         <input value={voDescription} onChange={e=>setVoDescription(e.target.value)} placeholder={voOmission ? 'e.g. Removed false ceiling in Bedroom 2' : 'e.g. Added bidet + extra wall niche in Bathroom 2'} style={{ ...inputStyle, marginBottom:14 }}/>
+
+        {voOmission && omitSrc.length > 0 && (
+          <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:10, overflow:'hidden', marginBottom:14 }}>
+            <div style={{ padding:'9px 13px', background:subBg, fontSize:12.5, fontWeight:600, color:text }}>
+              <i className="ti ti-list-check" style={{ fontSize:14, color:'#b45309', verticalAlign:'-2px', marginRight:5 }}/>
+              Which item is being removed? <span style={{ fontWeight:400, color:textMuted }}>Tap an item from {activeQuote.quote_number} to add it below</span>
+            </div>
+            <div style={{ maxHeight:260, overflowY:'auto' }}>
+              {omitSrc.map(({ it, i, quoted, left, inVo }) => {
+                const name = [it.title, it.desc].filter(x => (x || '').trim()).join(' — ') || `Item ${i + 1}`
+                const off = inVo || left <= 0
+                return (
+                  <button key={i} type="button" disabled={off} onClick={() => addOmitItem(it, i, left)}
+                    style={{ display:'flex', width:'100%', gap:10, alignItems:'center', textAlign:'left', padding:'8px 13px', border:'none', borderTop:`1px solid ${border}`, background:'transparent', cursor: off ? 'default' : 'pointer', opacity: off ? 0.55 : 1, color:text }}>
+                    <span style={{ flex:1, minWidth:0, fontSize:12.5 }}>
+                      <span style={{ display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{name}</span>
+                      <span style={{ fontSize:11, color:textMuted }}>{quoted} {it.unit || ''} @ {fmt(it.rate)}{left < quoted ? ` · ${left} left after earlier omissions` : ''}</span>
+                    </span>
+                    <span style={{ fontSize:12, fontWeight:600, whiteSpace:'nowrap', color: off ? textMuted : '#b45309' }}>
+                      {inVo ? 'Added' : left <= 0 ? 'Already removed' : <>− {fmt(left * (Number(it.rate) || 0))}</>}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {canBoq && (
           <div style={{ display:'inline-flex', background:pillBg, border:`1px solid ${border}`, borderRadius:10, padding:3, marginBottom:14 }}>
