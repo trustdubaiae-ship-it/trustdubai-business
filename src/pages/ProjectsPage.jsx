@@ -123,7 +123,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   const [payForm, setPayForm] = useState(null)
   const [invoices, setInvoices] = useState([])     // invoices linked to this project (client cash-in lives here)
   const [purchases, setPurchases] = useState([])   // purchase bills tagged to this project's client
-  const [projVos, setProjVos] = useState([])       // approved Variation Orders on this project's quote
+  const [projVos, setProjVos] = useState([])       // every live Variation Order on this project's quote; only approved ones change the contract
   const [milestones, setMilestones] = useState([])
   const [stageByProject, setStageByProject] = useState({}) // projectId -> timeline current stage (for list cards)
   const [msForm, setMsForm] = useState(null)
@@ -381,8 +381,9 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
       : [...new Set(inv.map(i => i.quotation_id).filter(Boolean))]
     if (voQuoteIds.length) {
       const { data, error } = await supabase.from('quotation_variations')
-        .select('total, status').eq('company_id', company.id)
-        .in('quotation_id', voQuoteIds).eq('status', 'approved')
+        .select('id, vo_number, description, total, status, created_at').eq('company_id', company.id)
+        .in('quotation_id', voQuoteIds).neq('status', 'rejected')
+        .order('vo_number', { ascending: true })
       // Not swallowed any more: a failed read here understates what the client
       // owes, which is the one thing this screen must never do quietly.
       if (error) console.error('project variations:', error.message)
@@ -781,7 +782,8 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
     .reduce((s, m) => s + (Number(m.actual_cost) || Number(m.est_cost) || 0), 0)
   const totalSubs = subs.reduce((s, x) => s + subGross(x), 0)
   const subsPaid = subs.reduce((s, x) => s + (Number(x.paid_amount) || 0), 0)
-  const voAdj = projVos.reduce((s, v) => s + (Number(v.total) || 0), 0)   // + additions / − omissions
+  const voApproved = v => (v.status || 'draft') === 'approved'
+  const voAdj = projVos.filter(voApproved).reduce((s, v) => s + (Number(v.total) || 0), 0)   // + additions / − omissions
   const origValue = Number(active?.contract_value) || 0
   const value = origValue + voAdj                                          // revised contract value
   const totalPurchases = purchases.reduce((s, x) => s + (Number(x.total) || 0), 0)
@@ -819,7 +821,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   // cancelled / on-hold invoices never reach the client.
   function openClientStatement() {
     printClientStatement(company, active, {
-      origValue, voAdj, value, invoices: liveInvoices, totalInvoiced, clientReceived, clientOutstanding,
+      origValue, voAdj, value, vos: projVos, invoices: liveInvoices, totalInvoiced, clientReceived, clientOutstanding,
     }, toast)
   }
 
@@ -2538,6 +2540,21 @@ function clientStatementBody(company, project, d) {
   const GREEN = '#1e8e4a', RED = '#c0392b'
   const serif = "'Playfair Display',Georgia,serif"
   const { origValue, voAdj, value, invoices, totalInvoiced, clientReceived, clientOutstanding } = d
+  // Each VO on its own line. Approved ones are in the total; draft / sent ones are
+  // listed too, marked as not included, so the client sees what is still pending.
+  const vos = Array.isArray(d.vos) ? d.vos : []
+  const voName = v => 'VO-' + String(v.vo_number || '').padStart(2, '0')
+  const voIn = v => (v.status || 'draft') === 'approved'
+  const voSigned = t => (t < 0 ? '− ' : '+ ') + 'AED ' + n(Math.abs(t))
+  const voRows = vos.map(v => {
+    const t = Number(v.total) || 0, on = voIn(v)
+    return `<tr>
+    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${on ? NAVY : '#9aa5b1'};white-space:nowrap;">${voName(v)}</td>
+    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10px;color:${MUT};">${t < 0 ? 'Omission' : 'Addition'}${v.description ? ' — ' + esc(v.description) : ''}</td>
+    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:9.5px;color:${on ? GREEN : '#b45309'};font-weight:600;">${on ? 'Approved' : 'Pending approval · not included'}</td>
+    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;white-space:nowrap;color:${on ? (t < 0 ? RED : NAVY) : '#9aa5b1'};${on ? '' : 'text-decoration:line-through;'}">${voSigned(t)}</td></tr>`
+  }).join('')
+  const voSummary = vos.filter(voIn).map(v => `<div style="display:flex;justify-content:space-between;gap:12px;padding:8px 16px;font-size:11px;color:${MUT};border-top:1px solid ${LINE};"><span>${voName(v)} ${(Number(v.total) || 0) < 0 ? 'omission' : 'addition'}</span><span style="color:${(Number(v.total) || 0) < 0 ? RED : NAVY};font-weight:600;white-space:nowrap;">${voSigned(Number(v.total) || 0)}</span></div>`).join('')
 
   // every payment across every live invoice, oldest first, with a running balance
   const pays = []
@@ -2600,6 +2617,17 @@ function clientStatementBody(company, project, d) {
         <tr><td colspan="3" style="padding:9px 11px;font-size:10.5px;color:${MUT};font-weight:600;">Total invoiced</td><td style="padding:9px 11px;font-size:10.5px;text-align:right;font-weight:700;color:${NAVY};">AED ${n(totalInvoiced)}</td></tr>
       </tbody>
     </table>` : ''}
+    ${voRows ? `<table style="width:100%;border-collapse:separate;border-spacing:0;margin-bottom:14px;border:1px solid ${LINE};border-radius:9px;overflow:hidden;">
+      <thead><tr style="background:${NAVY};color:#fff;">
+        <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Variation</th>
+        <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Description</th>
+        <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Status</th>
+        <th style="padding:10px 11px;text-align:right;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Amount</th>
+      </tr></thead>
+      <tbody>${voRows}
+        <tr><td colspan="3" style="padding:9px 11px;font-size:10.5px;color:${MUT};font-weight:600;">Approved variations — net</td><td style="padding:9px 11px;font-size:10.5px;text-align:right;font-weight:700;color:${NAVY};white-space:nowrap;">${voAdj === 0 ? 'AED 0' : voSigned(voAdj)}</td></tr>
+      </tbody>
+    </table>` : ''}
     <table style="width:100%;border-collapse:separate;border-spacing:0;margin-bottom:14px;border:1px solid ${LINE};border-radius:9px;overflow:hidden;">
       <thead><tr style="background:${NAVY};color:#fff;">
         <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;width:34px;">#</th>
@@ -2615,8 +2643,8 @@ function clientStatementBody(company, project, d) {
     </table>
     <div style="display:flex;justify-content:flex-end;margin-bottom:14px;page-break-inside:avoid;">
       <div style="min-width:300px;border:1px solid ${LINE};border-radius:9px;overflow:hidden;">
-        <div style="display:flex;justify-content:space-between;padding:8px 16px;font-size:11px;color:${MUT};"><span>Contract value</span><span style="color:${NAVY};font-weight:600;">AED ${n(origValue)}</span></div>
-        ${voAdj !== 0 ? `<div style="display:flex;justify-content:space-between;padding:8px 16px;font-size:11px;color:${MUT};border-top:1px solid ${LINE};"><span>Approved variations</span><span style="color:${NAVY};font-weight:600;">${voAdj < 0 ? '− ' : ''}AED ${n(Math.abs(voAdj))}</span></div>` : ''}
+        <div style="display:flex;justify-content:space-between;padding:8px 16px;font-size:11px;color:${MUT};"><span>${voSummary ? 'Original contract value' : 'Contract value'}</span><span style="color:${NAVY};font-weight:600;">AED ${n(origValue)}</span></div>
+        ${voSummary}
         <div style="display:flex;justify-content:space-between;padding:8px 16px;font-size:11px;color:${MUT};border-top:1px solid ${LINE};"><span>Total payable</span><span style="color:${NAVY};font-weight:600;">AED ${n(value)}</span></div>
         <div style="display:flex;justify-content:space-between;padding:8px 16px;font-size:11px;color:${MUT};border-top:1px solid ${LINE};"><span>Received to date</span><span style="color:${GREEN};font-weight:600;">− AED ${n(clientReceived)}</span></div>
         <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 16px;background:${NAVY};color:#fff;"><span style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;font-weight:600;opacity:.85;">Balance Due</span><span style="font-family:${serif};font-size:17px;font-weight:700;color:${clientOutstanding > 0 ? '#ff8a80' : '#4fd0f5'};">AED ${n(clientOutstanding)}</span></div>
