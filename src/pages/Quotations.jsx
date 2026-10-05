@@ -527,6 +527,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   const [voSaving, setVoSaving]   = useState(false)
   const [voPreview, setVoPreview] = useState(null)
   const [voError, setVoError]     = useState('')   // set when the VO table itself refuses the query
+  const [voSaveMsg, setVoSaveMsg] = useState('')   // why the last Save VO did not go through - stays on screen, unlike a toast
 
   const [restoring, setRestoring] = useState(true)
 
@@ -1218,7 +1219,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   const revisedTotal = Number(activeQuote?.total||0) + approvedVoTotal
 
   function openVoBuilder() {
-    setVoEditId(null)
+    setVoEditId(null); setVoSaveMsg('')
     setVoDescription('')
     setVoMode(activeQuote?.mode === 'boq' && canBoq ? 'boq' : 'simple')
     setVoItems(activeQuote?.mode === 'boq' && canBoq ? [] : [blankItem()])
@@ -1226,7 +1227,7 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
     setView('voBuilder', `voBuilder/${activeQuote.id}`)
   }
   function editVo(v) {
-    setVoEditId(v.id)
+    setVoEditId(v.id); setVoSaveMsg('')
     setVoDescription(v.description || '')
     const m = v.items && v.items.some(it => it.trade) ? 'boq' : 'simple'
     setVoMode(m === 'boq' && canBoq ? 'boq' : 'simple')
@@ -1248,20 +1249,32 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   }
   function removeVoItemBoq(idx) { setVoItems(prev => prev.filter((_,i)=>i!==idx)) }
 
+  // Save VO must never fail in silence: every exit that does not save says why,
+  // in a toast and in a note above the button that stays until the next attempt.
   async function saveVo() {
+    setVoSaveMsg('')
+    const fail = msg => { setVoSaveMsg(msg); toast.error(msg) }
+    try { await saveVoInner(fail) }
+    catch (e) { fail('Save failed: ' + voErrorHint(e)) }
+    finally { setVoSaving(false) }
+  }
+  // a request that never answers would otherwise leave the button on "Saving..." for good
+  const withTimeout = (p, ms = 20000) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('the server did not answer in ' + ms / 1000 + 's — check your connection, refresh the page and try again')), ms))])
+  async function saveVoInner(fail) {
     // A line counts if it has a description or a title; a title-only line (common
     // on items picked from the quote) saves with the title as its description.
     const txt = v => String(v ?? '').trim()
     const validItems = voItems
       .map(it => ({ ...it, desc: txt(it.desc) || txt(it.title) }))
       .filter(it => it.desc)
-    if (validItems.length === 0) { toast.error('Add at least one line item'); return }
+    if (validItems.length === 0) { fail('Add at least one line item — each line needs a description'); return }
     // An omission built from picked quote items already says what is coming off,
     // so name it from those items rather than refusing to save.
     const description = txt(voDescription) || (voOmission ? 'Omitted: ' + validItems.map(it => txt(it.title) || it.desc).join(', ').slice(0, 200) : '')
-    if (!description) { toast.error('Add a variation description'); return }
+    if (!description) { fail('Add a variation description'); return }
+    if (!activeQuote?.id || !company?.id) { fail('Save failed: the quotation or company is not loaded — refresh the page and try again'); return }
     setVoSaving(true)
-    try {
+    {
       const payload = {
         quotation_id: activeQuote.id, company_id: company.id,
         description,
@@ -1274,22 +1287,20 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
         status: 'draft',
       }
       if (voEditId) {
-        const { error } = await supabase.from('quotation_variations').update(payload).eq('id', voEditId).eq('company_id', company.id)
+        const { error } = await withTimeout(supabase.from('quotation_variations').update(payload).eq('id', voEditId).eq('company_id', company.id))
         if (error) throw error
         toast.success('Variation updated ✓')
       } else {
         const nextVo = (vos.reduce((m,v)=> Math.max(m, Number(v.vo_number)||0), 0)) + 1
         payload.vo_number = nextVo
-        const { error } = await supabase.from('quotation_variations').insert(payload)
+        const { error } = await withTimeout(supabase.from('quotation_variations').insert(payload))
         if (error) throw error
         toast.success('Variation saved ✓')
       }
       growLibrary(validItems, voMode)
       await fetchVos(activeQuote.id)
       setView('detail', `detail/${activeQuote.id}`)
-    } catch (e) {
-      toast.error('Save failed: ' + voErrorHint(e))
-    } finally { setVoSaving(false) }
+    }
   }
 
   async function changeVoStatus(v, newStatus) {
@@ -2122,6 +2133,11 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
           </div>
         </div>
 
+        {voSaveMsg && (
+          <div style={{ background: isDark ? 'rgba(220,38,38,0.12)' : '#fef2f2', border:`1px solid ${isDark ? 'rgba(220,38,38,0.4)' : '#fecaca'}`, color: isDark ? '#fca5a5' : '#b91c1c', borderRadius:9, padding:'9px 12px', fontSize:12.5, marginBottom:10, wordBreak:'break-word' }}>
+            <i className="ti ti-alert-circle" style={{ verticalAlign:'-2px', marginRight:5 }}/>{voSaveMsg}
+          </div>
+        )}
         <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
           <button onClick={()=>setView('detail', `detail/${activeQuote.id}`)} disabled={voSaving} style={{ flex:1, minWidth:120, padding:'11px', borderRadius:9, border:`1px solid ${border}`, background:'transparent', color:textSub, fontSize:13, cursor:'pointer' }}>Cancel</button>
           <button onClick={saveVo} disabled={voSaving} style={{ flex:2, minWidth:160, padding:'11px', borderRadius:9, border:'none', background:'#0099cc', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer' }}><i className="ti ti-check" style={{ fontSize:14, verticalAlign:'-2px', marginRight:4 }}/> {voSaving?'Saving...':(voEditId?'Update VO':'Save VO')}</button>
