@@ -123,7 +123,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   const [payForm, setPayForm] = useState(null)
   const [invoices, setInvoices] = useState([])     // invoices linked to this project (client cash-in lives here)
   const [purchases, setPurchases] = useState([])   // purchase bills tagged to this project's client
-  const [projVos, setProjVos] = useState([])       // every live Variation Order on this project's quote; only approved ones change the contract
+  const [projVos, setProjVos] = useState([])       // every Variation Order on this project's quote except rejected ones - all of them change the contract
   const [milestones, setMilestones] = useState([])
   const [stageByProject, setStageByProject] = useState({}) // projectId -> timeline current stage (for list cards)
   const [msForm, setMsForm] = useState(null)
@@ -782,8 +782,8 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
     .reduce((s, m) => s + (Number(m.actual_cost) || Number(m.est_cost) || 0), 0)
   const totalSubs = subs.reduce((s, x) => s + subGross(x), 0)
   const subsPaid = subs.reduce((s, x) => s + (Number(x.paid_amount) || 0), 0)
-  const voApproved = v => (v.status || 'draft') === 'approved'
-  const voAdj = projVos.filter(voApproved).reduce((s, v) => s + (Number(v.total) || 0), 0)   // + additions / − omissions
+  // Every VO that is not rejected counts - draft, sent or approved (rejected ones are not loaded)
+  const voAdj = projVos.filter(v => (v.status || 'draft') !== 'rejected').reduce((s, v) => s + (Number(v.total) || 0), 0)   // + additions / − omissions
   const origValue = Number(active?.contract_value) || 0
   const value = origValue + voAdj                                          // revised contract value
   const totalPurchases = purchases.reduce((s, x) => s + (Number(x.total) || 0), 0)
@@ -2491,7 +2491,7 @@ function projectStatementBody(company, project, d) {
       </tr></thead>
       <tbody>
         ${incomeRow('Contract value', 'Original agreed scope', origValue)}
-        ${voAdj !== 0 ? incomeRow('Variation orders', 'Approved additions / omissions', voAdj, voAdj >= 0 ? GREEN : RED) : ''}
+        ${voAdj !== 0 ? incomeRow('Variation orders', 'Additions / omissions', voAdj, voAdj >= 0 ? GREEN : RED) : ''}
         ${incomeRow('Revised contract value', '', value, NAVY, true)}
         ${incomeRow('Received from client', 'Payments recorded against invoices', clientReceived, GREEN)}
         ${incomeRow('Outstanding from client', '', clientOutstanding, clientOutstanding > 0 ? RED : GREEN)}
@@ -2540,18 +2540,18 @@ function clientStatementBody(company, project, d) {
   const GREEN = '#1e8e4a', RED = '#c0392b'
   const serif = "'Playfair Display',Georgia,serif"
   const { origValue, voAdj, value, invoices, totalInvoiced, clientReceived, clientOutstanding } = d
-  // Each VO on its own line. Approved ones are in the total; draft / sent ones are
-  // listed too, marked as not included, so the client sees what is still pending.
+  // Each VO on its own line, and every one that is not rejected is in the total.
   const vos = Array.isArray(d.vos) ? d.vos : []
   const voName = v => 'VO-' + String(v.vo_number || '').padStart(2, '0')
-  const voIn = v => (v.status || 'draft') === 'approved'
+  const voIn = v => (v.status || 'draft') !== 'rejected'
+  const voStatus = v => { const st = v.status || 'draft'; return st.charAt(0).toUpperCase() + st.slice(1) }
   const voSigned = t => (t < 0 ? '− ' : '+ ') + 'AED ' + n(Math.abs(t))
   const voRows = vos.map(v => {
     const t = Number(v.total) || 0, on = voIn(v)
     return `<tr>
     <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${on ? NAVY : '#9aa5b1'};white-space:nowrap;">${voName(v)}</td>
     <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10px;color:${MUT};">${t < 0 ? 'Omission' : 'Addition'}${v.description ? ' — ' + esc(v.description) : ''}</td>
-    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:9.5px;color:${on ? GREEN : '#b45309'};font-weight:600;">${on ? 'Approved' : 'Pending approval · not included'}</td>
+    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:9.5px;color:${on ? ((v.status || 'draft') === 'approved' ? GREEN : MUT) : '#b45309'};font-weight:600;">${on ? voStatus(v) : 'Rejected · not included'}</td>
     <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;white-space:nowrap;color:${on ? (t < 0 ? RED : NAVY) : '#9aa5b1'};${on ? '' : 'text-decoration:line-through;'}">${voSigned(t)}</td></tr>`
   }).join('')
   const voSummary = vos.filter(voIn).map(v => `<div style="display:flex;justify-content:space-between;gap:12px;padding:8px 16px;font-size:11px;color:${MUT};border-top:1px solid ${LINE};"><span>${voName(v)} ${(Number(v.total) || 0) < 0 ? 'omission' : 'addition'}</span><span style="color:${(Number(v.total) || 0) < 0 ? RED : NAVY};font-weight:600;white-space:nowrap;">${voSigned(Number(v.total) || 0)}</span></div>`).join('')
@@ -2625,7 +2625,7 @@ function clientStatementBody(company, project, d) {
         <th style="padding:10px 11px;text-align:right;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Amount</th>
       </tr></thead>
       <tbody>${voRows}
-        <tr><td colspan="3" style="padding:9px 11px;font-size:10.5px;color:${MUT};font-weight:600;">Approved variations — net</td><td style="padding:9px 11px;font-size:10.5px;text-align:right;font-weight:700;color:${NAVY};white-space:nowrap;">${voAdj === 0 ? 'AED 0' : voSigned(voAdj)}</td></tr>
+        <tr><td colspan="3" style="padding:9px 11px;font-size:10.5px;color:${MUT};font-weight:600;">Variations — net</td><td style="padding:9px 11px;font-size:10.5px;text-align:right;font-weight:700;color:${NAVY};white-space:nowrap;">${voAdj === 0 ? 'AED 0' : voSigned(voAdj)}</td></tr>
       </tbody>
     </table>` : ''}
     <table style="width:100%;border-collapse:separate;border-spacing:0;margin-bottom:14px;border:1px solid ${LINE};border-radius:9px;overflow:hidden;">
@@ -2637,7 +2637,7 @@ function clientStatementBody(company, project, d) {
         <th style="padding:10px 11px;text-align:right;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Balance</th>
       </tr></thead>
       <tbody>
-        <tr><td colspan="4" style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${MUT};font-weight:600;">Opening — Contract value${voAdj !== 0 ? ' (incl. approved variations)' : ''}</td><td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;font-weight:700;color:${NAVY};">AED ${n(value)}</td></tr>
+        <tr><td colspan="4" style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${MUT};font-weight:600;">Opening — Contract value${voAdj !== 0 ? ' (incl. variations)' : ''}</td><td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;font-weight:700;color:${NAVY};">AED ${n(value)}</td></tr>
         ${payRows || `<tr><td colspan="5" style="padding:16px;text-align:center;color:#999;font-size:11px;">No payments received yet.</td></tr>`}
       </tbody>
     </table>

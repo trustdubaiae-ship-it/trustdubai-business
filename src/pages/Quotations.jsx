@@ -1215,7 +1215,8 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
   const voVatAmount = voVat ? Math.round(voSubtotal*0.05) : 0
   const voTotal = voSubtotal + voVatAmount
 
-  const approvedVoTotal = vos.filter(v => (v.status||'draft')==='approved').reduce((s,v)=> s + Number(v.total||0), 0)
+  // every VO except a rejected one changes the contract - draft and sent included
+  const approvedVoTotal = vos.filter(v => (v.status||'draft')!=='rejected').reduce((s,v)=> s + Number(v.total||0), 0)
   const revisedTotal = Number(activeQuote?.total||0) + approvedVoTotal
 
   function openVoBuilder() {
@@ -2360,10 +2361,10 @@ export default function Quotations({ subRoute = '', setSubRoute, startAi = false
                   <div style={{ fontSize:11, color:textMuted, textTransform:'uppercase', letterSpacing:'.4px', marginBottom:9 }}>Revised Contract Value</div>
                   <div style={{ display:'flex', justifyContent:'space-between', fontSize:13, color:textSub, padding:'3px 0' }}><span>Original quote</span><span>{fmt(q.total||0)}</span></div>
                   {vos.map(v => {
-                    const appr = (v.status||'draft')==='approved'
+                    const appr = (v.status||'draft')!=='rejected'
                     return (
                       <div key={v.id} style={{ display:'flex', justifyContent:'space-between', fontSize:13, color: appr?textSub:textMuted, padding:'3px 0' }}>
-                        <span>VO-{String(v.vo_number).padStart(2,'0')} {appr?'(approved)':`(${v.status||'draft'} · not counted)`}</span>
+                        <span>VO-{String(v.vo_number).padStart(2,'0')} {appr?`(${v.status||'draft'})`:'(rejected · not counted)'}</span>
                         <span style={{ color: Number(v.total) < 0 ? '#b45309' : undefined }}>{Number(v.total) < 0 ? '− ' : '+ '}{fmt(Math.abs(Number(v.total) || 0))}</span>
                       </div>
                     )
