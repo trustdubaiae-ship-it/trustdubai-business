@@ -1557,7 +1557,9 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
             <StatTile icon="ti-wallet" label={activeAwarded ? 'Contract (LPO)' : 'Contract value'} value={AED(value)} color="#0099cc" />
             {!activeAwarded && <StatTile icon="ti-file-invoice" label="Invoiced" value={AED(totalInvoiced)} color="#8b5cf6" />}
             <StatTile icon="ti-cash" label="Received" value={AED(clientReceived)} color="#22c55e" />
-            <StatTile icon="ti-clock-dollar" label="Outstanding" value={AED(clientOutstanding)} color="#ef4444" />
+            {clientReceived > value
+              ? <StatTile icon="ti-arrow-back-up" label="Paid extra (credit)" value={AED(clientReceived - value)} color="#22c55e" />
+              : <StatTile icon="ti-clock-dollar" label="Outstanding" value={AED(clientOutstanding)} color="#ef4444" />}
           </div>
           <div style={{ ...card, padding: '12px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', background: `linear-gradient(135deg, ${netCash >= 0 ? '#22c55e' : '#ef4444'}14, transparent)` }}>
             <i className={'ti ' + (netCash >= 0 ? 'ti-trending-up' : 'ti-trending-down')} style={{ fontSize: 22, color: netCash >= 0 ? '#22c55e' : '#ef4444' }} />
@@ -2550,6 +2552,8 @@ function clientStatementBody(company, project, d) {
   const GREEN = '#1e8e4a', RED = '#c0392b'
   const serif = "'Playfair Display',Georgia,serif"
   const { origValue, voAdj, value, invoices, totalInvoiced, clientReceived, clientOutstanding } = d
+  // received more than is payable: the client is in credit, which must be shown, not printed as AED 0
+  const credit = Math.max(0, Math.round(clientReceived) - Math.round(value))
   // Each VO on its own line, and every one that is not rejected is in the total.
   const vos = Array.isArray(d.vos) ? d.vos : []
   const voName = v => 'VO-' + String(v.vo_number || '').padStart(2, '0')
@@ -2588,7 +2592,7 @@ function clientStatementBody(company, project, d) {
       <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${NAVY};white-space:nowrap;">${fmtDate(p.date)}</td>
       <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${MUT};">${esc(p.invoice_number || '')}${meta ? `<div style="font-size:9px;color:#8a97a5;">${meta}</div>` : ''}</td>
       <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;font-weight:600;color:${GREEN};">AED ${n(p.amount)}</td>
-      <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;font-weight:600;color:${NAVY};">AED ${n(running)}</td></tr>`
+      <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;font-weight:600;color:${running < 0 ? GREEN : NAVY};">${running < 0 ? 'AED ' + n(-running) + ' credit' : 'AED ' + n(running)}</td></tr>`
   }).join('')
 
   // oldest first — the client reads this as a chronology, not in fetch order
@@ -2628,7 +2632,7 @@ function clientStatementBody(company, project, d) {
     <div style="display:flex;gap:12px;margin-bottom:16px;">
       ${tile('Total Payable', value, NAVY)}
       ${tile('Received', clientReceived, GREEN)}
-      ${tile('Balance Due', clientOutstanding, clientOutstanding > 0 ? RED : GREEN)}
+      ${credit > 0 ? tile('Credit — paid extra', credit, GREEN) : tile('Balance Due', clientOutstanding, clientOutstanding > 0 ? RED : GREEN)}
     </div>
     ${invRows ? `<table style="width:100%;border-collapse:separate;border-spacing:0;margin-bottom:14px;border:1px solid ${LINE};border-radius:9px;overflow:hidden;">
       <thead><tr style="background:${NAVY};color:#fff;">
@@ -2673,7 +2677,8 @@ function clientStatementBody(company, project, d) {
         ${voSummary}
         <div style="display:flex;justify-content:space-between;padding:8px 16px;font-size:11px;color:${MUT};border-top:1px solid ${LINE};"><span>Total payable</span><span style="color:${NAVY};font-weight:600;">AED ${n(value)}</span></div>
         <div style="display:flex;justify-content:space-between;padding:8px 16px;font-size:11px;color:${MUT};border-top:1px solid ${LINE};"><span>Received to date</span><span style="color:${GREEN};font-weight:600;">− AED ${n(clientReceived)}</span></div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 16px;background:${NAVY};color:#fff;"><span style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;font-weight:600;opacity:.85;">Balance Due</span><span style="font-family:${serif};font-size:17px;font-weight:700;color:${clientOutstanding > 0 ? '#ff8a80' : '#4fd0f5'};">AED ${n(clientOutstanding)}</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 16px;background:${NAVY};color:#fff;"><span style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;font-weight:600;opacity:.85;">${credit > 0 ? 'Credit — paid extra' : 'Balance Due'}</span><span style="font-family:${serif};font-size:17px;font-weight:700;color:${clientOutstanding > 0 ? '#ff8a80' : '#4fd0f5'};">AED ${n(credit > 0 ? credit : clientOutstanding)}</span></div>
+        ${credit > 0 ? `<div style="padding:8px 16px;font-size:9.5px;color:${MUT};border-top:1px solid ${LINE};">AED ${n(credit)} received over the amount payable — to be adjusted against future work or refunded.</div>` : ''}
       </div>
     </div>
     <div style="font-size:9px;color:${MUT};line-height:1.6;border-top:1px solid ${LINE};padding-top:10px;">This statement reflects amounts payable and payments received as recorded by ${esc(company?.name || 'the Company')} as of the date above. Please review and confirm; kindly report any discrepancy within 7 days.</div>
