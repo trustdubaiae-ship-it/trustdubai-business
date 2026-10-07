@@ -67,7 +67,7 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
   const [payRef, setPayRef] = useState('')
   const [payNote, setPayNote] = useState('')
   const [payLinkBusy, setPayLinkBusy] = useState(false)
-  const [selVos, setSelVos] = useState([])   // approved Variation Orders for the selected quote
+  const [selVos, setSelVos] = useState([])   // Variation Orders for the selected quote (all but rejected)
   const [selVoIds, setSelVoIds] = useState([])  // VOs ticked for a variation-only invoice
   const [measQty, setMeasQty] = useState({})   // { quote item index: quantity completed this time }
 
@@ -75,13 +75,13 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
     if (company?.id) { fetchInvoices(); fetchTemplate() }
   }, [company?.id])
 
-  // load approved VOs for the selected quote → revised contract = quote + VOs
+  // load the selected quote's VOs (all but rejected) → revised contract = quote + VOs
   useEffect(() => {
     if (!selQuote?.id || !company?.id) { setSelVos([]); setSelVoIds([]); setMeasQty({}); return }
     setSelVoIds([]); setMeasQty({})
     supabase.from('quotation_variations')
       .select('id, vo_number, description, subtotal, vat_amount, total, items, status')
-      .eq('quotation_id', selQuote.id).eq('company_id', company.id).eq('status', 'approved')
+      .eq('quotation_id', selQuote.id).eq('company_id', company.id).neq('status', 'rejected')
       .order('vo_number', { ascending: true })
       .then(({ data }) => setSelVos(data || []))
   }, [selQuote?.id, company?.id])
@@ -111,7 +111,7 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
     try {
       const q = selQuote
       const schedule = parseSchedule(q.payment_terms)
-      // REVISED contract = original quote + approved Variation Orders (selVos)
+      // REVISED contract = original quote + Variation Orders (selVos, all but rejected)
       const voTot = selVos.reduce((s, v) => s + (Number(v.total) || 0), 0)
       const revTotal = Number(q.total || 0) + voTot
       const revVat = Number(q.vat_amount || 0) + selVos.reduce((s, v) => s + (Number(v.vat_amount) || 0), 0)
@@ -523,7 +523,7 @@ export default function Invoices({ subRoute = '', setSubRoute }) {
     const fullDisabled = !!fullInv || hasMilestoneInv || hasProgressInv
     const origTotal = Number(selQuote?.total || 0)
     const voTotal = selVos.reduce((s, v) => s + (Number(v.total) || 0), 0)           // + adds, − omissions
-    const contractTotal = origTotal + voTotal                                        // REVISED contract = quote + approved VOs
+    const contractTotal = origTotal + voTotal                                        // REVISED contract = quote + VOs (all but rejected)
     const paidTotal = quoteInvoices.reduce((a, iv) => a + sumPaid(iv), 0)            // collected so far on this quote
     const collectedSummary = { paid: paidTotal, total: contractTotal, remaining: Math.max(0, contractTotal - paidTotal) }
     // ---- variations billed on their own invoice ----

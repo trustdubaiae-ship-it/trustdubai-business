@@ -123,7 +123,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   const [payForm, setPayForm] = useState(null)
   const [invoices, setInvoices] = useState([])     // invoices linked to this project (client cash-in lives here)
   const [purchases, setPurchases] = useState([])   // purchase bills tagged to this project's client
-  const [projVos, setProjVos] = useState([])       // every live Variation Order on this project's quote; only approved ones change the contract
+  const [projVos, setProjVos] = useState([])       // every Variation Order on this project's quote except rejected ones - all of them change the contract
   const [milestones, setMilestones] = useState([])
   const [stageByProject, setStageByProject] = useState({}) // projectId -> timeline current stage (for list cards)
   const [msForm, setMsForm] = useState(null)
@@ -360,8 +360,8 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
     } else setAwardedPays([])
     // Client cash-in lives in the Invoices module — pull the linked invoices (single source of truth).
     let inv = []
-    if (proj?.quote_id) { const { data } = await supabase.from('invoices').select('id,invoice_number,quotation_id,total,payments,status,kind,milestone_label,issue_date,due_date').eq('company_id', company.id).eq('quotation_id', proj.quote_id).order('issue_date', { ascending: false }); inv = data || [] }
-    else if (proj?.client_id) { const { data } = await supabase.from('invoices').select('id,invoice_number,quotation_id,total,payments,status,kind,milestone_label,issue_date,due_date').eq('company_id', company.id).eq('client_id', proj.client_id).order('issue_date', { ascending: false }); inv = data || [] }
+    if (proj?.quote_id) { const { data } = await supabase.from('invoices').select('id,invoice_number,quotation_id,total,payments,status,kind,milestone_label,issue_date,due_date,variation_ids').eq('company_id', company.id).eq('quotation_id', proj.quote_id).order('issue_date', { ascending: false }); inv = data || [] }
+    else if (proj?.client_id) { const { data } = await supabase.from('invoices').select('id,invoice_number,quotation_id,total,payments,status,kind,milestone_label,issue_date,due_date,variation_ids').eq('company_id', company.id).eq('client_id', proj.client_id).order('issue_date', { ascending: false }); inv = data || [] }
     setInvoices(inv)
     // Approved Variation Orders → revised contract value.
     //
@@ -382,11 +382,11 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
     if (voQuoteIds.length) {
       const { data, error } = await supabase.from('quotation_variations')
         .select('id, vo_number, description, total, status, created_at').eq('company_id', company.id)
-        .in('quotation_id', voQuoteIds).neq('status', 'rejected')
+        .in('quotation_id', voQuoteIds).or('status.is.null,status.neq.rejected')
         .order('vo_number', { ascending: true })
-      // Not swallowed any more: a failed read here understates what the client
-      // owes, which is the one thing this screen must never do quietly.
-      if (error) console.error('project variations:', error.message)
+      // Said on screen, not just in the console: a failed read here understates
+      // what the client owes, which is the one thing this screen must never do quietly.
+      if (error) { console.error('project variations:', error.message); toast.error('Variation Orders could not be loaded — contract value and statement may be wrong: ' + error.message) }
       voList = data || []
     }
     setProjVos(voList)
@@ -782,8 +782,18 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
     .reduce((s, m) => s + (Number(m.actual_cost) || Number(m.est_cost) || 0), 0)
   const totalSubs = subs.reduce((s, x) => s + subGross(x), 0)
   const subsPaid = subs.reduce((s, x) => s + (Number(x.paid_amount) || 0), 0)
-  const voApproved = v => (v.status || 'draft') === 'approved'
-  const voAdj = projVos.filter(voApproved).reduce((s, v) => s + (Number(v.total) || 0), 0)   // + additions / − omissions
+  // Every VO that is not rejected counts - draft, sent or approved (rejected ones are not loaded)
+  const voLive = projVos.filter(v => (v.status || 'draft') !== 'rejected')
+  // A variation invoice whose VO is not in that list (deleted, or the VO read
+  // failed) still bills work outside the original contract. Its payments are in
+  // "received", so its amount must be in the contract too - otherwise the money
+  // paid for the variation is taken off the original contract's balance.
+  const voIdSet = new Set(voLive.map(v => String(v.id)))
+  const voInvIds = iv => (Array.isArray(iv.variation_ids) ? iv.variation_ids : []).map(String)
+  const voOrphanInvs = invoices.filter(iv => iv.kind === 'variation' && iv.status !== 'cancelled' && iv.status !== 'hold'
+    && !voInvIds(iv).some(id => voIdSet.has(id)))
+  const voAdj = voLive.reduce((s, v) => s + (Number(v.total) || 0), 0)
+    + voOrphanInvs.reduce((s, iv) => s + (Number(iv.total) || 0), 0)       // + additions / − omissions
   const origValue = Number(active?.contract_value) || 0
   const value = origValue + voAdj                                          // revised contract value
   const totalPurchases = purchases.reduce((s, x) => s + (Number(x.total) || 0), 0)
@@ -821,7 +831,7 @@ export default function ProjectsPage({ onNavigate, subRoute, setSubRoute }) {
   // cancelled / on-hold invoices never reach the client.
   function openClientStatement() {
     printClientStatement(company, active, {
-      origValue, voAdj, value, vos: projVos, invoices: liveInvoices, totalInvoiced, clientReceived, clientOutstanding,
+      origValue, voAdj, value, vos: voLive, voInvs: voOrphanInvs, invoices: liveInvoices, totalInvoiced, clientReceived, clientOutstanding,
     }, toast)
   }
 
@@ -2491,7 +2501,7 @@ function projectStatementBody(company, project, d) {
       </tr></thead>
       <tbody>
         ${incomeRow('Contract value', 'Original agreed scope', origValue)}
-        ${voAdj !== 0 ? incomeRow('Variation orders', 'Approved additions / omissions', voAdj, voAdj >= 0 ? GREEN : RED) : ''}
+        ${voAdj !== 0 ? incomeRow('Variation orders', 'Additions / omissions', voAdj, voAdj >= 0 ? GREEN : RED) : ''}
         ${incomeRow('Revised contract value', '', value, NAVY, true)}
         ${incomeRow('Received from client', 'Payments recorded against invoices', clientReceived, GREEN)}
         ${incomeRow('Outstanding from client', '', clientOutstanding, clientOutstanding > 0 ? RED : GREEN)}
@@ -2540,21 +2550,28 @@ function clientStatementBody(company, project, d) {
   const GREEN = '#1e8e4a', RED = '#c0392b'
   const serif = "'Playfair Display',Georgia,serif"
   const { origValue, voAdj, value, invoices, totalInvoiced, clientReceived, clientOutstanding } = d
-  // Each VO on its own line. Approved ones are in the total; draft / sent ones are
-  // listed too, marked as not included, so the client sees what is still pending.
+  // Each VO on its own line, and every one that is not rejected is in the total.
   const vos = Array.isArray(d.vos) ? d.vos : []
   const voName = v => 'VO-' + String(v.vo_number || '').padStart(2, '0')
-  const voIn = v => (v.status || 'draft') === 'approved'
+  const voIn = v => (v.status || 'draft') !== 'rejected'
+  const voStatus = v => { const st = v.status || 'draft'; return st.charAt(0).toUpperCase() + st.slice(1) }
   const voSigned = t => (t < 0 ? '− ' : '+ ') + 'AED ' + n(Math.abs(t))
   const voRows = vos.map(v => {
     const t = Number(v.total) || 0, on = voIn(v)
     return `<tr>
     <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${on ? NAVY : '#9aa5b1'};white-space:nowrap;">${voName(v)}</td>
     <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10px;color:${MUT};">${t < 0 ? 'Omission' : 'Addition'}${v.description ? ' — ' + esc(v.description) : ''}</td>
-    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:9.5px;color:${on ? GREEN : '#b45309'};font-weight:600;">${on ? 'Approved' : 'Pending approval · not included'}</td>
+    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:9.5px;color:${on ? ((v.status || 'draft') === 'approved' ? GREEN : MUT) : '#b45309'};font-weight:600;">${on ? voStatus(v) : 'Rejected · not included'}</td>
     <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;white-space:nowrap;color:${on ? (t < 0 ? RED : NAVY) : '#9aa5b1'};${on ? '' : 'text-decoration:line-through;'}">${voSigned(t)}</td></tr>`
   }).join('')
-  const voSummary = vos.filter(voIn).map(v => `<div style="display:flex;justify-content:space-between;gap:12px;padding:8px 16px;font-size:11px;color:${MUT};border-top:1px solid ${LINE};"><span>${voName(v)} ${(Number(v.total) || 0) < 0 ? 'omission' : 'addition'}</span><span style="color:${(Number(v.total) || 0) < 0 ? RED : NAVY};font-weight:600;white-space:nowrap;">${voSigned(Number(v.total) || 0)}</span></div>`).join('')
+  // variation invoices with no VO record behind them still change the contract
+  const voInvs = Array.isArray(d.voInvs) ? d.voInvs : []
+  const voInvRows = voInvs.map(iv => `<tr>
+    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${NAVY};white-space:nowrap;">${esc(iv.milestone_label || 'Variation')}</td>
+    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10px;color:${MUT};">Variation billed on ${esc(iv.invoice_number || '')}</td>
+    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:9.5px;color:${GREEN};font-weight:600;">Invoiced</td>
+    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;white-space:nowrap;color:${(Number(iv.total) || 0) < 0 ? RED : NAVY};">${voSigned(Number(iv.total) || 0)}</td></tr>`).join('')
+  const voSummary = voInvs.map(iv => `<div style="display:flex;justify-content:space-between;gap:12px;padding:8px 16px;font-size:11px;color:${MUT};border-top:1px solid ${LINE};"><span>${esc(iv.milestone_label || 'Variation')} (${esc(iv.invoice_number || '')})</span><span style="color:${NAVY};font-weight:600;white-space:nowrap;">${voSigned(Number(iv.total) || 0)}</span></div>`).join('') + vos.filter(voIn).map(v => `<div style="display:flex;justify-content:space-between;gap:12px;padding:8px 16px;font-size:11px;color:${MUT};border-top:1px solid ${LINE};"><span>${voName(v)} ${(Number(v.total) || 0) < 0 ? 'omission' : 'addition'}</span><span style="color:${(Number(v.total) || 0) < 0 ? RED : NAVY};font-weight:600;white-space:nowrap;">${voSigned(Number(v.total) || 0)}</span></div>`).join('')
 
   // every payment across every live invoice, oldest first, with a running balance
   const pays = []
@@ -2576,11 +2593,18 @@ function clientStatementBody(company, project, d) {
 
   // oldest first — the client reads this as a chronology, not in fetch order
   const invSorted = (invoices || []).slice().sort((a, b) => new Date(a.issue_date || 0) - new Date(b.issue_date || 0))
+  // what each invoice asked for, what came in against it and what is still open on it
+  const ivPaid = iv => (Array.isArray(iv.payments) ? iv.payments : []).reduce((a, p) => a + (Number(p.amount) || 0), 0)
+  const ivOpen = iv => Math.round(Number(iv.total) || 0) - Math.round(ivPaid(iv))
+  const ivOpenCell = iv => { const o = ivOpen(iv); return o > 0 ? `<span style="color:${RED};">AED ${n(o)}</span>` : o < 0 ? `<span style="color:${GREEN};">AED ${n(-o)} extra</span>` : `<span style="color:${GREEN};">Paid</span>` }
   const invRows = invSorted.map(iv => `<tr>
-    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${NAVY};">${esc(iv.invoice_number || '—')}</td>
-    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10px;color:${MUT};">${esc(iv.milestone_label || iv.kind || '')}</td>
+    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${NAVY};white-space:nowrap;">${esc(iv.invoice_number || '—')}</td>
+    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10px;color:${MUT};">${esc(iv.milestone_label || iv.kind || '')}${iv.kind === 'variation' ? ' <span style="color:' + ACCENT + ';">· variation</span>' : ''}</td>
     <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10px;color:${MUT};white-space:nowrap;">${fmtDate(iv.issue_date)}</td>
-    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;color:${NAVY};">AED ${n(iv.total)}</td></tr>`).join('')
+    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;color:${NAVY};white-space:nowrap;">AED ${n(iv.total)}</td>
+    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;color:${GREEN};white-space:nowrap;">AED ${n(ivPaid(iv))}</td>
+    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;font-weight:600;white-space:nowrap;">${ivOpenCell(iv)}</td></tr>`).join('')
+  const invPaidSum = invSorted.reduce((a, iv) => a + ivPaid(iv), 0)
 
   const logo = company?.logo_url ? `<img src="${esc(company.logo_url)}" style="height:48px;width:48px;object-fit:cover;border-radius:9px;flex-shrink:0;" />` : ''
   const tile = (label, val, color) => `<div style="flex:1;border:1px solid ${LINE};border-radius:9px;padding:12px 15px;background:${SOFT};"><div style="font-size:8px;color:${ACCENT};text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">${label}</div><div style="font-family:${serif};font-size:17px;font-weight:700;margin-top:4px;color:${color};">AED ${n(val)}</div></div>`
@@ -2612,20 +2636,22 @@ function clientStatementBody(company, project, d) {
         <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Description</th>
         <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Issued</th>
         <th style="padding:10px 11px;text-align:right;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Amount</th>
+        <th style="padding:10px 11px;text-align:right;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Paid</th>
+        <th style="padding:10px 11px;text-align:right;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Balance</th>
       </tr></thead>
       <tbody>${invRows}
-        <tr><td colspan="3" style="padding:9px 11px;font-size:10.5px;color:${MUT};font-weight:600;">Total invoiced</td><td style="padding:9px 11px;font-size:10.5px;text-align:right;font-weight:700;color:${NAVY};">AED ${n(totalInvoiced)}</td></tr>
+        <tr><td colspan="3" style="padding:9px 11px;font-size:10.5px;color:${MUT};font-weight:600;">Total invoiced</td><td style="padding:9px 11px;font-size:10.5px;text-align:right;font-weight:700;color:${NAVY};white-space:nowrap;">AED ${n(totalInvoiced)}</td><td style="padding:9px 11px;font-size:10.5px;text-align:right;font-weight:700;color:${GREEN};white-space:nowrap;">AED ${n(invPaidSum)}</td><td style="padding:9px 11px;font-size:10.5px;text-align:right;font-weight:700;color:${NAVY};white-space:nowrap;">AED ${n(Math.max(0, totalInvoiced - invPaidSum))}</td></tr>
       </tbody>
     </table>` : ''}
-    ${voRows ? `<table style="width:100%;border-collapse:separate;border-spacing:0;margin-bottom:14px;border:1px solid ${LINE};border-radius:9px;overflow:hidden;">
+    ${voRows || voInvRows ? `<table style="width:100%;border-collapse:separate;border-spacing:0;margin-bottom:14px;border:1px solid ${LINE};border-radius:9px;overflow:hidden;">
       <thead><tr style="background:${NAVY};color:#fff;">
         <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Variation</th>
         <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Description</th>
         <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Status</th>
         <th style="padding:10px 11px;text-align:right;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Amount</th>
       </tr></thead>
-      <tbody>${voRows}
-        <tr><td colspan="3" style="padding:9px 11px;font-size:10.5px;color:${MUT};font-weight:600;">Approved variations — net</td><td style="padding:9px 11px;font-size:10.5px;text-align:right;font-weight:700;color:${NAVY};white-space:nowrap;">${voAdj === 0 ? 'AED 0' : voSigned(voAdj)}</td></tr>
+      <tbody>${voRows}${voInvRows}
+        <tr><td colspan="3" style="padding:9px 11px;font-size:10.5px;color:${MUT};font-weight:600;">Variations — net</td><td style="padding:9px 11px;font-size:10.5px;text-align:right;font-weight:700;color:${NAVY};white-space:nowrap;">${voAdj === 0 ? 'AED 0' : voSigned(voAdj)}</td></tr>
       </tbody>
     </table>` : ''}
     <table style="width:100%;border-collapse:separate;border-spacing:0;margin-bottom:14px;border:1px solid ${LINE};border-radius:9px;overflow:hidden;">
@@ -2637,7 +2663,7 @@ function clientStatementBody(company, project, d) {
         <th style="padding:10px 11px;text-align:right;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Balance</th>
       </tr></thead>
       <tbody>
-        <tr><td colspan="4" style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${MUT};font-weight:600;">Opening — Contract value${voAdj !== 0 ? ' (incl. approved variations)' : ''}</td><td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;font-weight:700;color:${NAVY};">AED ${n(value)}</td></tr>
+        <tr><td colspan="4" style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${MUT};font-weight:600;">Opening — Contract value${voAdj !== 0 ? ' (incl. variations)' : ''}</td><td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;font-weight:700;color:${NAVY};">AED ${n(value)}</td></tr>
         ${payRows || `<tr><td colspan="5" style="padding:16px;text-align:center;color:#999;font-size:11px;">No payments received yet.</td></tr>`}
       </tbody>
     </table>
