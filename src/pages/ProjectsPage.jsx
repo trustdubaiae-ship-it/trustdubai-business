@@ -2545,70 +2545,57 @@ function printProjectStatement(company, project, d, toast) {
 // leaves the building. Invoices are listed as supporting detail; the balance is
 // driven by the revised contract value, not by what happens to have been invoiced.
 function clientStatementBody(company, project, d) {
+  // Written for the client, not the accountant: what the contract was, what each
+  // variation changed and when, what has been paid and when, and what is left.
   const esc = __escDoc
   const n = v => Math.round(Number(v) || 0).toLocaleString('en-AE')
   const fmtDate = x => x ? new Date(x).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
   const NAVY = '#0f2741', ACCENT = '#0099cc', MUT = '#6b7a8d', LINE = '#e7eef4', SOFT = '#f6fafc'
   const GREEN = '#1e8e4a', RED = '#c0392b'
   const serif = "'Playfair Display',Georgia,serif"
-  const { origValue, voAdj, value, invoices, totalInvoiced, clientReceived, clientOutstanding } = d
-  // received more than is payable: the client is in credit, which must be shown, not printed as AED 0
+  const { origValue, value, invoices, clientReceived, clientOutstanding } = d
+  // paid more than the contract: say so, never print it as AED 0
   const credit = Math.max(0, Math.round(clientReceived) - Math.round(value))
-  // Each VO on its own line, and every one that is not rejected is in the total.
-  const vos = Array.isArray(d.vos) ? d.vos : []
-  const voName = v => 'VO-' + String(v.vo_number || '').padStart(2, '0')
-  const voIn = v => (v.status || 'draft') !== 'rejected'
-  const voStatus = v => { const st = v.status || 'draft'; return st.charAt(0).toUpperCase() + st.slice(1) }
-  const voSigned = t => (t < 0 ? '− ' : '+ ') + 'AED ' + n(Math.abs(t))
-  const voRows = vos.map(v => {
-    const t = Number(v.total) || 0, on = voIn(v)
-    return `<tr>
-    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${on ? NAVY : '#9aa5b1'};white-space:nowrap;">${voName(v)}</td>
-    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10px;color:${MUT};">${t < 0 ? 'Omission' : 'Addition'}${v.description ? ' — ' + esc(v.description) : ''}</td>
-    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:9.5px;color:${on ? ((v.status || 'draft') === 'approved' ? GREEN : MUT) : '#b45309'};font-weight:600;">${on ? voStatus(v) : 'Rejected · not included'}</td>
-    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;white-space:nowrap;color:${on ? (t < 0 ? RED : NAVY) : '#9aa5b1'};${on ? '' : 'text-decoration:line-through;'}">${voSigned(t)}</td></tr>`
-  }).join('')
-  // variation invoices with no VO record behind them still change the contract
-  const voInvs = Array.isArray(d.voInvs) ? d.voInvs : []
-  const voInvRows = voInvs.map(iv => `<tr>
-    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${NAVY};white-space:nowrap;">${esc(iv.milestone_label || 'Variation')}</td>
-    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10px;color:${MUT};">Variation billed on ${esc(iv.invoice_number || '')}</td>
-    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:9.5px;color:${GREEN};font-weight:600;">Invoiced</td>
-    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;white-space:nowrap;color:${(Number(iv.total) || 0) < 0 ? RED : NAVY};">${voSigned(Number(iv.total) || 0)}</td></tr>`).join('')
-  const voSummary = voInvs.map(iv => `<div style="display:flex;justify-content:space-between;gap:12px;padding:8px 16px;font-size:11px;color:${MUT};border-top:1px solid ${LINE};"><span>${esc(iv.milestone_label || 'Variation')} (${esc(iv.invoice_number || '')})</span><span style="color:${NAVY};font-weight:600;white-space:nowrap;">${voSigned(Number(iv.total) || 0)}</span></div>`).join('') + vos.filter(voIn).map(v => `<div style="display:flex;justify-content:space-between;gap:12px;padding:8px 16px;font-size:11px;color:${MUT};border-top:1px solid ${LINE};"><span>${voName(v)} ${(Number(v.total) || 0) < 0 ? 'omission' : 'addition'}</span><span style="color:${(Number(v.total) || 0) < 0 ? RED : NAVY};font-weight:600;white-space:nowrap;">${voSigned(Number(v.total) || 0)}</span></div>`).join('')
+  const signed = t => (t < 0 ? '− ' : '+ ') + 'AED ' + n(Math.abs(t))
 
-  // every payment across every live invoice, oldest first, with a running balance
+  // 1) the contract and every change to it, oldest first
+  const vos = (Array.isArray(d.vos) ? d.vos : []).filter(v => (v.status || 'draft') !== 'rejected')
+  const voInvs = Array.isArray(d.voInvs) ? d.voInvs : []     // variation invoices with no VO record behind them
+  const changes = [
+    ...vos.map(v => ({ date: v.created_at, name: 'VO-' + String(v.vo_number || '').padStart(2, '0'), desc: v.description || '', amt: Number(v.total) || 0 })),
+    ...voInvs.map(iv => ({ date: iv.issue_date, name: iv.milestone_label || 'Variation', desc: 'billed on ' + (iv.invoice_number || ''), amt: Number(iv.total) || 0 })),
+  ].sort((x, y) => new Date(x.date || 0) - new Date(y.date || 0))
+  const td = (extra = '') => `padding:9px 12px;border-bottom:1px solid ${LINE};font-size:11px;${extra}`
+  const contractRows = `<tr>
+      <td style="${td('color:' + MUT + ';white-space:nowrap;width:92px;')}">${fmtDate(project?.start_date || project?.created_at)}</td>
+      <td style="${td('color:' + NAVY + ';font-weight:600;')}">Original contract</td>
+      <td style="${td('text-align:right;white-space:nowrap;color:' + NAVY + ';font-weight:600;')}">AED ${n(origValue)}</td></tr>`
+    + changes.map(c => `<tr>
+      <td style="${td('color:' + MUT + ';white-space:nowrap;')}">${fmtDate(c.date)}</td>
+      <td style="${td('color:' + NAVY + ';')}"><b>${esc(c.name)}</b> · ${c.amt < 0 ? 'Work removed' : 'Extra work'}${c.desc ? `<div style="font-size:9.5px;color:${MUT};margin-top:1px;">${esc(c.desc)}</div>` : ''}</td>
+      <td style="${td('text-align:right;white-space:nowrap;font-weight:600;color:' + (c.amt < 0 ? RED : NAVY) + ';')}">${signed(c.amt)}</td></tr>`).join('')
+
+  // 2) every payment, oldest first
   const pays = []
   ;(invoices || []).forEach(iv => {
     (Array.isArray(iv.payments) ? iv.payments : []).forEach(p => pays.push({ ...p, invoice_number: iv.invoice_number }))
   })
   pays.sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0))
-  let running = value
-  const payRows = pays.map((p, i) => {
-    running -= (Number(p.amount) || 0)
-    const meta = [p.method, p.reference, p.note].filter(Boolean).map(esc).join(' · ')
-    return `<tr style="${i % 2 ? 'background:' + SOFT + ';' : ''}">
-      <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${MUT};">${i + 1}</td>
-      <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${NAVY};white-space:nowrap;">${fmtDate(p.date)}</td>
-      <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${MUT};">${esc(p.invoice_number || '')}${meta ? `<div style="font-size:9px;color:#8a97a5;">${meta}</div>` : ''}</td>
-      <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;font-weight:600;color:${GREEN};">AED ${n(p.amount)}</td>
-      <td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;font-weight:600;color:${running < 0 ? GREEN : NAVY};">${running < 0 ? 'AED ' + n(-running) + ' credit' : 'AED ' + n(running)}</td></tr>`
+  const payRows = pays.map(p => {
+    const how = [p.method, p.reference ? 'Ref ' + p.reference : '', p.note].filter(Boolean).map(esc).join(' · ')
+    return `<tr>
+      <td style="${td('color:' + MUT + ';white-space:nowrap;width:92px;')}">${fmtDate(p.date)}</td>
+      <td style="${td('color:' + NAVY + ';')}">${how || 'Payment'}${p.invoice_number ? `<div style="font-size:9.5px;color:${MUT};margin-top:1px;">against ${esc(p.invoice_number)}</div>` : ''}</td>
+      <td style="${td('text-align:right;white-space:nowrap;font-weight:600;color:' + GREEN + ';')}">AED ${n(p.amount)}</td></tr>`
   }).join('')
 
-  // oldest first — the client reads this as a chronology, not in fetch order
-  const invSorted = (invoices || []).slice().sort((a, b) => new Date(a.issue_date || 0) - new Date(b.issue_date || 0))
-  // what each invoice asked for, what came in against it and what is still open on it
-  const ivPaid = iv => (Array.isArray(iv.payments) ? iv.payments : []).reduce((a, p) => a + (Number(p.amount) || 0), 0)
-  const ivOpen = iv => Math.round(Number(iv.total) || 0) - Math.round(ivPaid(iv))
-  const ivOpenCell = iv => { const o = ivOpen(iv); return o > 0 ? `<span style="color:${RED};">AED ${n(o)}</span>` : o < 0 ? `<span style="color:${GREEN};">AED ${n(-o)} extra</span>` : `<span style="color:${GREEN};">Paid</span>` }
-  const invRows = invSorted.map(iv => `<tr>
-    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${NAVY};white-space:nowrap;">${esc(iv.invoice_number || '—')}</td>
-    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10px;color:${MUT};">${esc(iv.milestone_label || iv.kind || '')}${iv.kind === 'variation' ? ' <span style="color:' + ACCENT + ';">· variation</span>' : ''}</td>
-    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10px;color:${MUT};white-space:nowrap;">${fmtDate(iv.issue_date)}</td>
-    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;color:${NAVY};white-space:nowrap;">AED ${n(iv.total)}</td>
-    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;color:${GREEN};white-space:nowrap;">AED ${n(ivPaid(iv))}</td>
-    <td style="padding:8px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;font-weight:600;white-space:nowrap;">${ivOpenCell(iv)}</td></tr>`).join('')
-  const invPaidSum = invSorted.reduce((a, iv) => a + ivPaid(iv), 0)
+  const section = (title, rows, totalLabel, total, totalColor) => `
+    <div style="font-size:10px;color:${ACCENT};text-transform:uppercase;letter-spacing:1.4px;font-weight:700;margin:4px 0 7px;">${title}</div>
+    <table style="width:100%;border-collapse:separate;border-spacing:0;margin-bottom:16px;border:1px solid ${LINE};border-radius:9px;overflow:hidden;">
+      <tbody>${rows}
+        <tr style="background:${SOFT};"><td colspan="2" style="padding:10px 12px;font-size:11.5px;font-weight:700;color:${NAVY};">${totalLabel}</td><td style="padding:10px 12px;font-size:12px;text-align:right;font-weight:800;white-space:nowrap;color:${totalColor};">AED ${n(total)}</td></tr>
+      </tbody>
+    </table>`
 
   const logo = company?.logo_url ? `<img src="${esc(company.logo_url)}" style="height:48px;width:48px;object-fit:cover;border-radius:9px;flex-shrink:0;" />` : ''
   const tile = (label, val, color) => `<div style="flex:1;border:1px solid ${LINE};border-radius:9px;padding:12px 15px;background:${SOFT};"><div style="font-size:8px;color:${ACCENT};text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">${label}</div><div style="font-family:${serif};font-size:17px;font-weight:700;margin-top:4px;color:${color};">AED ${n(val)}</div></div>`
@@ -2629,56 +2616,19 @@ function clientStatementBody(company, project, d) {
       <div style="flex:1;border:1px solid ${LINE};border-radius:9px;padding:12px 15px;"><div style="font-size:8px;color:${ACCENT};text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">Client</div><div style="font-size:13.5px;font-weight:700;margin-top:4px;color:${NAVY};">${esc(project?.client_name || '—')}</div><div style="font-size:10.5px;color:${MUT};margin-top:1px;">${esc(project?.client_phone || '')}</div></div>
       <div style="flex:1;border:1px solid ${LINE};border-radius:9px;padding:12px 15px;"><div style="font-size:8px;color:${ACCENT};text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">Project</div><div style="font-size:13.5px;font-weight:700;margin-top:4px;color:${NAVY};">${esc(project?.name || '')}</div><div style="font-size:10.5px;color:${MUT};margin-top:1px;">${esc(project?.location || '')}</div></div>
     </div>
-    <div style="display:flex;gap:12px;margin-bottom:16px;">
-      ${tile('Total Payable', value, NAVY)}
-      ${tile('Received', clientReceived, GREEN)}
-      ${credit > 0 ? tile('Credit — paid extra', credit, GREEN) : tile('Balance Due', clientOutstanding, clientOutstanding > 0 ? RED : GREEN)}
+    <div style="display:flex;gap:12px;margin-bottom:18px;">
+      ${tile('Total contract', value, NAVY)}
+      ${tile('Paid so far', clientReceived, GREEN)}
+      ${credit > 0 ? tile('Paid extra', credit, GREEN) : tile('Left to pay', clientOutstanding, clientOutstanding > 0 ? RED : GREEN)}
     </div>
-    ${invRows ? `<table style="width:100%;border-collapse:separate;border-spacing:0;margin-bottom:14px;border:1px solid ${LINE};border-radius:9px;overflow:hidden;">
-      <thead><tr style="background:${NAVY};color:#fff;">
-        <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Invoice</th>
-        <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Description</th>
-        <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Issued</th>
-        <th style="padding:10px 11px;text-align:right;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Amount</th>
-        <th style="padding:10px 11px;text-align:right;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Paid</th>
-        <th style="padding:10px 11px;text-align:right;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Balance</th>
-      </tr></thead>
-      <tbody>${invRows}
-        <tr><td colspan="3" style="padding:9px 11px;font-size:10.5px;color:${MUT};font-weight:600;">Total invoiced</td><td style="padding:9px 11px;font-size:10.5px;text-align:right;font-weight:700;color:${NAVY};white-space:nowrap;">AED ${n(totalInvoiced)}</td><td style="padding:9px 11px;font-size:10.5px;text-align:right;font-weight:700;color:${GREEN};white-space:nowrap;">AED ${n(invPaidSum)}</td><td style="padding:9px 11px;font-size:10.5px;text-align:right;font-weight:700;color:${NAVY};white-space:nowrap;">AED ${n(Math.max(0, totalInvoiced - invPaidSum))}</td></tr>
-      </tbody>
-    </table>` : ''}
-    ${voRows || voInvRows ? `<table style="width:100%;border-collapse:separate;border-spacing:0;margin-bottom:14px;border:1px solid ${LINE};border-radius:9px;overflow:hidden;">
-      <thead><tr style="background:${NAVY};color:#fff;">
-        <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Variation</th>
-        <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Description</th>
-        <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Status</th>
-        <th style="padding:10px 11px;text-align:right;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Amount</th>
-      </tr></thead>
-      <tbody>${voRows}${voInvRows}
-        <tr><td colspan="3" style="padding:9px 11px;font-size:10.5px;color:${MUT};font-weight:600;">Variations — net</td><td style="padding:9px 11px;font-size:10.5px;text-align:right;font-weight:700;color:${NAVY};white-space:nowrap;">${voAdj === 0 ? 'AED 0' : voSigned(voAdj)}</td></tr>
-      </tbody>
-    </table>` : ''}
-    <table style="width:100%;border-collapse:separate;border-spacing:0;margin-bottom:14px;border:1px solid ${LINE};border-radius:9px;overflow:hidden;">
-      <thead><tr style="background:${NAVY};color:#fff;">
-        <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;width:34px;">#</th>
-        <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Date</th>
-        <th style="padding:10px 11px;text-align:left;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Invoice / Method</th>
-        <th style="padding:10px 11px;text-align:right;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Received</th>
-        <th style="padding:10px 11px;text-align:right;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:600;">Balance</th>
-      </tr></thead>
-      <tbody>
-        <tr><td colspan="4" style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;color:${MUT};font-weight:600;">Opening — Contract value${voAdj !== 0 ? ' (incl. variations)' : ''}</td><td style="padding:9px 11px;border-bottom:1px solid ${LINE};font-size:10.5px;text-align:right;font-weight:700;color:${NAVY};">AED ${n(value)}</td></tr>
-        ${payRows || `<tr><td colspan="5" style="padding:16px;text-align:center;color:#999;font-size:11px;">No payments received yet.</td></tr>`}
-      </tbody>
-    </table>
-    <div style="display:flex;justify-content:flex-end;margin-bottom:14px;page-break-inside:avoid;">
-      <div style="min-width:300px;border:1px solid ${LINE};border-radius:9px;overflow:hidden;">
-        <div style="display:flex;justify-content:space-between;padding:8px 16px;font-size:11px;color:${MUT};"><span>${voSummary ? 'Original contract value' : 'Contract value'}</span><span style="color:${NAVY};font-weight:600;">AED ${n(origValue)}</span></div>
-        ${voSummary}
-        <div style="display:flex;justify-content:space-between;padding:8px 16px;font-size:11px;color:${MUT};border-top:1px solid ${LINE};"><span>Total payable</span><span style="color:${NAVY};font-weight:600;">AED ${n(value)}</span></div>
-        <div style="display:flex;justify-content:space-between;padding:8px 16px;font-size:11px;color:${MUT};border-top:1px solid ${LINE};"><span>Received to date</span><span style="color:${GREEN};font-weight:600;">− AED ${n(clientReceived)}</span></div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 16px;background:${NAVY};color:#fff;"><span style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;font-weight:600;opacity:.85;">${credit > 0 ? 'Credit — paid extra' : 'Balance Due'}</span><span style="font-family:${serif};font-size:17px;font-weight:700;color:${clientOutstanding > 0 ? '#ff8a80' : '#4fd0f5'};">AED ${n(credit > 0 ? credit : clientOutstanding)}</span></div>
-        ${credit > 0 ? `<div style="padding:8px 16px;font-size:9.5px;color:${MUT};border-top:1px solid ${LINE};">AED ${n(credit)} received over the amount payable — to be adjusted against future work or refunded.</div>` : ''}
+    ${section('1 · Contract and variations', contractRows, 'Total contract value', value, NAVY)}
+    ${section('2 · Payments received', payRows || `<tr><td colspan="3" style="padding:14px;text-align:center;color:#999;font-size:11px;">No payments received yet.</td></tr>`, 'Total paid', clientReceived, GREEN)}
+    <div style="display:flex;justify-content:flex-end;margin-bottom:16px;page-break-inside:avoid;">
+      <div style="min-width:320px;border:1px solid ${LINE};border-radius:9px;overflow:hidden;">
+        <div style="display:flex;justify-content:space-between;padding:9px 16px;font-size:11.5px;color:${MUT};"><span>Total contract value</span><span style="color:${NAVY};font-weight:600;">AED ${n(value)}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:9px 16px;font-size:11.5px;color:${MUT};border-top:1px solid ${LINE};"><span>Total paid</span><span style="color:${GREEN};font-weight:600;">− AED ${n(clientReceived)}</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:${NAVY};color:#fff;"><span style="font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;font-weight:600;opacity:.9;">${credit > 0 ? 'Paid extra' : 'Left to pay'}</span><span style="font-family:${serif};font-size:18px;font-weight:700;color:${credit > 0 || clientOutstanding <= 0 ? '#4fd0f5' : '#ff8a80'};">AED ${n(credit > 0 ? credit : clientOutstanding)}</span></div>
+        ${credit > 0 ? `<div style="padding:8px 16px;font-size:9.5px;color:${MUT};border-top:1px solid ${LINE};">AED ${n(credit)} paid over the contract value — to be adjusted against future work or refunded.</div>` : ''}
       </div>
     </div>
     <div style="font-size:9px;color:${MUT};line-height:1.6;border-top:1px solid ${LINE};padding-top:10px;">This statement reflects amounts payable and payments received as recorded by ${esc(company?.name || 'the Company')} as of the date above. Please review and confirm; kindly report any discrepancy within 7 days.</div>
